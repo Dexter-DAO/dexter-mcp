@@ -55,6 +55,7 @@ import {
   buildSearchErrorResponse,
   checkEndpointPricing,
 } from '@dexterai/x402-core';
+import { composeSkill } from '@dexterai/x402-skills';
 import { SERVER_INSTRUCTIONS as SHARED_SERVER_INSTRUCTIONS } from '@dexterai/mcp-instructions';
 
 const PORT = parseInt(process.env.OPEN_MCP_PORT || '3931', 10);
@@ -129,7 +130,7 @@ const WALLET_META = widgetMeta(X402_WIDGET_URIS.wallet, 'Loading wallet…', 'Wa
 const PASSKEY_PROBE_META = widgetMeta(DIAGNOSTIC_WIDGET_URIS.passkeyProbe, 'Loading probe…', 'Probe ready', 'One-button WebAuthn iframe-sandbox capability test. Renders a button that calls navigator.credentials.create() and .get() against rp.id=dexter.cash and reports the outcome.');
 const PASSKEY_ONBOARD_META = widgetMeta(PASSKEY_WIDGET_URIS.onboard, 'Checking wallet…', 'Wallet status loaded', 'Dexter passkey-secured Solana wallet onboarding. Renders three states (not enrolled / provisioning / ready) with a CTA that opens dexter.cash/wallet/setup-passkey via ui/open-link; polls dexter-api while the user runs the ceremony at top-level.');
 
-const ALL_TOOLS = ['x402_search', 'x402_pay', 'x402_fetch', 'x402_check', 'x402_access', 'x402_wallet', 'card_status', 'card_issue', 'card_link_wallet', 'card_freeze', 'card_login_request_otp', 'card_login_complete', 'dexter_passkey_probe', 'dexter_passkey'];
+const ALL_TOOLS = ['x402_search', 'x402_pay', 'x402_fetch', 'x402_check', 'x402_access', 'x402_wallet', 'x402_compose_skill', 'card_status', 'card_issue', 'card_link_wallet', 'card_freeze', 'card_login_request_otp', 'card_login_complete', 'dexter_passkey_probe', 'dexter_passkey'];
 const OPEN_SESSION_HINT_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 // Set env vars required by registerAppsSdkResources before importing it
@@ -1206,6 +1207,37 @@ function createOpenMcpServer() {
       structuredContent: result,
       _meta: PASSKEY_PROBE_META,
     };
+  });
+
+  server.registerTool('x402_compose_skill', {
+    title: 'x402 Compose Skill',
+    description: 'Compose a Claude Code skill bundle from an x402gle host. Pass a single host slug (e.g. "blockrun.ai") and receive a complete Anthropic-spec plugin bundle (plugin.json, marketplace.json, SKILL.md, references/endpoints.md, assets/output-template.md, README, LICENSE) as inline files the user can save to disk and install via `/skill install`. The bundle content is rendered from the host\'s synthesized manifest on x402gle.com (positioning, capability clusters, workflows, provenance). Use this when the user wants to ADOPT a host as a reusable skill — not when they want to call it directly. For a single call, use x402_fetch instead. v0 supports single-host composition only; multi-host workflows arrive in v1.',
+    inputSchema: {
+      hosts: z.array(z.string()).min(1).max(1).describe('Exactly one host slug (e.g. "blockrun.ai"). v0 is single-host only.'),
+      skill_name: z.string().optional().describe('Optional display name. Defaults to a title derived from the host (e.g. "blockrun.ai" → "Blockrun").'),
+      publish: z.boolean().optional().describe('v0: ignored (always treated as false). Persistence and public publishing arrive in v1+.'),
+    },
+    annotations: { readOnlyHint: true },
+  }, async (args) => {
+    try {
+      const result = await composeSkill({
+        hosts: args.hosts,
+        skill_name: args.skill_name,
+        publish: args.publish,
+      });
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        structuredContent: result,
+      };
+    } catch (err) {
+      const message = err?.message || String(err);
+      const data = { error: 'compose_failed', message };
+      return {
+        content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
+        structuredContent: data,
+        isError: true,
+      };
+    }
   });
 
   // ─── dexter_passkey ───────────────────────────────────────────────────────
