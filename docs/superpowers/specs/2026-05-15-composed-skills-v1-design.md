@@ -119,19 +119,41 @@ All three paths are universal (no client-feature dependency beyond Claude Code d
 
 ### Data model
 
-```sql
--- 1. Add handle resolution to seller profiles
-ALTER TABLE x402_seller_profiles
-  ADD COLUMN IF NOT EXISTS handle TEXT;
+**Note on identity (correction 2026-05-15 mid-spec):** the first draft proposed adding a `handle` column to `x402_seller_profiles` (a Dexter-era wallet-keyed table). That was wrong. x402gle has no canonical "user profile" table today — `supabase_user_id` appears on ~20 feature-specific tables but no central one. Composed skills need to be owned by an addressable entity, and that entity is not always a human (an agent should be able to own and publish composed skills too). v1 introduces `x402gle_principals` as the first canonical identity table on x402gle, capturing humans, agents, and orgs uniformly. This is the foundation that future x402gle social/attribution surfaces will share.
 
-CREATE UNIQUE INDEX IF NOT EXISTS x402_seller_profiles_handle_unique
-  ON x402_seller_profiles (LOWER(handle))
-  WHERE handle IS NOT NULL;
+```sql
+-- 1. Principals (humans, agents, organizations) — the canonical x402gle identity table
+CREATE TABLE IF NOT EXISTS x402gle_principals (
+  handle                TEXT PRIMARY KEY,
+  kind                  TEXT NOT NULL CHECK (kind IN ('human', 'agent', 'organization')),
+  display_name          TEXT,
+  avatar_url            TEXT,
+  bio                   TEXT,
+
+  -- Identity bindings (at least one required, enforced at app layer)
+  supabase_user_id      UUID UNIQUE,
+  owner_handle          TEXT REFERENCES x402gle_principals(handle),  -- agents have a human/org owner
+  agent_provider        TEXT,                                          -- agent only: 'anthropic', 'openai', 'custom'
+  agent_wallet_address  TEXT,                                          -- agent only: autonomous spending wallet
+
+  is_verified           BOOLEAN DEFAULT FALSE,
+  verified_at           TIMESTAMPTZ,
+
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS x402gle_principals_handle_lower_unique
+  ON x402gle_principals (LOWER(handle));
+CREATE INDEX IF NOT EXISTS x402gle_principals_owner_idx
+  ON x402gle_principals (owner_handle) WHERE owner_handle IS NOT NULL;
+CREATE INDEX IF NOT EXISTS x402gle_principals_supabase_idx
+  ON x402gle_principals (supabase_user_id) WHERE supabase_user_id IS NOT NULL;
 
 -- 2. Composed skills table
 CREATE TABLE IF NOT EXISTS x402gle_skills (
   id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  owner_handle          TEXT NOT NULL,
+  owner_handle          TEXT NOT NULL REFERENCES x402gle_principals(handle) ON DELETE RESTRICT,
   slug                  TEXT NOT NULL,
   name                  TEXT NOT NULL,
   description           TEXT,
@@ -207,7 +229,7 @@ CREATE TRIGGER x402gle_skills_touch_updated_at_trg
   FOR EACH ROW EXECUTE FUNCTION x402gle_skills_touch_updated_at();
 ```
 
-After running the SQL by hand against the Supabase Postgres, run `prisma generate` (NOT `prisma db push` / `pull` / `migrate`) so the generated client picks up the new `handle` column on `x402_seller_profiles`. The composed-skills tables themselves are accessed via raw SQL through the existing pool — they don't need a Prisma model (same pattern as `x402_host_manifests`).
+After running the SQL by hand against the Supabase Postgres, run `prisma generate` (NOT `prisma db push` / `pull` / `migrate`) so the generated client picks up the new `x402gle_principals` model. The `x402gle_skills` and `x402gle_skill_hosts` tables are accessed via raw SQL through the existing pool — they don't need Prisma models (same pattern as `x402_host_manifests`). `x402gle_principals` may eventually warrant a Prisma model for the user-profile surfaces, but v1 access is raw SQL.
 
 ### Publishing flow
 
@@ -371,8 +393,8 @@ Both pages are server-rendered Next.js pages that query `api.dexter.cash/api/pub
 
 | # | Decision | Choice | Reasoning |
 |---|---|---|---|
-| 1 | Owner handle storage | New `handle` column on `x402_seller_profiles` | Existing table; no new table needed; reuses wallet-based auth. |
-| 2 | Handle uniqueness | Case-insensitive unique index | `BranchM` and `branchm` collide. Prevents impersonation. |
+| 1 | Identity table | New `x402gle_principals` table — handles humans, agents, and orgs uniformly | x402gle has no canonical user table today; this is the first. Designed for the agent-owned-skill case from day one so no migration is needed when agents start publishing. Composed skills FK against it. |
+| 2 | Handle uniqueness | Case-insensitive unique index (`LOWER(handle)`) | `BranchM` and `branchm` collide. Prevents impersonation. |
 | 3 | Monorepo location | `Dexter-DAO/composed-skills` (new public repo) | Public so anyone can `/plugin marketplace add Dexter-DAO/composed-skills` without auth. Subdirectory per skill. |
 | 4 | Bundle storage | Both Postgres (`bundle_files_json`) AND GitHub | Postgres = fast read for API; GitHub = the install backbone. Two writes; we eat the cost. |
 | 5 | Publishing auth | Wallet owner of one of the hosts in the bundle, OR x402gle admin | Same model as host manifests. No new auth flow. |
@@ -435,19 +457,13 @@ Composed skills as public x402gle objects with a GitHub-backed install path is s
 
 v1 reuses every line of that. The composer primitive doesn't change; only its consumers do.
 
-## Open questions to lock before plan-writing
+## Decisions locked before plan-writing (2026-05-15)
 
-1. **Repo creation timing.** Create `Dexter-DAO/composed-skills` empty (with just `marketplace.json` skeleton) BEFORE the v1 plan executes, or as the first step of execution? **Recommendation: before**, manually, so the plan can assume the repo exists.
-
-2. **Handle assignment for existing sellers.** When the `handle` column lands, existing seller profiles get `handle = NULL`. They need handles before they can publish. Options: (a) auto-generate from `display_name`, (b) leave NULL and require self-set via a future profile page, (c) admin assigns. **Recommendation: a + b** — auto-generate a best-guess from display_name; let sellers override later.
-
-3. **Bot account.** Need a GitHub bot account for the commit pipeline. Naming and PAT scopes need to be set up before execution. **Recommendation: `dexter-skill-bot` with `repo` scope on `Dexter-DAO/composed-skills` only.**
-
-4. **First handle for branchm.** When the handle migration runs and Branch is the first user, what's his handle? **Recommendation: `branchm`** (matches his X handle).
-
-5. **Schema-bump policy.** `manifest_version` is set to `1` for v1. When v2 changes the bundle shape, do old rows auto-rerender or stay frozen? **Recommendation: stay frozen, with a `regenerate_skill` MCP tool added in v2 for one-off rerenders.**
-
-If any of these decisions need pushback before plan-writing, surface them now.
+1. **Repo creation timing.** `Dexter-DAO/composed-skills` is created manually before plan execution starts, with just an empty marketplace.json skeleton. The plan assumes the repo exists.
+2. **Identity table shape.** `x402gle_principals` is the new canonical identity table, supporting `kind = 'human' | 'agent' | 'organization'` from day one. Composed skills FK against it via `owner_handle`. First principal seeded as part of v1 execution: Branch as `kind = 'human'`.
+3. **Bot account.** `dexter-skill-bot` GitHub account, repo scope limited to `Dexter-DAO/composed-skills`. PAT stored in `dexter-api` env as `COMPOSED_SKILLS_GITHUB_TOKEN`.
+4. **Branch's handle.** `branchm`. URLs become `x402gle.com/skills/branchm/<slug>`.
+5. **v2 bundle-shape upgrades.** Auto-rerender on next read. When a user fetches a composed skill whose `manifest_version` is below the current renderer version, x402gle silently regenerates and writes back the new `bundle_files_json`. User never knows there's a v2; the bundle just gets better. Zero user friction.
 
 ---
 
