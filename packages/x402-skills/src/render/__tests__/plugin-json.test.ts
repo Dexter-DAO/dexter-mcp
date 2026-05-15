@@ -15,4 +15,16 @@ describe('renderPluginJson', () => {
     expect(parsed.version).toBe('1.0.0');
     expect(parsed.description).toBe('A skill');
   });
+
+  it('points skills entries at the skill DIRECTORY, not the SKILL.md file', () => {
+    // Anthropic plugin spec: skills[] entries must reference the directory
+    // containing SKILL.md, not SKILL.md itself. Otherwise `claude plugin install`
+    // fails with "path is a file; expected a directory".
+    const out = renderPluginJson({ slug: 'blockrun-ai', name: 'Blockrun', description: 'A skill' });
+    const parsed = JSON.parse(out);
+    expect(parsed.skills).toEqual(['./skills/blockrun-ai']);
+    for (const entry of parsed.skills) {
+      expect(entry).not.toMatch(/SKILL\.md$/);
+    }
+  });
 });

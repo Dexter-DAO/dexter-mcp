@@ -14,7 +14,7 @@ export function renderPluginJson(input: RenderPluginJsonInput): string {
       name: 'x402gle',
       url: 'https://x402gle.com',
     },
-    skills: [`./skills/${input.slug}/SKILL.md`],
+    skills: [`./skills/${input.slug}`],
   };
   return JSON.stringify(payload, null, 2) + '\n';
 }
