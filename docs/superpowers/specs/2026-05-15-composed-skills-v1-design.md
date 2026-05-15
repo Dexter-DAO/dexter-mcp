@@ -252,7 +252,9 @@ After running the SQL by hand against the Supabase Postgres, run `prisma generat
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-The GitHub commit step uses a dedicated bot account and a personal access token in `dexter-api`'s env (`COMPOSED_SKILLS_GITHUB_TOKEN`). Push happens via direct Git over HTTPS using `@octokit/rest` for marketplace.json updates and a simple `git clone --depth 1 + add + commit + push` shell call for the bundle write.
+The GitHub commit step shells out to local `git` against a persistent clone of `Dexter-DAO/composed-skills` on the dexter-api host machine (`COMPOSED_SKILLS_REPO_CLONE_PATH`). The host already has push access via the operator's existing git credentials, so no PAT or bot account is needed. Commits are authored as the operator with a `Co-Authored-By: dexter-skill-bot` trailer in the message so attribution stays readable.
+
+**Why not a bot PAT?** I tried it. Fine-grained PATs are gated by an organization-level policy (`Restricted` is the default for new orgs), and that gate can only be flipped via the GitHub web UI — there is no REST API endpoint to enable fine-grained PATs at the org level. Even when the bot account has admin/push permissions on the repo, the PAT is silently downgraded to read-only until the org owner toggles the policy. Rather than depend on an org-wide policy change, the pipeline uses the host's existing git auth, which works immediately and has no additional surface area.
 
 ### Marketplace structure (the install backbone)
 
@@ -461,7 +463,7 @@ v1 reuses every line of that. The composer primitive doesn't change; only its co
 
 1. **Repo creation timing.** `Dexter-DAO/composed-skills` is created manually before plan execution starts, with just an empty marketplace.json skeleton. The plan assumes the repo exists.
 2. **Identity table shape.** `x402gle_principals` is the new canonical identity table, supporting `kind = 'human' | 'agent' | 'organization'` from day one. Composed skills FK against it via `owner_handle`. First principal seeded as part of v1 execution: Branch as `kind = 'human'`.
-3. **Bot account.** `dexter-skill-bot` GitHub account, repo scope limited to `Dexter-DAO/composed-skills`. PAT stored in `dexter-api` env as `COMPOSED_SKILLS_GITHUB_TOKEN`.
+3. **Publishing auth.** Local-git shellout from dexter-api host against a persistent clone at `COMPOSED_SKILLS_REPO_CLONE_PATH`. No PAT or bot account — uses operator's existing git credentials. Commits attributed via `Co-Authored-By: dexter-skill-bot` trailer.
 4. **Branch's handle.** `branchm`. URLs become `x402gle.com/skills/branchm/<slug>`.
 5. **v2 bundle-shape upgrades.** Auto-rerender on next read. When a user fetches a composed skill whose `manifest_version` is below the current renderer version, x402gle silently regenerates and writes back the new `bundle_files_json`. User never knows there's a v2; the bundle just gets better. Zero user friction.
 
