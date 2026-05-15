@@ -1,14 +1,16 @@
-import type { HostManifestEnvelope } from './types.js';
+import type { HostManifestEnvelope, HostSkillIndex } from './types.js';
 
-const DEFAULT_BASE_URL = 'https://x402gle.com';
+const DEFAULT_BASE_URL = 'https://api.dexter.cash';
+const DEFAULT_HUMAN_URL = 'https://x402gle.com';
 
 export interface FetchManifestOptions {
   baseUrl?: string;
+  humanUrl?: string;
   signal?: AbortSignal;
 }
 
 /**
- * Fetch the public host manifest envelope from x402gle.
+ * Fetch the public host manifest envelope from dexter-api.
  *
  * Throws when the HTTP call fails OR when the response has no cached
  * manifest yet (manifest === null). The bug fix on 2026-05-14 means the
@@ -20,6 +22,7 @@ export async function fetchHostManifest(
   options: FetchManifestOptions = {}
 ): Promise<HostManifestEnvelope> {
   const baseUrl = options.baseUrl ?? DEFAULT_BASE_URL;
+  const humanUrl = options.humanUrl ?? DEFAULT_HUMAN_URL;
   const url = `${baseUrl}/api/public/skills/${encodeURIComponent(host)}/manifest`;
 
   const response = await fetch(url, { method: 'GET', signal: options.signal });
@@ -34,8 +37,33 @@ export async function fetchHostManifest(
   if (!envelope.manifest) {
     throw new Error(
       `SKILL_NOT_COMPOSABLE: host "${host}" has no synthesized manifest. ` +
-        `Trigger synthesis at ${baseUrl}/servers/${encodeURIComponent(host)}`
+        `Trigger synthesis at ${humanUrl}/servers/${encodeURIComponent(host)}`
     );
   }
   return envelope;
+}
+
+/**
+ * Fetch the public skill index (L2) for a host from dexter-api.
+ *
+ * The skill index lists every individual paid skill on the host with
+ * per-skill resource_url, price, network, method, and verification metadata.
+ * Renderers use this to produce references/endpoints.md.
+ */
+export async function fetchHostSkills(
+  host: string,
+  options: FetchManifestOptions = {}
+): Promise<HostSkillIndex> {
+  const baseUrl = options.baseUrl ?? DEFAULT_BASE_URL;
+  const url = `${baseUrl}/api/public/skills/${encodeURIComponent(host)}`;
+
+  const response = await fetch(url, { method: 'GET', signal: options.signal });
+  if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    throw new Error(
+      `Failed to fetch skill index for "${host}": HTTP ${response.status}${body ? ` — ${body.slice(0, 200)}` : ''}`
+    );
+  }
+
+  return (await response.json()) as HostSkillIndex;
 }
