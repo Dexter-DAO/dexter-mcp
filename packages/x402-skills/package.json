@@ -1,0 +1,49 @@
+{
+  "name": "@dexterai/x402-skills",
+  "version": "1.0.0",
+  "description": "Compose Claude Code skill bundles from x402gle host manifests. Generates Anthropic-spec plugin bundles (plugin.json, marketplace.json, SKILL.md, references) from any host's synthesized manifest.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup && tsc --emitDeclarationOnly --outDir dist",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "tsup": "^8.5.1",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8",
+    "@types/js-yaml": "^4.0.9"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "x402",
+    "dexter",
+    "x402gle",
+    "claude-code",
+    "skills",
+    "mcp",
+    "opendexter"
+  ],
+  "author": "Dexter",
+  "license": "MIT"
+}
