@@ -68,7 +68,7 @@ const API_BASE_FALLBACK = (process.env.API_BASE_URL || 'http://127.0.0.1:3030').
 const DEXTER_API_ORIGIN = (process.env.DEXTER_API_ORIGIN || 'https://api.dexter.cash').replace(/\/+$/, '');
 const DEXTER_INTERNAL_TOKEN = process.env.DEXTER_INTERNAL_TOKEN || '';
 if (!DEXTER_INTERNAL_TOKEN) {
-  console.warn('[open-mcp] WARN: DEXTER_INTERNAL_TOKEN unset — x402_compose_skill publish path will fail. Non-publish path still works.');
+  console.warn('[open-mcp] WARN: DEXTER_INTERNAL_TOKEN unset — x402_compose_skill publish path and promote_skill will fail. Non-publish path still works.');
 }
 /**
  * Capability search endpoint — semantic vector search over the x402 corpus
@@ -139,7 +139,7 @@ const WALLET_META = widgetMeta(X402_WIDGET_URIS.wallet, 'Loading wallet…', 'Wa
 const PASSKEY_PROBE_META = widgetMeta(DIAGNOSTIC_WIDGET_URIS.passkeyProbe, 'Loading probe…', 'Probe ready', 'One-button WebAuthn iframe-sandbox capability test. Renders a button that calls navigator.credentials.create() and .get() against rp.id=dexter.cash and reports the outcome.');
 const PASSKEY_ONBOARD_META = widgetMeta(PASSKEY_WIDGET_URIS.onboard, 'Checking wallet…', 'Wallet status loaded', 'Dexter passkey-secured Solana wallet onboarding. Renders three states (not enrolled / provisioning / ready) with a CTA that opens dexter.cash/wallet/setup-passkey via ui/open-link; polls dexter-api while the user runs the ceremony at top-level.');
 
-const ALL_TOOLS = ['x402_search', 'x402_pay', 'x402_fetch', 'x402_check', 'x402_access', 'x402_wallet', 'x402_compose_skill', 'card_status', 'card_issue', 'card_link_wallet', 'card_freeze', 'card_login_request_otp', 'card_login_complete', 'dexter_passkey_probe', 'dexter_passkey'];
+const ALL_TOOLS = ['x402_search', 'x402_pay', 'x402_fetch', 'x402_check', 'x402_access', 'x402_wallet', 'x402_compose_skill', 'promote_skill', 'card_status', 'card_issue', 'card_link_wallet', 'card_freeze', 'card_login_request_otp', 'card_login_complete', 'dexter_passkey_probe', 'dexter_passkey'];
 const OPEN_SESSION_HINT_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 // Set env vars required by registerAppsSdkResources before importing it
@@ -948,6 +948,127 @@ const SKILLS_ROOT = (() => {
 // the dependency here, and both servers ship the new guidance together.
 const SERVER_INSTRUCTIONS = SHARED_SERVER_INSTRUCTIONS;
 
+/**
+ * Resolve the caller's principal from an MCP `extra` context.
+ *
+ * Used by composed-skill tools (x402_compose_skill publish path,
+ * promote_skill) — anything that mutates server-side state on behalf of a
+ * claimed handle. Two binding shapes are supported:
+ *
+ *   1. Supabase-bound session — forwards the user's JWT to /principals/me.
+ *   2. Passkey/anon session — looks up the mcp-binding to get a
+ *      user_handle, then queries /principals/me?user_handle=…
+ *
+ * Returns:
+ *   { identity, principal, sessionId } on success — `identity` is the
+ *   exact shape the internal endpoints expect.
+ *   { error: { code, extras } } on any failure — code is one of
+ *   `principal_lookup_failed`, `no_claimed_handle`, `auth_required_to_publish`.
+ *
+ * Caller renders the error via the standard structuredContent shape.
+ */
+async function resolvePrincipalForSession(extra) {
+  const sessionId = extra ? extractMcpSessionId(extra) : null;
+  const binding = sessionId ? getUserBinding(sessionId) : null;
+
+  if (binding?.userId && binding.supabaseAccessToken) {
+    const meRes = await fetch(`${DEXTER_API_ORIGIN}/api/principals/me`, {
+      headers: { Authorization: `Bearer ${binding.supabaseAccessToken}` },
+      signal: AbortSignal.timeout(3000),
+    });
+    if (!meRes.ok) {
+      return { error: { code: 'principal_lookup_failed', extras: { status: meRes.status } } };
+    }
+    const me = await meRes.json();
+    if (!me.claimed) {
+      return {
+        error: {
+          code: 'no_claimed_handle',
+          extras: {
+            hint: sessionId
+              ? `Claim a handle at dexter.cash/wallet/claim-handle?mcp=${sessionId}`
+              : 'Claim a handle at dexter.cash/wallet/claim-handle',
+            claim_url: sessionId
+              ? `https://dexter.cash/wallet/claim-handle?mcp=${sessionId}`
+              : 'https://dexter.cash/wallet/claim-handle',
+          },
+        },
+      };
+    }
+    return {
+      identity: { kind: 'supabase', supabase_user_id: binding.userId },
+      principal: me.principal,
+      sessionId,
+    };
+  }
+
+  if (sessionId) {
+    let userHandle = null;
+    try {
+      const bindRes = await fetch(
+        `${DEXTER_API_ORIGIN}/api/passkey-anon/mcp-binding/${encodeURIComponent(sessionId)}`,
+        { signal: AbortSignal.timeout(2000) },
+      );
+      if (bindRes.ok) {
+        const bindBody = await bindRes.json();
+        userHandle = bindBody?.user_handle || null;
+      }
+    } catch {
+      // network blip — fall through to auth_required_to_publish below
+    }
+
+    if (userHandle) {
+      const meRes = await fetch(
+        `${DEXTER_API_ORIGIN}/api/principals/me?user_handle=${encodeURIComponent(userHandle)}`,
+        { signal: AbortSignal.timeout(3000) },
+      );
+      if (!meRes.ok) {
+        return { error: { code: 'principal_lookup_failed', extras: { status: meRes.status } } };
+      }
+      const me = await meRes.json();
+      if (me.claimed) {
+        return {
+          identity: { kind: 'passkey', swig_address: me.principal.agent_wallet_address },
+          principal: me.principal,
+          sessionId,
+        };
+      }
+      return {
+        error: {
+          code: 'no_claimed_handle',
+          extras: {
+            hint: `Claim a handle at dexter.cash/wallet/claim-handle?mcp=${sessionId}`,
+            claim_url: `https://dexter.cash/wallet/claim-handle?mcp=${sessionId}`,
+          },
+        },
+      };
+    }
+  }
+
+  return {
+    error: {
+      code: 'auth_required_to_publish',
+      extras: {
+        hint: sessionId
+          ? `Set up a wallet at dexter.cash/wallet/setup-passkey?mcp=${sessionId} and then claim a handle.`
+          : 'MCP session id missing — cannot resolve user.',
+      },
+    },
+  };
+}
+
+/**
+ * Build the standard error response shape for composed-skill tools.
+ */
+function composedSkillsErrorResponse(code, extras = {}) {
+  const data = { error: code, ...extras };
+  return {
+    content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
+    structuredContent: data,
+    isError: true,
+  };
+}
+
 function createOpenMcpServer() {
   const server = new McpServer({
     name: 'Dexter x402 Gateway',
@@ -1229,21 +1350,7 @@ function createOpenMcpServer() {
     },
     annotations: { readOnlyHint: true },
   }, async (args, extra) => {
-    // Build a structured-content tool result for early-return error paths
-    // in the publish flow. The non-publish path falls through to the v0
-    // happy path and uses the standard composeSkill response shape.
-    const publishError = (code, fields = {}) => {
-      const data = { error: code, ...fields };
-      return {
-        content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
-        structuredContent: data,
-        isError: true,
-      };
-    };
-
     try {
-      const sessionId = extra ? extractMcpSessionId(extra) : null;
-
       // ── Non-publish path: byte-identical to v0. ─────────────────────
       if (!args.publish) {
         const result = await composeSkill({
@@ -1258,97 +1365,15 @@ function createOpenMcpServer() {
       }
 
       // ── Publish path: resolve identity → look up principal → persist ─
-      //
-      // Identity resolution makes ONE call to /api/principals/me, which
-      // returns the full principal row when the caller is claimed. We
-      // pick the lookup variant (Bearer JWT vs ?user_handle=...) from the
-      // session binding shape, then forward whichever credential is
-      // appropriate.
-
-      const binding = sessionId ? getUserBinding(sessionId) : null;
-
-      let identity = null;
-      let ownerHandle = null;
-      let userHandleB64ForError = null; // for passkey error response context
-
-      if (binding?.userId && binding.supabaseAccessToken) {
-        // Supabase-bound session: forward the user's JWT to /me.
-        const meRes = await fetch(`${DEXTER_API_ORIGIN}/api/principals/me`, {
-          headers: { Authorization: `Bearer ${binding.supabaseAccessToken}` },
-          signal: AbortSignal.timeout(3000),
-        });
-        if (!meRes.ok) {
-          return publishError('principal_lookup_failed', { status: meRes.status });
-        }
-        const me = await meRes.json();
-        if (!me.claimed) {
-          return publishError('no_claimed_handle', {
-            hint: sessionId
-              ? `Claim a handle at dexter.cash/wallet/claim-handle?mcp=${sessionId}`
-              : 'Claim a handle at dexter.cash/wallet/claim-handle',
-            claim_url: sessionId
-              ? `https://dexter.cash/wallet/claim-handle?mcp=${sessionId}`
-              : 'https://dexter.cash/wallet/claim-handle',
-          });
-        }
-        identity = { kind: 'supabase', supabase_user_id: binding.userId };
-        ownerHandle = me.principal.handle;
-      } else if (sessionId) {
-        // Try passkey/anon binding. Resolve user_handle from MCP session,
-        // then call /me?user_handle=... which returns either claimed:true
-        // (with the principal row) or claimed:false (with the swig_address
-        // hint for the claim CTA).
-        let userHandle = null;
-        try {
-          const bindRes = await fetch(
-            `${DEXTER_API_ORIGIN}/api/passkey-anon/mcp-binding/${encodeURIComponent(sessionId)}`,
-            { signal: AbortSignal.timeout(2000) },
-          );
-          if (bindRes.ok) {
-            const bindBody = await bindRes.json();
-            userHandle = bindBody?.user_handle || null;
-            userHandleB64ForError = userHandle;
-          }
-        } catch {
-          // network blip — fall through to auth_required_to_publish below
-        }
-
-        if (userHandle) {
-          const meRes = await fetch(
-            `${DEXTER_API_ORIGIN}/api/principals/me?user_handle=${encodeURIComponent(userHandle)}`,
-            { signal: AbortSignal.timeout(3000) },
-          );
-          if (!meRes.ok) {
-            return publishError('principal_lookup_failed', { status: meRes.status });
-          }
-          const me = await meRes.json();
-          if (me.claimed) {
-            identity = {
-              kind: 'passkey',
-              swig_address: me.principal.agent_wallet_address,
-            };
-            ownerHandle = me.principal.handle;
-          } else {
-            // Unclaimed passkey user — point them at the claim page so the
-            // popout can auto-bind via ?mcp=<sessionId>.
-            return publishError('no_claimed_handle', {
-              hint: `Claim a handle at dexter.cash/wallet/claim-handle?mcp=${sessionId}`,
-              claim_url: `https://dexter.cash/wallet/claim-handle?mcp=${sessionId}`,
-            });
-          }
-        }
+      const resolution = await resolvePrincipalForSession(extra);
+      if (resolution.error) {
+        return composedSkillsErrorResponse(resolution.error.code, resolution.error.extras);
       }
-
-      if (!identity || !ownerHandle) {
-        return publishError('auth_required_to_publish', {
-          hint: sessionId
-            ? `Set up a wallet at dexter.cash/wallet/setup-passkey?mcp=${sessionId} and then claim a handle.`
-            : 'MCP session id missing — cannot resolve user.',
-        });
-      }
+      const { identity, principal } = resolution;
+      const ownerHandle = principal.handle;
 
       if (!DEXTER_INTERNAL_TOKEN) {
-        return publishError('publish_misconfigured', {
+        return composedSkillsErrorResponse('publish_misconfigured', {
           hint: 'DEXTER_INTERNAL_TOKEN missing on the MCP server.',
         });
       }
@@ -1403,6 +1428,86 @@ function createOpenMcpServer() {
     } catch (err) {
       const message = err?.message || String(err);
       const data = { error: 'compose_failed', message };
+      return {
+        content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
+        structuredContent: data,
+        isError: true,
+      };
+    }
+  });
+
+  // ─── promote_skill ────────────────────────────────────────────────────────
+  //
+  // Change the visibility of a composed skill the caller owns.
+  //   public   — listed on x402gle.com/skills (the public marketplace)
+  //   unlisted — hidden from discovery, but installable via direct URL
+  //   archived — hidden from both discovery and direct install
+  //
+  // Ownership is enforced server-side: dexter-api resolves the principal
+  // from the bound MCP identity and updates only rows where
+  // owner_handle = principal.handle. The MCP schema deliberately omits
+  // owner_handle — a misbehaving client can't promote someone else's skill.
+  server.registerTool('promote_skill', {
+    title: 'Promote Composed Skill',
+    description: 'Change the visibility of a composed skill you own. "public" lists it on x402gle.com/skills (the public marketplace). "unlisted" hides it from discovery — anyone with the direct URL can still install. "archived" hides it from both discovery and direct install. Only the skill\'s owner can promote it. Requires a claimed handle.',
+    inputSchema: {
+      slug: z.string().describe('The skill slug (e.g. "blockrun-ai"). You must own this skill — promote_skill resolves your handle automatically from the session.'),
+      visibility: z.enum(['unlisted', 'public', 'archived']).describe('Target visibility. "public" lists on x402gle.com/skills; "unlisted" is URL-only; "archived" hides everywhere.'),
+    },
+    annotations: { readOnlyHint: false },
+  }, async (args, extra) => {
+    try {
+      const resolution = await resolvePrincipalForSession(extra);
+      if (resolution.error) {
+        return composedSkillsErrorResponse(resolution.error.code, resolution.error.extras);
+      }
+      const { identity } = resolution;
+
+      if (!DEXTER_INTERNAL_TOKEN) {
+        return composedSkillsErrorResponse('promote_misconfigured', {
+          hint: 'DEXTER_INTERNAL_TOKEN missing on the MCP server.',
+        });
+      }
+
+      const response = await fetch(
+        `${DEXTER_API_ORIGIN}/api/internal/composed-skills/promote`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Internal-Auth': DEXTER_INTERNAL_TOKEN,
+          },
+          body: JSON.stringify({
+            identity,
+            slug: args.slug,
+            visibility: args.visibility,
+          }),
+          signal: AbortSignal.timeout(10000),
+        },
+      );
+
+      if (!response.ok) {
+        const errBody = await response.json().catch(() => ({ error: 'unknown' }));
+        const data = {
+          error: errBody.error || 'promote_failed',
+          hint: errBody.hint,
+          status: response.status,
+        };
+        return {
+          content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
+          structuredContent: data,
+          isError: true,
+        };
+      }
+
+      const data = await response.json();
+      return {
+        content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
+        structuredContent: data,
+      };
+    } catch (err) {
+      const message = err?.message || String(err);
+      const data = { error: 'promote_failed', message };
       return {
         content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
         structuredContent: data,
