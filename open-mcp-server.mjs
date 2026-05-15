@@ -61,6 +61,15 @@ import { SERVER_INSTRUCTIONS as SHARED_SERVER_INSTRUCTIONS } from '@dexterai/mcp
 const PORT = parseInt(process.env.OPEN_MCP_PORT || '3931', 10);
 const DEXTER_API = (process.env.X402_API_URL || 'https://x402.dexter.cash').replace(/\/+$/, '');
 const API_BASE_FALLBACK = (process.env.API_BASE_URL || 'http://127.0.0.1:3030').replace(/\/+$/, '');
+// Composed-skills publish path (Phase E Task 10). DEXTER_API_ORIGIN points
+// at dexter-api (where the internal persist endpoint lives); the shared
+// secret authenticates this server as the trusted caller. The token must
+// match DEXTER_INTERNAL_TOKEN on dexter-api.
+const DEXTER_API_ORIGIN = (process.env.DEXTER_API_ORIGIN || 'https://api.dexter.cash').replace(/\/+$/, '');
+const DEXTER_INTERNAL_TOKEN = process.env.DEXTER_INTERNAL_TOKEN || '';
+if (!DEXTER_INTERNAL_TOKEN) {
+  console.warn('[open-mcp] WARN: DEXTER_INTERNAL_TOKEN unset — x402_compose_skill publish path will fail. Non-publish path still works.');
+}
 /**
  * Capability search endpoint — semantic vector search over the x402 corpus
  * with synonym expansion, similarity floor, strong/related tiering, and
@@ -1211,20 +1220,182 @@ function createOpenMcpServer() {
 
   server.registerTool('x402_compose_skill', {
     title: 'x402 Compose Skill',
-    description: 'Compose a Claude Code skill bundle from an x402gle host. Pass a single host slug (e.g. "blockrun.ai") and receive a complete Anthropic-spec plugin bundle (plugin.json, marketplace.json, SKILL.md, references/endpoints.md, assets/output-template.md, README, LICENSE) as inline files the user can save to disk and install via `/skill install`. The bundle content is rendered from the host\'s synthesized manifest on x402gle.com (positioning, capability clusters, workflows, provenance). Use this when the user wants to ADOPT a host as a reusable skill — not when they want to call it directly. For a single call, use x402_fetch instead. v0 supports single-host composition only; multi-host workflows arrive in v1.',
+    description: 'Compose a Claude Code skill bundle from an x402gle host. v1 modes: (default) returns the bundle inline for the user to install ad-hoc; (publish: true) persists the composition as a permanent installable skill at https://x402gle.com/skills/<your-handle>/<slug>, committed to the Dexter-DAO/composed-skills GitHub monorepo and listed in the aggregate x402gle marketplace. Publishing requires a claimed handle (one-time setup at dexter.cash/wallet/claim-handle). Use compose when the user wants to ADOPT a host as a reusable skill — not when they want to call it directly (use x402_fetch for that).',
     inputSchema: {
-      hosts: z.array(z.string()).min(1).max(1).describe('Exactly one host slug (e.g. "blockrun.ai"). v0 is single-host only.'),
+      hosts: z.array(z.string()).min(1).max(1).describe('Exactly one host slug (e.g. "blockrun.ai"). v1 supports single-host composition; multi-host arrives later.'),
       skill_name: z.string().optional().describe('Optional display name. Defaults to a title derived from the host (e.g. "blockrun.ai" → "Blockrun").'),
-      publish: z.boolean().optional().describe('v0: ignored (always treated as false). Persistence and public publishing arrive in v1+.'),
+      publish: z.boolean().optional().describe('When true, persists this composition to x402gle as a composed skill that anyone can install via the marketplace. Requires the user to have claimed a handle at dexter.cash/wallet/claim-handle. When false (default), the bundle is returned inline only — nothing is persisted or published.'),
+      visibility: z.enum(['unlisted', 'public']).optional().describe('When publish: true, controls discoverability. "public" lists the skill on x402gle.com/skills. "unlisted" hides it from public discovery but anyone with the URL can still install. Defaults to "unlisted".'),
     },
     annotations: { readOnlyHint: true },
-  }, async (args) => {
+  }, async (args, extra) => {
+    // Build a structured-content tool result for early-return error paths
+    // in the publish flow. The non-publish path falls through to the v0
+    // happy path and uses the standard composeSkill response shape.
+    const publishError = (code, fields = {}) => {
+      const data = { error: code, ...fields };
+      return {
+        content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
+        structuredContent: data,
+        isError: true,
+      };
+    };
+
     try {
+      const sessionId = extra ? extractMcpSessionId(extra) : null;
+
+      // ── Non-publish path: byte-identical to v0. ─────────────────────
+      if (!args.publish) {
+        const result = await composeSkill({
+          hosts: args.hosts,
+          skill_name: args.skill_name,
+          publish: false,
+        });
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+          structuredContent: result,
+        };
+      }
+
+      // ── Publish path: resolve identity → look up principal → persist ─
+      //
+      // Identity resolution makes ONE call to /api/principals/me, which
+      // returns the full principal row when the caller is claimed. We
+      // pick the lookup variant (Bearer JWT vs ?user_handle=...) from the
+      // session binding shape, then forward whichever credential is
+      // appropriate.
+
+      const binding = sessionId ? getUserBinding(sessionId) : null;
+
+      let identity = null;
+      let ownerHandle = null;
+      let userHandleB64ForError = null; // for passkey error response context
+
+      if (binding?.userId && binding.supabaseAccessToken) {
+        // Supabase-bound session: forward the user's JWT to /me.
+        const meRes = await fetch(`${DEXTER_API_ORIGIN}/api/principals/me`, {
+          headers: { Authorization: `Bearer ${binding.supabaseAccessToken}` },
+          signal: AbortSignal.timeout(3000),
+        });
+        if (!meRes.ok) {
+          return publishError('principal_lookup_failed', { status: meRes.status });
+        }
+        const me = await meRes.json();
+        if (!me.claimed) {
+          return publishError('no_claimed_handle', {
+            hint: sessionId
+              ? `Claim a handle at dexter.cash/wallet/claim-handle?mcp=${sessionId}`
+              : 'Claim a handle at dexter.cash/wallet/claim-handle',
+            claim_url: sessionId
+              ? `https://dexter.cash/wallet/claim-handle?mcp=${sessionId}`
+              : 'https://dexter.cash/wallet/claim-handle',
+          });
+        }
+        identity = { kind: 'supabase', supabase_user_id: binding.userId };
+        ownerHandle = me.principal.handle;
+      } else if (sessionId) {
+        // Try passkey/anon binding. Resolve user_handle from MCP session,
+        // then call /me?user_handle=... which returns either claimed:true
+        // (with the principal row) or claimed:false (with the swig_address
+        // hint for the claim CTA).
+        let userHandle = null;
+        try {
+          const bindRes = await fetch(
+            `${DEXTER_API_ORIGIN}/api/passkey-anon/mcp-binding/${encodeURIComponent(sessionId)}`,
+            { signal: AbortSignal.timeout(2000) },
+          );
+          if (bindRes.ok) {
+            const bindBody = await bindRes.json();
+            userHandle = bindBody?.user_handle || null;
+            userHandleB64ForError = userHandle;
+          }
+        } catch {
+          // network blip — fall through to auth_required_to_publish below
+        }
+
+        if (userHandle) {
+          const meRes = await fetch(
+            `${DEXTER_API_ORIGIN}/api/principals/me?user_handle=${encodeURIComponent(userHandle)}`,
+            { signal: AbortSignal.timeout(3000) },
+          );
+          if (!meRes.ok) {
+            return publishError('principal_lookup_failed', { status: meRes.status });
+          }
+          const me = await meRes.json();
+          if (me.claimed) {
+            identity = {
+              kind: 'passkey',
+              swig_address: me.principal.agent_wallet_address,
+            };
+            ownerHandle = me.principal.handle;
+          } else {
+            // Unclaimed passkey user — point them at the claim page so the
+            // popout can auto-bind via ?mcp=<sessionId>.
+            return publishError('no_claimed_handle', {
+              hint: `Claim a handle at dexter.cash/wallet/claim-handle?mcp=${sessionId}`,
+              claim_url: `https://dexter.cash/wallet/claim-handle?mcp=${sessionId}`,
+            });
+          }
+        }
+      }
+
+      if (!identity || !ownerHandle) {
+        return publishError('auth_required_to_publish', {
+          hint: sessionId
+            ? `Set up a wallet at dexter.cash/wallet/setup-passkey?mcp=${sessionId} and then claim a handle.`
+            : 'MCP session id missing — cannot resolve user.',
+        });
+      }
+
+      if (!DEXTER_INTERNAL_TOKEN) {
+        return publishError('publish_misconfigured', {
+          hint: 'DEXTER_INTERNAL_TOKEN missing on the MCP server.',
+        });
+      }
+
+      // Persister: thin pass-through to the internal endpoint. The
+      // dexter-api side does ownership + handle-match enforcement.
+      const persister = async (input) => {
+        const response = await fetch(
+          `${DEXTER_API_ORIGIN}/api/internal/composed-skills/persist`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Internal-Auth': DEXTER_INTERNAL_TOKEN,
+            },
+            body: JSON.stringify({ identity, payload: input }),
+            signal: AbortSignal.timeout(60000),
+          },
+        );
+        if (!response.ok) {
+          const errBody = await response.json().catch(() => ({ error: 'unknown' }));
+          const suffix = errBody?.hint ? ` — ${errBody.hint}` : '';
+          throw new Error(
+            `Persist failed (${response.status}): ${errBody.error || 'unknown'}${suffix}`,
+          );
+        }
+        const body = await response.json();
+        return {
+          skill_id: body.skill_id,
+          version_no: body.version_no,
+          preview_url: body.preview_url,
+        };
+      };
+
       const result = await composeSkill({
         hosts: args.hosts,
         skill_name: args.skill_name,
-        publish: args.publish,
+        publish: true,
+        owner_handle: ownerHandle,
+        composer_kind: 'user_authored',
+        composer_id: identity.kind === 'supabase'
+          ? identity.supabase_user_id
+          : identity.swig_address,
+        visibility: args.visibility ?? 'unlisted',
+        persister,
       });
+
       return {
         content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
         structuredContent: result,
