@@ -77,7 +77,7 @@ describe('composeSkill (v0: single host, stateless)', () => {
     expect(result.name).toBe('Polymarket Trader Analytics');
   });
 
-  it('throws when publish:true is provided without a persister (v1 contract)', async () => {
+  it('throws when publish:true is provided without a persister', async () => {
     mockFetch();
     await expect(
       composeSkill({ hosts: ['blockrun.ai'], publish: true })

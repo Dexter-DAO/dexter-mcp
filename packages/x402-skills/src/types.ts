@@ -101,7 +101,7 @@ export interface HostSkillIndex {
 export interface ComposeInput {
   hosts: string[];          // v0: exactly one
   skill_name?: string;      // optional override; otherwise derived from host
-  publish?: boolean;        // v1: when true, persister + owner_handle are required
+  publish?: boolean;        // when true, persister + owner_handle are required
   baseUrl?: string;         // optional override for tests; defaults to https://api.dexter.cash
   owner_handle?: string;
   composer_kind?: 'ai_authored' | 'user_authored' | 'merchant_authored';

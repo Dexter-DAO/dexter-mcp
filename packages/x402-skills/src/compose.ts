@@ -91,6 +91,14 @@ export async function composeSkill(input: ComposeInput): Promise<ComposeResult> 
     },
   ];
 
+  const costEstimate = totalCostEstimate(skillIndex);
+  const callCountEstimate = totalCallCount(envelope, skillIndex);
+  const baseInstructions =
+    `Save the files in this bundle to disk under any directory name, then from inside Claude Code run:\n\n` +
+    `  /skill install ./${slug}\n\n` +
+    `Or drop the bundle into ~/.claude/skills/ and restart Claude Code. ` +
+    `The skill calls paid endpoints on ${envelope.host}; estimated max cost per run is in cost_estimate.`;
+
   if (input.publish) {
     if (!input.persister) {
       throw new Error('publish: true requires a persister callback');
@@ -109,8 +117,8 @@ export async function composeSkill(input: ComposeInput): Promise<ComposeResult> 
       workflow_json: { hosts: input.hosts, skill_name: input.skill_name },
       bundle_md: skillMd,
       bundle_files: files,
-      cost_estimate: totalCostEstimate(skillIndex),
-      call_count_estimate: totalCallCount(envelope, skillIndex),
+      cost_estimate: costEstimate,
+      call_count_estimate: callCountEstimate,
       visibility: input.visibility ?? 'unlisted',
     });
     return {
@@ -118,14 +126,9 @@ export async function composeSkill(input: ComposeInput): Promise<ComposeResult> 
       name,
       files,
       hosts_included,
-      cost_estimate: totalCostEstimate(skillIndex),
-      call_count_estimate: totalCallCount(envelope, skillIndex),
-      installation_instructions:
-        `Save the files in this bundle to disk under any directory name, then from inside Claude Code run:\n\n` +
-        `  /skill install ./${slug}\n\n` +
-        `Or drop the bundle into ~/.claude/skills/ and restart Claude Code. ` +
-        `The skill calls paid endpoints on ${envelope.host}; estimated max cost per run is in cost_estimate.` +
-        `\n\nPublished at: ${persistResult.preview_url}`,
+      cost_estimate: costEstimate,
+      call_count_estimate: callCountEstimate,
+      installation_instructions: baseInstructions + `\n\nPublished at: ${persistResult.preview_url}`,
       skill_id: persistResult.skill_id,
       version_no: persistResult.version_no,
       preview_url: persistResult.preview_url,
@@ -137,12 +140,8 @@ export async function composeSkill(input: ComposeInput): Promise<ComposeResult> 
     name,
     files,
     hosts_included,
-    cost_estimate: totalCostEstimate(skillIndex),
-    call_count_estimate: totalCallCount(envelope, skillIndex),
-    installation_instructions:
-      `Save the files in this bundle to disk under any directory name, then from inside Claude Code run:\n\n` +
-      `  /skill install ./${slug}\n\n` +
-      `Or drop the bundle into ~/.claude/skills/ and restart Claude Code. ` +
-      `The skill calls paid endpoints on ${envelope.host}; estimated max cost per run is in cost_estimate.`,
+    cost_estimate: costEstimate,
+    call_count_estimate: callCountEstimate,
+    installation_instructions: baseInstructions,
   };
 }
