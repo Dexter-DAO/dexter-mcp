@@ -77,10 +77,11 @@ describe('composeSkill (v0: single host, stateless)', () => {
     expect(result.name).toBe('Polymarket Trader Analytics');
   });
 
-  it('ignores publish:true in v0 (no preview_url leaks through)', async () => {
+  it('throws when publish:true is provided without a persister (v1 contract)', async () => {
     mockFetch();
-    const result = await composeSkill({ hosts: ['blockrun.ai'], publish: true });
-    expect((result as any).preview_url).toBeUndefined();
+    await expect(
+      composeSkill({ hosts: ['blockrun.ai'], publish: true })
+    ).rejects.toThrow(/persister/i);
   });
 
   it('produces an installation_instructions string mentioning /skill install', async () => {

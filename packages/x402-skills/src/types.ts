@@ -101,8 +101,13 @@ export interface HostSkillIndex {
 export interface ComposeInput {
   hosts: string[];          // v0: exactly one
   skill_name?: string;      // optional override; otherwise derived from host
-  publish?: boolean;        // v0: ignored (always false)
+  publish?: boolean;        // v1: when true, persister + owner_handle are required
   baseUrl?: string;         // optional override for tests; defaults to https://api.dexter.cash
+  owner_handle?: string;
+  composer_kind?: 'ai_authored' | 'user_authored' | 'merchant_authored';
+  composer_id?: string;
+  visibility?: 'unlisted' | 'public';
+  persister?: Persister;
 }
 
 export interface BundleFile {
@@ -124,4 +129,31 @@ export interface ComposeResult {
   cost_estimate: { amount: string; asset: string; chain: string } | null;
   call_count_estimate: number;
   installation_instructions: string;
+  skill_id?: string;
+  version_no?: number;
+  preview_url?: string;
 }
+
+export interface PersistComposedSkillInput {
+  owner_handle: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  composer_kind: 'ai_authored' | 'user_authored' | 'merchant_authored';
+  composer_id: string | null;
+  hosts_included: ComposeHostInclusion[];
+  workflow_json: Record<string, unknown>;
+  bundle_md: string;
+  bundle_files: BundleFile[];
+  cost_estimate: ComposeResult['cost_estimate'];
+  call_count_estimate: number;
+  visibility: 'unlisted' | 'public';
+}
+
+export interface PersistResult {
+  skill_id: string;
+  version_no: number;
+  preview_url: string;
+}
+
+export type Persister = (input: PersistComposedSkillInput) => Promise<PersistResult>;

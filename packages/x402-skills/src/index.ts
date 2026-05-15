@@ -15,4 +15,7 @@ export type {
   HostManifestStatus,
   HostSkill,
   HostSkillIndex,
+  Persister,
+  PersistComposedSkillInput,
+  PersistResult,
 } from './types.js';

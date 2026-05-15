@@ -91,6 +91,47 @@ export async function composeSkill(input: ComposeInput): Promise<ComposeResult> 
     },
   ];
 
+  if (input.publish) {
+    if (!input.persister) {
+      throw new Error('publish: true requires a persister callback');
+    }
+    if (!input.owner_handle) {
+      throw new Error('publish: true requires owner_handle');
+    }
+    const persistResult = await input.persister({
+      owner_handle: input.owner_handle,
+      slug,
+      name,
+      description: envelope.manifest!.positioning ?? null,
+      composer_kind: input.composer_kind ?? 'ai_authored',
+      composer_id: input.composer_id ?? null,
+      hosts_included,
+      workflow_json: { hosts: input.hosts, skill_name: input.skill_name },
+      bundle_md: skillMd,
+      bundle_files: files,
+      cost_estimate: totalCostEstimate(skillIndex),
+      call_count_estimate: totalCallCount(envelope, skillIndex),
+      visibility: input.visibility ?? 'unlisted',
+    });
+    return {
+      slug,
+      name,
+      files,
+      hosts_included,
+      cost_estimate: totalCostEstimate(skillIndex),
+      call_count_estimate: totalCallCount(envelope, skillIndex),
+      installation_instructions:
+        `Save the files in this bundle to disk under any directory name, then from inside Claude Code run:\n\n` +
+        `  /skill install ./${slug}\n\n` +
+        `Or drop the bundle into ~/.claude/skills/ and restart Claude Code. ` +
+        `The skill calls paid endpoints on ${envelope.host}; estimated max cost per run is in cost_estimate.` +
+        `\n\nPublished at: ${persistResult.preview_url}`,
+      skill_id: persistResult.skill_id,
+      version_no: persistResult.version_no,
+      preview_url: persistResult.preview_url,
+    };
+  }
+
   return {
     slug,
     name,
