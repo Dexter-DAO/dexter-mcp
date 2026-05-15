@@ -1,6 +1,6 @@
 {
   "name": "@dexterai/x402-skills",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Compose Claude Code skill bundles from x402gle host manifests. Generates Anthropic-spec plugin bundles (plugin.json, marketplace.json, SKILL.md, references) from any host's synthesized manifest.",
   "type": "module",
   "main": "dist/index.js",
