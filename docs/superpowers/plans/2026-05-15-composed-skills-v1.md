@@ -15,17 +15,18 @@
 
 ---
 
-## Prerequisites (Branch performs before execution)
+## Prerequisites — DONE
 
-These two are out-of-band setup that must exist before Task 1:
+Both completed on 2026-05-15 before plan execution:
 
-1. **Create GitHub repo `Dexter-DAO/composed-skills`** (public, empty, no auto-README, MIT license).
-2. **Create GitHub bot `dexter-skill-bot`** with a fine-grained PAT scoped to:
-   - Repository: `Dexter-DAO/composed-skills` only
-   - Permissions: `contents: read and write`, `metadata: read`
-   - Hand the token to Claude; Claude writes it to `~/websites/dexter-api/.env` as `COMPOSED_SKILLS_GITHUB_TOKEN` and never commits it.
-
-The plan will fail-fast at Task 5 if the repo doesn't exist or the token isn't set.
+1. **`Dexter-DAO/composed-skills` repo created** (public, MIT, seeded with README + empty `marketplace.json`).
+2. **Publishing auth resolved.** Original plan called for a `dexter-skill-bot` PAT, but fine-grained PATs are gated by an org-level policy with no REST API toggle. Switched to local-git shellout from the dexter-api host using the operator's existing credentials. Verified end-to-end (clone → commit → push → verify) on 2026-05-15. Env vars set:
+   - `COMPOSED_SKILLS_REPO_URL=https://github.com/Dexter-DAO/composed-skills.git`
+   - `COMPOSED_SKILLS_REPO_CLONE_PATH=/home/branchmanager/composed-skills-publish`
+   - `COMPOSED_SKILLS_GITHUB_BRANCH=main`
+   - `COMPOSED_SKILLS_COMMIT_AUTHOR_NAME=Branch Manager`
+   - `COMPOSED_SKILLS_COMMIT_AUTHOR_EMAIL=branch@dexter.cash`
+   No PAT, no secrets in `.env`.
 
 ---
 
@@ -593,113 +594,97 @@ git commit -m "feat(x402-skills v1): add optional persister callback to composeS
 
 `dexter-api` will own the persistence + GitHub-push logic. The composeSkill primitive stays pure; dexter-api provides a `Persister` implementation that does both Postgres INSERT and a GitHub commit.
 
-### Task 5: Verify prerequisites and store the GitHub PAT
+### Task 5: Initialize the local publishing clone
 
 **Files:**
-- Modify: `~/websites/dexter-api/.env` (NOT committed)
-- Create: `~/websites/dexter-api/src/services/composedSkillsGithub.ts` (placeholder for Task 6)
+- None in repo. Creates a persistent clone at `$COMPOSED_SKILLS_REPO_CLONE_PATH`.
 
-- [ ] **Step 1: Verify the GitHub repo exists**
-
-```bash
-gh repo view Dexter-DAO/composed-skills --json name,visibility,description 2>&1
-```
-
-Expected: prints the repo metadata. If "Could not resolve" or 404, STOP and ask Branch to create the repo.
-
-- [ ] **Step 2: Verify the bot token works**
-
-Branch hands over `dexter-skill-bot` PAT. Append to `~/websites/dexter-api/.env`:
-```
-COMPOSED_SKILLS_GITHUB_TOKEN=<pat-from-branch>
-COMPOSED_SKILLS_GITHUB_REPO=Dexter-DAO/composed-skills
-COMPOSED_SKILLS_GITHUB_BRANCH=main
-COMPOSED_SKILLS_BOT_NAME=dexter-skill-bot
-COMPOSED_SKILLS_BOT_EMAIL=skill-bot@dexter.cash
-```
-
-Smoke-test the token:
-```bash
-curl -s -H "Authorization: Bearer $COMPOSED_SKILLS_GITHUB_TOKEN" https://api.github.com/repos/Dexter-DAO/composed-skills | python3 -c "import json,sys; r=json.load(sys.stdin); print('full_name:', r.get('full_name'), 'permissions:', r.get('permissions'))"
-```
-
-Expected: `full_name: Dexter-DAO/composed-skills`, `permissions: {'pull': True, 'push': True, ...}`.
-
-- [ ] **Step 3: Seed the empty marketplace.json on main**
-
-If the repo is completely empty, push a starter marketplace.json so subsequent commits don't trip on missing-base errors. Use the GitHub Contents API:
+- [ ] **Step 1: Verify env vars are set**
 
 ```bash
-curl -s -X PUT \
-  -H "Authorization: Bearer $COMPOSED_SKILLS_GITHUB_TOKEN" \
-  -H "Accept: application/vnd.github+json" \
-  https://api.github.com/repos/Dexter-DAO/composed-skills/contents/.claude-plugin/marketplace.json \
-  -d "$(python3 -c '
-import json, base64
-content = json.dumps({
-  "name": "x402gle",
-  "owner": {"name": "x402gle", "url": "https://x402gle.com"},
-  "description": "Composed Claude Code skills synthesized from x402 hosts.",
-  "plugins": []
-}, indent=2) + "\n"
-print(json.dumps({
-  "message": "chore: seed empty marketplace.json",
-  "content": base64.b64encode(content.encode()).decode(),
-  "committer": {"name": "dexter-skill-bot", "email": "skill-bot@dexter.cash"}
-}))
-')"
+grep "^COMPOSED_SKILLS" ~/websites/dexter-api/.env
 ```
 
-Expected: returns 201 Created with the new file SHA. If repo already has commits and this file exists, the call returns 422 — that's fine; skip.
+Expected: 5 vars (URL, CLONE_PATH, BRANCH, AUTHOR_NAME, AUTHOR_EMAIL). If missing, copy the block from the spec.
 
-- [ ] **Step 4: Verify**
+- [ ] **Step 2: Clone the repo to the publish path**
 
 ```bash
-gh api /repos/Dexter-DAO/composed-skills/contents/.claude-plugin/marketplace.json --jq .content | base64 -d | python3 -m json.tool
+source ~/websites/dexter-api/.env
+[ -d "$COMPOSED_SKILLS_REPO_CLONE_PATH" ] || git clone "$COMPOSED_SKILLS_REPO_URL" "$COMPOSED_SKILLS_REPO_CLONE_PATH"
+cd "$COMPOSED_SKILLS_REPO_CLONE_PATH"
+git remote -v
+git pull --ff-only origin "$COMPOSED_SKILLS_GITHUB_BRANCH"
+ls -la
 ```
 
-Expected: prints the JSON with `plugins: []`.
+Expected: clone has `README.md`, `LICENSE`, `.claude-plugin/marketplace.json`. The marketplace.json plugins array is `[]`.
 
-(No commit for this task — only env changes and remote state.)
+- [ ] **Step 3: Confirm push works from this clone**
 
-### Task 6: Implement the GitHub commit service
+```bash
+cd "$COMPOSED_SKILLS_REPO_CLONE_PATH"
+date -u +"task5 init probe %FT%TZ" > .probe-init
+git add .probe-init
+git -c user.name="$COMPOSED_SKILLS_COMMIT_AUTHOR_NAME" \
+    -c user.email="$COMPOSED_SKILLS_COMMIT_AUTHOR_EMAIL" \
+    commit -m "chore: probe init clone"
+git push origin "$COMPOSED_SKILLS_GITHUB_BRANCH"
+
+# cleanup
+git rm .probe-init
+git -c user.name="$COMPOSED_SKILLS_COMMIT_AUTHOR_NAME" \
+    -c user.email="$COMPOSED_SKILLS_COMMIT_AUTHOR_EMAIL" \
+    commit -m "chore: cleanup probe"
+git push origin "$COMPOSED_SKILLS_GITHUB_BRANCH"
+```
+
+Expected: both pushes succeed without errors. (No new task commit — this is just verification.)
+
+### Task 6: Implement the local-git commit service
 
 **Files:**
-- Create: `~/websites/dexter-api/src/services/composedSkillsGithub.ts`
-- Create: `~/websites/dexter-api/src/services/__tests__/composedSkillsGithub.test.ts`
+- Create: `~/websites/dexter-api/src/services/composedSkillsPublisher.ts`
+- Create: `~/websites/dexter-api/src/services/__tests__/composedSkillsPublisher.test.ts`
 
-- [ ] **Step 1: Write the test file FIRST (mocked Octokit)**
+The service shells out to local `git` against the persistent clone at `$COMPOSED_SKILLS_REPO_CLONE_PATH`. For each publish: `git pull` (sync latest), write bundle files into `plugins/<owner>-<slug>/`, rewrite `.claude-plugin/marketplace.json` with the updated `plugins[]`, `git add`, `git commit` (with author env, plus `Co-Authored-By: dexter-skill-bot` trailer), `git push`.
 
-Test outline (write the failing test):
+Concurrency: wrap the publish in a per-process mutex so two simultaneous publishes can't tangle the clone. The mutex is fine for v1 throughput; v2 can move to a queue if needed.
+
+- [ ] **Step 1: Write the test first (mock `child_process.execFile`)**
+
+Test outline:
 
 ```ts
-import { describe, it, expect, vi } from 'vitest';
-import { commitComposedSkillBundle, type ComposedSkillCommitInput } from '../composedSkillsGithub.js';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('@octokit/rest', () => {
-  const Octokit = vi.fn().mockImplementation(() => ({
-    rest: {
-      git: {
-        getRef: vi.fn().mockResolvedValue({ data: { object: { sha: 'base-sha-1234' } } }),
-        getCommit: vi.fn().mockResolvedValue({ data: { tree: { sha: 'base-tree' } } }),
-        createBlob: vi.fn().mockResolvedValue({ data: { sha: 'blob-sha' } }),
-        createTree: vi.fn().mockResolvedValue({ data: { sha: 'new-tree-sha' } }),
-        createCommit: vi.fn().mockResolvedValue({ data: { sha: 'new-commit-sha' } }),
-        updateRef: vi.fn().mockResolvedValue({}),
-      },
-      repos: {
-        getContent: vi.fn().mockResolvedValue({
-          data: { sha: 'mp-sha', content: Buffer.from(JSON.stringify({ name: 'x402gle', owner: { name: 'x402gle', url: 'https://x402gle.com' }, plugins: [] })).toString('base64') },
-        }),
-      },
-    },
-  }));
-  return { Octokit };
-});
+const execCalls: Array<{ cmd: string; args: string[] }> = [];
+vi.mock('node:child_process', () => ({
+  execFile: vi.fn((cmd, args, opts, cb) => {
+    execCalls.push({ cmd, args: args as string[] });
+    cb(null, { stdout: '', stderr: '' });
+  }),
+}));
+vi.mock('node:fs/promises', () => ({
+  default: {
+    mkdir: vi.fn().mockResolvedValue(undefined),
+    writeFile: vi.fn().mockResolvedValue(undefined),
+    readFile: vi.fn().mockResolvedValue(JSON.stringify({
+      name: 'x402gle',
+      owner: { name: 'x402gle', url: 'https://x402gle.com' },
+      plugins: []
+    })),
+    rm: vi.fn().mockResolvedValue(undefined),
+  },
+}));
 
-describe('commitComposedSkillBundle', () => {
-  it('writes all bundle files to plugins/<owner>-<slug>/ and updates marketplace.json', async () => {
-    const input: ComposedSkillCommitInput = {
+const { publishComposedSkillBundle } = await import('../composedSkillsPublisher.js');
+
+describe('publishComposedSkillBundle', () => {
+  beforeEach(() => { execCalls.length = 0; });
+
+  it('runs git pull → write files → git add → commit → push, in order', async () => {
+    const result = await publishComposedSkillBundle({
       owner_handle: 'branchm',
       slug: 'blockrun-ai',
       name: 'Blockrun',
@@ -711,152 +696,129 @@ describe('commitComposedSkillBundle', () => {
       ],
       category: 'prediction-markets',
       tags: ['polymarket'],
-    };
-    const result = await commitComposedSkillBundle(input);
-    expect(result.commit_sha).toBe('new-commit-sha');
+    });
+    const gitCmds = execCalls.filter(c => c.cmd === 'git').map(c => c.args[0]);
+    expect(gitCmds[0]).toBe('pull');
+    expect(gitCmds).toContain('add');
+    expect(gitCmds).toContain('commit');
+    expect(gitCmds.at(-1)).toBe('push');
     expect(result.subdir).toBe('plugins/branchm-blockrun-ai');
   });
 });
 ```
 
-Run: `cd ~/websites/dexter-api && npx vitest run src/services/__tests__/composedSkillsGithub.test.ts`
+Run: `cd ~/websites/dexter-api && npx vitest run src/services/__tests__/composedSkillsPublisher.test.ts`
 Expected: FAIL (module not found).
 
-- [ ] **Step 2: Implement `composedSkillsGithub.ts`**
-
-The service uses `@octokit/rest`'s Git Data API to write multiple files atomically in one commit. Sketch:
+- [ ] **Step 2: Implement `composedSkillsPublisher.ts`**
 
 ```ts
-import { Octokit } from '@octokit/rest';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 
-const token = process.env.COMPOSED_SKILLS_GITHUB_TOKEN!;
-const repo = process.env.COMPOSED_SKILLS_GITHUB_REPO ?? 'Dexter-DAO/composed-skills';
+const execFileAsync = promisify(execFile);
+
+const clonePath = process.env.COMPOSED_SKILLS_REPO_CLONE_PATH!;
 const branch = process.env.COMPOSED_SKILLS_GITHUB_BRANCH ?? 'main';
-const botName = process.env.COMPOSED_SKILLS_BOT_NAME ?? 'dexter-skill-bot';
-const botEmail = process.env.COMPOSED_SKILLS_BOT_EMAIL ?? 'skill-bot@dexter.cash';
-const [owner, repoName] = repo.split('/');
+const authorName = process.env.COMPOSED_SKILLS_COMMIT_AUTHOR_NAME ?? 'x402gle';
+const authorEmail = process.env.COMPOSED_SKILLS_COMMIT_AUTHOR_EMAIL ?? 'noreply@x402gle.com';
 
-const octokit = new Octokit({ auth: token });
-
-export interface ComposedSkillCommitInput {
+export interface PublishInput {
   owner_handle: string;
   slug: string;
   name: string;
   description: string;
-  files: Array<{ path: string; content: string }>; // bundle files relative to plugin root
+  files: Array<{ path: string; content: string }>;
   category?: string;
   tags?: string[];
 }
 
-export interface ComposedSkillCommitResult {
+export interface PublishResult {
   commit_sha: string;
   subdir: string;
 }
 
-export async function commitComposedSkillBundle(
-  input: ComposedSkillCommitInput
-): Promise<ComposedSkillCommitResult> {
-  const flatSlug = `${input.owner_handle}-${input.slug}`;
-  const subdir = `plugins/${flatSlug}`;
+let publishMutex: Promise<unknown> = Promise.resolve();
 
-  // 1. Get base ref + base tree
-  const { data: ref } = await octokit.rest.git.getRef({ owner, repo: repoName, ref: `heads/${branch}` });
-  const baseSha = ref.object.sha;
-  const { data: baseCommit } = await octokit.rest.git.getCommit({ owner, repo: repoName, commit_sha: baseSha });
-  const baseTreeSha = baseCommit.tree.sha;
+export async function publishComposedSkillBundle(input: PublishInput): Promise<PublishResult> {
+  // Serialize publishes — clone is a shared resource
+  const release = publishMutex;
+  let resolveNext!: () => void;
+  publishMutex = new Promise(r => { resolveNext = r; });
+  await release;
 
-  // 2. Create blobs for each bundle file (rewritten to live under plugins/<owner>-<slug>/)
-  const treeEntries: Array<{ path: string; mode: '100644'; type: 'blob'; sha: string }> = [];
-  for (const file of input.files) {
-    const fullPath = file.path.startsWith('plugins/')
-      ? file.path.replace(/^plugins\/[^\/]+/, subdir)  // strip the bundle's plugins/<slug>/ prefix and replace
-      : `${subdir}/${file.path}`;
-    const { data: blob } = await octokit.rest.git.createBlob({
-      owner,
-      repo: repoName,
-      content: Buffer.from(file.content, 'utf8').toString('base64'),
-      encoding: 'base64',
+  try {
+    const flatSlug = `${input.owner_handle}-${input.slug}`;
+    const subdir = `plugins/${flatSlug}`;
+    const absSubdir = path.join(clonePath, subdir);
+
+    // 1. Sync clone
+    await execFileAsync('git', ['pull', '--ff-only', 'origin', branch], { cwd: clonePath });
+
+    // 2. Wipe + write bundle files. Strip the bundle's plugins/<slug>/ prefix so files land in plugins/<owner>-<slug>/
+    await fs.rm(absSubdir, { recursive: true, force: true });
+    for (const file of input.files) {
+      const rewritten = file.path.startsWith('plugins/')
+        ? file.path.replace(/^plugins\/[^/]+/, subdir)
+        : `${subdir}/${file.path}`;
+      const abs = path.join(clonePath, rewritten);
+      await fs.mkdir(path.dirname(abs), { recursive: true });
+      await fs.writeFile(abs, file.content, 'utf8');
+    }
+
+    // 3. Update marketplace.json
+    const mpPath = path.join(clonePath, '.claude-plugin/marketplace.json');
+    const mp = JSON.parse(await fs.readFile(mpPath, 'utf8'));
+    mp.plugins = (mp.plugins ?? []).filter((p: any) => p.name !== flatSlug);
+    mp.plugins.push({
+      name: flatSlug,
+      source: `./plugins/${flatSlug}`,
+      description: input.description,
+      version: '1.0.0',
+      ...(input.category ? { category: input.category } : {}),
+      ...(input.tags ? { tags: input.tags } : {}),
     });
-    treeEntries.push({ path: fullPath, mode: '100644', type: 'blob', sha: blob.sha });
+    await fs.writeFile(mpPath, JSON.stringify(mp, null, 2) + '\n', 'utf8');
+
+    // 4. Commit
+    await execFileAsync('git', ['add', subdir, '.claude-plugin/marketplace.json'], { cwd: clonePath });
+    const msg = `feat: publish ${flatSlug} v1.0.0\n\nCo-Authored-By: dexter-skill-bot <skillsbot@dexter.cash>\n`;
+    await execFileAsync('git', [
+      '-c', `user.name=${authorName}`,
+      '-c', `user.email=${authorEmail}`,
+      'commit', '-m', msg,
+    ], { cwd: clonePath });
+    const { stdout: shaOut } = await execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: clonePath });
+    const commitSha = shaOut.trim();
+
+    // 5. Push
+    await execFileAsync('git', ['push', 'origin', branch], { cwd: clonePath });
+
+    return { commit_sha: commitSha, subdir };
+  } finally {
+    resolveNext();
   }
-
-  // 3. Read existing marketplace.json, mutate plugins[]
-  const { data: mpFile } = await octokit.rest.repos.getContent({
-    owner,
-    repo: repoName,
-    path: '.claude-plugin/marketplace.json',
-    ref: baseSha,
-  });
-  if (Array.isArray(mpFile)) throw new Error('marketplace.json is a directory??');
-  if (!('content' in mpFile)) throw new Error('marketplace.json has no content');
-  const mp = JSON.parse(Buffer.from(mpFile.content, 'base64').toString('utf8'));
-  mp.plugins = (mp.plugins ?? []).filter((p: any) => p.name !== flatSlug);
-  mp.plugins.push({
-    name: flatSlug,
-    source: `./plugins/${flatSlug}`,
-    description: input.description,
-    version: '1.0.0',
-    category: input.category,
-    tags: input.tags,
-  });
-  const newMpContent = JSON.stringify(mp, null, 2) + '\n';
-  const { data: mpBlob } = await octokit.rest.git.createBlob({
-    owner,
-    repo: repoName,
-    content: Buffer.from(newMpContent, 'utf8').toString('base64'),
-    encoding: 'base64',
-  });
-  treeEntries.push({
-    path: '.claude-plugin/marketplace.json',
-    mode: '100644',
-    type: 'blob',
-    sha: mpBlob.sha,
-  });
-
-  // 4. Create tree + commit + update ref
-  const { data: newTree } = await octokit.rest.git.createTree({
-    owner,
-    repo: repoName,
-    base_tree: baseTreeSha,
-    tree: treeEntries,
-  });
-  const { data: newCommit } = await octokit.rest.git.createCommit({
-    owner,
-    repo: repoName,
-    message: `feat: publish ${flatSlug} v1.0.0`,
-    tree: newTree.sha,
-    parents: [baseSha],
-    author: { name: botName, email: botEmail },
-    committer: { name: botName, email: botEmail },
-  });
-  await octokit.rest.git.updateRef({
-    owner,
-    repo: repoName,
-    ref: `heads/${branch}`,
-    sha: newCommit.sha,
-  });
-
-  return { commit_sha: newCommit.sha, subdir };
 }
 ```
 
-Add `@octokit/rest` dep if missing: `npm install --save @octokit/rest` in `~/websites/dexter-api/`.
+No new npm deps. Just stdlib.
 
-- [ ] **Step 3: Run tests to confirm pass**
+- [ ] **Step 3: Run tests**
 
 ```bash
-cd ~/websites/dexter-api
-npx vitest run src/services/__tests__/composedSkillsGithub.test.ts
+cd ~/websites/dexter-api && npx vitest run src/services/__tests__/composedSkillsPublisher.test.ts
 ```
 
-Expected: 1 test passes.
+Expected: passes.
 
 - [ ] **Step 4: Commit**
 
 ```bash
 cd ~/websites/dexter-api
-git add src/services/composedSkillsGithub.ts src/services/__tests__/composedSkillsGithub.test.ts package.json package-lock.json
-git commit -m "feat(composed-skills v1): GitHub commit pipeline via Octokit"
+git add src/services/composedSkillsPublisher.ts src/services/__tests__/composedSkillsPublisher.test.ts
+git commit -m "feat(composed-skills v1): local-git publishing pipeline (no PAT)"
 ```
 
 ### Task 7: Implement the Postgres persister
@@ -873,8 +835,8 @@ The persister INSERTs into `x402gle_skills` and `x402gle_skill_hosts`, then awai
 import { describe, it, expect, vi } from 'vitest';
 import type { PersistComposedSkillInput } from '@dexterai/x402-skills';
 
-vi.mock('../composedSkillsGithub.js', () => ({
-  commitComposedSkillBundle: vi.fn().mockResolvedValue({
+vi.mock('../composedSkillsPublisher.js', () => ({
+  publishComposedSkillBundle: vi.fn().mockResolvedValue({
     commit_sha: 'gh-sha-789',
     subdir: 'plugins/branchm-blockrun-ai',
   }),
@@ -932,7 +894,7 @@ Run: expect FAIL.
 ```ts
 import { pool } from '../db/pool.js';
 import type { Persister, PersistComposedSkillInput, PersistResult } from '@dexterai/x402-skills';
-import { commitComposedSkillBundle } from './composedSkillsGithub.js';
+import { publishComposedSkillBundle } from './composedSkillsPublisher.js';
 
 export const persistComposedSkill: Persister = async (
   input: PersistComposedSkillInput
@@ -980,7 +942,7 @@ export const persistComposedSkill: Persister = async (
 
   // Phase 3: GitHub commit
   try {
-    const ghResult = await commitComposedSkillBundle({
+    const ghResult = await publishComposedSkillBundle({
       owner_handle: input.owner_handle,
       slug: input.slug,
       name: input.name,
