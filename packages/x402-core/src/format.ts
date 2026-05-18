@@ -106,9 +106,11 @@ export function formatResource(r: RawCapabilityResult): FormattedResource {
     iconUrl: r.icon ?? null,
     host: r.host ?? null,
 
-    // Gaming
-    gamingFlags: r.gaming.flags,
-    gamingSuspicious: r.gaming.suspicious,
+    // Gaming — `gaming` may be absent on a raw row (e.g. a result that
+    // predates gaming analysis); guard it like every other optional field
+    // in this mapper rather than throwing on `.flags` of undefined.
+    gamingFlags: r.gaming?.flags ?? [],
+    gamingSuspicious: r.gaming?.suspicious ?? false,
 
     // Ranking
     tier: r.tier,

@@ -69,7 +69,9 @@ export interface RawCapabilityResult {
   pricing: RawPricing;
   verification: RawVerification;
   usage: RawUsage;
-  gaming: RawGaming;
+  /** Gaming-analysis signals. Optional — absent on rows that predate or
+   *  skipped gaming analysis; consumers must guard access. */
+  gaming?: RawGaming;
   score: number;
   similarity: number;
   why: string;
