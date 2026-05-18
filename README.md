@@ -33,17 +33,18 @@ OpenDexter is the public, no-auth MCP server for searching and paying x402 APIs.
 
 **How sessions work:** When a user connects, `x402_wallet` creates a session with two addresses — one Solana, one EVM (shared across Base, Polygon, Arbitrum, Optimism, Avalanche). The user sends USDC to either or both. When `x402_fetch` is called, the system checks all chain balances and picks the best-funded chain that the endpoint accepts. Sessions persist for 30 days in PostgreSQL.
 
-**How the npm package differs:** `@dexterai/x402-discovery` runs as a local stdio MCP server. Instead of ephemeral session wallets, it uses a local signer at `~/.dexterai-mcp/wallet.json`. The user funds their own wallet once and it persists indefinitely. It ships the same canonical five-tool story (`x402_search`, `x402_check`, `x402_fetch`, `x402_wallet`, `x402_pay`), but the local signing path is currently optimized around the persistent Solana wallet.
+**How the npm package differs:** `@dexterai/opendexter` runs as a local stdio MCP server. Instead of ephemeral session wallets, it uses a local signer at `~/.dexterai-mcp/wallet.json`. The user funds their own wallet once and it persists indefinitely. It ships the buyer tools (`x402_search`, `x402_check`, `x402_fetch`, `x402_pay`, `x402_access`, `x402_wallet`) and a seller-side CLI command — `opendexter audition <url>` gets an x402 API into the catalog (a real paid test on every route, a quality score, a synthesized agent-callable Skill). `@dexterai/x402-discovery` is a published descriptive alias of the same package.
 
-OpenDexter remains the product brand. `@dexterai/x402-discovery` is the descriptive install name for developers.
+OpenDexter remains the product brand. `@dexterai/opendexter` is the canonical install name; `@dexterai/x402-discovery` is the descriptive alias for developers who search by capability.
 
-| | OpenDexter MCP | @dexterai/x402-discovery npm |
+| | OpenDexter MCP | @dexterai/opendexter npm |
 |---|---|---|
 | Transport | HTTPS (SSE) | stdio |
 | Wallet | Ephemeral session (Solana + EVM) | Local signer file |
 | Funding | User sends USDC to session addresses | User funds local wallet |
 | Session lifetime | 30 days | Indefinite |
 | Multi-chain | Yes (6 chains, auto-select) | Solana (local key) |
+| Seller onboarding | — | `opendexter audition <url>` |
 | Best for | ChatGPT, Claude, web agents | Cursor, Codex, CLI agents |
 
 Source: `open-mcp-server.mjs` (hosted server). npm package source is in [opendexter-ide/packages/mcp](https://github.com/Dexter-DAO/opendexter-ide/tree/main/packages/mcp).
