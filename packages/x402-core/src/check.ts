@@ -57,10 +57,62 @@ export interface CheckResult {
 }
 
 /**
+ * Parse an x402 v2 `PAYMENT-REQUIRED` header into a challenge object.
+ *
+ * v2 carries the challenge as a base64(url)-encoded JSON object (or, in
+ * some implementations, a bare JSON array of accepts). This tries the
+ * raw string and a base64url-decoded form, and accepts either an array
+ * or a `{ accepts, x402Version, ... }` object.
+ *
+ * Returns `{}` when the header is absent or unparseable.
+ */
+export function parsePaymentRequiredHeader(rawHeader: string | null): {
+  accepts?: unknown[];
+  x402Version?: number;
+  resource?: unknown;
+  extensions?: unknown;
+} {
+  if (!rawHeader) return {};
+
+  const candidates = [rawHeader];
+  try {
+    const padded = rawHeader.replace(/-/g, '+').replace(/_/g, '/');
+    const normalized = padded + '='.repeat((4 - (padded.length % 4 || 4)) % 4);
+    candidates.push(Buffer.from(normalized, 'base64').toString('utf8'));
+  } catch {
+    /* ignore decode errors — raw parse may still work */
+  }
+
+  for (const candidate of candidates) {
+    try {
+      const parsed = JSON.parse(candidate) as unknown;
+      if (Array.isArray(parsed)) {
+        return { accepts: parsed, x402Version: 2 };
+      }
+      if (parsed && typeof parsed === 'object') {
+        const o = parsed as Record<string, unknown>;
+        return {
+          accepts: Array.isArray(o.accepts) ? o.accepts : undefined,
+          x402Version: Number(o.x402Version ?? 2),
+          resource: o.resource,
+          extensions: o.extensions,
+        };
+      }
+    } catch {
+      /* try next candidate */
+    }
+  }
+
+  return {};
+}
+
+/**
  * Probe an endpoint for x402 payment requirements without paying.
  *
  * Handles:
- *   - 402 with accepts[] → paid; parses accepts array, computes per-chain pricing, extracts schemas
+ *   - 402 with accepts[] in the body (v1) OR the `PAYMENT-REQUIRED`
+ *     header (v2) → paid; parses accepts, computes per-chain pricing,
+ *     extracts schemas
  *   - 402 with empty accepts + `sign-in-with-x` extension → siwx (wallet-gated identity, no payment)
  *   - 401/403 → apiKey (provider-level auth, x402 not reached yet)
  *   - 5xx → server error
@@ -104,6 +156,27 @@ export async function checkEndpointPricing(
   try {
     body = await res.json();
   } catch { /* non-JSON 402 body */ }
+
+  // x402 v2 moved the challenge OUT of the body and into a base64-encoded
+  // `PAYMENT-REQUIRED` header (v1 kept it in the body). A spec-correct v2
+  // server returns an empty/error body — so when the body has no usable
+  // `accepts[]`, decode the header and use that as the challenge source.
+  // Everything downstream keys off `body`, so once it's populated the
+  // rest of the function is version-agnostic.
+  if (!Array.isArray(body?.accepts) || body.accepts.length === 0) {
+    const headerChallenge = parsePaymentRequiredHeader(
+      res.headers.get('payment-required'),
+    );
+    if (Array.isArray(headerChallenge?.accepts) && headerChallenge.accepts.length > 0) {
+      body = {
+        x402Version: headerChallenge.x402Version ?? 2,
+        accepts: headerChallenge.accepts,
+        resource: headerChallenge.resource ?? body?.resource ?? null,
+        extensions: headerChallenge.extensions ?? body?.extensions,
+        error: body?.error,
+      };
+    }
+  }
 
   const accepts = body?.accepts;
   const extensions = body?.extensions;

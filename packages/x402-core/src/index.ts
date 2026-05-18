@@ -57,5 +57,5 @@ export {
 } from './response.js';
 
 // Endpoint pricing probe
-export { checkEndpointPricing } from './check.js';
+export { checkEndpointPricing, parsePaymentRequiredHeader } from './check.js';
 export type { CheckResult, PaymentOption } from './check.js';
