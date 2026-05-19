@@ -48,6 +48,9 @@ export function formatVolume(volumeUsdc: number | null | undefined): string | nu
  * Build the canonical chains array from a raw pricing object.
  * If the API already returned a chains array, pass it through.
  * Otherwise, synthesize a single-element array from the flat fields.
+ *
+ * `pricing` is guarded by the caller (formatResource) — a row missing the
+ * whole `pricing` object resolves to an empty stand-in, never undefined.
  */
 function buildChains(pricing: RawCapabilityResult['pricing']): RawPricingChain[] {
   if (Array.isArray(pricing.chains) && pricing.chains.length > 0) {
@@ -62,6 +65,27 @@ function buildChains(pricing: RawCapabilityResult['pricing']): RawPricingChain[]
   }];
 }
 
+// Empty stand-ins for the three sub-objects a raw row is *supposed* to always
+// carry (pricing / verification / usage). The backend should never omit them,
+// but a single malformed row must degrade to a low-quality result — never
+// crash the whole search. formatResource() falls back to these.
+const EMPTY_PRICING: RawCapabilityResult['pricing'] = {
+  usdc: null,
+  network: null,
+  asset: null,
+};
+const EMPTY_VERIFICATION: RawCapabilityResult['verification'] = {
+  status: 'unknown',
+  paid: false,
+  qualityScore: null,
+  lastVerifiedAt: null,
+};
+const EMPTY_USAGE: RawCapabilityResult['usage'] = {
+  totalSettlements: 0,
+  totalVolumeUsdc: 0,
+  lastSettlementAt: null,
+};
+
 /**
  * The ONE canonical resource formatter.
  *
@@ -70,7 +94,15 @@ function buildChains(pricing: RawCapabilityResult['pricing']): RawPricingChain[]
  * single source of truth — no more 4 divergent copies.
  */
 export function formatResource(r: RawCapabilityResult): FormattedResource {
-  const priceUsdc = r.pricing.usdc;
+  // Every sub-object is guarded. The backend is *supposed* to send pricing,
+  // verification, and usage on every row — but a single malformed row must
+  // not crash the entire search (one bad result used to throw
+  // "Cannot read properties of undefined" and take down the whole response).
+  // A missing sub-object degrades that one row; it never throws.
+  const pricing = r.pricing ?? EMPTY_PRICING;
+  const verification = r.verification ?? EMPTY_VERIFICATION;
+  const usage = r.usage ?? EMPTY_USAGE;
+  const priceUsdc = pricing.usdc;
 
   return {
     // Identity
@@ -82,25 +114,25 @@ export function formatResource(r: RawCapabilityResult): FormattedResource {
     // Pricing
     price: formatPrice(priceUsdc),
     priceUsdc,
-    priceAsset: r.pricing.asset ?? null,
-    network: r.pricing.network ?? null,
-    chains: buildChains(r.pricing),
+    priceAsset: pricing.asset ?? null,
+    network: pricing.network ?? null,
+    chains: buildChains(pricing),
 
     // Content
     description: r.description ?? '',
     category: r.category ?? 'uncategorized',
 
     // Verification
-    qualityScore: r.verification.qualityScore,
-    verified: r.verification.status === 'pass',
-    verificationStatus: r.verification.status,
-    lastVerifiedAt: r.verification.lastVerifiedAt ?? null,
+    qualityScore: verification.qualityScore,
+    verified: verification.status === 'pass',
+    verificationStatus: verification.status,
+    lastVerifiedAt: verification.lastVerifiedAt ?? null,
 
     // Usage
-    totalCalls: r.usage.totalSettlements,
-    totalVolumeUsdc: r.usage.totalVolumeUsdc,
-    totalVolume: formatVolume(r.usage.totalVolumeUsdc),
-    lastActive: r.usage.lastSettlementAt ?? null,
+    totalCalls: usage.totalSettlements,
+    totalVolumeUsdc: usage.totalVolumeUsdc,
+    totalVolume: formatVolume(usage.totalVolumeUsdc),
+    lastActive: usage.lastSettlementAt ?? null,
 
     // Identity / visual
     iconUrl: r.icon ?? null,

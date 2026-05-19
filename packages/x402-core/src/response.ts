@@ -82,6 +82,13 @@ export function buildSearchResponse(result: CapabilitySearchResult): SearchRespo
 
 /**
  * Build the error response shape for a failed search.
+ *
+ * A failed search is NOT an empty result. Earlier this returned
+ * `mode: 'empty'` with the raw error string crammed into `note` — which made
+ * a backend outage indistinguishable from "the marketplace has nothing for
+ * you", and leaked stack-trace text to the model/user. A failure now has its
+ * own `mode: 'error'`, a calm human-facing `note`, and the raw detail kept
+ * separately in `errorDetail` for logs/debugging.
  */
 export function buildSearchErrorResponse(error: string): SearchResponse {
   return {
@@ -96,8 +103,12 @@ export function buildSearchErrorResponse(error: string): SearchResponse {
     noMatchReason: null,
     rerank: { enabled: false, applied: false },
     intent: { capabilityText: '' },
-    searchMeta: { mode: 'empty', note: error },
-    tip: '',
+    searchMeta: {
+      mode: 'error',
+      note: 'Marketplace search is temporarily unavailable. Please try again in a moment.',
+    },
+    errorDetail: error,
+    tip: 'This is a temporary backend error, not an empty result — retry the same query shortly.',
     source: SOURCE,
   };
 }

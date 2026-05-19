@@ -75,29 +75,45 @@ export async function capabilitySearch(
     );
   }
 
-  const data = (await response.json()) as RawCapabilityResponse;
-  if (!data.ok) {
+  let data: RawCapabilityResponse;
+  try {
+    data = (await response.json()) as RawCapabilityResponse;
+  } catch (err) {
     throw new Error(
-      `Capability search error${data.stage ? ` at stage ${data.stage}` : ''}: ${data.error ?? 'unknown'}`,
+      `Capability search returned a non-JSON body: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+  if (!data || data.ok !== true) {
+    throw new Error(
+      `Capability search error${data?.stage ? ` at stage ${data.stage}` : ''}: ${data?.error ?? 'unknown'}`,
     );
   }
 
+  // The result arrays are *supposed* to be present on every ok response.
+  // Default missing/non-array fields to [] rather than calling .map on
+  // undefined — a shape drift in the backend must degrade gracefully, not
+  // crash the search. formatResource itself is crash-proof per-row.
+  const strong = Array.isArray(data.strongResults) ? data.strongResults : [];
+  const related = Array.isArray(data.relatedResults) ? data.relatedResults : [];
+  const rerankInfo = data.rerank ?? { enabled: false, applied: false };
+  const intentInfo = data.intent ?? { capabilityText: '' };
+
   return {
-    query: data.query,
-    strongResults: data.strongResults.map(formatResource),
-    relatedResults: data.relatedResults.map(formatResource),
-    strongCount: data.strongCount,
-    relatedCount: data.relatedCount,
-    topSimilarity: data.topSimilarity,
-    noMatchReason: data.noMatchReason,
+    query: data.query ?? query,
+    strongResults: strong.map(formatResource),
+    relatedResults: related.map(formatResource),
+    strongCount: typeof data.strongCount === 'number' ? data.strongCount : strong.length,
+    relatedCount: typeof data.relatedCount === 'number' ? data.relatedCount : related.length,
+    topSimilarity: data.topSimilarity ?? null,
+    noMatchReason: data.noMatchReason ?? null,
     rerank: {
-      enabled: data.rerank.enabled,
-      applied: data.rerank.applied,
-      reason: data.rerank.reason,
+      enabled: rerankInfo.enabled,
+      applied: rerankInfo.applied,
+      reason: rerankInfo.reason,
     },
     intent: {
-      capabilityText: data.intent.capabilityText,
-      expandedCapabilityText: data.intent.expandedCapabilityText,
+      capabilityText: intentInfo.capabilityText,
+      expandedCapabilityText: intentInfo.expandedCapabilityText,
     },
     durationMs: data.durationMs,
   };

@@ -235,7 +235,15 @@ export interface CapabilitySearchResult {
 
 // ─── MCP search response shape ───────────────────────────────────────────────
 
-export type SearchMode = 'direct' | 'related_only' | 'empty';
+/**
+ * Search outcome mode.
+ *   direct       — strong matches found
+ *   related_only — no strong matches, only adjacent ones
+ *   empty        — the search ran fine, the index genuinely has nothing
+ *   error        — the search FAILED (backend/network). Distinct from `empty`
+ *                  so a failure is never mistaken for "no results".
+ */
+export type SearchMode = 'direct' | 'related_only' | 'empty' | 'error';
 
 export interface SearchMeta {
   mode: SearchMode;
@@ -255,6 +263,10 @@ export interface SearchResponse {
   rerank: { enabled: boolean; applied: boolean };
   intent: { capabilityText: string; expandedCapabilityText?: string };
   searchMeta: SearchMeta;
+  /** Raw error detail — present only when success is false. Kept separate
+   *  from searchMeta.note so the user-facing note stays clean while logs
+   *  still get the underlying cause. */
+  errorDetail?: string;
   tip: string;
   source: string;
 }
