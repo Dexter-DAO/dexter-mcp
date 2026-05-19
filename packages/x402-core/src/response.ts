@@ -8,7 +8,6 @@
 
 import type {
   CapabilitySearchResult,
-  FormattedResource,
   SearchResponse,
   SearchMeta,
 } from './types.js';
@@ -51,15 +50,16 @@ function buildTip(result: CapabilitySearchResult): string {
  * all MCP surfaces (Open MCP, Auth MCP, OpenDexter npm).
  */
 export function buildSearchResponse(result: CapabilitySearchResult): SearchResponse {
-  const allResults: FormattedResource[] = [
-    ...result.strongResults,
-    ...result.relatedResults,
-  ];
+  // No `resources` concat field anymore — it was a duplicate of
+  // strongResults+relatedResults that nearly doubled the response size,
+  // pushing broad searches past MCP client max-result limits. Consumers
+  // read strongResults/relatedResults directly (count remains as a
+  // convenience for "how many total did I get").
+  const totalCount = result.strongResults.length + result.relatedResults.length;
 
   return {
     success: true,
-    count: allResults.length,
-    resources: allResults,
+    count: totalCount,
     strongResults: result.strongResults,
     relatedResults: result.relatedResults,
     strongCount: result.strongCount,
@@ -94,7 +94,6 @@ export function buildSearchErrorResponse(error: string): SearchResponse {
   return {
     success: false,
     count: 0,
-    resources: [],
     strongResults: [],
     relatedResults: [],
     strongCount: 0,

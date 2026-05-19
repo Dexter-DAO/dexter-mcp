@@ -252,8 +252,11 @@ export interface SearchMeta {
 
 export interface SearchResponse {
   success: boolean;
+  /** Total count: strongResults.length + relatedResults.length. The legacy
+   *  `resources` field (a flat concatenation of the two) was removed when
+   *  it was found to double the response size and push broad searches past
+   *  MCP client max-result limits. Consumers read the two tiers directly. */
   count: number;
-  resources: FormattedResource[];
   strongResults: FormattedResource[];
   relatedResults: FormattedResource[];
   strongCount: number;
