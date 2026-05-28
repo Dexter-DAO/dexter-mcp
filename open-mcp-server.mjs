@@ -42,7 +42,7 @@ import {
   createRemoteCardOperations,
   DextercardPairingRequiredError,
 } from '@dexterai/x402-mcp-tools';
-import { mintPairingRequest, pollPairingResult } from './lib/pairing-mint.mjs';
+import { mintPairingRequest, pollPairingResult, mintVaultPairingRequest, pollVaultPairingResult } from './lib/pairing-mint.mjs';
 
 // Per-request context carrying the MCP `extra` object into deep
 // callbacks (the shared registrars' adapter.getOperations() doesn't
@@ -1672,34 +1672,35 @@ function createOpenMcpServer() {
       }
     }
 
-    // ── BRANCH 2 — MCP-anon-paired session (new) ──────────
-    // Audience member who completed enrollment at /wallet/setup-passkey?mcp=<sessionId>.
-    // The setup-passkey page POSTed to /api/passkey-anon/bind-mcp-session,
-    // which made the GET below start returning their user_handle. Note:
-    // we use API_BASE_FALLBACK (default http://127.0.0.1:3030) — the file's
-    // top-level DEXTER_API constant points to the x402 facilitator, not
-    // dexter-api, so we cannot reuse it here.
+    // ── BRANCH 2 — DURABLE vault pairing (request_id bridge) ──────────────
+    // The primary, restart-proof path. Unlike Branch 2 (which relies on the
+    // unstable MCP session id matching across calls), this uses a persisted
+    // request_id. We mint one, hand the user a setup-passkey?request_id= link,
+    // and on later polls resolve the vault via /pair/result. The DB row is the
+    // durable truth; pendingVaultPairings is just a per-process re-mint guard.
     if (sessionId) {
       try {
-        const bindRes = await fetch(
-          `${API_BASE_FALLBACK}/api/passkey-anon/mcp-binding/${encodeURIComponent(sessionId)}`
-        );
-        if (bindRes.ok) {
-          const { user_handle } = await bindRes.json();
-          const statusRes = await fetch(
-            `${API_BASE_FALLBACK}/api/passkey-vault-anon/status?user_handle=${encodeURIComponent(user_handle)}`
-          );
-          if (statusRes.ok) {
-            const status = await statusRes.json();
-            // status shape: { hasVault: bool, vault: { vaultPda, swigAddress, ... } | null }
-            const hasVault = Boolean(status?.hasVault);
-            const vault = status?.vault || null;
+        let pendingVault = pendingVaultPairings.get(sessionId);
+        if (pendingVault && Date.now() - pendingVault.mintedAt > VAULT_PAIRING_MAX_AGE_MS) {
+          pendingVaultPairings.delete(sessionId);
+          pendingVault = null;
+        }
+
+        // Poll an existing pairing for completion.
+        if (pendingVault) {
+          let result = null;
+          try {
+            result = await pollVaultPairingResult(pendingVault.requestId);
+          } catch (err) {
+            console.warn(`[dexter_passkey] vault pair poll failed: ${err?.message || err}`);
+          }
+          if (result?.status === 'completed' && result.vault) {
             const data = {
-              vault_status: hasVault ? 'ready' : 'provisioning',
-              vault_address: vault?.vaultPda || null,
-              swig_address: vault?.swigAddress || null,
-              enroll_url: `https://dexter.cash/wallet/setup-passkey?mcp=${encodeURIComponent(sessionId)}`,
-              user_bound: true, // bound to anon vault, NOT supabase
+              vault_status: 'ready',
+              vault_address: result.vault.vaultPda || null,
+              swig_address: result.vault.swigAddress || null,
+              enroll_url: pendingVault.loginUrl,
+              user_bound: true,
               pairing_url: null,
               pairing_minted_at: null,
               pairing_ttl_seconds: null,
@@ -1712,19 +1713,66 @@ function createOpenMcpServer() {
               _meta: PASSKEY_ONBOARD_META,
             };
           }
-          // status fetch failed — fall through to not_enrolled
+          if (result?.status === 'completed' && !result.vault) {
+            // bound but vault row not readable yet — surface provisioning
+            const data = {
+              vault_status: 'provisioning',
+              vault_address: null,
+              swig_address: null,
+              enroll_url: pendingVault.loginUrl,
+              user_bound: true,
+              pairing_url: null, pairing_minted_at: null, pairing_ttl_seconds: null,
+              welcome_name: null, error: null,
+            };
+            return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }], structuredContent: data, _meta: PASSKEY_ONBOARD_META };
+          }
+          if (result?.status === 'expired') {
+            pendingVaultPairings.delete(sessionId);
+            pendingVault = null;
+          }
+          // 'pending' / 'not_found' → fall through to re-surface the link below
         }
-        // bind 404 (expected for not-yet-enrolled sessions) — fall through
-        // silently. This is the hot polling path; logging would spam.
+
+        // Mint a fresh durable pairing if none active.
+        if (!pendingVault) {
+          try {
+            const minted = await mintVaultPairingRequest(sessionId);
+            pendingVault = { requestId: minted.requestId, loginUrl: minted.loginUrl, mintedAt: Date.now() };
+            pendingVaultPairings.set(sessionId, pendingVault);
+            console.log(`[dexter_passkey] minted vault pairing: ${sessionId} → ${minted.requestId.slice(0, 14)}`);
+          } catch (err) {
+            console.warn(`[dexter_passkey] vault pair mint failed: ${err?.message || err}`);
+          }
+        }
+
+        if (pendingVault) {
+          const data = {
+            vault_status: 'not_enrolled',
+            vault_address: null,
+            swig_address: null,
+            enroll_url: pendingVault.loginUrl, // setup-passkey?request_id=...
+            user_bound: false,
+            pairing_url: pendingVault.loginUrl,
+            pairing_minted_at: pendingVault.mintedAt,
+            pairing_ttl_seconds: Math.floor(VAULT_PAIRING_MAX_AGE_MS / 1000),
+            welcome_name: null,
+            error: null,
+          };
+          return {
+            content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
+            structuredContent: data,
+            _meta: PASSKEY_ONBOARD_META,
+          };
+        }
       } catch (err) {
-        // network error — fall through to not_enrolled rather than blow up
-        console.warn(`[dexter_passkey] anon binding lookup failed: ${err?.message || err}`);
+        console.warn(`[dexter_passkey] vault pairing branch failed: ${err?.message || err}`);
+        // fall through to legacy not_enrolled below
       }
     }
 
-    // ── BRANCH 3 — Not enrolled (default) ─────────────────
-    // No legacy binding, no MCP-anon binding. Send them through the
-    // anonymous enrollment flow. NO OAuth pairing URL.
+    // ── BRANCH 3 — Not enrolled (default fallback) ────────
+    // Only reached if vault pairing mint failed AND no session id. Falls back
+    // to the legacy ?mcp= link.
     const enrollUrl = sessionId
       ? `https://dexter.cash/wallet/setup-passkey?mcp=${encodeURIComponent(sessionId)}`
       : 'https://dexter.cash/wallet/setup-passkey';
@@ -2227,6 +2275,11 @@ const userBindings = new Map(); // sessionId -> { userId, email, scope, exp }
 // every call. Cleared on session close / reaper / successful binding.
 const pendingPairings = new Map(); // sessionId -> { requestId, loginUrl, mintedAt }
 const PAIRING_MAX_AGE_MS = 10 * 60 * 1000; // 10 min — same as connector_oauth_requests TTL
+// Vault pairing: per-process cache of which durable request_id we minted for
+// a session. The DURABLE truth is the passkey_vault_pairings DB row; this map
+// is just so we don't re-mint on every poll within one process lifetime.
+const pendingVaultPairings = new Map(); // sessionId -> { requestId, loginUrl, mintedAt }
+const VAULT_PAIRING_MAX_AGE_MS = 15 * 60 * 1000; // matches PAIRING_TTL_SECONDS on the API
 
 const MCP_JWT_SECRET = (process.env.MCP_JWT_SECRET || '').trim();
 
