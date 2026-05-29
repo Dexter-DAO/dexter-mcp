@@ -457,7 +457,7 @@ async function x402Fetch({ url, method, body, multipart, sessionToken, sessionKe
   // keys, ever. Multipart/file-upload is not on the vault yet (see below).
   // Solana-only.
   const sessionIdForAnon = extra ? extractMcpSessionId(extra) : null;
-  if (sessionIdForAnon && !multipart) {
+  if (sessionIdForAnon) {
     try {
       const bindRes = await fetch(
         `${API_BASE_FALLBACK}/api/passkey-anon/mcp-binding/${encodeURIComponent(sessionIdForAnon)}`,
@@ -466,6 +466,76 @@ async function x402Fetch({ url, method, body, multipart, sessionToken, sessionKe
       if (bindRes.ok) {
         const { user_handle } = await bindRes.json();
         const anonStart = Date.now();
+
+        // Multipart branch — POST a multipart/form-data body to
+        // /v2/pay/anon/x402/fetch/multipart. The vault swig session role pays;
+        // the facilitator co-signs. No custody.
+        if (multipart && typeof multipart === 'object') {
+          const requestedMethod = (method || 'POST').toUpperCase();
+          if (requestedMethod !== 'POST' && requestedMethod !== 'PUT') {
+            return {
+              status: 400,
+              mode: 'vault_error',
+              error: 'method_not_supported_for_multipart',
+              message: 'Multipart x402 endpoints only accept POST or PUT.',
+              paySource: 'anon_vault',
+            };
+          }
+          let loadedFiles;
+          try {
+            loadedFiles = await readMultipartFiles(multipart.files || []);
+          } catch (err) {
+            return {
+              status: 400,
+              mode: 'vault_error',
+              error: 'multipart_files_invalid',
+              message: err?.message || 'Unable to read multipart files.',
+              paySource: 'anon_vault',
+            };
+          }
+          const fd = new FormData();
+          fd.append('user_handle', user_handle);
+          fd.append('url', url);
+          fd.append('method', requestedMethod);
+          fd.append('requestId', randomUUID());
+          const extraFields = (multipart.fields && typeof multipart.fields === 'object') ? multipart.fields : {};
+          for (const [k, v] of Object.entries(extraFields)) {
+            if (MCP_MULTIPART_CONTROL_KEYS.has(k)) continue; // never let body fields shadow control fields
+            fd.append(k, typeof v === 'string' ? v : JSON.stringify(v));
+          }
+          for (const f of loadedFiles) {
+            fd.append(f.fieldName, new Blob([new Uint8Array(f.data)], { type: f.mimeType }), f.filename);
+          }
+          const anonRes = await fetch(`${API_BASE_FALLBACK}/v2/pay/anon/x402/fetch/multipart`, {
+            method: 'POST',
+            body: fd,
+            signal: AbortSignal.timeout(120000), // multipart uploads + paid retry can be slow
+          });
+          const anonBody = await anonRes.json().catch(() => null);
+          const anonRoundtripMs = Date.now() - anonStart;
+          if (anonBody?.ok) {
+            return {
+              status: anonBody.status ?? 200,
+              mode: anonBody.paid ? 'vault_ready' : 'vault_no_payment_required',
+              data: anonBody.data,
+              payment: anonBody.payment?.settlement
+                ? { settled: true, details: buildPaymentDetails(anonBody.payment.settlement, anonRoundtripMs) }
+                : { settled: Boolean(anonBody.paid) },
+              vault: anonBody.vault,
+              paySource: 'anon_vault',
+            };
+          }
+          return {
+            status: anonRes.status || 500,
+            mode: 'vault_error',
+            error: anonBody?.error || 'anon_multipart_fetch_failed',
+            message: anonBody?.message,
+            requirements: anonBody?.requirements ?? null,
+            paySource: 'anon_vault',
+          };
+        }
+
+        // JSON branch — original /v2/pay/anon/x402/fetch.
         const anonRes = await fetch(`${API_BASE_FALLBACK}/v2/pay/anon/x402/fetch`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -523,27 +593,6 @@ async function x402Fetch({ url, method, body, multipart, sessionToken, sessionKe
         reason: 'binding_lookup_unavailable',
       });
     }
-  }
-
-  // Multipart (file-upload) payments are NOT YET supported on the non-custodial
-  // vault path. The only multipart pay route that exists is the custodial
-  // /v2/pay/open/x402/fetch/multipart (Dexter signs server-side) — and the
-  // remote MCP URL no longer custodies funds. Rather than fall back to a
-  // Dexter-held key, we tell the truth: file-upload x402 endpoints are coming
-  // to the vault. (Tracked: build /v2/pay/anon/x402/fetch/multipart.)
-  if (multipart && typeof multipart === 'object') {
-    const sessionIdForPair = extra ? extractMcpSessionId(extra) : null;
-    const pairing = await ensureVaultPairing(sessionIdForPair);
-    return {
-      ...buildVaultRequired({ pairing, url, method, body, reason: 'multipart_not_on_vault_yet' }),
-      mode: 'multipart_unsupported',
-      message:
-        'File-upload (multipart) payments are not available on your non-custodial Dexter wallet yet — ' +
-        'this is coming soon. For now, only standard (JSON) x402 endpoints can be paid from the vault.',
-      instructions:
-        'Multipart/file-upload payments are not yet supported non-custodially. Do not retry as multipart. ' +
-        'If a non-file endpoint can satisfy the request, use it; otherwise inform the user this is coming soon.',
-    };
   }
 
   const fetchOpts = { method: method || 'GET', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(15000) };
@@ -1008,7 +1057,15 @@ function createOpenMcpServer() {
       url: z.string().url().describe('The x402 resource URL to call'),
       method: z.enum(['GET', 'POST', 'PUT', 'DELETE']).default('GET').describe('HTTP method'),
       body: z.string().optional().describe('JSON request body for POST/PUT'),
-      multipart: z.object({}).optional().describe('Multipart mode (reserved — schema shape TBD).'),
+      multipart: z.object({
+        files: z.array(z.object({
+          fieldName: z.string().describe('Form field name expected by the x402 endpoint.'),
+          path: z.string().describe('Absolute filesystem path to the file to upload.'),
+          filename: z.string().optional().describe('Filename to send (defaults to basename of path).'),
+          contentType: z.string().optional().describe('MIME type (defaults to application/octet-stream).'),
+        })).describe('Files to upload as multipart parts.'),
+        fields: z.record(z.string()).optional().describe('Extra text fields to include in the multipart body.'),
+      }).optional().describe('Pass to upload files to a multipart x402 endpoint (image-gen, transcription, document processing). Vault-paid, Solana-only.'),
       sessionToken: z.string().optional().describe('Anonymous OpenDexter session token for canonical x402 settlement when no local key is configured.'),
       sessionKey: z.string().optional().describe('Optional stable session key for reusable OpenDexter sessions (for example, caller-hash on phone).'),
     },
