@@ -132,7 +132,7 @@ function PasskeyOnboard() {
     ] });
   }
   if (status === "ready") {
-    const vault = toolOutput.vault_address || "";
+    toolOutput.vault_address || "";
     const swig = toolOutput.swig_address || "";
     const welcome = toolOutput.welcome_name?.trim() || null;
     return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-passkey", children: [
@@ -140,38 +140,37 @@ function PasskeyOnboard() {
       /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-passkey__stage dx-passkey__stage--ready", children: [
         confettiArmed && /* @__PURE__ */ jsxRuntimeExports.jsx(ConfettiBurst, {}),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "dx-passkey__disc", children: /* @__PURE__ */ jsxRuntimeExports.jsx(CheckGlyph, {}) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { className: "dx-passkey__stage-heading", children: welcome ? `Welcome, ${welcome} — your wallet is live` : "Your Dexter wallet is live" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "dx-passkey__stage-supporting", children: "Passkey-secured, on Solana mainnet. One signature controls everything." }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-passkey__vault", children: [
-          vault && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-passkey__vault-row", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-passkey__vault-key", children: "Vault" }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-passkey__vault-val", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+        /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { className: "dx-passkey__stage-heading", children: welcome ? `Welcome, ${welcome} — your wallet's ready` : "Your wallet's ready" }),
+        swig && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-passkey__address", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-passkey__address-label", children: "Your wallet address" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-passkey__address-row", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: "dx-passkey__address-val", children: swig }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(CopyButton, { value: swig })
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-passkey__address-links", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
               "a",
               {
-                href: `https://solscan.io/account/${vault}`,
+                className: "dx-passkey__address-link",
+                href: "https://dexter.cash/wallet",
                 target: "_blank",
                 rel: "noreferrer",
-                children: abbreviateAddress(vault)
+                children: "Manage your wallet"
               }
-            ) })
-          ] }),
-          swig && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-passkey__vault-row", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-passkey__vault-key", children: "Swig" }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-passkey__vault-val", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+            ),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
               "a",
               {
+                className: "dx-passkey__address-link",
                 href: `https://solscan.io/account/${swig}`,
                 target: "_blank",
                 rel: "noreferrer",
-                children: abbreviateAddress(swig)
+                children: "View on Solscan"
               }
-            ) })
+            )
           ] })
         ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-passkey__next", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-passkey__next-eyebrow", children: "You're connected" }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "dx-passkey__next-copy", children: "Your wallet is live here. Ask me to research a token or pay for an API to use it." })
-        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "dx-passkey__next", children: /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "dx-passkey__next-copy", children: "Ask me to research a token or pay for an API." }) }),
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-passkey__status", children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-passkey__status-dot dx-passkey__status-dot--ready" }),
           /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "vault active" })
@@ -187,8 +186,8 @@ function PasskeyOnboard() {
           /* @__PURE__ */ jsxRuntimeExports.jsx(KeyGlyph, {}),
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "dx-passkey__spinner", "aria-hidden": true, children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-passkey__spinner-dot" }) })
         ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { className: "dx-passkey__stage-heading", children: "Finishing your wallet" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "dx-passkey__stage-supporting", children: "Passkey enrolled. Now provisioning the vault on Solana — this takes a few seconds." }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { className: "dx-passkey__stage-heading", children: "Setting up your wallet" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "dx-passkey__stage-supporting", children: "This takes a few seconds." }),
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "button",
           {
@@ -210,8 +209,8 @@ function PasskeyOnboard() {
         /* @__PURE__ */ jsxRuntimeExports.jsx(KeyGlyph, {}),
         /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-passkey__pulse", "aria-hidden": true })
       ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { className: "dx-passkey__stage-heading", children: awaiting ? "Finish in the other tab" : "Set up your Dexter wallet" }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "dx-passkey__stage-supporting", children: awaiting ? "You started setup. Complete the passkey step in the tab that opened — this updates the moment you finish." : "One passkey, one vault on Solana. No seed phrases, no extensions. Tap to start the ceremony at dexter.cash." }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { className: "dx-passkey__stage-heading", children: awaiting ? "Finish in the other tab" : "Set up your wallet" }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "dx-passkey__stage-supporting", children: awaiting ? "Complete the passkey step in the tab that opened. This updates when you’re done." : "Open dexter.cash to create it with your passkey." }),
       !awaiting && /* @__PURE__ */ jsxRuntimeExports.jsx("button", { type: "button", className: "dx-passkey__cta", onClick: onTapEnroll, children: "Set up wallet on dexter.cash" }),
       /* @__PURE__ */ jsxRuntimeExports.jsx(PollStatus, { polling: polling || awaiting, openedAt })
     ] })
@@ -222,6 +221,24 @@ function Header() {
     /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: WORDMARK_URL, alt: "Dexter", className: "dx-passkey__wordmark" }),
     /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "dx-passkey__eyebrow", children: "passkey wallet" })
   ] });
+}
+function CopyButton({ value }) {
+  const [copied, setCopied] = reactExports.useState(false);
+  const onCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch {
+      const ta = document.createElement("textarea");
+      ta.value = value;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2e3);
+  };
+  return /* @__PURE__ */ jsxRuntimeExports.jsx("button", { type: "button", className: "dx-passkey__copy", onClick: onCopy, "aria-label": "Copy wallet address", children: copied ? "Copied" : "Copy" });
 }
 function PollStatus({ polling, openedAt }) {
   const [, force] = reactExports.useState(0);
@@ -304,10 +321,6 @@ function ConfettiBurst() {
     },
     p.i
   )) });
-}
-function abbreviateAddress(addr) {
-  if (addr.length <= 12) return addr;
-  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 }
 function KeyGlyph() {
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("svg", { viewBox: "0 0 48 48", className: "dx-passkey__disc-glyph", fill: "none", stroke: "currentColor", strokeWidth: 2.4, strokeLinecap: "round", strokeLinejoin: "round", children: [

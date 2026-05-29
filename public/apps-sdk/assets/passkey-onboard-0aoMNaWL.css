@@ -212,7 +212,7 @@
 
 /* ───── Ready state — vault info ─────────────────────────────────────── */
 
-.dx-passkey__vault {
+.dx-passkey__address {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -220,20 +220,7 @@
   max-width: 480px;
 }
 
-.dx-passkey__vault-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 10px 14px;
-  border-radius: 12px;
-  background: var(--dx-bg-quiet);
-  border: 1px solid var(--dx-border-quiet);
-  font-family: var(--dx-font-mono);
-  font-size: 11px;
-}
-
-.dx-passkey__vault-key {
+.dx-passkey__address-label {
   color: var(--dx-fg-quiet);
   text-transform: uppercase;
   letter-spacing: 0.16em;
@@ -241,20 +228,58 @@
   font-weight: 700;
 }
 
-.dx-passkey__vault-val {
+.dx-passkey__address-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--dx-bg-quiet);
+  border: 1px solid var(--dx-border-quiet);
+}
+
+.dx-passkey__address-val {
   flex: 1;
-  text-align: right;
   color: var(--dx-fg);
   font-family: var(--dx-font-mono);
+  font-size: 11px;
   word-break: break-all;
+  line-height: 1.5;
 }
 
-.dx-passkey__vault-val a {
+.dx-passkey__copy {
+  flex: 0 0 auto;
+  cursor: pointer;
+  border: 1px solid var(--dx-border-quiet);
+  background: transparent;
+  color: var(--dx-fg-quiet);
+  font: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 4px 10px;
+  border-radius: 8px;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+
+.dx-passkey__copy:hover {
+  color: var(--dx-fg);
+  border-color: var(--dx-fg-quiet);
+}
+
+.dx-passkey__address-links {
+  display: flex;
+  gap: 16px;
+}
+
+.dx-passkey__address-link {
   color: var(--dx-accent);
   text-decoration: none;
+  font-size: 12px;
 }
 
-.dx-passkey__vault-val a:hover {
+.dx-passkey__address-link:hover {
   text-decoration: underline;
 }
 

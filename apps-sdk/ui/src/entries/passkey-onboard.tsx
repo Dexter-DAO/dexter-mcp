@@ -244,45 +244,38 @@ function PasskeyOnboard() {
             <CheckGlyph />
           </div>
           <h2 className="dx-passkey__stage-heading">
-            {welcome ? `Welcome, ${welcome} — your wallet is live` : 'Your Dexter wallet is live'}
+            {welcome ? `Welcome, ${welcome} — your wallet's ready` : "Your wallet's ready"}
           </h2>
-          <p className="dx-passkey__stage-supporting">
-            Passkey-secured, on Solana mainnet. One signature controls everything.
-          </p>
-          <div className="dx-passkey__vault">
-            {vault && (
-              <div className="dx-passkey__vault-row">
-                <span className="dx-passkey__vault-key">Vault</span>
-                <span className="dx-passkey__vault-val">
-                  <a
-                    href={`https://solscan.io/account/${vault}`}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    {abbreviateAddress(vault)}
-                  </a>
-                </span>
+          {swig && (
+            <div className="dx-passkey__address">
+              <span className="dx-passkey__address-label">Your wallet address</span>
+              <div className="dx-passkey__address-row">
+                <code className="dx-passkey__address-val">{swig}</code>
+                <CopyButton value={swig} />
               </div>
-            )}
-            {swig && (
-              <div className="dx-passkey__vault-row">
-                <span className="dx-passkey__vault-key">Swig</span>
-                <span className="dx-passkey__vault-val">
-                  <a
-                    href={`https://solscan.io/account/${swig}`}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    {abbreviateAddress(swig)}
-                  </a>
-                </span>
+              <div className="dx-passkey__address-links">
+                <a
+                  className="dx-passkey__address-link"
+                  href="https://dexter.cash/wallet"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Manage your wallet
+                </a>
+                <a
+                  className="dx-passkey__address-link"
+                  href={`https://solscan.io/account/${swig}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  View on Solscan
+                </a>
               </div>
-            )}
-          </div>
+            </div>
+          )}
           <div className="dx-passkey__next">
-            <span className="dx-passkey__next-eyebrow">You're connected</span>
             <p className="dx-passkey__next-copy">
-              Your wallet is live here. Ask me to research a token or pay for an API to use it.
+              Ask me to research a token or pay for an API.
             </p>
           </div>
           <div className="dx-passkey__status">
@@ -306,9 +299,9 @@ function PasskeyOnboard() {
               <span className="dx-passkey__spinner-dot" />
             </div>
           </div>
-          <h2 className="dx-passkey__stage-heading">Finishing your wallet</h2>
+          <h2 className="dx-passkey__stage-heading">Setting up your wallet</h2>
           <p className="dx-passkey__stage-supporting">
-            Passkey enrolled. Now provisioning the vault on Solana — this takes a few seconds.
+            This takes a few seconds.
           </p>
           <button
             type="button"
@@ -333,9 +326,9 @@ function PasskeyOnboard() {
           <KeyGlyph />
           <span className="dx-passkey__pulse" aria-hidden />
         </div>
-        <h2 className="dx-passkey__stage-heading">{awaiting ? 'Finish in the other tab' : 'Set up your Dexter wallet'}</h2>
+        <h2 className="dx-passkey__stage-heading">{awaiting ? 'Finish in the other tab' : 'Set up your wallet'}</h2>
         <p className="dx-passkey__stage-supporting">
-          {awaiting ? 'You started setup. Complete the passkey step in the tab that opened — this updates the moment you finish.' : 'One passkey, one vault on Solana. No seed phrases, no extensions. Tap to start the ceremony at dexter.cash.'}
+          {awaiting ? 'Complete the passkey step in the tab that opened. This updates when you’re done.' : 'Open dexter.cash to create it with your passkey.'}
         </p>
         {!awaiting && (
           <button type="button" className="dx-passkey__cta" onClick={onTapEnroll}>
@@ -358,6 +351,31 @@ function Header() {
       <img src={WORDMARK_URL} alt="Dexter" className="dx-passkey__wordmark" />
       <div className="dx-passkey__eyebrow">passkey wallet</div>
     </div>
+  );
+}
+
+// Copy-to-clipboard button for the wallet address. Self-contained; uses the
+// widget's own styling. Falls back to execCommand for older webviews.
+function CopyButton({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false);
+  const onCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = value;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  return (
+    <button type="button" className="dx-passkey__copy" onClick={onCopy} aria-label="Copy wallet address">
+      {copied ? 'Copied' : 'Copy'}
+    </button>
   );
 }
 
@@ -457,11 +475,6 @@ function ConfettiBurst() {
       ))}
     </div>
   );
-}
-
-function abbreviateAddress(addr: string): string {
-  if (addr.length <= 12) return addr;
-  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
