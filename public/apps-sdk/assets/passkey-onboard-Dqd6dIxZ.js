@@ -8,8 +8,10 @@ const WORDMARK_URL = "https://dexter.cash/wordmarks/dexter-wordmark.svg";
 const POLL_INTERVAL_MS = 1500;
 const ENROLL_URL = "https://dexter.cash/wallet/setup-passkey";
 function PasskeyOnboard() {
-  const toolOutput = useToolOutput();
+  const hostToolOutput = useToolOutput();
   const callTool = useCallToolFn();
+  const [polledOutput, setPolledOutput] = reactExports.useState(null);
+  const toolOutput = polledOutput ?? hostToolOutput;
   const [polling, setPolling] = reactExports.useState(false);
   const [openedAt, setOpenedAt] = reactExports.useState(null);
   const [confettiArmed, setConfettiArmed] = reactExports.useState(false);
@@ -41,7 +43,17 @@ function PasskeyOnboard() {
     const tick = async () => {
       if (cancelled || !pollingRef.current) return;
       try {
-        await callToolRef.current("dexter_passkey", {});
+        const res = await callToolRef.current("dexter_passkey", {});
+        const raw = res?.result;
+        if (raw && !cancelled) {
+          try {
+            const parsed = JSON.parse(raw);
+            if (parsed && typeof parsed.vault_status === "string") {
+              setPolledOutput(parsed);
+            }
+          } catch {
+          }
+        }
       } catch {
       }
     };
@@ -149,22 +161,20 @@ function PasskeyOnboard() {
           ] }),
           /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-passkey__address-links", children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx(
-              "a",
+              "button",
               {
+                type: "button",
                 className: "dx-passkey__address-link",
-                href: "https://dexter.cash/wallet",
-                target: "_blank",
-                rel: "noreferrer",
+                onClick: () => openLink("https://dexter.cash/wallet"),
                 children: "Manage your wallet"
               }
             ),
             /* @__PURE__ */ jsxRuntimeExports.jsx(
-              "a",
+              "button",
               {
+                type: "button",
                 className: "dx-passkey__address-link",
-                href: `https://solscan.io/account/${swig}`,
-                target: "_blank",
-                rel: "noreferrer",
+                onClick: () => openLink(`https://solscan.io/account/${swig}`),
                 children: "View on Solscan"
               }
             )

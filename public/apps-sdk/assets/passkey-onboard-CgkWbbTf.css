@@ -277,6 +277,11 @@
   color: var(--dx-accent);
   text-decoration: none;
   font-size: 12px;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
 }
 
 .dx-passkey__address-link:hover {

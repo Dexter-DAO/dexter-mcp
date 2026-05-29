@@ -61,8 +61,16 @@ type PasskeyPayload = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function PasskeyOnboard() {
-  const toolOutput = useToolOutput<PasskeyPayload>();
+  const hostToolOutput = useToolOutput<PasskeyPayload>();
   const callTool = useCallToolFn();
+  // Result of the widget's OWN poll. The host only fires a tool-result
+  // notification (which updates useToolOutput) for USER-initiated calls — a
+  // widget-initiated callTool returns the fresh payload to US but does NOT
+  // refresh useToolOutput. So we capture the poll's return value here and let
+  // it override the (frozen) host output. Without this the widget polls
+  // forever even though every poll already received vault_status:'ready'.
+  const [polledOutput, setPolledOutput] = useState<PasskeyPayload | null>(null);
+  const toolOutput = polledOutput ?? hostToolOutput;
   const [polling, setPolling] = useState(false);
   const [openedAt, setOpenedAt] = useState<number | null>(null);
   // One-shot confetti — fires the first time we observe ready state in
@@ -99,9 +107,11 @@ function PasskeyOnboard() {
   }, [toolOutput?.vault_status, toolOutput?.awaiting_ceremony]);
 
   // Polling loop: re-invoke dexter_passkey every POLL_INTERVAL_MS while
-  // polling is on. We use callTool (host's tools/call) rather than a
-  // direct fetch because the host is the only thing that can actually
-  // refresh structuredContent — and the auth bridge lives MCP-side.
+  // polling is on, and CONSUME the return value. callTool returns
+  // { result: <JSON text> } — the fresh tool payload. We parse it and push it
+  // into polledOutput so the widget re-renders off the live state. (Relying on
+  // the host's tool-result notification does NOT work for widget-initiated
+  // calls — that was the forever-poll bug.)
   useEffect(() => {
     if (!polling) return;
     pollingRef.current = true;
@@ -109,7 +119,18 @@ function PasskeyOnboard() {
     const tick = async () => {
       if (cancelled || !pollingRef.current) return;
       try {
-        await callToolRef.current('dexter_passkey', {});
+        const res = await callToolRef.current('dexter_passkey', {});
+        const raw = (res as { result?: string } | undefined)?.result;
+        if (raw && !cancelled) {
+          try {
+            const parsed = JSON.parse(raw) as PasskeyPayload;
+            if (parsed && typeof parsed.vault_status === 'string') {
+              setPolledOutput(parsed);
+            }
+          } catch {
+            /* non-JSON result — ignore this tick */
+          }
+        }
       } catch {
         /* swallow — next tick will retry */
       }
@@ -254,22 +275,20 @@ function PasskeyOnboard() {
                 <CopyButton value={swig} />
               </div>
               <div className="dx-passkey__address-links">
-                <a
+                <button
+                  type="button"
                   className="dx-passkey__address-link"
-                  href="https://dexter.cash/wallet"
-                  target="_blank"
-                  rel="noreferrer"
+                  onClick={() => openLink('https://dexter.cash/wallet')}
                 >
                   Manage your wallet
-                </a>
-                <a
+                </button>
+                <button
+                  type="button"
                   className="dx-passkey__address-link"
-                  href={`https://solscan.io/account/${swig}`}
-                  target="_blank"
-                  rel="noreferrer"
+                  onClick={() => openLink(`https://solscan.io/account/${swig}`)}
                 >
                   View on Solscan
-                </a>
+                </button>
               </div>
             </div>
           )}
