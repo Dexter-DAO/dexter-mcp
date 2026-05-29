@@ -90,6 +90,73 @@ State is resolved via `GET /api/passkey-vault/state?mcp_session_id=…` (HMAC-ga
 
 Both MCP servers register the tool (`open-mcp-server.mjs` for the public OpenDexter server, the authenticated tree for `dexter-mcp`). The shared helper that calls `/state` lives in [`lib/pairing-mint.mjs`](./lib/pairing-mint.mjs).
 
+### Widget state machine
+
+The widget mounts in whatever state `dexter-api` says, polls every 1.5s while a passkey ceremony is open in another tab, and consumes its own poll's return value to flip. Without that the host never delivers the update for a widget-initiated call.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Loading: widget mount
+    Loading --> NotEnrolled: vault_status\nnot_enrolled
+    Loading --> Provisioning: vault_status\nprovisioning
+    Loading --> Ready: vault_status\nready
+    Loading --> UserNotPaired: vault_status\nuser_not_paired
+    Loading --> ErrorState: vault_status\nerror
+
+    NotEnrolled --> AwaitingCeremony: user clicks\n"Set up wallet"\nopens dexter.cash\nin new tab
+
+    AwaitingCeremony --> AwaitingCeremony: every 1.5s\ncallTool dexter_passkey\nconsume return
+    AwaitingCeremony --> Provisioning: ceremony complete\n/state flips
+    AwaitingCeremony --> Ready: vault provisioned\n/state flips
+    Provisioning --> Ready: vault row written
+
+    Ready --> [*]: confetti +\nYour wallet's ready\nswig address + Copy
+
+    UserNotPaired --> [*]: legacy track\nsign in to dexter.cash
+    ErrorState --> [*]: Try again button
+```
+
+`awaiting_ceremony` is a flag on `not_enrolled` (not a separate top-level status), but it's what drives the "Finish in the other tab" copy and the auto-polling. The widget mints a fresh pairing URL only on the *first* entry into `not_enrolled`. Minting on every poll was the forever-poll bug.
+
+### Tool flow
+
+`dexter_passkey` branches on what the MCP session already knows about the caller:
+
+```mermaid
+flowchart TD
+    Entry["dexter_passkey called"] --> SessionID{"MCP session id<br/>available"}
+    SessionID -->|no| FB["Fallback:<br/>not_enrolled + enroll_url"]
+
+    SessionID -->|yes| Bound{"user already<br/>Supabase-bound"}
+
+    Bound -->|yes| Legacy["GET /api/passkey-vault/status<br/>via userScopedDexterFetch<br/>bearer auth"]
+    Bound -->|no| Durable["GET /api/passkey-vault/state<br/>mcp_session_id query<br/>HMAC-gated"]
+
+    Legacy --> Map["map enrolled / hasVault<br/>→ vault_status"]
+    Durable --> Direct["state.status is<br/>vault_status"]
+
+    Direct --> NeedsMint{"status is<br/>not_enrolled"}
+    NeedsMint -->|yes| Mint["mint vault pairing<br/>request_id +<br/>setup-passkey URL"]
+    NeedsMint -->|"awaiting_ceremony"| NoMint["reuse existing<br/>pairing"]
+    NeedsMint -->|"provisioning or ready"| NoMint
+
+    Map --> Out["structuredContent<br/>→ widget"]
+    Mint --> Out
+    NoMint --> Out
+    FB --> Out
+
+    classDef entryNode fill:#fff7ed,stroke:#f97316,color:#7c2d12
+    classDef branchNode fill:#eef2ff,stroke:#6366f1,color:#312e81
+    classDef apiNode fill:#ecfdf5,stroke:#059669,color:#064e3b
+    classDef outNode fill:#f1f5f9,stroke:#475569,color:#0f172a
+    class Entry entryNode
+    class SessionID,Bound,NeedsMint branchNode
+    class Legacy,Durable,Direct,Map,Mint,NoMint apiNode
+    class Out,FB outNode
+```
+
+Branch 1 is for legacy Supabase-paired sessions and still uses the bearer-auth `/status` route. Branch 2 is the durable path used by every new guest-track caller — the same path the `dexter_passkey_probe` tool exercises during onboarding diagnostics. Branch 3 is the fallback for a session without an id.
+
 ---
 
 ## Access Tiers
