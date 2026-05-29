@@ -278,9 +278,7 @@ const {
   extractMcpSessionId,
   linkSessionToContext,
   readOpenSessionHint,
-  rememberOpenSessionHint,
   resolveOrCreateSessionForWallet,
-  resolveSessionForPayment,
 } = sessionResolver;
 
 // fetchCapabilitySearch + x402Search now use @dexterai/x402-core
@@ -377,14 +375,86 @@ async function readMultipartFiles(files) {
   return loaded;
 }
 
+/**
+ * Ensure a durable vault-pairing for this MCP session, reusing the cached one
+ * if it's still fresh. This is the SAME pairing cache `dexter_passkey` uses, so
+ * an agent that hits the payment wall here and then calls `dexter_passkey`
+ * (or vice-versa) sees ONE funnel — one request_id, one enroll URL, one bound
+ * vault. Returns { requestId, loginUrl } or null if the mint failed.
+ *
+ * The remote MCP URL is NON-CUSTODIAL: it has no wallet of its own. When a
+ * session isn't bound to a passkey vault, the only correct move is to send the
+ * user to enroll one — never to pay from a Dexter-held key.
+ */
+async function ensureVaultPairing(sessionId) {
+  if (!sessionId) return null;
+  let pending = pendingVaultPairings.get(sessionId);
+  if (pending && Date.now() - pending.mintedAt > VAULT_PAIRING_MAX_AGE_MS) {
+    pendingVaultPairings.delete(sessionId);
+    pending = null;
+  }
+  if (pending) return { requestId: pending.requestId, loginUrl: pending.loginUrl };
+  try {
+    const minted = await mintVaultPairingRequest(sessionId);
+    pending = { requestId: minted.requestId, loginUrl: minted.loginUrl, mintedAt: Date.now() };
+    pendingVaultPairings.set(sessionId, pending);
+    return { requestId: pending.requestId, loginUrl: pending.loginUrl };
+  } catch (err) {
+    console.warn(`[x402_fetch] vault pairing mint failed: ${err?.message || err}`);
+    return null;
+  }
+}
+
+/**
+ * Build the `vault_required` response an agent gets when it tries to pay but
+ * has no passkey vault bound. This is an INSTRUCTION the model can act on, not
+ * a dead error:
+ *   - next_action tells it to call `dexter_passkey`;
+ *   - enroll_url is the durable setup link to surface to the human;
+ *   - retry preserves the exact call so the agent can resume after enrollment;
+ *   - the copy is written to be relayed verbatim to a human.
+ * `requirements`/`merchantSettlement` are echoed so nothing about the intended
+ * purchase is lost across the enrollment detour.
+ */
+function buildVaultRequired({ pairing, url, method, body, requirements, merchantSettlement, reason }) {
+  const enrollUrl = pairing?.loginUrl ?? 'https://dexter.cash/wallet/setup-passkey';
+  return {
+    status: 402,
+    mode: 'vault_required',
+    paySource: 'anon_vault',
+    // What the MODEL should do next — one funnel with dexter_passkey.
+    next_action: 'call_dexter_passkey',
+    next_tool: 'dexter_passkey',
+    vault_status: 'not_enrolled',
+    user_bound: false,
+    enroll_url: enrollUrl,
+    pairing_url: enrollUrl,
+    pairing_ttl_seconds: pairing ? Math.floor(VAULT_PAIRING_MAX_AGE_MS / 1000) : null,
+    // Preserve the original intent so the agent can retry the SAME call once bound.
+    retry: { tool: 'x402_fetch', url, method: method || 'GET', body: body ?? null },
+    // Human-relayable copy. Dexter holds no keys — the wallet is the user's passkey.
+    message:
+      'To pay for this, you need a Dexter wallet — held by your passkey, not by Dexter (non-custodial). ' +
+      'It takes about 20 seconds to set up: open the link below, approve with your face or fingerprint, ' +
+      'and I\'ll complete the purchase automatically.',
+    instructions:
+      'Show the user enroll_url and ask them to set up their passkey wallet. Then call dexter_passkey to ' +
+      'check progress; once vault_status is "ready", re-run this exact x402_fetch (see retry) to complete payment.',
+    reason: reason || 'no_vault_bound',
+    requirements: requirements ?? null,
+    merchantSettlement: merchantSettlement ?? null,
+  };
+}
+
 async function x402Fetch({ url, method, body, multipart, sessionToken, sessionKey }, extra) {
-  // ── Anonymous-vault path ────────────────────────────────────────────────
-  // If this MCP session has been bound to an anonymous passkey vault via
-  // /api/passkey-anon/bind-mcp-session, pay from the vault's swig wallet
-  // instead of the custodial OpenDexter session keypair. This is the
-  // audience-demo path: no session funding, no Supabase, no custodial keys.
-  // Multipart is not supported for the anon path yet — falls through to the
-  // legacy custodial flow. Solana-only.
+  // ── Non-custodial passkey-vault path (the ONLY way to pay here) ───────────
+  // The remote MCP URL holds NO funds of its own. If this MCP session is bound
+  // to a passkey vault (/api/passkey-anon/mcp-binding/<sessionId>), we pay from
+  // the user's vault swig wallet via dexter-api. If it is NOT bound, we return
+  // `vault_required` with an enroll funnel — there is no Dexter-held key to
+  // fall back to, by design. No session funding, no Supabase, no custodial
+  // keys, ever. Multipart/file-upload is not on the vault yet (see below).
+  // Solana-only.
   const sessionIdForAnon = extra ? extractMcpSessionId(extra) : null;
   if (sessionIdForAnon && !multipart) {
     try {
@@ -422,7 +492,7 @@ async function x402Fetch({ url, method, body, multipart, sessionToken, sessionKe
           };
         }
         // Surface the dexter-api error directly so the agent can route
-        // (e.g. no_solana_accept) instead of falling back to custodial.
+        // (e.g. no_solana_accept) instead of silently doing anything else.
         return {
           status: anonRes.status || 500,
           mode: 'vault_error',
@@ -432,104 +502,47 @@ async function x402Fetch({ url, method, body, multipart, sessionToken, sessionKe
           paySource: 'anon_vault',
         };
       }
-      // bind 404 — session not bound; fall through to legacy custodial flow
+      // bind 404 — this session has no passkey vault bound. The remote MCP URL
+      // is non-custodial: there is NO Dexter-held key to fall back to. Mint (or
+      // reuse) a durable enroll pairing and return vault_required so the agent
+      // sends the user to set up their passkey wallet, then retries.
+      const pairing = await ensureVaultPairing(sessionIdForAnon);
+      return buildVaultRequired({ pairing, url, method, body, reason: 'no_vault_bound' });
     } catch (err) {
       console.warn(`[x402_fetch] anon-binding lookup failed: ${err?.message || err}`);
-      // network error — fall through rather than block
+      // Network/timeout talking to the binding service. FAIL CLOSED — never
+      // leak into a custodial charge on a transient blip. Tell the agent to
+      // retry; if it persists, the enroll funnel still applies.
+      const pairing = await ensureVaultPairing(sessionIdForAnon);
+      return buildVaultRequired({
+        pairing,
+        url,
+        method,
+        body,
+        reason: 'binding_lookup_unavailable',
+      });
     }
   }
 
-  // Multipart path: build a FormData, route through dexter-api's
-  // /v2/pay/open/x402/fetch/multipart handler which signs server-side and
-  // forwards the body to the upstream endpoint. Requires an OpenDexter session.
+  // Multipart (file-upload) payments are NOT YET supported on the non-custodial
+  // vault path. The only multipart pay route that exists is the custodial
+  // /v2/pay/open/x402/fetch/multipart (Dexter signs server-side) — and the
+  // remote MCP URL no longer custodies funds. Rather than fall back to a
+  // Dexter-held key, we tell the truth: file-upload x402 endpoints are coming
+  // to the vault. (Tracked: build /v2/pay/anon/x402/fetch/multipart.)
   if (multipart && typeof multipart === 'object') {
-    const requestMethod = String(method || 'POST').toUpperCase();
-    if (requestMethod !== 'POST' && requestMethod !== 'PUT') {
-      return { status: 400, mode: 'session_error', error: 'multipart_requires_post_or_put' };
-    }
-    const paymentSession = await resolveSessionForPayment({ sessionToken, sessionKey }, extra);
-    if (paymentSession.error) {
-      return { ...paymentSession.error, sessionResolution: paymentSession.sessionResolution };
-    }
-    const resolvedSessionToken = paymentSession.session?.sessionToken || null;
-    if (!resolvedSessionToken) {
-      return { status: 402, mode: 'session_required', error: 'session_required_for_multipart', sessionResolution: paymentSession.sessionResolution };
-    }
-
-    let loadedFiles;
-    try {
-      loadedFiles = await readMultipartFiles(multipart.files || []);
-    } catch (err) {
-      return { status: 400, mode: 'session_error', error: err?.message || 'multipart_file_read_failed' };
-    }
-
-    const form = new FormData();
-    form.append('sessionToken', resolvedSessionToken);
-    form.append('url', url);
-    form.append('method', requestMethod);
-    form.append('requestId', randomUUID());
-    const fields = multipart.fields || {};
-    for (const [k, v] of Object.entries(fields)) {
-      if (MCP_MULTIPART_CONTROL_KEYS.has(k)) continue;
-      form.append(k, typeof v === 'string' ? v : JSON.stringify(v));
-    }
-    for (const f of loadedFiles) {
-      form.append(f.fieldName, new Blob([new Uint8Array(f.data)], { type: f.mimeType }), f.filename);
-    }
-
-    const multipartPayStart = Date.now();
-    try {
-      const bases = [DEXTER_API, API_BASE_FALLBACK].filter(Boolean);
-      let openRes = null;
-      let openBody = null;
-      for (const base of bases) {
-        const attempt = await fetch(`${base}/v2/pay/open/x402/fetch/multipart`, {
-          method: 'POST',
-          body: form,
-          signal: AbortSignal.timeout(120_000),
-        });
-        const parsed = await attempt.json().catch(() => null);
-        const is404PathNotFound = attempt.status === 404 && !parsed?.error;
-        if (!is404PathNotFound) { openRes = attempt; openBody = parsed; break; }
-      }
-
-      if (!openRes || !openRes.ok || !openBody?.ok) {
-        console.error(`[open-mcp] x402_fetch multipart API failed: status=${openRes?.status} ok=${openBody?.ok} error=${openBody?.error} url=${url}`, JSON.stringify(openBody)?.slice(0, 500));
-        return {
-          status: openRes?.status || 500,
-          mode: 'session_error',
-          error: openBody?.error || 'multipart_fetch_failed',
-          details: openBody || null,
-          sessionResolution: paymentSession.sessionResolution,
-        };
-      }
-      if (openBody?.session?.sessionToken) {
-        rememberOpenSessionHint(openBody.session);
-        linkSessionToContext(extra, openBody.session.sessionToken);
-      } else if (resolvedSessionToken) {
-        linkSessionToContext(extra, resolvedSessionToken);
-      }
-      const multipartRoundtripMs = Date.now() - multipartPayStart;
-      return {
-        status: openBody.status ?? 200,
-        mode: openBody.paid ? 'session_ready' : 'session_error',
-        data: openBody.data,
-        payment: openBody.payment?.settlement
-          ? { settled: true, details: buildPaymentDetails(openBody.payment.settlement, multipartRoundtripMs) }
-          : { settled: Boolean(openBody.paid) },
-        session: { ...(openBody.session ?? { sessionToken: resolvedSessionToken }), funding: undefined },
-        sessionFunding: normalizeSessionFunding(openBody.session?.funding || readOpenSessionHint(resolvedSessionToken)?.funding),
-        sessionResolution: paymentSession.sessionResolution,
-      };
-    } catch (err) {
-      console.error(`[open-mcp] x402_fetch multipart exception: url=${url} error=${err?.message || String(err)}`, err?.stack || '');
-      return {
-        status: 500,
-        mode: 'session_error',
-        error: `Multipart fetch failed: ${err?.message || String(err)}`,
-        sessionResolution: paymentSession.sessionResolution,
-      };
-    }
+    const sessionIdForPair = extra ? extractMcpSessionId(extra) : null;
+    const pairing = await ensureVaultPairing(sessionIdForPair);
+    return {
+      ...buildVaultRequired({ pairing, url, method, body, reason: 'multipart_not_on_vault_yet' }),
+      mode: 'multipart_unsupported',
+      message:
+        'File-upload (multipart) payments are not available on your non-custodial Dexter wallet yet — ' +
+        'this is coming soon. For now, only standard (JSON) x402 endpoints can be paid from the vault.',
+      instructions:
+        'Multipart/file-upload payments are not yet supported non-custodially. Do not retry as multipart. ' +
+        'If a non-file endpoint can satisfy the request, use it; otherwise inform the user this is coming soon.',
+    };
   }
 
   const fetchOpts = { method: method || 'GET', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(15000) };
@@ -555,187 +568,23 @@ async function x402Fetch({ url, method, body, multipart, sessionToken, sessionKe
     ? { accepts, x402Version: body402.x402Version ?? 2, resource: body402.resource }
     : null;
 
-  const walletKey = process.env.DEXTER_PRIVATE_KEY || process.env.SOLANA_PRIVATE_KEY;
-  if (walletKey) {
-    const directPayStart = Date.now();
-    try {
-      const { wrapFetch } = await import('@dexterai/x402/client');
-      const x402FetchFn = wrapFetch(fetch, { walletPrivateKey: walletKey });
-      const paidRes = await x402FetchFn(url, fetchOpts);
-      const ct = paidRes.headers.get('content-type') || '';
-      let data;
-      if (ct.includes('json')) { try { data = await paidRes.json(); } catch { data = await paidRes.text(); } }
-      else { data = await paidRes.text(); }
-
-      let settlement = null;
-      const payHeader = paidRes.headers.get('payment-response') || paidRes.headers.get('PAYMENT-RESPONSE');
-      if (payHeader) { try { settlement = JSON.parse(atob(payHeader)); } catch { try { settlement = JSON.parse(payHeader); } catch {} } }
-
-      const { getSponsoredRecommendations, fireImpressionBeacon } = await import('@dexterai/x402/client');
-      const sponsoredRecs = getSponsoredRecommendations(paidRes);
-      if (sponsoredRecs) fireImpressionBeacon(paidRes).catch(() => {});
-
-      const directRoundtripMs = Date.now() - directPayStart;
-      const result = {
-        status: paidRes.status,
-        mode: paidRes.ok ? 'session_ready' : 'session_error',
-        data,
-        payment: settlement
-          ? { settled: true, details: buildPaymentDetails(settlement, directRoundtripMs) }
-          : { settled: false },
-        merchantSettlement: buildMerchantSettlement(requirements),
-      };
-      if (sponsoredRecs?.length) {
-        result.recommendations = sponsoredRecs;
-        result._recommendations_hint = `Sponsored: ${sponsoredRecs.map(r => `${r.sponsor} — ${r.description} (${r.resourceUrl})`).join('; ')}. Call with x402_fetch if relevant.`;
-      }
-      return result;
-    } catch (err) {
-      console.error(`[open-mcp] Direct payment failed: url=${url} error=${err?.message || String(err)}`, err?.stack || '');
-      return {
-        status: 402,
-        mode: 'session_error',
-        error: `Payment failed: ${err.message}`,
-        requirements,
-        merchantSettlement: buildMerchantSettlement(requirements),
-      };
-    }
-  }
-
-  const paymentSession = await resolveSessionForPayment({ sessionToken, sessionKey }, extra);
-  if (paymentSession.error) {
-    return {
-      ...paymentSession.error,
-      requirements,
-      merchantSettlement: buildMerchantSettlement(requirements),
-      sessionResolution: paymentSession.sessionResolution,
-    };
-  }
-
-  const resolvedSessionToken = paymentSession.session?.sessionToken || null;
-  if (resolvedSessionToken) {
-    const sessionPayStart = Date.now();
-    try {
-      const bases = [DEXTER_API, API_BASE_FALLBACK].filter(Boolean);
-      const paths = ['/v2/open/x402/fetch', '/v2/pay/open/x402/fetch'];
-      let openRes = null;
-      let openBody = null;
-      for (const base of bases) {
-        for (const path of paths) {
-          const attempt = await fetch(`${base}${path}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              sessionToken: resolvedSessionToken,
-              url,
-              method: method || 'GET',
-              body: fetchOpts.body ?? null,
-              requestId: randomUUID(),
-            }),
-            signal: AbortSignal.timeout(30000),
-          });
-          const parsed = await attempt.json().catch(() => null);
-          const is404PathNotFound = attempt.status === 404 && !parsed?.error;
-          if (!is404PathNotFound) {
-            openRes = attempt;
-            openBody = parsed;
-            break;
-          }
-        }
-        if (openRes) break;
-      }
-
-      if (!openRes || !openRes.ok || !openBody?.ok) {
-        console.error(`[open-mcp] x402_fetch API failed: status=${openRes?.status} ok=${openBody?.ok} error=${openBody?.error} url=${url}`, JSON.stringify(openBody)?.slice(0, 500));
-        const sessionHint = resolvedSessionToken ? readOpenSessionHint(resolvedSessionToken) : null;
-        const looksUnfunded = openBody?.error === 'session_not_funded' || openBody?.state === 'pending_funding';
-        if (looksUnfunded) {
-          const funding = normalizeSessionFunding(openBody?.funding || openBody?.session?.funding || sessionHint?.funding);
-          return {
-            status: 402,
-            mode: 'session_required',
-            error: 'session_not_funded',
-            message: 'OpenDexter session exists but is not funded yet.',
-            requirements,
-            merchantSettlement: buildMerchantSettlement(requirements),
-            sessionFunding: funding,
-            sessionResolution: paymentSession.sessionResolution,
-            session: sessionHint ? { ...sessionHint, state: openBody?.state || 'pending_funding' } : {
-              sessionToken: resolvedSessionToken,
-              state: openBody?.state || 'pending_funding',
-            },
-            details: openBody || null,
-          };
-        }
-        const rawError = openBody?.error || 'open_session_fetch_failed';
-        const isExpired = rawError === 'session_expired' || openBody?.state === 'expired';
-        const isNotFound = rawError === 'session_not_found' || openRes?.status === 404;
-        const errorCode = isExpired ? 410 : isNotFound ? 404 : (openRes?.status || 500);
-        const errorMessage = isExpired
-          ? 'Session has expired. Create a new session with x402_wallet().'
-          : isNotFound
-            ? 'Session not found. The token may be invalid or the session may have been cleaned up.'
-            : `Session payment failed: ${rawError}`;
-        return {
-          status: errorCode,
-          mode: 'session_error',
-          error: rawError,
-          message: errorMessage,
-          hint: 'Call x402_wallet() with no arguments to create a new session.',
-          details: openBody || null,
-          requirements,
-          merchantSettlement: buildMerchantSettlement(requirements),
-          sessionResolution: paymentSession.sessionResolution,
-        };
-      }
-      if (openBody?.session?.sessionToken) {
-        rememberOpenSessionHint(openBody.session);
-        linkSessionToContext(extra, openBody.session.sessionToken);
-      } else if (resolvedSessionToken) {
-        linkSessionToContext(extra, resolvedSessionToken);
-      }
-      const sessionRoundtripMs = Date.now() - sessionPayStart;
-      const sessionResult = {
-        status: openBody.status ?? 200,
-        mode: openBody.paid ? 'session_ready' : 'session_error',
-        data: openBody.data,
-        payment: openBody.payment?.settlement
-          ? { settled: true, details: buildPaymentDetails(openBody.payment.settlement, sessionRoundtripMs) }
-          : { settled: Boolean(openBody.paid) },
-        session: { ...(openBody.session ?? { sessionToken: resolvedSessionToken }), funding: undefined },
-        sessionFunding: normalizeSessionFunding(openBody.session?.funding || readOpenSessionHint(resolvedSessionToken)?.funding),
-        merchantSettlement: buildMerchantSettlement(requirements),
-        sessionResolution: paymentSession.sessionResolution,
-      };
-      // Promote sponsored recommendations into top-level toolOutput so widgets
-      // and LLMs both see them. Body-injection (_x402_sponsored) is the
-      // preferred source because it's set by the seller-side @dexterai/x402
-      // middleware AFTER the facilitator extension is injected. But the
-      // /v2/open/x402/fetch delegate path doesn't always propagate that
-      // field, so we fall back to the facilitator's settlement-extension
-      // recommendations which are always present when a campaign matched.
-      const bodySponsored = openBody.data?._x402_sponsored;
-      const extSponsored = openBody.payment?.settlement?.extensions?.['sponsored-access']?.info?.recommendations;
-      const sponsoredRecs = Array.isArray(bodySponsored) && bodySponsored.length > 0
-        ? bodySponsored
-        : (Array.isArray(extSponsored) && extSponsored.length > 0 ? extSponsored : null);
-      if (sponsoredRecs) {
-        sessionResult.recommendations = sponsoredRecs;
-        sessionResult._recommendations_hint = `Sponsored: ${sponsoredRecs.map(r => `${r.sponsor} — ${r.description} (${r.resourceUrl})`).join('; ')}. Call with x402_fetch if relevant.`;
-      }
-      return sessionResult;
-    } catch (err) {
-      console.error(`[open-mcp] x402_fetch exception: url=${url} error=${err?.message || String(err)}`, err?.stack || '');
-      return {
-        status: 500,
-        mode: 'session_error',
-        error: `Open canonical fetch failed: ${err?.message || String(err)}`,
-        requirements,
-        merchantSettlement: buildMerchantSettlement(requirements),
-        sessionResolution: paymentSession.sessionResolution,
-      };
-    }
-  }
+  // This is a 402 (payment required) and we reached here without a bound vault
+  // — which means we couldn't extract an MCP session id to resolve a binding
+  // (the bound case returns above from the vault path). The remote MCP URL is
+  // NON-CUSTODIAL: there is no Dexter-held key to pay with. Send the user to
+  // enroll a passkey vault. (No sessionId means we can't mint a durable
+  // pairing, so the enroll link is the generic one.)
+  const sessionIdForPair = extra ? extractMcpSessionId(extra) : null;
+  const pairing = await ensureVaultPairing(sessionIdForPair);
+  return buildVaultRequired({
+    pairing,
+    url,
+    method,
+    body,
+    requirements,
+    merchantSettlement: buildMerchantSettlement(requirements),
+    reason: pairing ? 'no_vault_bound' : 'no_session_for_pairing',
+  });
 }
 
 // ─── Tool: x402_access (wallet-proof auth) ──────────────────────────────────
