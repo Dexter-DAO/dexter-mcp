@@ -75,6 +75,23 @@ That narrows the authenticated server to the clean `x402-client` bundle so the p
 
 ---
 
+## `dexter_passkey` — the OTS buyer-onboarding widget
+
+`dexter_passkey` is the agent-facing onboarding for the [Open Tabs Standard](https://github.com/Dexter-DAO/dexter-vault) buyer wallet. When called, it returns an embedded React widget (in `apps-sdk/ui/src/entries/passkey-onboard.tsx`) that renders one of four durable states resolved from `dexter-api`:
+
+| State | What the widget shows |
+|---|---|
+| `not_enrolled` | "Set up your wallet" CTA → opens dexter.cash/wallet/setup-passkey in a new top-level tab (the chat-iframe sandbox blocks WebAuthn) |
+| `awaiting_ceremony` | "Finish in the other tab" — the user started enrollment but hasn't completed the passkey ceremony; widget polls until it flips |
+| `provisioning` | "Setting up your wallet" — vault is being created on Solana |
+| `ready` | "Your wallet's ready" — shows the swig address with copy + "Manage your wallet" + "View on Solscan" |
+
+State is resolved via `GET /api/passkey-vault/state?mcp_session_id=…` (HMAC-gated, durable — reads the `passkey_vault_pairings` table directly so it survives MCP process restarts). The widget polls every 1.5s while `awaiting_ceremony` and consumes the poll's return value to update itself, rather than relying on host tool-result notifications that don't fire for widget-initiated calls.
+
+Both MCP servers register the tool (`open-mcp-server.mjs` for the public OpenDexter server, the authenticated tree for `dexter-mcp`). The shared helper that calls `/state` lives in [`lib/pairing-mint.mjs`](./lib/pairing-mint.mjs).
+
+---
+
 ## Access Tiers
 
 | Label | Who can call | Notes | Examples |
