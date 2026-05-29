@@ -53,6 +53,7 @@ type PasskeyPayload = {
   /** Friendly first-name guess from the binding email (best-effort). */
   welcome_name?: string | null;
   error?: string | null;
+  awaiting_ceremony?: boolean;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -77,6 +78,8 @@ function PasskeyOnboard() {
   callToolRef.current = callTool;
 
   // Auto-stop polling when the user has a vault, and arm confetti once.
+  // Also auto-start polling when the tool reports awaiting_ceremony so the
+  // widget flips to ready without requiring the user to re-ask.
   useEffect(() => {
     if (toolOutput?.vault_status === 'ready') {
       if (pollingRef.current) {
@@ -87,8 +90,13 @@ function PasskeyOnboard() {
         firedConfettiRef.current = true;
         setConfettiArmed(true);
       }
+      return;
     }
-  }, [toolOutput?.vault_status]);
+    if (toolOutput?.awaiting_ceremony && !pollingRef.current) {
+      pollingRef.current = true;
+      setPolling(true);
+    }
+  }, [toolOutput?.vault_status, toolOutput?.awaiting_ceremony]);
 
   // Polling loop: re-invoke dexter_passkey every POLL_INTERVAL_MS while
   // polling is on. We use callTool (host's tools/call) rather than a
@@ -271,13 +279,10 @@ function PasskeyOnboard() {
               </div>
             )}
           </div>
-          {/* Next-action prompt. TODO(branch): write the real human-shaped
-              suggestion. Placeholder reads as something a person would
-              actually say next, not "fetch a paid API." */}
           <div className="dx-passkey__next">
-            <span className="dx-passkey__next-eyebrow">Try next</span>
+            <span className="dx-passkey__next-eyebrow">You're connected</span>
             <p className="dx-passkey__next-copy">
-              "Research the Dexter token"
+              Your wallet is live here. Ask me to research a token or pay for an API to use it.
             </p>
           </div>
           <div className="dx-passkey__status">
@@ -319,6 +324,7 @@ function PasskeyOnboard() {
   }
 
   // ─── State: not_enrolled (default) ─────────────────────────────────────
+  const awaiting = Boolean(toolOutput.awaiting_ceremony);
   return (
     <div className="dx-passkey">
       <Header />
@@ -327,14 +333,16 @@ function PasskeyOnboard() {
           <KeyGlyph />
           <span className="dx-passkey__pulse" aria-hidden />
         </div>
-        <h2 className="dx-passkey__stage-heading">Set up your Dexter wallet</h2>
+        <h2 className="dx-passkey__stage-heading">{awaiting ? 'Finish in the other tab' : 'Set up your Dexter wallet'}</h2>
         <p className="dx-passkey__stage-supporting">
-          One passkey, one vault on Solana. No seed phrases, no extensions. Tap to start the ceremony at dexter.cash.
+          {awaiting ? 'You started setup. Complete the passkey step in the tab that opened — this updates the moment you finish.' : 'One passkey, one vault on Solana. No seed phrases, no extensions. Tap to start the ceremony at dexter.cash.'}
         </p>
-        <button type="button" className="dx-passkey__cta" onClick={onTapEnroll}>
-          Set up wallet on dexter.cash
-        </button>
-        <PollStatus polling={polling} openedAt={openedAt} />
+        {!awaiting && (
+          <button type="button" className="dx-passkey__cta" onClick={onTapEnroll}>
+            Set up wallet on dexter.cash
+          </button>
+        )}
+        <PollStatus polling={polling || awaiting} openedAt={openedAt} />
       </div>
     </div>
   );

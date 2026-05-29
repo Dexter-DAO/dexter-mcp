@@ -27,8 +27,13 @@ function PasskeyOnboard() {
         firedConfettiRef.current = true;
         setConfettiArmed(true);
       }
+      return;
     }
-  }, [toolOutput?.vault_status]);
+    if (toolOutput?.awaiting_ceremony && !pollingRef.current) {
+      pollingRef.current = true;
+      setPolling(true);
+    }
+  }, [toolOutput?.vault_status, toolOutput?.awaiting_ceremony]);
   reactExports.useEffect(() => {
     if (!polling) return;
     pollingRef.current = true;
@@ -164,8 +169,8 @@ function PasskeyOnboard() {
           ] })
         ] }),
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-passkey__next", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-passkey__next-eyebrow", children: "Try next" }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "dx-passkey__next-copy", children: '"Research the Dexter token"' })
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-passkey__next-eyebrow", children: "You're connected" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "dx-passkey__next-copy", children: "Your wallet is live here. Ask me to research a token or pay for an API to use it." })
         ] }),
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-passkey__status", children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-passkey__status-dot dx-passkey__status-dot--ready" }),
@@ -197,6 +202,7 @@ function PasskeyOnboard() {
       ] })
     ] });
   }
+  const awaiting = Boolean(toolOutput.awaiting_ceremony);
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-passkey", children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx(Header, {}),
     /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-passkey__stage dx-passkey__stage--not-enrolled", children: [
@@ -204,10 +210,10 @@ function PasskeyOnboard() {
         /* @__PURE__ */ jsxRuntimeExports.jsx(KeyGlyph, {}),
         /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-passkey__pulse", "aria-hidden": true })
       ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { className: "dx-passkey__stage-heading", children: "Set up your Dexter wallet" }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "dx-passkey__stage-supporting", children: "One passkey, one vault on Solana. No seed phrases, no extensions. Tap to start the ceremony at dexter.cash." }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("button", { type: "button", className: "dx-passkey__cta", onClick: onTapEnroll, children: "Set up wallet on dexter.cash" }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx(PollStatus, { polling, openedAt })
+      /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { className: "dx-passkey__stage-heading", children: awaiting ? "Finish in the other tab" : "Set up your Dexter wallet" }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "dx-passkey__stage-supporting", children: awaiting ? "You started setup. Complete the passkey step in the tab that opened — this updates the moment you finish." : "One passkey, one vault on Solana. No seed phrases, no extensions. Tap to start the ceremony at dexter.cash." }),
+      !awaiting && /* @__PURE__ */ jsxRuntimeExports.jsx("button", { type: "button", className: "dx-passkey__cta", onClick: onTapEnroll, children: "Set up wallet on dexter.cash" }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(PollStatus, { polling: polling || awaiting, openedAt })
     ] })
   ] });
 }
