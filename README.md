@@ -285,4 +285,6 @@ For local dev, PM2, harness operations, and Supabase session maintenance, see [`
 
 ## License
 
-MIT.
+All rights reserved. This source is public for transparency and reference, not for reuse. You may not copy, modify, redistribute, or use this code in your own projects without written permission from Dexter. The Dexter and OpenDexter names and marks are not licensed for any use.
+
+For licensing inquiries: branch@dexter.cash.
