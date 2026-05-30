@@ -731,95 +731,126 @@ async function x402Access({ url, method, body, sessionToken, sessionKey, network
 
 // ─── Tool: x402_wallet ───────────────────────────────────────────────────────
 
-async function x402Wallet(args, extra) {
-  const resolution = await resolveOrCreateSessionForWallet(args, extra);
-  if (resolution.error) {
-    return {
-      ...resolution.error,
-      sessionResolution: resolution.sessionResolution,
-    };
+const SOLANA_MAINNET_CAIP2 = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
+
+/**
+ * x402_wallet — the non-custodial vault dashboard.
+ *
+ * This used to mint a Dexter-held server-side keypair on call (the "OpenDexter
+ * session" model) and return its address as a "send USDC here" target. That was
+ * the last custodial surface on the remote MCP URL; it's gone.
+ *
+ * Now: read-only vault status. If the MCP session is bound to a passkey vault,
+ * return the swig address + USDC balance + chain breakdown. If not, return the
+ * same `vault_required` enroll funnel `x402_fetch` uses, so an agent that hits
+ * either tool funnels the user through the same one-time setup.
+ *
+ * EVM goes honestly null. The vault is Solana-only today; surfacing a
+ * Dexter-held EVM address would be exactly the custodial pattern we're
+ * removing. When EVM-vault parity ships (see strategy doc in dexter-api), this
+ * tool starts returning a real evmAddress again.
+ *
+ * Multi-chain widget shape preserved: chainBalances keys all 6 chains, but the
+ * non-Solana ones report zero with available='0'. That keeps the widget
+ * rendering rather than crashing on a missing key.
+ */
+async function x402Wallet(_args, extra) {
+  const sessionId = extra ? extractMcpSessionId(extra) : null;
+
+  // No MCP session id means no way to look up a bound vault.
+  if (!sessionId) {
+    const pairing = await ensureVaultPairing(null);
+    return buildVaultRequired({
+      pairing,
+      url: null,
+      method: null,
+      body: null,
+      reason: 'no_mcp_session',
+    });
   }
 
-  const session = resolution.session;
-
-  // Query dexter-api for current session state (funding, spend, balance)
-  let liveState = null;
-  if (session.sessionId) {
-    const bases = [DEXTER_API, API_BASE_FALLBACK].filter(Boolean);
-    const statusPaths = ['/v2/open/session/status/', '/v2/pay/open/session/status/'];
-    for (const base of bases) {
-      for (const path of statusPaths) {
-        try {
-          const res = await fetch(`${base}${path}${session.sessionId}`, {
-            headers: { Accept: 'application/json' },
-            signal: AbortSignal.timeout(5000),
-          });
-          if (res.ok) {
-            liveState = await res.json().catch(() => null);
-            break;
-          }
-        } catch {}
-      }
-      if (liveState) break;
-    }
+  let state = null;
+  try {
+    state = await fetchVaultStateBySession(sessionId);
+  } catch (err) {
+    console.warn(`[x402_wallet] /state read failed: ${err?.message || err}`);
   }
 
-  const state = liveState?.state || 'pending_funding';
-  const fundedAtomic = liveState?.fundedAtomic || liveState?.funding?.amountAtomic || '0';
-  const spentAtomic = liveState?.spentAtomic || '0';
-  const availableAtomic = liveState?.availableAtomic || String(Math.max(0, Number(fundedAtomic) - Number(spentAtomic)));
-  const funding = normalizeSessionFunding(liveState?.funding || session.funding);
+  // Vault not ready (not enrolled, awaiting ceremony, or provisioning) →
+  // surface the same enroll funnel x402_fetch uses, so both tools route the
+  // user through one setup.
+  if (!state || state.status !== 'ready' || !state.vault) {
+    const pairing = await ensureVaultPairing(sessionId);
+    return buildVaultRequired({
+      pairing,
+      url: null,
+      method: null,
+      body: null,
+      reason: state?.status || 'vault_lookup_failed',
+    });
+  }
 
-  const usdcAvailable = Number(availableAtomic) / 1e6;
-  const solanaAddress = funding?.walletAddress || liveState?.solanaAddress || liveState?.funding?.walletAddress || session.funding?.walletAddress || null;
-  const evmAddress = liveState?.evmAddress || null;
-  const chainBalances = liveState?.chainBalances || {};
+  // Vault is ready. Build the read-only dashboard.
+  const swigAddress = state.vault.swigAddress;
+  const onchain = state.onchain || null;
+  const usdcAtomic = String(onchain?.usdcAtomic ?? '0');
+  const usdcAvailable = Number(usdcAtomic) / 1e6;
+  const ataExists = Boolean(onchain?.usdcAtaExists);
+  const pendingVoucherCount = onchain?.pendingVoucherCount ?? 0;
+  const withdrawalBlocked = Boolean(onchain?.withdrawalBlocked);
 
-  // Compute per-chain display info for the widget
-  const chainDisplay = {};
-  const CHAIN_NAMES = {
-    'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp': { name: 'Solana', tier: 'first' },
-    'eip155:8453': { name: 'Base', tier: 'first' },
-    'eip155:137': { name: 'Polygon', tier: 'second' },
-    'eip155:42161': { name: 'Arbitrum', tier: 'second' },
-    'eip155:10': { name: 'Optimism', tier: 'second' },
-    'eip155:43114': { name: 'Avalanche', tier: 'second' },
+  // chainBalances keys every supported chain so the widget doesn't have to
+  // special-case Solana. Non-Solana chains honestly report zero — the vault
+  // is Solana-only today, and we're not pretending otherwise. EVM-parity
+  // tracked in dexter-api/2026-05-30-opendexter-two-distributions-and-evm-parity.md
+  const chainBalances = {
+    [SOLANA_MAINNET_CAIP2]: { available: usdcAtomic, name: 'Solana', tier: 'first' },
+    'eip155:8453': { available: '0', name: 'Base', tier: 'first' },
+    'eip155:137': { available: '0', name: 'Polygon', tier: 'second' },
+    'eip155:42161': { available: '0', name: 'Arbitrum', tier: 'second' },
+    'eip155:10': { available: '0', name: 'Optimism', tier: 'second' },
+    'eip155:43114': { available: '0', name: 'Avalanche', tier: 'second' },
   };
-  for (const [caip2, meta] of Object.entries(CHAIN_NAMES)) {
-    const bal = chainBalances[caip2] || '0';
-    chainDisplay[caip2] = { available: String(bal), name: meta.name, tier: meta.tier };
-  }
 
-  const totalUsdc = Object.values(chainBalances).reduce((sum, v) => sum + Number(v || 0), 0) / 1e6;
+  let tip;
+  if (!ataExists) {
+    tip = 'Your wallet needs a one-time USDC activation before deposits work. Open dexter.cash/wallet, sign in, and tap Activate.';
+  } else if (usdcAvailable === 0) {
+    tip = `Send USDC on Solana to ${swigAddress} to fund your wallet. Then I can pay for x402 APIs.`;
+  } else if (withdrawalBlocked) {
+    tip = `Wallet is funded ($${usdcAvailable.toFixed(2)} USDC available). ${pendingVoucherCount} open tab(s); withdrawal is gated until they settle.`;
+  } else {
+    tip = `Wallet is funded ($${usdcAvailable.toFixed(2)} USDC available). Use x402_fetch to call paid APIs.`;
+  }
 
   return {
-    mode: state === 'active' || state === 'depleted' ? 'session_ready' : 'session_required',
-    sessionId: session.sessionId,
-    _sessionToken: session.sessionToken,
-    sessionResolution: resolution.sessionResolution,
-    state,
-    solanaAddress,
-    evmAddress,
-    // This is the canonical wallet payload shape consumed by ChatGPT widgets.
-    // Other wallet-producing surfaces should converge on these field names even
-    // if some optional fields remain null until their backend can resolve them.
-    address: solanaAddress,
-    network: 'multichain',
-    networkName: 'Multi-Chain',
-    sessionFunding: funding,
-    chainBalances: chainDisplay,
+    mode: ataExists && usdcAvailable > 0 ? 'vault_ready' : 'vault_funding_required',
+    paySource: 'anon_vault',
+    vault_status: 'ready',
+    user_bound: true,
+    // Canonical wallet payload — same field names ChatGPT widgets already
+    // consume from the legacy session shape, so the widget keeps rendering
+    // without a schema change. EVM is honestly null.
+    address: swigAddress,
+    solanaAddress: swigAddress,
+    evmAddress: null,
+    network: 'solana',
+    networkName: 'Solana',
+    chainBalances,
     balances: {
-      usdc: totalUsdc || usdcAvailable,
-      fundedAtomic: String(fundedAtomic),
-      spentAtomic: String(spentAtomic),
-      availableAtomic: String(availableAtomic),
+      usdc: usdcAvailable,
+      fundedAtomic: usdcAtomic,
+      spentAtomic: '0',
+      availableAtomic: usdcAtomic,
     },
-    expiresAt: liveState?.expiresAt || session.expiresAt || null,
-    tip: state === 'active'
-      ? 'Session is funded and ready. Use x402_fetch to call paid APIs on any supported chain.'
-      : state === 'depleted'
-        ? 'Session balance exhausted. Send USDC to either address to continue.'
-        : 'Send USDC on any supported chain (Solana, Base, Polygon, Arbitrum, Optimism, Avalanche) to either the Solana or EVM address.',
+    vault: {
+      vaultPda: state.vault.vaultPda,
+      swigAddress,
+      pendingVoucherCount,
+      withdrawalBlocked,
+      usdcAtaExists: ataExists,
+    },
+    tip,
   };
 }
 
