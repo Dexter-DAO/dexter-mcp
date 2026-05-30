@@ -480,7 +480,9 @@ async function x402Fetch({ url, method, body, multipart, sessionToken, sessionKe
         user_handle = binding?.user_handle || null;
       }
     } catch (err) {
-      // bind lookup failed; fall through to no-handle path
+      console.warn(`[x402Fetch] bind lookup failed: ${err?.message || err}`);
+      // fall through to no-handle path so the caller gets vault_required
+      // (matches the pre-2026-05-30 behavior on transient binding outages)
     }
   }
   if (user_handle) {
