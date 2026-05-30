@@ -42,7 +42,7 @@ import {
   createRemoteCardOperations,
   DextercardPairingRequiredError,
 } from '@dexterai/x402-mcp-tools';
-import { mintPairingRequest, pollPairingResult, mintVaultPairingRequest, pollVaultPairingResult, fetchVaultStateBySession } from './lib/pairing-mint.mjs';
+import { mintPairingRequest, pollPairingResult, mintVaultPairingRequest, pollVaultPairingResult, fetchVaultStateBySession, fetchVaultStateByUserHandle } from './lib/pairing-mint.mjs';
 
 // Per-request context carrying the MCP `extra` object into deep
 // callbacks (the shared registrars' adapter.getOperations() doesn't
@@ -780,24 +780,46 @@ const SOLANA_MAINNET_CAIP2 = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
  * rendering rather than crashing on a missing key.
  */
 async function x402Wallet(_args, extra) {
-  // Telemetry: log header presence on x402_wallet entry so we can confirm
-  // OpenAI is forwarding the dexter-phone hostedMcpTool headers on every
-  // MCP tool call, not just x402_fetch. The header is not USED here today
-  // (x402_wallet still resolves via session-id pairing) — this is purely
-  // observability so future regressions are visible.
+  // PHONE PATH — dexter-phone bakes x-dexter-user-handle into the
+  // hostedMcpTool headers. OpenAI's Realtime API forwards the header to us.
+  // When present, look up vault state by user_handle directly via the
+  // unauthenticated /api/passkey-vault-anon/status endpoint, skipping the
+  // mcp_session_id binding lookup entirely. Phone sessions have NO row in
+  // the mcp_vault_bindings table (that's a browser-paired construct), so
+  // without this path x402_wallet would always return 'not_enrolled' even
+  // for callers whose vaults are claimed and funded.
   const walletHeaderHandle =
     extra?.requestInfo?.headers?.['x-dexter-user-handle'] ||
     extra?.requestInfo?.headers?.['X-Dexter-User-Handle'] ||
     null;
   if (walletHeaderHandle) {
-    console.log(`[x402_wallet] x-dexter-user-handle header present: ${String(walletHeaderHandle).slice(0, 8)}...`);
+    console.log(`[x402_wallet] resolving vault via x-dexter-user-handle: ${String(walletHeaderHandle).slice(0, 8)}...`);
   } else {
     console.log('[x402_wallet] no x-dexter-user-handle header (falling back to mcp-session pairing)');
   }
   const sessionId = extra ? extractMcpSessionId(extra) : null;
 
-  // No MCP session id means no way to look up a bound vault.
-  if (!sessionId) {
+  let state = null;
+  if (walletHeaderHandle) {
+    try {
+      state = await fetchVaultStateByUserHandle(walletHeaderHandle);
+    } catch (err) {
+      console.warn(`[x402_wallet] /passkey-vault-anon/status read failed: ${err?.message || err}`);
+    }
+  }
+
+  // Fall back to session-id lookup if header didn't resolve (ChatGPT/web path,
+  // or phone path with anon-status hiccup).
+  if (!state && sessionId) {
+    try {
+      state = await fetchVaultStateBySession(sessionId);
+    } catch (err) {
+      console.warn(`[x402_wallet] /state read failed: ${err?.message || err}`);
+    }
+  }
+
+  // No identity at all — neither header nor session id.
+  if (!state && !sessionId && !walletHeaderHandle) {
     const pairing = await ensureVaultPairing(null);
     return buildVaultRequired({
       pairing,
@@ -806,13 +828,6 @@ async function x402Wallet(_args, extra) {
       body: null,
       reason: 'no_mcp_session',
     });
-  }
-
-  let state = null;
-  try {
-    state = await fetchVaultStateBySession(sessionId);
-  } catch (err) {
-    console.warn(`[x402_wallet] /state read failed: ${err?.message || err}`);
   }
 
   // Vault not ready (not enrolled, awaiting ceremony, or provisioning) →
@@ -1650,12 +1665,33 @@ function createOpenMcpServer() {
     }
 
     // ── BRANCH 2 — DURABLE vault pairing (reads /state, no in-memory Map) ───
-    // Resolves vault state from the DB via session id on every call. Restart-
-    // proof. Only mints a new pairing when genuinely not_enrolled — re-minting
-    // for awaiting_ceremony was the forever-poll bug.
-    if (sessionId) {
+    // Resolves vault state from the DB. Restart-proof. Only mints a new
+    // pairing when genuinely not_enrolled — re-minting for awaiting_ceremony
+    // was the forever-poll bug.
+    //
+    // Two identity paths:
+    //   1. PHONE — x-dexter-user-handle header set by dexter-phone. Look up
+    //      via /api/passkey-vault-anon/status?user_handle=... (no auth).
+    //   2. WEB / CHATGPT — fall back to mcp_session_id binding lookup.
+    const passkeyHeaderHandle =
+      extra?.requestInfo?.headers?.['x-dexter-user-handle'] ||
+      extra?.requestInfo?.headers?.['X-Dexter-User-Handle'] ||
+      null;
+    if (passkeyHeaderHandle || sessionId) {
       try {
-        const state = await fetchVaultStateBySession(sessionId);
+        let state = null;
+        if (passkeyHeaderHandle) {
+          console.log(`[dexter_passkey] resolving vault via x-dexter-user-handle: ${String(passkeyHeaderHandle).slice(0, 8)}...`);
+          try {
+            state = await fetchVaultStateByUserHandle(passkeyHeaderHandle);
+          } catch (err) {
+            console.warn(`[dexter_passkey] /passkey-vault-anon/status read failed: ${err?.message || err}`);
+          }
+        }
+        if (!state && sessionId) {
+          state = await fetchVaultStateBySession(sessionId);
+        }
+        if (!state) throw new Error('no_identity');
 
         if (state.status === 'ready' && state.vault) {
           const data = {
