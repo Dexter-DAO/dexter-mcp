@@ -780,6 +780,20 @@ const SOLANA_MAINNET_CAIP2 = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
  * rendering rather than crashing on a missing key.
  */
 async function x402Wallet(_args, extra) {
+  // Telemetry: log header presence on x402_wallet entry so we can confirm
+  // OpenAI is forwarding the dexter-phone hostedMcpTool headers on every
+  // MCP tool call, not just x402_fetch. The header is not USED here today
+  // (x402_wallet still resolves via session-id pairing) — this is purely
+  // observability so future regressions are visible.
+  const walletHeaderHandle =
+    extra?.requestInfo?.headers?.['x-dexter-user-handle'] ||
+    extra?.requestInfo?.headers?.['X-Dexter-User-Handle'] ||
+    null;
+  if (walletHeaderHandle) {
+    console.log(`[x402_wallet] x-dexter-user-handle header present: ${String(walletHeaderHandle).slice(0, 8)}...`);
+  } else {
+    console.log('[x402_wallet] no x-dexter-user-handle header (falling back to mcp-session pairing)');
+  }
   const sessionId = extra ? extractMcpSessionId(extra) : null;
 
   // No MCP session id means no way to look up a bound vault.
