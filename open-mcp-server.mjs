@@ -449,23 +449,44 @@ function buildVaultRequired({ pairing, url, method, body, requirements, merchant
 
 async function x402Fetch({ url, method, body, multipart, sessionToken, sessionKey }, extra) {
   // ── Non-custodial passkey-vault path (the ONLY way to pay here) ───────────
-  // The remote MCP URL holds NO funds of its own. If this MCP session is bound
-  // to a passkey vault (/api/passkey-anon/mcp-binding/<sessionId>), we pay from
-  // the user's vault swig wallet via dexter-api. If it is NOT bound, we return
-  // `vault_required` with an enroll funnel — there is no Dexter-held key to
-  // fall back to, by design. No session funding, no Supabase, no custodial
-  // keys, ever. Multipart/file-upload is not on the vault yet (see below).
-  // Solana-only.
+  // The remote MCP URL holds NO funds of its own. We resolve the buyer's
+  // user_handle in one of two ways:
+  //   1. PHONE PATH — dexter-phone bakes `x-dexter-user-handle` into the
+  //      hostedMcpTool({ headers }) config. OpenAI's Realtime API forwards
+  //      the header to us. Skip the mcp-binding round-trip entirely when
+  //      present. (Verified live 2026-05-30; see dexter-phone vault-rewire
+  //      spec v2.)
+  //   2. WEB / CHATGPT PATH — fall back to the durable mcp-binding table at
+  //      /api/passkey-anon/mcp-binding/<sessionId>, populated by the
+  //      passkey-vault pairing flow.
+  // If neither path resolves a handle, we return `vault_required` with an
+  // enroll funnel — there is no Dexter-held key to fall back to, by design.
+  // No session funding, no Supabase, no custodial keys, ever.
+  // Multipart/file-upload is not on the vault yet (see below). Solana-only.
+  const headerHandle =
+    extra?.requestInfo?.headers?.['x-dexter-user-handle'] ||
+    extra?.requestInfo?.headers?.['X-Dexter-User-Handle'] ||
+    null;
   const sessionIdForAnon = extra ? extractMcpSessionId(extra) : null;
-  if (sessionIdForAnon) {
+  let user_handle = headerHandle;
+  if (!user_handle && sessionIdForAnon) {
     try {
       const bindRes = await fetch(
         `${API_BASE_FALLBACK}/api/passkey-anon/mcp-binding/${encodeURIComponent(sessionIdForAnon)}`,
         { signal: AbortSignal.timeout(2000) },
       );
       if (bindRes.ok) {
-        const { user_handle } = await bindRes.json();
-        const anonStart = Date.now();
+        const binding = await bindRes.json();
+        user_handle = binding?.user_handle || null;
+      }
+    } catch (err) {
+      // bind lookup failed; fall through to no-handle path
+    }
+  }
+  if (user_handle) {
+    console.log(`[x402Fetch] resolved user_handle via ${headerHandle ? 'header' : 'mcp-binding'}: ${String(user_handle).slice(0, 8)}...`);
+    try {
+      const anonStart = Date.now();
 
         // Multipart branch — POST a multipart/form-data body to
         // /v2/pay/anon/x402/fetch/multipart. The vault swig session role pays;
@@ -572,19 +593,12 @@ async function x402Fetch({ url, method, body, multipart, sessionToken, sessionKe
           requirements: anonBody?.requirements ?? null,
           paySource: 'anon_vault',
         };
-      }
-      // bind 404 — this session has no passkey vault bound. The remote MCP URL
-      // is non-custodial: there is NO Dexter-held key to fall back to. Mint (or
-      // reuse) a durable enroll pairing and return vault_required so the agent
-      // sends the user to set up their passkey wallet, then retries.
-      const pairing = await ensureVaultPairing(sessionIdForAnon);
-      return buildVaultRequired({ pairing, url, method, body, reason: 'no_vault_bound' });
     } catch (err) {
-      console.warn(`[x402_fetch] anon-binding lookup failed: ${err?.message || err}`);
-      // Network/timeout talking to the binding service. FAIL CLOSED — never
-      // leak into a custodial charge on a transient blip. Tell the agent to
-      // retry; if it persists, the enroll funnel still applies.
-      const pairing = await ensureVaultPairing(sessionIdForAnon);
+      console.warn(`[x402_fetch] anon paid call failed: ${err?.message || err}`);
+      // Network/timeout talking to the vault path. FAIL CLOSED — never leak
+      // into a custodial charge on a transient blip. Tell the agent to retry;
+      // if it persists, the enroll funnel still applies.
+      const pairing = sessionIdForAnon ? await ensureVaultPairing(sessionIdForAnon) : null;
       return buildVaultRequired({
         pairing,
         url,
@@ -593,6 +607,15 @@ async function x402Fetch({ url, method, body, multipart, sessionToken, sessionKe
         reason: 'binding_lookup_unavailable',
       });
     }
+  }
+  // No handle resolved — this session has no passkey vault bound and no
+  // x-dexter-user-handle header was supplied. The remote MCP URL is
+  // non-custodial: there is NO Dexter-held key to fall back to. Mint (or
+  // reuse) a durable enroll pairing and return vault_required so the agent
+  // sends the user to set up their passkey wallet, then retries.
+  if (sessionIdForAnon) {
+    const pairing = await ensureVaultPairing(sessionIdForAnon);
+    return buildVaultRequired({ pairing, url, method, body, reason: 'no_vault_bound' });
   }
 
   const fetchOpts = { method: method || 'GET', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(15000) };
