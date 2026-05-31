@@ -487,6 +487,52 @@ async function x402Fetch({ url, method, body, multipart, sessionToken, sessionKe
   }
   if (user_handle) {
     console.log(`[x402Fetch] resolved user_handle via ${headerHandle ? 'header' : 'mcp-binding'}: ${String(user_handle).slice(0, 8)}...`);
+
+    // Check vault activation state before attempting payment. A vault in
+    // "initialized_not_active" state has a receive address but no Swig deployed —
+    // any settlement attempt will fail on-chain. Tell the agent to send the user
+    // to dexter.cash/wallet to activate (one passkey tap) before retrying.
+    try {
+      const vaultState = await fetchVaultStateByUserHandle(user_handle);
+      if (vaultState.vault && vaultState.vault.isActivated === false) {
+        const receiveAddress = vaultState.vault.receiveAddress ?? vaultState.vault.swigAddress;
+        const onchainPending = vaultState.onchain || null;
+        const pendingUsdc = Number(String(onchainPending?.usdcAtomic ?? '0')) / 1e6;
+        console.log(`[x402Fetch] vault not activated — returning vault_not_activated: ${String(user_handle).slice(0, 8)}...`);
+        return {
+          status: 402,
+          mode: 'vault_not_activated',
+          paySource: 'anon_vault',
+          vault_status: 'initialized_not_active',
+          address: receiveAddress,
+          solanaAddress: receiveAddress,
+          activate_url: 'https://dexter.cash/wallet',
+          vault: {
+            vaultPda: vaultState.vault.vaultPda,
+            swigAddress: vaultState.vault.swigAddress,
+            receiveAddress,
+            isActivated: false,
+          },
+          balances: { usdc: pendingUsdc },
+          // Retry-preserving shape — once activated the agent can replay
+          retry: { tool: 'x402_fetch', url, method: method || 'GET', body: body ?? null },
+          message:
+            pendingUsdc > 0
+              ? `You have $${pendingUsdc.toFixed(2)} USDC in your wallet but it isn't activated yet. ` +
+                'Open dexter.cash/wallet and tap any action to activate (one passkey tap). Then I\'ll complete this payment automatically.'
+              : 'Your wallet isn\'t activated yet. Open dexter.cash/wallet and tap any action to activate with your passkey, then retry this payment.',
+          instructions:
+            'Show the user activate_url and ask them to open dexter.cash/wallet and tap any action (withdraw, pay) to activate. ' +
+            'Once activated, re-run this exact x402_fetch (see retry) to complete payment.',
+          reason: 'vault_not_activated',
+        };
+      }
+    } catch (activationCheckErr) {
+      // Non-fatal: if the status check fails, proceed to the pay attempt and let
+      // it fail naturally rather than blocking on a transient status check outage.
+      console.warn(`[x402Fetch] vault activation check failed (proceeding): ${activationCheckErr?.message || activationCheckErr}`);
+    }
+
     try {
       const anonStart = Date.now();
 
@@ -844,8 +890,56 @@ async function x402Wallet(_args, extra) {
     });
   }
 
-  // Vault is ready. Build the read-only dashboard.
+  // Vault is ready. Check activation state (counterfactual — Swig not yet deployed).
+  // isActivated===false means the vault is initialized but the Swig hasn't been
+  // deployed yet. The user must go to dexter.cash/wallet and tap any action to activate.
+  const isActivated = state.vault.isActivated !== false; // undefined (legacy) → treat as active
+  if (!isActivated) {
+    const receiveAddress = state.vault.receiveAddress ?? state.vault.swigAddress;
+    const onchainPending = state.onchain || null;
+    const pendingUsdcAtomic = String(onchainPending?.usdcAtomic ?? '0');
+    const pendingUsdc = Number(pendingUsdcAtomic) / 1e6;
+    return {
+      mode: 'vault_not_activated',
+      paySource: 'anon_vault',
+      vault_status: 'initialized_not_active',
+      user_bound: true,
+      address: receiveAddress,
+      solanaAddress: receiveAddress,
+      evmAddress: null,
+      network: 'solana',
+      networkName: 'Solana',
+      balances: {
+        usdc: pendingUsdc,
+        fundedAtomic: pendingUsdcAtomic,
+        spentAtomic: '0',
+        availableAtomic: pendingUsdcAtomic,
+      },
+      vault: {
+        vaultPda: state.vault.vaultPda,
+        swigAddress: state.vault.swigAddress,
+        receiveAddress,
+        isActivated: false,
+      },
+      activate_url: 'https://dexter.cash/wallet',
+      retry: { tool: 'x402_pay', url, method: method || 'POST', body: body ?? null },
+      message:
+        pendingUsdc > 0
+          ? `You have $${pendingUsdc.toFixed(2)} USDC waiting in your wallet address, but the wallet hasn't been activated yet. ` +
+            'Go to dexter.cash/wallet and tap any action (withdraw, pay) to activate in one tap. No new funds needed — the activation uses your passkey that\'s already set up.'
+          : 'Your wallet address is ready to receive USDC, but the wallet hasn\'t been activated yet. ' +
+            'Go to dexter.cash/wallet and tap any action to activate in one tap with your passkey.',
+      instructions:
+        'Tell the user to open dexter.cash/wallet and tap any action (e.g. withdraw) to activate their wallet. ' +
+        'Activation takes one passkey tap — it\'s the first-use Swig deployment. Once activated, x402_fetch will work normally.',
+      tip: `Wallet not yet activated. Open ${receiveAddress !== state.vault.swigAddress ? `your wallet at ` : ''}dexter.cash/wallet to activate (one passkey tap).`,
+    };
+  }
+
+  // Vault is ready + activated. Build the read-only dashboard.
   const swigAddress = state.vault.swigAddress;
+  // receiveAddress is the wallet-address PDA (the ATA owner). Use it for display.
+  const receiveAddress = state.vault.receiveAddress ?? swigAddress;
   const onchain = state.onchain || null;
   const usdcAtomic = String(onchain?.usdcAtomic ?? '0');
   const usdcAvailable = Number(usdcAtomic) / 1e6;
@@ -870,7 +964,7 @@ async function x402Wallet(_args, extra) {
   if (!ataExists) {
     tip = 'Your wallet needs a one-time USDC activation before deposits work. Open dexter.cash/wallet, sign in, and tap Activate.';
   } else if (usdcAvailable === 0) {
-    tip = `Send USDC on Solana to ${swigAddress} to fund your wallet. Then I can pay for x402 APIs.`;
+    tip = `Send USDC on Solana to ${receiveAddress} to fund your wallet. Then I can pay for x402 APIs.`;
   } else if (withdrawalBlocked) {
     tip = `Wallet is funded ($${usdcAvailable.toFixed(2)} USDC available). ${pendingVoucherCount} open tab(s); withdrawal is gated until they settle.`;
   } else {
@@ -885,8 +979,9 @@ async function x402Wallet(_args, extra) {
     // Canonical wallet payload — same field names ChatGPT widgets already
     // consume from the legacy session shape, so the widget keeps rendering
     // without a schema change. EVM is honestly null.
-    address: swigAddress,
-    solanaAddress: swigAddress,
+    // Use receiveAddress (wallet-address PDA) as the primary address for deposits.
+    address: receiveAddress,
+    solanaAddress: receiveAddress,
     evmAddress: null,
     network: 'solana',
     networkName: 'Solana',
@@ -900,6 +995,7 @@ async function x402Wallet(_args, extra) {
     vault: {
       vaultPda: state.vault.vaultPda,
       swigAddress,
+      receiveAddress,
       pendingVoucherCount,
       withdrawalBlocked,
       usdcAtaExists: ataExists,
