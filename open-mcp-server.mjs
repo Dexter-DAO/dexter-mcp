@@ -59,6 +59,11 @@ import { composeSkill } from '@dexterai/x402-skills';
 import { SERVER_INSTRUCTIONS as SHARED_SERVER_INSTRUCTIONS } from '@dexterai/mcp-instructions';
 
 const PORT = parseInt(process.env.OPEN_MCP_PORT || '3931', 10);
+// Agent-facing server name. Single source of truth — referenced by the MCP
+// serverInfo, the /tools + root JSON payloads, and the startup log. Renaming
+// the server (e.g. "Dexter x402 Gateway" → "OpenDexter", 2026-06) is a
+// one-line change here instead of hunting literals across the file.
+const SERVER_NAME = 'OpenDexter';
 const DEXTER_API = (process.env.X402_API_URL || 'https://x402.dexter.cash').replace(/\/+$/, '');
 const API_BASE_FALLBACK = (process.env.API_BASE_URL || 'http://127.0.0.1:3030').replace(/\/+$/, '');
 // Composed-skills publish path (Phase E Task 10). DEXTER_API_ORIGIN points
@@ -1151,7 +1156,7 @@ function composedSkillsErrorResponse(code, extras = {}) {
 
 function createOpenMcpServer() {
   const server = new McpServer({
-    name: 'OpenDexter',
+    name: SERVER_NAME,
     version: '1.0.0',
   }, {
     instructions: SERVER_INSTRUCTIONS,
@@ -2453,7 +2458,7 @@ const httpServer = http.createServer(async (req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
       ok: true,
-      name: 'OpenDexter',
+      name: SERVER_NAME,
       tools: ALL_TOOLS,
       auth: false,
       sessions: transports.size,
@@ -2506,7 +2511,7 @@ const httpServer = http.createServer(async (req, res) => {
   if (url.pathname === '/.well-known/mcp.json') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
-      name: 'OpenDexter',
+      name: SERVER_NAME,
       url: 'https://open.dexter.cash/mcp',
       description:
         'Public x402 gateway. Search, pay, and call any x402 resource with canonical settlement. ' +
@@ -2636,7 +2641,7 @@ setInterval(() => {
 }, 10 * 60 * 1000);
 
 httpServer.listen(PORT, () => {
-  console.log(`[open-mcp] OpenDexter listening on :${PORT}`);
+  console.log(`[open-mcp] ${SERVER_NAME} listening on :${PORT}`);
   console.log(`[open-mcp] Tools: ${ALL_TOOLS.join(', ')}`);
   console.log(`[open-mcp] Auth: none (public)`);
   console.log(`[open-mcp] Capability search: ${DEXTER_API}${CAPABILITY_PATH}`);
