@@ -1151,7 +1151,7 @@ function composedSkillsErrorResponse(code, extras = {}) {
 
 function createOpenMcpServer() {
   const server = new McpServer({
-    name: 'Dexter x402 Gateway',
+    name: 'OpenDexter',
     version: '1.0.0',
   }, {
     instructions: SERVER_INSTRUCTIONS,
@@ -2453,7 +2453,7 @@ const httpServer = http.createServer(async (req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
       ok: true,
-      name: 'Dexter x402 Gateway',
+      name: 'OpenDexter',
       tools: ALL_TOOLS,
       auth: false,
       sessions: transports.size,
@@ -2506,7 +2506,7 @@ const httpServer = http.createServer(async (req, res) => {
   if (url.pathname === '/.well-known/mcp.json') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
-      name: 'Dexter x402 Gateway',
+      name: 'OpenDexter',
       url: 'https://open.dexter.cash/mcp',
       description:
         'Public x402 gateway. Search, pay, and call any x402 resource with canonical settlement. ' +
@@ -2636,7 +2636,7 @@ setInterval(() => {
 }, 10 * 60 * 1000);
 
 httpServer.listen(PORT, () => {
-  console.log(`[open-mcp] Dexter x402 Gateway listening on :${PORT}`);
+  console.log(`[open-mcp] OpenDexter listening on :${PORT}`);
   console.log(`[open-mcp] Tools: ${ALL_TOOLS.join(', ')}`);
   console.log(`[open-mcp] Auth: none (public)`);
   console.log(`[open-mcp] Capability search: ${DEXTER_API}${CAPABILITY_PATH}`);
