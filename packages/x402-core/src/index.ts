@@ -59,3 +59,7 @@ export {
 // Endpoint pricing probe
 export { checkEndpointPricing, parsePaymentRequiredHeader } from './check.js';
 export type { CheckResult, PaymentOption } from './check.js';
+
+// Bazaar-extension schema extractor
+export { extractBazaarSchema } from './bazaar.js';
+export type { BazaarSchema } from './bazaar.js';
