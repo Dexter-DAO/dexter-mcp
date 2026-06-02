@@ -7,6 +7,8 @@
  *   - opendexter-ide/packages/mcp/src/tools/check.ts (swap in v1.2+)
  */
 
+import { extractBazaarSchema } from './bazaar.js';
+
 export interface PaymentOption {
   price: number;
   priceFormatted: string;
@@ -243,12 +245,23 @@ export async function checkEndpointPricing(
     accepts[0]?.outputSchema ||
     accepts[0]?.extra?.outputSchema ||
     null;
-  const inputSchema = rawSchema && typeof rawSchema === 'object' && 'input' in rawSchema
+  let inputSchema = rawSchema && typeof rawSchema === 'object' && 'input' in rawSchema
     ? (rawSchema as any).input
     : null;
-  const outputSchema = rawSchema && typeof rawSchema === 'object' && 'output' in rawSchema
+  let outputSchema = rawSchema && typeof rawSchema === 'object' && 'output' in rawSchema
     ? (rawSchema as any).output
     : null;
+
+  // Bazaar fallback: accepts-convention sellers (above) win, but most bazaar
+  // sellers (AgentMail, the x402-foundation reference server) publish their
+  // schema in `extensions.bazaar` instead. When the accepts path yielded
+  // null, fall back to the shared bazaar extractor so agents get the real
+  // input/output shape instead of null.
+  if (inputSchema == null || outputSchema == null) {
+    const baz = extractBazaarSchema(extensions);
+    inputSchema = inputSchema ?? baz.inputSchema;
+    outputSchema = outputSchema ?? baz.outputSchema;
+  }
 
   // paid + siwx = hybrid
   const authMode: AuthMode = hasSiwx ? 'apiKey+paid' : 'paid';
