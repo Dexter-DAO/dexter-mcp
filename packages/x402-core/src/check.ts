@@ -254,14 +254,19 @@ export async function checkEndpointPricing(
 
   // Bazaar fallback: accepts-convention sellers (above) win, but most bazaar
   // sellers (AgentMail, the x402-foundation reference server) publish their
-  // schema in `extensions.bazaar` instead. When the accepts path yielded
-  // null, fall back to the shared bazaar extractor so agents get the real
-  // input/output shape instead of null.
-  if (inputSchema == null || outputSchema == null) {
-    const baz = extractBazaarSchema(extensions);
-    inputSchema = inputSchema ?? baz.inputSchema;
-    outputSchema = outputSchema ?? baz.outputSchema;
-  }
+  // schema in `extensions.bazaar` instead. The accepts path wins where it
+  // produced a value; bazaar fills any remaining null.
+  //
+  // NOTE: this is intentionally UNCONDITIONAL (always call extractBazaarSchema,
+  // then `??`-merge) rather than guarded by `if (inputSchema == null)`. esbuild's
+  // minifier (tsup minify:true) constant-folds the accepts ternaries above to
+  // `null` and then dead-code-eliminates a `if (inputSchema == null) { ... }`
+  // block entirely — silently dropping the extractor call from the bundled dist
+  // (the call survived only with minify:false). An unconditional call the
+  // minifier can't prove dead is the robust fix. Do NOT reintroduce the guard.
+  const baz = extractBazaarSchema(extensions);
+  inputSchema = inputSchema ?? baz.inputSchema;
+  outputSchema = outputSchema ?? baz.outputSchema;
 
   // paid + siwx = hybrid
   const authMode: AuthMode = hasSiwx ? 'apiKey+paid' : 'paid';
