@@ -67,6 +67,9 @@ describe('extractBazaarSchema', () => {
       ['client_id', 'display_name', 'domain', 'username'],
     );
 
+    // object body → not an array
+    expect(result.expectsArray).toBe(false);
+
     // method is the uppercased POST
     expect(result.inputMethod).toBe('POST');
 
@@ -182,9 +185,44 @@ describe('extractBazaarSchema', () => {
     expect(result.outputSchema).toEqual({ type: 'json', example: { ok: true } });
   });
 
+  it('parses an ARRAY-body POST shape (expectsArray)', () => {
+    // Some endpoints want a JSON array body — `[{...}]` not `{...}`. The leaf
+    // info.input.body is the one place an array is legitimate; it must NOT be
+    // nulled by the object guard, and expectsArray must report it.
+    const extensions = {
+      bazaar: {
+        info: {
+          input: {
+            type: 'http',
+            method: 'POST',
+            body: [{ symbol: 'ETH' }],
+          },
+        },
+      },
+    };
+
+    const result = extractBazaarSchema(extensions);
+
+    // array body is preserved, NOT nulled
+    expect(result.inputBody).toEqual([{ symbol: 'ETH' }]);
+    expect(Array.isArray(result.inputBody)).toBe(true);
+    expect(result.expectsArray).toBe(true);
+
+    expect(result.inputMethod).toBe('POST');
+
+    // no published schema → inputSchema synthesizes from the (array) body example
+    expect(result.inputSchema).toEqual([{ symbol: 'ETH' }]);
+
+    // no queryParams half here
+    expect(result.inputQueryParams).toBeNull();
+    expect(result.queryParamShapes).toBeNull();
+    expect(result.bodyFieldShapes).toBeNull();
+  });
+
   it('returns the all-null object for malformed / missing input, never throwing', () => {
     const NULL_FIELDS = {
       inputBody: null,
+      expectsArray: false,
       inputQueryParams: null,
       inputMethod: null,
       outputExample: null,

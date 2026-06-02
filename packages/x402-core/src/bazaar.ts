@@ -28,8 +28,18 @@
  */
 
 export interface BazaarSchema {
-  /** info.input.body — the POST/PUT request body example. */
-  inputBody: Record<string, unknown> | null;
+  /**
+   * info.input.body — the POST/PUT request body example. Usually an object,
+   * but some endpoints want an ARRAY body (`[{...}]` not `{...}`); both are
+   * preserved here. Use {@link BazaarSchema.expectsArray} to tell them apart.
+   */
+  inputBody: Record<string, unknown> | unknown[] | null;
+  /**
+   * True when `info.input.body` is an ARRAY (the endpoint expects `[{...}]`
+   * rather than `{...}`). Consumers wrap a normalized body in an array when
+   * this is set (verifier payment.ts). `false` for object/absent bodies.
+   */
+  expectsArray: boolean;
   /** info.input.queryParams — the GET query-string example. */
   inputQueryParams: Record<string, unknown> | null;
   /** info.input.method — uppercased + validated (GET/POST/PUT/PATCH/DELETE), else null. */
@@ -55,6 +65,7 @@ export interface BazaarSchema {
 
 const NULL_SCHEMA: BazaarSchema = {
   inputBody: null,
+  expectsArray: false,
   inputQueryParams: null,
   inputMethod: null,
   outputExample: null,
@@ -89,8 +100,20 @@ export function extractBazaarSchema(extensions: unknown): BazaarSchema {
     const infoInput = info && isObject(info.input) ? info.input : undefined;
     const infoOutput = info && isObject(info.output) ? info.output : undefined;
 
-    const inputBody =
-      infoInput && isObject(infoInput.body) ? infoInput.body : null;
+    // info.input.body is the ONE leaf where an ARRAY is a legitimate value
+    // (some endpoints want `[{...}]`). Accept object OR array; treat a
+    // missing/primitive body as null. Do NOT loosen the structural guards on
+    // any other level — only this concrete body example may be an array.
+    let inputBody: Record<string, unknown> | unknown[] | null = null;
+    let expectsArray = false;
+    const rawBody = infoInput ? infoInput.body : undefined;
+    if (Array.isArray(rawBody)) {
+      inputBody = rawBody;
+      expectsArray = true;
+    } else if (isObject(rawBody)) {
+      inputBody = rawBody;
+    }
+
     const inputQueryParams =
       infoInput && isObject(infoInput.queryParams) ? infoInput.queryParams : null;
 
@@ -152,6 +175,8 @@ export function extractBazaarSchema(extensions: unknown): BazaarSchema {
       if ((isGet || onlyQuery) && inputQueryParams != null) {
         inputSchema = inputQueryParams;
       } else if (inputBody != null) {
+        // inputBody may be an array (expectsArray) — surface it as-is, which
+        // is exactly the example a caller needs ("send `[{...}]`").
         inputSchema = inputBody;
       } else if (inputQueryParams != null) {
         // No method signal and no body — queryParams is all we have.
@@ -174,6 +199,7 @@ export function extractBazaarSchema(extensions: unknown): BazaarSchema {
 
     return {
       inputBody,
+      expectsArray,
       inputQueryParams,
       inputMethod,
       outputExample,
