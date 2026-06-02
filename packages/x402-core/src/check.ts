@@ -120,14 +120,31 @@ export function parsePaymentRequiredHeader(rawHeader: string | null): {
  *   - 2xx → unprotected (endpoint is free)
  */
 export async function checkEndpointPricing(
-  args: { url: string; method?: string },
+  args: {
+    url: string;
+    method?: string;
+    /**
+     * Phase 2 — input-dependent pricing. When provided (and the method is not
+     * GET), the probe is sent with this body instead of an empty `{}`, so the
+     * returned `paymentOptions` reflect the price for THAT exact request
+     * (e.g. search 10 vs 1000 results, call 5s vs 30s). Downstream
+     * schema/price/authMode parsing is unchanged — it just reflects the
+     * priced-for-this-body 402.
+     *
+     * NOTE: this covers body-priced POST/PUT/etc. GET-query input-dependent
+     * pricing (price riding query params) is a follow-up — out of scope here.
+     */
+    sampleInputBody?: Record<string, unknown>;
+  },
 ): Promise<CheckResult> {
   const method = args.method || 'GET';
 
   const res = await fetch(args.url, {
     method,
     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-    body: method !== 'GET' ? '{}' : undefined,
+    body: method !== 'GET'
+      ? JSON.stringify(args.sampleInputBody ?? {})
+      : undefined,
     signal: AbortSignal.timeout(15_000),
   });
 

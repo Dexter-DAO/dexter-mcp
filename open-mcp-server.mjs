@@ -1283,10 +1283,11 @@ function createOpenMcpServer() {
 
   server.registerTool('x402_check', {
     title: 'x402 Check',
-    description: 'Probe an endpoint for x402 payment requirements without paying. Returns pricing options per chain (Solana, Base, and others if supported), input/output schema, and the payTo address for each chain. When the endpoint is in the Dexter catalog, also returns enrichment data: quality score, AI verifier verdict + notes, recent verification history (3 most recent runs), display name, description, hit count, and response shape — so the caller can present a "should I pay $0.05 to call this?" decision rather than a bare price list. Use this to preview costs before calling x402_fetch.',
+    description: 'Probe an endpoint for x402 payment requirements without paying. Returns pricing options per chain (Solana, Base, and others if supported), input/output schema, and the payTo address for each chain. When the endpoint is in the Dexter catalog, also returns enrichment data: quality score, AI verifier verdict + notes, recent verification history (3 most recent runs), display name, description, hit count, and response shape — so the caller can present a "should I pay $0.05 to call this?" decision rather than a bare price list. Use this to preview costs before calling x402_fetch. For input-dependent pricing (price varies by request — e.g. 10 vs 1000 results, 5s vs 30s of compute), pass sampleInputBody to get pricing for that exact request rather than the endpoint\'s default/advisory price.',
     inputSchema: {
       url: z.string().url().describe('The URL to check'),
       method: z.enum(['GET', 'POST', 'PUT', 'DELETE']).default('GET').describe('HTTP method to probe with'),
+      sampleInputBody: z.record(z.unknown()).optional().describe('Optional request body to probe with (input-dependent pricing). When set on a non-GET method, the endpoint is priced for THIS exact request instead of an empty {} body.'),
     },
     annotations: { readOnlyHint: true },
     _meta: CHECK_META,
