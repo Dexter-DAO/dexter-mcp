@@ -77,7 +77,7 @@ const NULL_SCHEMA: BazaarSchema = {
 };
 
 /** True for a non-null, non-array plain object. */
-function isObject(v: unknown): v is Record<string, unknown> {
+export function isObject(v: unknown): v is Record<string, unknown> {
   return v != null && typeof v === 'object' && !Array.isArray(v);
 }
 

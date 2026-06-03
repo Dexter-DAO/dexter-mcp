@@ -9,6 +9,8 @@
  * ABSENT — we never downgrade a rich profile/openapi to an empty declaration.
  */
 
+import { isObject } from './bazaar.js';
+
 export type InputSchemaSource = 'bazaar' | 'openapi' | 'profile' | 'none';
 export type OutputSchemaSource = 'bazaar' | 'openapi' | 'none';
 
@@ -25,18 +27,18 @@ export interface ResolveOutputArgs {
 
 /** True for a non-null, non-array object that has at least one own key. */
 function isNonEmptyObject(v: unknown): v is Record<string, unknown> {
-  return v != null && typeof v === 'object' && !Array.isArray(v) && Object.keys(v as object).length > 0;
+  return isObject(v) && Object.keys(v).length > 0;
 }
 
 /**
- * A bazaar schema "says something" if it is a non-empty object AND, when it has
- * a `properties` key, that `properties` is itself non-empty. `{type:'object',
- * properties:{}}` is treated as empty/absent.
+ * A bazaar schema "says something" only if it has a `properties` object with at
+ * least one field. We treat `{}`, `{type:'object'}` (no properties key),
+ * `{...,properties:{}}`, `{...,properties:null}`, and `{...,properties:[]}` ALL
+ * as absent — never downgrade a rich openapi/profile to a contentless declaration.
  */
 function bazaarHasContent(v: unknown): boolean {
-  if (!isNonEmptyObject(v)) return false;
-  if ('properties' in v) return isNonEmptyObject((v as Record<string, unknown>).properties);
-  return true;
+  if (!isObject(v)) return false;
+  return isNonEmptyObject((v as Record<string, unknown>).properties);
 }
 
 /** True when a service_profile carries any declared input semantics. */
