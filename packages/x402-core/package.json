@@ -1,6 +1,6 @@
 {
   "name": "@dexterai/x402-core",
-  "version": "1.4.6",
+  "version": "1.4.8",
   "description": "Canonical types, formatters, and search client for the Dexter x402 ecosystem. Shared by all MCP servers, the SDK, and the ChatGPT widget.",
   "type": "module",
   "main": "dist/index.js",
