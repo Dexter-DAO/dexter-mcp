@@ -63,3 +63,12 @@ export type { CheckResult, PaymentOption } from './check.js';
 // Bazaar-extension schema extractor
 export { extractBazaarSchema } from './bazaar.js';
 export type { BazaarSchema } from './bazaar.js';
+
+// Schema-source precedence resolver (declaration > derived > guess)
+export { resolveInputSchema, resolveOutputSchema } from './resolve.js';
+export type {
+  InputSchemaSource,
+  OutputSchemaSource,
+  ResolveInputArgs,
+  ResolveOutputArgs,
+} from './resolve.js';
