@@ -1509,7 +1509,7 @@ const server = http.createServer(async (req, res) => {
         try {
           if (!req.headers['x-user-token']) {
             const raw = typeof req.oauthUser === 'string' && req.oauthUser ? req.oauthUser : (String(req.headers['authorization']||'').startsWith('Bearer ') ? String(req.headers['authorization']).slice(7) : '');
-            if (raw) req.headers['x-user-token'] = raw;
+            if (raw && !raw.startsWith('bearer:') && !raw.includes('…')) req.headers['x-user-token'] = raw;
           }
           // Also propagate per-session identity (issuer/sub/email) if known
           const ident = sessionIdentity.get(sessionId);
@@ -1625,7 +1625,7 @@ const server = http.createServer(async (req, res) => {
       try {
        if (!req.headers['x-user-token']) {
          const raw = typeof req.oauthUser === 'string' && req.oauthUser ? req.oauthUser : (String(req.headers['authorization']||'').startsWith('Bearer ') ? String(req.headers['authorization']).slice(7) : '');
-         if (raw) req.headers['x-user-token'] = raw;
+         if (raw && !raw.startsWith('bearer:') && !raw.includes('…')) req.headers['x-user-token'] = raw;
        }
         // Seed per-session identity fields from current request
         if (!req.headers['x-user-issuer']) {
@@ -1681,7 +1681,12 @@ const server = http.createServer(async (req, res) => {
             const link = ident.issuer && ident.sub ? await prisma.oauth_user_wallets.findFirst({ where: { provider: String(ident.issuer), subject: String(ident.sub), default_wallet: true } }) : null;
             if (link?.wallet_public_key) sessionWalletOverrides.set(sid, String(link.wallet_public_key));
           } catch {}
-          try { console.log(`[mcp] initialize ok user=${req.oauthUser} sid=${sid}`); } catch {}
+          try {
+            const _ua = String(req.headers['user-agent'] || '');
+            const _ip = String(req.headers['cf-connecting-ip'] || req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '');
+            const _srvBearer = typeof req.oauthUser === 'string' && req.oauthUser.startsWith('bearer:');
+            console.log(`[mcp] initialize ok user=${req.oauthUser} sid=${sid} serverBearer=${_srvBearer} ua=${JSON.stringify(_ua)} ip=${_ip}`);
+          } catch {}
         } else {
           try {
             const auth = String(req.headers['authorization']||'');
