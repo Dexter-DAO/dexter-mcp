@@ -1613,6 +1613,7 @@ const server = http.createServer(async (req, res) => {
   }
       let includeToolsets = undefined;
       let profile = undefined;
+      let clientInfoName = null;
       try {
         const tools = url.searchParams.get('tools');
         if (tools) includeToolsets = tools;
@@ -1639,6 +1640,7 @@ const server = http.createServer(async (req, res) => {
       {
         const rawBody = await readBody(req);
         const normalizedBody = normalizeJsonRpcPayload(rawBody);
+        try { clientInfoName = normalizedBody?.params?.clientInfo?.name || null; } catch {}
         const ident = buildIdentityForRequest(null, req);
         let restoreToolsLogger = null;
         const requestId = normalizedBody && (typeof normalizedBody.id === 'string' || typeof normalizedBody.id === 'number') ? String(normalizedBody.id) : null;
@@ -1685,7 +1687,7 @@ const server = http.createServer(async (req, res) => {
             const _ua = String(req.headers['user-agent'] || '');
             const _ip = String(req.headers['cf-connecting-ip'] || req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '');
             const _srvBearer = typeof req.oauthUser === 'string' && req.oauthUser.startsWith('bearer:');
-            console.log(`[mcp] initialize ok user=${req.oauthUser} sid=${sid} serverBearer=${_srvBearer} ua=${JSON.stringify(_ua)} ip=${_ip}`);
+            console.log(`[mcp] initialize ok user=${req.oauthUser} sid=${sid} serverBearer=${_srvBearer} client=${JSON.stringify(clientInfoName||'')} ua=${JSON.stringify(_ua)} ip=${_ip}`);
           } catch {}
         } else {
           try {
@@ -1699,7 +1701,7 @@ const server = http.createServer(async (req, res) => {
         if (!sessionStartTimes.has(sid)) sessionStartTimes.set(sid, Date.now());
         touchSession(sid); // Initialize activity timestamp for new session
         const ident = sessionIdentity.get(sid) || {};
-        const inferredClient = identifyClient(req.headers['user-agent'] || '') || null;
+        const inferredClient = clientInfoName || identifyClient(req.headers['user-agent'] || '') || null;
         if (inferredClient) sessionClientHints.set(sid, inferredClient);
         logSession('start', {
           sid,
