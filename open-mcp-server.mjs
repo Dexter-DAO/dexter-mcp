@@ -2406,6 +2406,49 @@ function markSessionBound(sessionId) {
   else sessionMeta.set(sessionId, { lastActivity: Date.now(), bound: true });
 }
 
+// ── Durable link tokens (Phase 0.5) ─────────────────────────────────────
+//
+// A client can present a durable, revocable link token — as a personal
+// connector URL (/mcp/<token>, what claude.ai / chatgpt.com custom
+// connectors store) or an x-dexter-link-token header (Claude Code, Cursor,
+// OpenAI Agents config). At session initialization we exchange the token
+// for an mcp_vault_bindings row via dexter-api, so the fresh session is
+// vault-bound before the first tool call and the user NEVER re-pairs
+// because a session died (restart, reap, client churn).
+const LINK_TOKEN_RE = /^dlt_[0-9a-f]{48}$/;
+const INTERNAL_HMAC_SECRET = (process.env.INTERNAL_DEXTERCARD_HMAC_SECRET || '').trim();
+
+async function bindLinkTokenToSession(linkToken, sessionId) {
+  if (!linkToken || !sessionId || !INTERNAL_HMAC_SECRET) return false;
+  try {
+    const ts = String(Date.now());
+    const sig = createHmac('sha256', INTERNAL_HMAC_SECRET)
+      .update(`${ts}.${linkToken}.${sessionId}`)
+      .digest('hex');
+    const resp = await fetch(`${API_BASE_FALLBACK}/api/passkey-vault/pair/link-token/bind`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-internal-timestamp': ts,
+        'x-internal-signature': sig,
+      },
+      body: JSON.stringify({ link_token: linkToken, mcp_session_id: sessionId }),
+      signal: AbortSignal.timeout(3000),
+    });
+    if (resp.ok) {
+      markSessionBound(sessionId);
+      console.log(`[open-mcp] link-token bound session ${sessionId} (active: ${transports.size})`);
+      return true;
+    }
+    const body = await resp.text().catch(() => '');
+    console.warn(`[open-mcp] link-token bind rejected: ${resp.status} ${body.slice(0, 120)}`);
+    return false;
+  } catch (err) {
+    console.warn(`[open-mcp] link-token bind error: ${err?.message || err}`);
+    return false;
+  }
+}
+
 // Per-session user bindings. Populated when a request arrives with a valid
 // Bearer JWT minted by dexter-api (HS256 / MCP_JWT_SECRET). Tools that need
 // a real user (Dextercard issuance, etc.) read from this map via the
@@ -2524,6 +2567,23 @@ const httpServer = http.createServer(async (req, res) => {
 
   const url = new URL(req.url, `http://localhost:${PORT}`);
 
+  // Durable link token: personal connector URL (/mcp/<token>) or the
+  // x-dexter-link-token header. Pathname is normalized so all routing below
+  // stays token-agnostic; the token is exchanged for a session binding at
+  // session initialization (bindLinkTokenToSession).
+  let pathname = url.pathname;
+  let linkToken = null;
+  const pathTokenMatch = pathname.match(/^\/mcp\/(dlt_[0-9a-f]{48})\/?$/);
+  if (pathTokenMatch) {
+    linkToken = pathTokenMatch[1];
+    pathname = '/mcp';
+  } else {
+    const hdrToken = req.headers['x-dexter-link-token'];
+    if (typeof hdrToken === 'string' && LINK_TOKEN_RE.test(hdrToken.trim())) {
+      linkToken = hdrToken.trim();
+    }
+  }
+
   // Health check
   if (url.pathname === '/health' || url.pathname === '/mcp/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -2602,8 +2662,8 @@ const httpServer = http.createServer(async (req, res) => {
     return;
   }
 
-  // Only handle /mcp and root
-  if (url.pathname !== '/' && url.pathname !== '/mcp') {
+  // Only handle /mcp and root (pathname already normalized for /mcp/<token>)
+  if (pathname !== '/' && pathname !== '/mcp') {
     res.writeHead(404, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: 'Not found' }));
     return;
@@ -2654,6 +2714,12 @@ const httpServer = http.createServer(async (req, res) => {
         if (!prior || prior.userId !== incomingBinding.userId) {
           console.log(`[open-mcp] bound session ${sessionId} to user ${incomingBinding.userId}${incomingBinding.email ? ` (${incomingBinding.email})` : ''}`);
         }
+      }
+      // Token present but session not yet vault-bound (bind failed at init,
+      // or the client added the token mid-session): retry without blocking
+      // the in-flight request.
+      if (linkToken && !sessionMeta.get(sessionId)?.bound) {
+        void bindLinkTokenToSession(linkToken, sessionId);
       }
       const transport = transports.get(sessionId);
       await transport.handleRequest(req, res);
@@ -2706,6 +2772,12 @@ const httpServer = http.createServer(async (req, res) => {
     const mcpServer = createOpenMcpServer();
     await mcpServer.connect(transport);
     await transport.handleRequest(req, res);
+    // Exchange the presented link token for a vault binding on the freshly
+    // created session — response is already written, and the client must
+    // receive it before any tool call arrives, so the binding lands first.
+    if (linkToken && transport.sessionId) {
+      await bindLinkTokenToSession(linkToken, transport.sessionId);
+    }
     return;
   }
 
