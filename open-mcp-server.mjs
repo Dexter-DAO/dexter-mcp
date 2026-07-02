@@ -496,6 +496,7 @@ async function x402Fetch({ url, method, body, multipart, sessionToken, sessionKe
     }
   }
   if (user_handle) {
+    if (sessionIdForAnon) markSessionBound(sessionIdForAnon);
     console.log(`[x402Fetch] resolved user_handle via ${headerHandle ? 'header' : 'mcp-binding'}: ${String(user_handle).slice(0, 8)}...`);
 
     // Check vault activation state before attempting payment. A vault in
@@ -913,6 +914,7 @@ async function x402Wallet(_args, extra) {
       console.warn(`[x402_wallet] /state read failed: ${err?.message || err}`);
     }
   }
+  if (state && sessionId) markSessionBound(sessionId);
 
   // No identity at all — neither header nor session id.
   if (!state && !sessionId && !walletHeaderHandle) {
@@ -2381,6 +2383,29 @@ function createOpenMcpServer() {
 
 const transports = new Map();
 
+// Per-session activity + stickiness, feeding the reaper. `lastActivity` is
+// touched on every request for the session (the thing the old reaper's
+// phantom `transport._lastActivity` pretended to be — that property was
+// never set anywhere, so the reaper swept nothing while 9k+ dead sessions
+// accumulated 2.6GB). `bound` marks sessions that carry a user JWT or have
+// resolved a vault binding; they earn the long TTL so paired humans are
+// never reaped out of a working setup.
+const sessionMeta = new Map(); // sessionId -> { lastActivity: number, bound: boolean }
+
+function touchSession(sessionId) {
+  if (!sessionId) return;
+  const meta = sessionMeta.get(sessionId);
+  if (meta) meta.lastActivity = Date.now();
+  else sessionMeta.set(sessionId, { lastActivity: Date.now(), bound: false });
+}
+
+function markSessionBound(sessionId) {
+  if (!sessionId) return;
+  const meta = sessionMeta.get(sessionId);
+  if (meta) meta.bound = true;
+  else sessionMeta.set(sessionId, { lastActivity: Date.now(), bound: true });
+}
+
 // Per-session user bindings. Populated when a request arrives with a valid
 // Bearer JWT minted by dexter-api (HS256 / MCP_JWT_SECRET). Tools that need
 // a real user (Dextercard issuance, etc.) read from this map via the
@@ -2508,6 +2533,8 @@ const httpServer = http.createServer(async (req, res) => {
       tools: ALL_TOOLS,
       auth: false,
       sessions: transports.size,
+      boundSessions: [...sessionMeta.values()].filter((m) => m.bound).length,
+      rssMb: Math.round(process.memoryUsage().rss / 1048576),
       timestamp: new Date().toISOString(),
     }));
     return;
@@ -2592,11 +2619,19 @@ const httpServer = http.createServer(async (req, res) => {
       res.end();
       return;
     }
-    if (!sessionId || !transports.has(sessionId)) {
+    if (!sessionId) {
       res.writeHead(400, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'No active session. Send a POST to initialize.' }));
       return;
     }
+    if (!transports.has(sessionId)) {
+      // Session this server no longer knows (restart / reap). 404 per the
+      // streamable-HTTP spec so the client re-initializes cleanly.
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Session not found. Re-initialize.' }));
+      return;
+    }
+    touchSession(sessionId);
     const transport = transports.get(sessionId);
     await transport.handleRequest(req, res);
     return;
@@ -2611,9 +2646,11 @@ const httpServer = http.createServer(async (req, res) => {
     const incomingBinding = tryBindUserFromRequest(req);
 
     if (sessionId && transports.has(sessionId)) {
+      touchSession(sessionId);
       if (incomingBinding) {
         const prior = userBindings.get(sessionId);
         userBindings.set(sessionId, incomingBinding);
+        markSessionBound(sessionId);
         if (!prior || prior.userId !== incomingBinding.userId) {
           console.log(`[open-mcp] bound session ${sessionId} to user ${incomingBinding.userId}${incomingBinding.email ? ` (${incomingBinding.email})` : ''}`);
         }
@@ -2623,12 +2660,31 @@ const httpServer = http.createServer(async (req, res) => {
       return;
     }
 
+    if (sessionId) {
+      // The request names a session this server no longer knows — exactly
+      // what the claude.ai proxy sends after a restart or reap. The old code
+      // fell through here and handled a NON-initialize request on a fresh
+      // un-initialized transport, which the proxy surfaced as
+      // "-32600 Anthropic Proxy: Invalid content" and the connector stayed
+      // dead until a full client reload. Answer 404 per the streamable-HTTP
+      // spec instead: the client silently re-initializes and carries on.
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        jsonrpc: '2.0',
+        error: { code: -32001, message: 'Session not found. Re-initialize.' },
+        id: null,
+      }));
+      return;
+    }
+
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: () => randomUUID(),
       onsessioninitialized: (sid) => {
         transports.set(sid, transport);
+        touchSession(sid);
         if (incomingBinding) {
           userBindings.set(sid, incomingBinding);
+          markSessionBound(sid);
           console.log(`[open-mcp] session created: ${sid} (active: ${transports.size}) bound user=${incomingBinding.userId}${incomingBinding.email ? ` (${incomingBinding.email})` : ''}`);
         } else {
           console.log(`[open-mcp] session created: ${sid} (active: ${transports.size})`);
@@ -2642,6 +2698,7 @@ const httpServer = http.createServer(async (req, res) => {
         transports.delete(sid);
         userBindings.delete(sid);
         pendingPairings.delete(sid);
+        sessionMeta.delete(sid);
         console.log(`[open-mcp] session closed: ${sid} (active: ${transports.size})`);
       }
     };
@@ -2661,6 +2718,7 @@ const httpServer = http.createServer(async (req, res) => {
       transports.delete(sessionId);
       userBindings.delete(sessionId);
       pendingPairings.delete(sessionId);
+      sessionMeta.delete(sessionId);
     } else {
       res.writeHead(404, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Session not found' }));
@@ -2672,17 +2730,35 @@ const httpServer = http.createServer(async (req, res) => {
   res.end(JSON.stringify({ error: 'Method not allowed' }));
 });
 
-// Reap stale sessions every 10 minutes
-const SESSION_MAX_AGE_MS = 30 * 60 * 1000;
+// Reap idle sessions every 10 minutes. Two leashes: anonymous drive-by
+// sessions (the overwhelming bulk — agents that connect, poke, vanish) go
+// after 90 idle minutes; bound sessions (user JWT seen, or a vault binding
+// resolved for the session) get 7 idle days, so paired humans never lose a
+// working session to memory pressure. transport.close() tears down the SDK
+// side and fires onclose (the single cleanup path); the explicit deletes
+// below are belt-and-suspenders in case onclose doesn't fire.
+const SESSION_IDLE_MS = 90 * 60 * 1000;
+const BOUND_SESSION_IDLE_MS = 7 * 24 * 60 * 60 * 1000;
 setInterval(() => {
   const now = Date.now();
+  let reaped = 0;
   for (const [sid, transport] of transports) {
-    if (transport._lastActivity && now - transport._lastActivity > SESSION_MAX_AGE_MS) {
+    const meta = sessionMeta.get(sid);
+    const idleMs = now - (meta?.lastActivity ?? 0);
+    const ttlMs = meta?.bound ? BOUND_SESSION_IDLE_MS : SESSION_IDLE_MS;
+    if (idleMs > ttlMs) {
+      try {
+        transport.close();
+      } catch { /* best-effort; maps are cleaned below regardless */ }
       transports.delete(sid);
       userBindings.delete(sid);
       pendingPairings.delete(sid);
-      console.log(`[open-mcp] reaped stale session: ${sid}`);
+      sessionMeta.delete(sid);
+      reaped += 1;
     }
+  }
+  if (reaped > 0) {
+    console.log(`[open-mcp] reaped ${reaped} idle session(s) (active: ${transports.size}, rss: ${Math.round(process.memoryUsage().rss / 1048576)}MB)`);
   }
 }, 10 * 60 * 1000);
 
