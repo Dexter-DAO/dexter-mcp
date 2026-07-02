@@ -115,6 +115,11 @@ export async function capabilitySearch(
       capabilityText: intentInfo.capabilityText,
       expandedCapabilityText: intentInfo.expandedCapabilityText,
     },
+    // Forward honesty diagnostics verbatim. Older dexter-api builds may not
+    // ship these; conditional spread keeps the property absent rather than
+    // emitting `undefined` (which would lie about the field being known).
+    ...(data.confidence ? { confidence: data.confidence } : {}),
+    ...(data.triangulate ? { triangulate: data.triangulate } : {}),
     durationMs: data.durationMs,
   };
 }

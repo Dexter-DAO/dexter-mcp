@@ -34,6 +34,19 @@ function buildSearchMeta(result: CapabilitySearchResult): SearchMeta {
 }
 
 function buildTip(result: CapabilitySearchResult): string {
+  // Triangulation tip — load-bearing. When the top match has no structured
+  // input semantics AND profile-backed alternates exist, we need the agent to
+  // know NOT to blindly pay the top result on an ambiguous query. This is the
+  // m01 wrong-token-pick scenario: the catalog ranks a confident-looking but
+  // marketing-text-only candidate first, and the agent has nothing to flag
+  // that confidence as thin unless we say so explicitly here.
+  if (result.triangulate) {
+    return (
+      'Top match has no structured input semantics — the ranking is based on its description alone. ' +
+      `Before paying, call one of the profile-backed alternates (resourceId: ${result.triangulate.alternateResourceIds[0]}) ` +
+      "and confirm the answer agrees. If the query is unambiguous (e.g. you passed an exact contract address, not a name), you can skip this step."
+    );
+  }
   if (result.strongCount > 0) {
     return 'Use x402_fetch to call any of these endpoints. Strong matches are high-confidence; related matches are adjacent capabilities.';
   }
@@ -75,6 +88,11 @@ export function buildSearchResponse(result: CapabilitySearchResult): SearchRespo
       expandedCapabilityText: result.intent.expandedCapabilityText,
     },
     searchMeta: buildSearchMeta(result),
+    // Honesty diagnostics — forwarded verbatim. Confidence is always present
+    // when the upstream supports it; triangulate is present only when
+    // actionable (top match unprofiled AND profile-backed alternates exist).
+    ...(result.confidence ? { confidence: result.confidence } : {}),
+    ...(result.triangulate ? { triangulate: result.triangulate } : {}),
     tip: buildTip(result),
     source: SOURCE,
   };

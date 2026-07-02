@@ -161,5 +161,11 @@ export function formatResource(r: RawCapabilityResult): FormattedResource {
     // Schemas (corpus-cached; null when the resource doesn't publish them)
     inputSchema: r.inputSchema ?? null,
     outputSchema: r.outputSchema ?? null,
+
+    // Structured behavioral profile. Pass through verbatim — already shaped
+    // for clients by the dexter-api response builder. NULL when the resource
+    // has no OpenAPI to derive from; a null serviceProfile on a strong-banded
+    // result is a load-bearing honesty signal, not a missing field.
+    serviceProfile: r.serviceProfile ?? null,
   };
 }
