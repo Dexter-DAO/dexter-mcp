@@ -682,7 +682,6 @@ export function registerAppsSdkResources(server, options = {}) {
         },
       },
       async () => {
-        console.log(`[apps-sdk] WIDGET FETCHED (a client is rendering): ${entry.name} <${entry.templateUri}> @ ${new Date().toISOString()}`);
         const rawHtml = await fsp.readFile(assetPath, 'utf8');
         const rewritten = tagEntryScript(rewriteHtmlForAssets(rawHtml, assetBase), entry.name);
         const html = injectBootstrap(rewritten, MCP_PUBLIC_URL, buildWidgetRuntimeConfig(entry, assetBase));
