@@ -123,6 +123,11 @@ function deriveWelcomeName(email) {
 function widgetMeta(templateUri, invoking, invoked, description) {
   return {
     ui: { resourceUri: templateUri, visibility: ['model', 'app'] },
+    // Deprecated flat key alongside the nested `ui.resourceUri` — the official
+    // ext-apps registerAppTool emits BOTH for backward compat. Older MCP Apps
+    // hosts (e.g. some Claude Code versions) look for the flat key; newer ones
+    // (claude.ai web) read the nested one. Emit both so every client renders.
+    'ui/resourceUri': templateUri,
     'openai/outputTemplate': templateUri,
     'openai/resultCanProduceWidget': true,
     'openai/widgetAccessible': true,
