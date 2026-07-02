@@ -457,33 +457,52 @@ function buildVaultRequired({ pairing, url, method, body, requirements, merchant
   };
 }
 
+// dexter-api requires a clean session id or none at all: a PRESENT-but-
+// malformed mcp_session_id on the pay endpoints 400s `invalid_mcp_session_id`
+// (no silent downgrade to handle mode). Mirror of dexter-api's SESSION_ID_RE.
+const PAY_SESSION_ID_RE = /^[A-Za-z0-9_.\-]{1,256}$/;
+
+// Internal-auth headers for dexter-api's HMAC-gated lookups (same scheme as
+// /pair/link-token/bind: HMAC-SHA256 over `${ts}.${value}` with the shared
+// INTERNAL_DEXTERCARD_HMAC_SECRET). Returns {} when the secret is absent so
+// pre-gate environments keep working; the gate 401s us if it flips without
+// the secret provisioned here — fail closed on the money path, loudly.
+function signedInternalHeaders(value) {
+  if (!INTERNAL_HMAC_SECRET) return {};
+  const ts = String(Date.now());
+  const sig = createHmac('sha256', INTERNAL_HMAC_SECRET)
+    .update(`${ts}.${value}`)
+    .digest('hex');
+  return { 'x-internal-timestamp': ts, 'x-internal-signature': sig };
+}
+
 async function x402Fetch({ url, method, body, multipart, sessionToken, sessionKey }, extra) {
   // ── Non-custodial passkey-vault path (the ONLY way to pay here) ───────────
-  // The remote MCP URL holds NO funds of its own. We resolve the buyer's
-  // user_handle in one of two ways:
-  //   1. PHONE PATH — dexter-phone bakes `x-dexter-user-handle` into the
-  //      hostedMcpTool({ headers }) config. OpenAI's Realtime API forwards
-  //      the header to us. Skip the mcp-binding round-trip entirely when
-  //      present. (Verified live 2026-05-30; see dexter-phone vault-rewire
-  //      spec v2.)
-  //   2. WEB / CHATGPT PATH — fall back to the durable mcp-binding table at
-  //      /api/passkey-anon/mcp-binding/<sessionId>, populated by the
-  //      passkey-vault pairing flow.
-  // If neither path resolves a handle, we return `vault_required` with an
-  // enroll funnel — there is no Dexter-held key to fall back to, by design.
-  // No session funding, no Supabase, no custodial keys, ever.
-  // Multipart/file-upload is not on the vault yet (see below). Solana-only.
-  const headerHandle =
-    extra?.requestInfo?.headers?.['x-dexter-user-handle'] ||
-    extra?.requestInfo?.headers?.['X-Dexter-User-Handle'] ||
-    null;
+  // The remote MCP URL holds NO funds of its own. The buyer's identity is the
+  // MCP session's live vault binding: we resolve user_handle through the
+  // durable mcp-binding table at /api/passkey-anon/mcp-binding/<sessionId>
+  // (HMAC-signed — the raw handle is never dispensed unauthenticated), and the
+  // pay calls below also pass mcp_session_id so dexter-api re-authenticates
+  // spend against the LIVE binding (per-surface revocation bites the spend).
+  // The old `x-dexter-user-handle` header path (dexter-phone) is RETIRED — a
+  // raw handle is a lookup key, never a bearer credential. Phone re-onboards
+  // via durable link tokens (x-dexter-link-token) when it exits Twilio limbo.
+  // If no binding resolves, we return `vault_required` with an enroll funnel —
+  // there is no Dexter-held key to fall back to, by design. No session
+  // funding, no Supabase, no custodial keys, ever.
   const sessionIdForAnon = extra ? extractMcpSessionId(extra) : null;
-  let user_handle = headerHandle;
-  if (!user_handle && sessionIdForAnon) {
+  // Sent on pay calls only when clean — dexter-api 400s a malformed id.
+  const paySessionId =
+    sessionIdForAnon && PAY_SESSION_ID_RE.test(sessionIdForAnon) ? sessionIdForAnon : null;
+  let user_handle = null;
+  if (sessionIdForAnon) {
     try {
       const bindRes = await fetch(
         `${API_BASE_FALLBACK}/api/passkey-anon/mcp-binding/${encodeURIComponent(sessionIdForAnon)}`,
-        { signal: AbortSignal.timeout(2000) },
+        {
+          headers: signedInternalHeaders(sessionIdForAnon),
+          signal: AbortSignal.timeout(2000),
+        },
       );
       if (bindRes.ok) {
         const binding = await bindRes.json();
@@ -497,7 +516,7 @@ async function x402Fetch({ url, method, body, multipart, sessionToken, sessionKe
   }
   if (user_handle) {
     if (sessionIdForAnon) markSessionBound(sessionIdForAnon);
-    console.log(`[x402Fetch] resolved user_handle via ${headerHandle ? 'header' : 'mcp-binding'}: ${String(user_handle).slice(0, 8)}...`);
+    console.log(`[x402Fetch] resolved user_handle via mcp-binding: ${String(user_handle).slice(0, 8)}...`);
 
     // Check vault activation state before attempting payment. A vault in
     // "initialized_not_active" state has a receive address but no Swig deployed —
@@ -574,6 +593,10 @@ async function x402Fetch({ url, method, body, multipart, sessionToken, sessionKe
             };
           }
           const fd = new FormData();
+          // Session mode (money-path part 3): dexter-api authenticates spend
+          // against this session's LIVE binding; the handle rides along as the
+          // cross-check (mismatch → 403 binding_handle_mismatch).
+          if (paySessionId) fd.append('mcp_session_id', paySessionId);
           fd.append('user_handle', user_handle);
           fd.append('url', url);
           fd.append('method', requestedMethod);
@@ -639,6 +662,9 @@ async function x402Fetch({ url, method, body, multipart, sessionToken, sessionKe
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            // Session mode (money-path part 3): spend authenticates against
+            // this session's live binding; handle becomes the cross-check.
+            ...(paySessionId ? { mcp_session_id: paySessionId } : {}),
             user_handle,
             url,
             method: method || 'GET',
@@ -707,9 +733,8 @@ async function x402Fetch({ url, method, body, multipart, sessionToken, sessionKe
       });
     }
   }
-  // No handle resolved — this session has no passkey vault bound and no
-  // x-dexter-user-handle header was supplied. The remote MCP URL is
-  // non-custodial: there is NO Dexter-held key to fall back to. Mint (or
+  // No handle resolved — this session has no passkey vault bound. The remote
+  // MCP URL is non-custodial: there is NO Dexter-held key to fall back to. Mint (or
   // reuse) a durable enroll pairing and return vault_required so the agent
   // sends the user to set up their passkey wallet, then retries.
   if (sessionIdForAnon) {
@@ -877,37 +902,15 @@ const SOLANA_MAINNET_CAIP2 = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
  * rendering rather than crashing on a missing key.
  */
 async function x402Wallet(_args, extra) {
-  // PHONE PATH — dexter-phone bakes x-dexter-user-handle into the
-  // hostedMcpTool headers. OpenAI's Realtime API forwards the header to us.
-  // When present, look up vault state by user_handle directly via the
-  // unauthenticated /api/passkey-vault-anon/status endpoint, skipping the
-  // mcp_session_id binding lookup entirely. Phone sessions have NO row in
-  // the mcp_vault_bindings table (that's a browser-paired construct), so
-  // without this path x402_wallet would always return 'not_enrolled' even
-  // for callers whose vaults are claimed and funded.
-  const walletHeaderHandle =
-    extra?.requestInfo?.headers?.['x-dexter-user-handle'] ||
-    extra?.requestInfo?.headers?.['X-Dexter-User-Handle'] ||
-    null;
-  if (walletHeaderHandle) {
-    console.log(`[x402_wallet] resolving vault via x-dexter-user-handle: ${String(walletHeaderHandle).slice(0, 8)}...`);
-  } else {
-    console.log('[x402_wallet] no x-dexter-user-handle header (falling back to mcp-session pairing)');
-  }
+  // Identity = the MCP session's live vault binding, resolved server-side.
+  // The old x-dexter-user-handle PHONE PATH is RETIRED (money-path ruling: a
+  // raw handle is a lookup key, never a bearer credential). dexter-phone
+  // re-onboards via durable link tokens (x-dexter-link-token) — a token-bound
+  // session resolves here through the normal binding lookup like any other.
   const sessionId = extra ? extractMcpSessionId(extra) : null;
 
   let state = null;
-  if (walletHeaderHandle) {
-    try {
-      state = await fetchVaultStateByUserHandle(walletHeaderHandle);
-    } catch (err) {
-      console.warn(`[x402_wallet] /passkey-vault-anon/status read failed: ${err?.message || err}`);
-    }
-  }
-
-  // Fall back to session-id lookup if header didn't resolve (ChatGPT/web path,
-  // or phone path with anon-status hiccup).
-  if (!state && sessionId) {
+  if (sessionId) {
     try {
       state = await fetchVaultStateBySession(sessionId);
     } catch (err) {
@@ -916,8 +919,8 @@ async function x402Wallet(_args, extra) {
   }
   if (state && sessionId) markSessionBound(sessionId);
 
-  // No identity at all — neither header nor session id.
-  if (!state && !sessionId && !walletHeaderHandle) {
+  // No identity at all — no session id to resolve a binding from.
+  if (!state && !sessionId) {
     const pairing = await ensureVaultPairing(null);
     return buildVaultRequired({
       pairing,
@@ -1139,7 +1142,10 @@ async function resolvePrincipalForSession(extra) {
     try {
       const bindRes = await fetch(
         `${DEXTER_API_ORIGIN}/api/passkey-anon/mcp-binding/${encodeURIComponent(sessionId)}`,
-        { signal: AbortSignal.timeout(2000) },
+        {
+          headers: signedInternalHeaders(sessionId),
+          signal: AbortSignal.timeout(2000),
+        },
       );
       if (bindRes.ok) {
         const bindBody = await bindRes.json();
@@ -1818,28 +1824,13 @@ function createOpenMcpServer() {
     // pairing when genuinely not_enrolled — re-minting for awaiting_ceremony
     // was the forever-poll bug.
     //
-    // Two identity paths:
-    //   1. PHONE — x-dexter-user-handle header set by dexter-phone. Look up
-    //      via /api/passkey-vault-anon/status?user_handle=... (no auth).
-    //   2. WEB / CHATGPT — fall back to mcp_session_id binding lookup.
-    const passkeyHeaderHandle =
-      extra?.requestInfo?.headers?.['x-dexter-user-handle'] ||
-      extra?.requestInfo?.headers?.['X-Dexter-User-Handle'] ||
-      null;
-    if (passkeyHeaderHandle || sessionId) {
+    // Identity = the mcp_session_id binding lookup. The old PHONE path
+    // (x-dexter-user-handle header) is RETIRED per the money-path ruling —
+    // dexter-phone re-onboards via durable link tokens, whose sessions
+    // resolve here through the same binding lookup as everyone else.
+    if (sessionId) {
       try {
-        let state = null;
-        if (passkeyHeaderHandle) {
-          console.log(`[dexter_passkey] resolving vault via x-dexter-user-handle: ${String(passkeyHeaderHandle).slice(0, 8)}...`);
-          try {
-            state = await fetchVaultStateByUserHandle(passkeyHeaderHandle);
-          } catch (err) {
-            console.warn(`[dexter_passkey] /passkey-vault-anon/status read failed: ${err?.message || err}`);
-          }
-        }
-        if (!state && sessionId) {
-          state = await fetchVaultStateBySession(sessionId);
-        }
+        const state = await fetchVaultStateBySession(sessionId);
         if (!state) throw new Error('no_identity');
 
         if (state.status === 'ready' && state.vault) {
