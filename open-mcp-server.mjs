@@ -588,6 +588,25 @@ async function x402Fetch({ url, method, body, multipart, sessionToken, sessionKe
           const anonBody = await anonRes.json().catch(() => null);
           const anonRoundtripMs = Date.now() - anonStart;
           if (anonBody?.ok) {
+            // Ambiguous settlement: x402 'exact' settles INLINE, so the USDC may
+            // already have moved. The agent must NOT retry (a retry re-authorizes
+            // and double-spends). Return a TERMINAL, non-retryable state. dexter-api
+            // sends paymentUnconfirmed on a post-dispatch error, reason
+            // 'settlement_unconfirmed' on a merchant 5xx.
+            if (anonBody.paymentUnconfirmed === true || anonBody.reason === 'settlement_unconfirmed') {
+              return {
+                status: anonBody.status ?? 200,
+                mode: 'vault_payment_unconfirmed',
+                retryable: false,
+                reason: anonBody.reason || 'payment_unconfirmed',
+                data: anonBody.data ?? null,
+                payment: { settled: 'unknown', details: anonBody.payment ?? null },
+                vault: anonBody.vault,
+                paySource: 'anon_vault',
+                message: anonBody.message
+                  || 'The payment was dispatched and may have settled. Do NOT retry — re-running could pay twice. Check the vault balance or the merchant before re-attempting.',
+              };
+            }
             return {
               status: anonBody.status ?? 200,
               mode: anonBody.paid ? 'vault_ready' : 'vault_no_payment_required',
@@ -620,11 +639,32 @@ async function x402Fetch({ url, method, body, multipart, sessionToken, sessionKe
             body: body ?? null,
             requestId: randomUUID(),
           }),
-          signal: AbortSignal.timeout(30000),
+          // Must exceed dexter-api's 60s paid-retry window: a shorter client
+          // timeout abandons mid-settlement and the retry double-spends.
+          signal: AbortSignal.timeout(70000),
         });
         const anonBody = await anonRes.json().catch(() => null);
         const anonRoundtripMs = Date.now() - anonStart;
         if (anonBody?.ok) {
+          // Ambiguous settlement: x402 'exact' settles INLINE, so the USDC may
+          // already have moved. The agent must NOT retry (a retry re-authorizes
+          // and double-spends). Return a TERMINAL, non-retryable state. dexter-api
+          // sends paymentUnconfirmed on a post-dispatch error, reason
+          // 'settlement_unconfirmed' on a merchant 5xx.
+          if (anonBody.paymentUnconfirmed === true || anonBody.reason === 'settlement_unconfirmed') {
+            return {
+              status: anonBody.status ?? 200,
+              mode: 'vault_payment_unconfirmed',
+              retryable: false,
+              reason: anonBody.reason || 'payment_unconfirmed',
+              data: anonBody.data ?? null,
+              payment: { settled: 'unknown', details: anonBody.payment ?? null },
+              vault: anonBody.vault,
+              paySource: 'anon_vault',
+              message: anonBody.message
+                || 'The payment was dispatched and may have settled. Do NOT retry — re-running could pay twice. Check the vault balance or the merchant before re-attempting.',
+            };
+          }
           return {
             status: anonBody.status ?? 200,
             mode: anonBody.paid ? 'vault_ready' : 'vault_no_payment_required',
