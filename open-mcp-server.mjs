@@ -29,6 +29,7 @@ import { fileURLToPath } from 'node:url';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { z } from 'zod';
+import { jwtVerify, createRemoteJWKSet } from 'jose';
 import dotenv from 'dotenv';
 dotenv.config();
 dotenv.config({ path: '.env.local' });
@@ -2409,6 +2410,59 @@ function markSessionBound(sessionId) {
 const LINK_TOKEN_RE = /^dlt_[0-9a-f]{48}$/;
 const INTERNAL_HMAC_SECRET = (process.env.INTERNAL_DEXTERCARD_HMAC_SECRET || '').trim();
 
+// ── OAuth-native connect: seed a durable token-scoped vault binding ──────────
+// When claude.ai completes the OAuth ceremony it presents a Dexter-signed ES256
+// vault Bearer (iss=dexter.cash, aud=open.dexter.cash/mcp) on tool calls. We
+// verify it against dexter.cash's JWKS and hand the token to dexter-api's
+// /oauth-seed, which re-verifies it and writes mcp_vault_bindings with
+// link_token_hash = the token's dexter_surface (token-scoped, so per-surface
+// revoke bites the next tool call). After that the existing x402Fetch →
+// /mcp-binding → session-mode spend path works unchanged. Anonymous/HS256 calls
+// are untouched: verify just throws and we skip.
+const OPEN_MCP_VAULT_AUDIENCE = 'https://open.dexter.cash/mcp';
+const DEXTER_JWKS = createRemoteJWKSet(new URL('https://dexter.cash/.well-known/jwks.json'));
+
+async function seedOAuthVaultBinding(req, sessionId) {
+  if (!INTERNAL_HMAC_SECRET || !sessionId) return;
+  const token = extractBearer(req);
+  if (!token || token.split('.').length !== 3) return;
+  let payload;
+  try {
+    ({ payload } = await jwtVerify(token, DEXTER_JWKS, {
+      issuer: 'https://dexter.cash',
+      audience: OPEN_MCP_VAULT_AUDIENCE,
+      algorithms: ['ES256'],
+    }));
+  } catch {
+    return; // not a vault Bearer (anon / HS256 account token) — leave as-is
+  }
+  if (!payload?.dexter_surface) return;
+  try {
+    const ts = String(Date.now());
+    const sig = createHmac('sha256', INTERNAL_HMAC_SECRET)
+      .update(`${ts}.${token}.${sessionId}`)
+      .digest('hex');
+    const res = await fetch(`${API_BASE_FALLBACK}/api/passkey-vault/pair/oauth-seed`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-internal-timestamp': ts,
+        'x-internal-signature': sig,
+      },
+      body: JSON.stringify({ access_token: token, mcp_session_id: sessionId }),
+      signal: AbortSignal.timeout(2500),
+    });
+    if (res.ok) {
+      markSessionBound(sessionId);
+      console.log(`[open-mcp] oauth vault binding seeded: ${sessionId} handle=${String(payload.sub).slice(0, 6)}...`);
+    } else {
+      console.warn(`[open-mcp] oauth-seed refused (${res.status}) for ${sessionId}`);
+    }
+  } catch (err) {
+    console.warn(`[open-mcp] oauth-seed failed: ${err?.message || err}`);
+  }
+}
+
 async function bindLinkTokenToSession(linkToken, sessionId) {
   if (!linkToken || !sessionId || !INTERNAL_HMAC_SECRET) return false;
   try {
@@ -2695,6 +2749,13 @@ const httpServer = http.createServer(async (req, res) => {
     // Optional auth: re-evaluate Bearer on every POST so token rotation
     // and revocation propagate without forcing a session restart.
     const incomingBinding = tryBindUserFromRequest(req);
+
+    // OAuth-native vault Bearer → seed the durable token-scoped binding once per
+    // session (await so it exists before the tool call resolves it). Idempotent;
+    // gated on not-yet-bound to keep it off the hot path. No-op for anon/HS256.
+    if (sessionId && !sessionMeta.get(sessionId)?.bound) {
+      await seedOAuthVaultBinding(req, sessionId);
+    }
 
     if (sessionId && transports.has(sessionId)) {
       touchSession(sessionId);
