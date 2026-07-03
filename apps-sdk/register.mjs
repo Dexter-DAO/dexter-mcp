@@ -586,7 +586,7 @@ export function registerAppsSdkResources(server, options = {}) {
       file: 'x402-wallet.html',
       title: 'x402 Wallet Dashboard',
       description: 'Displays the x402 MCP wallet address, balances, and deposit instructions.',
-      widgetDescription: 'Shows wallet address with copy button, USDC/SOL balances, and deposit QR code.',
+      widgetDescription: 'Shows wallet address with copy button, USDC balance, and deposit QR code (USDC on Solana only).',
       invoking: 'Loading wallet…',
       invoked: 'Wallet loaded',
     },
