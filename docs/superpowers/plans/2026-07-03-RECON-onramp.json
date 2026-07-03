@@ -1,0 +1,332 @@
+{
+  "summary": "Ground-truth recon for the embedded fiat on-ramp lane: existing assets, mount points, provider reality, decision trail",
+  "agentCount": 4,
+  "logs": [],
+  "result": {
+    "assets": {
+      "summary": "Full onramp-asset sweep across dexter-api, dexter-fe, dexter-mcp, x402gle, dexter-agents, dexter-lab. Provider keys found: Coinbase CDP (CDP_API_KEY, live, with working Ed25519-JWT auth code already in prod) and a MoonPay PARTNER relationship (no API key — it's the Dextercard carrier integration via @dexterai/dextercard + captcha-solver keys CAPSOLVER/NOPECHA, partner-team green-lit). Zero keys for Transak, Ramp, Stripe, Mesh, Sardine, Banxa, Topper, Kado. No onramp route, widget, redirect URL, or webhook handler exists anywhere — the only 'onramp' code hits are a bank-transaction categorizer label and Reown AppKit's bundled Coinbase-onramp generator sitting unused inside dexter-lab's build. dexter-mcp has NO topup tool ('topup' in that repo only appears in the pay.sh competitor skill doc); funding today = x402_wallet returning the vault receiveAddress with a 'send USDC here' tip, plus dexter-api's buildOpenFunding() Solana Pay USDC deeplink for open sessions. buildOpenFunding (x402Pay.ts:292-312) returns a structured funding object {walletAddress, solanaPayUrl, txUrl, amountUsdc, reference} that is attached to EVERY not-funded/402 error path (~12 call sites) and has a GET redirect route (/open/session/fund/:id, x402Pay.ts:881-890) that 302s to the deeplink — an onrampUrl field slots into this exact surface with one function change, and the same field fits x402_wallet's vault payload (open-mcp-server.mjs:1035-1062) since receiveAddress is already the deposit target.",
+      "facts": [
+        {
+          "fact": "ENV KEY: CDP_API_KEY=a767e3... (Coinbase Developer Platform) — only live provider credential in any repo. Same key powers working CDP JWT auth in prod.",
+          "source": "/home/branchmanager/websites/dexter-api/.env:226"
+        },
+        {
+          "fact": "ENV KEYS (MoonPay-adjacent, for Dextercard onboarding, NOT an onramp widget key): CAPSOLVER_API_KEY=CAP-93... (line 423), NOPECHA_API_KEY=sub_1T... (line 426), CAPTCHA_SOLVER_PROVIDER=nopech... (line 427). Comments: 'Captcha solver for agent-driven Dextercard onboarding (MoonPay-authorized)' / 'NopeCHA solves hCaptcha for MoonPay'.",
+          "source": "/home/branchmanager/websites/dexter-api/.env:422-427"
+        },
+        {
+          "fact": "ENV KEY: VITE_REOWN_PROJECT_ID=8b7348... — Reown AppKit project id in dexter-lab (limbo tier). AppKit ^1.8.17 (package.json:99-100) ships a built-in Coinbase onramp URL generator (generateOnRampURL via Reown's /v1/generators/onrampurl, plus getOnrampOptions/getOnrampQuote) — present, unused, in the built bundle build/client/assets/wallet-CgreTCFz.js.",
+          "source": "/home/branchmanager/websites/dexter-lab/.env:167"
+        },
+        {
+          "fact": "NO keys anywhere for: Transak, Ramp Network, Stripe (no stripe key or SDK in any package.json), Mesh, Sardine, Banxa, Topper, Kado, and no MOONPAY_API_KEY / pk_live. Verified across all .env variants in the six repos including dexter-api/.env-recovery/*.",
+          "source": "grep of /home/branchmanager/websites/{dexter-api,dexter-fe,dexter-mcp,x402gle,dexter-agents,dexter-lab}/.env*"
+        },
+        {
+          "fact": "MoonPay PARTNER integration (card issuance, not onramp): dexter-api/src/routes/dextercard.ts — 'Authorized partner integration — MoonPay's team has green-lit agent-driven onboarding for Dexter' (line 192); POST /api/dextercard/login-no-captcha solves hCaptcha server-side against https://agents.moonpay.com/login (line 231) via @dexterai/dextercard's LoginFlow. Full endpoint surface (login/verify/status/issue/freeze) proxies the carrier so the browser never sees the MoonPay domain.",
+          "source": "/home/branchmanager/websites/dexter-api/src/routes/dextercard.ts:192,231 + src/services/captchaSolver.ts:6-13"
+        },
+        {
+          "fact": "MoonPay contact exists by name: captchaSolver.ts:9 — 'MoonPay's partner team (Carson) has authorized this'. The @dexterai/dextercard npm package (^0.5.0, dexter-api package.json:160) wraps the carrier with sessions + captcha-aware login.",
+          "source": "/home/branchmanager/websites/dexter-api/src/services/captchaSolver.ts:9"
+        },
+        {
+          "fact": "dexter-fe MoonPay surfaces: MoonAgentsConnectorModal.tsx (lines 4, 28, 138 — walks user through public @moonpay/cli + moonpay.com/agents/card docs link), app/dextercard/countries.ts:23 (MoonPay region availability), app/lib/cardThemes.ts:25 ('moonagents' card theme). All card-issuance, no buy-widget.",
+          "source": "/home/branchmanager/websites/dexter-fe/app/components/wallet/MoonAgentsConnectorModal.tsx:4"
+        },
+        {
+          "fact": "DESIGNED-BUT-UNBUILT onramp: dexter-fe/docs/WALLET-FLOW.md:90 specs the vault funding UI as 'On-ramp (MoonPay button) | Embedded MoonPay widget, credit card → USDC to wallet | 2-5 min | ~3% MoonPay fee' and line 95: 'UX should default to MoonPay because most users don't have another wallet.' No corresponding widget code exists anywhere in dexter-fe — DepositPanel.tsx renders only QR + copy-address + one-time USDC ATA activation.",
+          "source": "/home/branchmanager/websites/dexter-fe/docs/WALLET-FLOW.md:90-95"
+        },
+        {
+          "fact": "Working Coinbase CDP auth code already in prod (reusable for CDP Onramp API which uses the same key + JWT scheme): generateJwt from @coinbase/cdp-sdk/auth in facilitatorCapabilities.ts (import line 2, JWT generator ~line 177, CDP special-case line 444-445) and x402gle/supported-sync.ts:26. Plus the coinbase-cdp-call skill for ad-hoc CDP calls.",
+          "source": "/home/branchmanager/websites/dexter-api/src/routes/facilitatorCapabilities.ts:2,177,444"
+        },
+        {
+          "fact": "dexter-mcp has NO topup tool. The only 'topup' hit in the repo is .agents/skills/pay/references/setup-cli.md:38 ('pay topup # fund account') — that is the pay.sh COMPETITOR's CLI doc (confirmed by x402gle/.planning/demo-night/01b-paysh-recon-findings.md:227: 'they mention a topup MCP tool... TODO: read topup.rs'). The mcp__pay__topup tool visible in sessions is pay.sh's external MCP, not Dexter's.",
+          "source": "/home/branchmanager/websites/dexter-mcp/.agents/skills/pay/references/setup-cli.md:38"
+        },
+        {
+          "fact": "Current MCP funding surface = x402_wallet (open-mcp-server.mjs:880-1062): read-only vault dashboard post-custodial-retirement. When unfunded it returns mode 'vault_funding_required' with address=receiveAddress and tip 'Send USDC on Solana to {receiveAddress} to fund your wallet' (~line 1024). No onramp path — user must already own USDC. Old session-keypair 'send USDC here' model explicitly retired (comment lines 885-895).",
+          "source": "/home/branchmanager/websites/dexter-mcp/open-mcp-server.mjs:880-1062"
+        },
+        {
+          "fact": "Solana Pay funding builder confirmed: buildOpenFunding() at x402Pay.ts:292-312 builds solanaPayUrl = 'solana:{walletAddress}?amount=...&spl-token={USDC_MINT}&reference=...&label=OpenDexter Session Funding&message=Fund session {id}' plus txUrl = {baseUrl}/v2/pay/open/session/fund/{id}. GET /open/session/fund/:id (lines 881-890) returns the funding JSON or 302-redirects straight to the solana: deeplink.",
+          "source": "/home/branchmanager/websites/dexter-api/src/routes/x402Pay.ts:292-312,881-890"
+        },
+        {
+          "fact": "The funding object is already attached to every not-funded error path — session create/status (754, 810, 838, 871), fund route (886-890), session_not_funded (921, 1229), no_funded_chain_matches (974, 1313), insufficient-balance paths (992, 1005, 1106). Adding an onrampUrl field to buildOpenFunding propagates to all ~12 surfaces in one change; x402_wallet's vault payload (address/receiveAddress already the deposit target) takes the same field.",
+          "source": "/home/branchmanager/websites/dexter-api/src/routes/x402Pay.ts:754-1313"
+        },
+        {
+          "fact": "Misc non-integrations that match the grep terms (noted to close the loop): bankTransactionEnricher.ts:181-182 tags company-bank txns as 'crypto_onramp' when descriptor matches coinbase/kraken/gemini/binance (admin labels in dexter-fe/app/admin/company/bank/*); 'mesh' hits are visual/3D (X402Atlas, DexterCrest3D); 'stripe' hits are VC-deck copy, a /stripe→/tabs redirect (dexter-fe/next.config.js:94), and verifier test fixtures; RAMP_ hits are hedgefund oscillation config. dexter-agents and x402gle source have zero onramp code.",
+          "source": "/home/branchmanager/websites/dexter-api/src/services/bankTransactionEnricher.ts:181-182"
+        }
+      ],
+      "recommendation": "Two provider relationships already EXIST; neither is a turnkey onramp yet, but one is a same-day build. (1) Coinbase CDP is the fastest path: CDP_API_KEY is live in dexter-api/.env:226 and the exact JWT-signing code CDP Onramp requires is already running in prod (facilitatorCapabilities.ts / supported-sync.ts use @coinbase/cdp-sdk/auth generateJwt — CDP Onramp's session-token + buy-URL endpoints authenticate identically). Build: a small server-side helper that mints a Coinbase Onramp URL pinned to USDC-on-Solana with the vault receiveAddress (or open-session walletAddress) as destination, then add it as an onrampUrl field inside buildOpenFunding() (x402Pay.ts:292) and in x402_wallet's funding payload — the funding object already rides every 402/not-funded response and the GET fund route already does provider-style 302 redirects, so the surface needs no new plumbing. (2) MoonPay is the stronger RELATIONSHIP (named partner contact Carson, green-lit agent-driven flows, @dexterai/dextercard SDK, captcha keys) but there is no MoonPay onramp API key today — the relationship is scoped to Dextercard issuance. WALLET-FLOW.md:90 already specs 'MoonPay button → USDC to wallet' as the intended default, so if Branch wants MoonPay as the consumer-facing ramp, the ask to Carson is a buy-widget publishable key + signing secret (wallet-address-locked widget URLs) — a one-email unlock given the existing partnership. (3) Ignore the Reown AppKit onramp in dexter-lab (works only in a browser AppKit context, limbo-tier repo). Confirmed gap: there is NO working onramp path for x402 session wallets or vaults today — everything assumes the user already holds USDC — but the funding-object architecture means either provider drops in at one code point and instantly reaches MCP agents, the fund redirect page, and every insufficient-funds error message."
+    },
+    "mounts": {
+      "summary": "The funded-wallet journey on wallet-launch-surfaces has exactly two live deposit surfaces, both address-and-QR only: DepositPanel (mounted on /tabs/deposit via DepositView) and VaultHome's deposit-address row (mounted at /wallet; /tabs now redirects there). InitializedBanner is orphaned on this branch — no importer. The on-ramp target is the swig v2 wallet PDA (receiveAddress, off-curve), whose USDC ATA does NOT exist until provisioned; a treasury-funded, idempotent, owner-gated create_ata endpoint already exists (POST /api/passkey-vault/provision) with an fe wrapper (provisionUsdcAta), but only on the authed rail — guests cannot pre-provision. CSP lives entirely in nginx (next.config.js has no headers()), and it ALREADY whitelists Crossmint in frame-src/connect-src/script-src/img-src (leftover from the retired Crossmint wallet integration), so a Crossmint embedded widget works today with zero infra change; any other embedded provider needs a one-line nginx map edit, while a redirect/URL handoff needs no CSP change at all. The natural first CTA mount is inside DepositPanel next to 'Copy address' — that component already receives authToken + vaultPda + usdcAtaExists, i.e. everything needed to pre-provision the ATA and then hand off.",
+      "facts": [
+        {
+          "fact": "DepositPanel props: swigAddress (actually fed the receiveAddress), vaultPda, usdcAtaExists, authToken, onActivated",
+          "source": "/home/branchmanager/websites/dexter-fe/app/components/wallet/vault/DepositPanel.tsx:8-18"
+        },
+        {
+          "fact": "DepositPanel shows today: an 'Activate USDC deposits' button when !usdcAtaExists && authToken (lines 52-68), a QRCodeSVG of the address at size 132 (line 72), the full address in a code block with a 'Copy address' button (lines 75-82), and fineprint 'Send USDC on Solana... USDC only' (lines 83-86). Guests (authToken null) with no ATA see only the bare address — no activate affordance.",
+          "source": "/home/branchmanager/websites/dexter-fe/app/components/wallet/vault/DepositPanel.tsx:52-88"
+        },
+        {
+          "fact": "DepositPanel mounts once: DepositView.tsx line 55, which app/tabs/deposit/page.tsx serves at /tabs/deposit. DepositView passes vault.receiveAddress as swigAddress (never the config PDA — FAIL SAFE comment lines 52-54) and vaultOps.status.onchain?.usdcAtaExists ?? true (line 58).",
+          "source": "/home/branchmanager/websites/dexter-fe/app/tabs/deposit/DepositView.tsx:55-61"
+        },
+        {
+          "fact": "VaultHome's deposit-address row (lines 234-272): 'Deposit address' label, full receiveAddress in a click-to-copy code element with 'click to copy'/'Copied!' hint (lines 238-255), a Solscan link in a depositActions span (lines 256-265). No QR on this surface. Footer has a 'Deposit' link to /tabs/deposit at lines 360-362 and 'Withdraw' to /tabs/withdraw at 364-366.",
+          "source": "/home/branchmanager/websites/dexter-fe/app/tabs/VaultHome.tsx:234-272,359-366"
+        },
+        {
+          "fact": "VaultHome mounts at /wallet (app/wallet/page.tsx line 57, when hasWallet). /tabs is a redirect to /wallet as of the 2026-07-03 'one account home' ruling (app/tabs/page.tsx lines 1-8), so /wallet is THE funded-wallet home.",
+          "source": "/home/branchmanager/websites/dexter-fe/app/wallet/page.tsx:57 and /home/branchmanager/websites/dexter-fe/app/tabs/page.tsx:6-8"
+        },
+        {
+          "fact": "InitializedBanner is ORPHANED on this branch: repo-wide grep finds no importer — the only references are inside InitializedBanner.tsx itself. Its pre-activation UI (waiting balance, truncated address + Copy + Solscan lines 101-126, post-deposit 'Activate wallet' button lines 130-153) is dead code today; do not mount the on-ramp there.",
+          "source": "/home/branchmanager/websites/dexter-fe/app/components/wallet/vault/InitializedBanner.tsx:30-162 (grep: no external importers)"
+        },
+        {
+          "fact": "receiveAddress is the swig v2 wallet PDA: authed rail resolves it via resolveSwigWalletAddress(state.vault.swigAddress, rpc) (passkeyVault.ts:243), guest rail via deriveCounterfactualAddresses(...).swigWalletAddress (passkeyVaultAnon.ts:669-674, with the comment 'receiveAddress is the ONLY address shown to users as a deposit target'). The fe types it as 'Swig wallet-address PDA — the receive address users send USDC to' (client.ts:95).",
+          "source": "/home/branchmanager/websites/dexter-api/src/routes/passkeyVault.ts:243, /home/branchmanager/websites/dexter-api/src/routes/passkeyVaultAnon.ts:655-674, /home/branchmanager/websites/dexter-fe/app/lib/vault/client.ts:95"
+        },
+        {
+          "fact": "The USDC ATA does NOT auto-exist: it's derived from the wallet PDA via deriveSwigUsdcAta and read with a try/catch that returns exists:false (resolveVaultState.ts:59-67), surfaced as onchain.usdcAtaExists (resolveVaultState.ts:152; fe type client.ts:66). The codebase's own doc states consumer wallets (Phantom) FAIL to deposit USDC until the ATA exists (DepositPanel.tsx:11-13, client.ts:252-257). An on-ramp delivery is provider-dependent: most exchange-style senders create the destination ATA, but some providers reject addresses without an existing USDC token account or balk at off-curve addresses — so the integration should pre-provision the ATA before handing the address to the provider rather than gamble on provider behavior.",
+          "source": "/home/branchmanager/websites/dexter-api/src/vault/resolveVaultState.ts:48-67,152 and /home/branchmanager/websites/dexter-fe/app/lib/vault/client.ts:66,252-257"
+        },
+        {
+          "fact": "ATA auto-provisioning EXISTS and is on-demand, not automatic: POST /api/passkey-vault/provision with action create_ata (passkeyVault.ts:958-1061) creates the classic-SPL USDC ATA owned by the WALLET PDA (not the state PDA — lines 1000-1017), treasury pays fee+rent (line 1031-1038), idempotent (alreadyExisted:true, lines 1021-1028), gated isOwner || isAdmin via requireUser Supabase bearer (lines 959, 988-994). FE wrapper: provisionUsdcAta(token, vaultPda) at client.ts:258-268, already wired to DepositPanel's activate button.",
+          "source": "/home/branchmanager/websites/dexter-api/src/routes/passkeyVault.ts:942-1061 and /home/branchmanager/websites/dexter-fe/app/lib/vault/client.ts:258-268"
+        },
+        {
+          "fact": "GAP: the guest/anon rail has NO create_ata equivalent — passkeyVaultAnon.ts's only provisioning is the first-use Swig deploy (line 1072). A guest wallet cannot pre-provision its USDC ATA, so an on-ramp CTA for guests either depends on the provider creating the ATA or should be gated the same way DepositPanel already gates activation (authToken present, DepositPanel.tsx:52).",
+          "source": "/home/branchmanager/websites/dexter-api/src/routes/passkeyVaultAnon.ts:1072 (grep: no create_ata in anon routes)"
+        },
+        {
+          "fact": "next.config.js sets NO security headers — no headers() function at all, only redirects() and rewrites() (lines 16-127), and there is no middleware.ts. All CSP comes from nginx: /etc/nginx/sites-enabled/dexter.cash:82 'add_header Content-Security-Policy $csp_val always', with the value map at /etc/nginx/nginx.conf:116 (suppressed entirely for social crawlers).",
+          "source": "/home/branchmanager/websites/dexter-fe/next.config.js:8-128, /etc/nginx/sites-enabled/dexter.cash:76-82, /etc/nginx/nginx.conf:104-118"
+        },
+        {
+          "fact": "The live dexter.cash CSP ALREADY allows Crossmint embedding: frame-src 'self' + newassets.hcaptcha.com + *.hcaptcha.com + challenges.cloudflare.com + *.crossmint.com + www.crossmint.com + staging.crossmint.com + devicekey.store + *.devicekey.store; connect-src includes *.crossmint.com, www.crossmint.com, staging.crossmint.com, telemetry.crossmint.com; script-src includes *.crossmint.com + 'unsafe-inline' 'unsafe-eval'; img-src includes *.crossmint.com. These are leftovers from the retired Crossmint multi-chain wallet integration (LoginMenuWalletRow.tsx:6, chains.ts:9-13). No MoonPay/Coinbase/Stripe onramp hosts are whitelisted, and no onramp SDK is in package.json.",
+          "source": "/etc/nginx/nginx.conf:116-118 ($csp_val map), /home/branchmanager/websites/dexter-fe/app/components/header/LoginMenuWalletRow.tsx:6"
+        },
+        {
+          "fact": "Integration-shape cost on this stack: (a) redirect/URL handoff to a provider-hosted page with address prefill — zero CSP change (CSP does not govern top-level navigations); (b) embedded Crossmint widget/iframe — zero infra change, already whitelisted; (c) embedded widget from any OTHER provider — one-line edit to the $csp_val map in /etc/nginx/nginx.conf:116 (frame-src + connect-src, plus script-src if their JS SDK is used) + nginx reload.",
+          "source": "/etc/nginx/nginx.conf:116, /etc/nginx/sites-enabled/dexter.cash:82"
+        },
+        {
+          "fact": "CTA mount candidates, concrete: (1) DepositPanel 'Buy USDC' button beside 'Copy address' at DepositPanel.tsx:76-82 (inside the depositAddr div, before the fineprint at :83) — the component already holds authToken, vaultPda, usdcAtaExists, so it can provisionUsdcAta then hand off in one flow; (2) VaultHome deposit row's depositActions span next to the Solscan link at VaultHome.tsx:256-265, or a third footer link beside Deposit/Withdraw at VaultHome.tsx:359-366; (3) homepage funnel — the DexterWallet section's CTA already routes to /wallet at app/components/home/DexterWallet.tsx:64 (motion.a href=\"/wallet\"), and DexterHero's primary CTA routes to /tabs (→ /wallet) at DexterHero.tsx:78 — the homepage should keep funneling to /wallet rather than hosting the on-ramp itself.",
+          "source": "/home/branchmanager/websites/dexter-fe/app/components/wallet/vault/DepositPanel.tsx:70-88, /home/branchmanager/websites/dexter-fe/app/tabs/VaultHome.tsx:256-265,359-366, /home/branchmanager/websites/dexter-fe/app/components/home/DexterWallet.tsx:64, /home/branchmanager/websites/dexter-fe/app/components/home/DexterHero.tsx:78"
+        },
+        {
+          "fact": "Required delivery spec for the provider: USDC (classic SPL, mint EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v — matches USDC_MINT used in passkeyVault.ts:1017/1034) on Solana mainnet, delivered to receiveAddress. DepositPanel's own fineprint already warns users that SOL/other tokens/other chains are lost (DepositPanel.tsx:83-86), so the on-ramp must be locked to USDC-SPL-Solana with no asset/chain picker.",
+          "source": "/home/branchmanager/websites/dexter-fe/app/components/wallet/vault/DepositPanel.tsx:83-86, /home/branchmanager/websites/dexter-api/src/routes/passkeyVault.ts:1017"
+        }
+      ],
+      "recommendation": "Lowest-friction first ship: mount a 'Buy USDC' CTA inside DepositPanel (app/components/wallet/vault/DepositPanel.tsx:76-82, beside 'Copy address') as a redirect/URL handoff to a provider-hosted page with the receiveAddress prefilled and the asset hard-locked to USDC-SPL-Solana — zero CSP/nginx change, one component touched, and it renders exactly where deposit intent already lives (/tabs/deposit), one footer tap from /wallet (VaultHome.tsx:360). Sequence the click as: if authToken && !usdcAtaExists, await provisionUsdcAta (client.ts:258 — idempotent, treasury-funded) BEFORE opening the provider, so the on-ramp never delivers to an ATA-less off-curve PDA; for guests without an ATA, gate the CTA behind the existing sign-in path (or close the anon-rail create_ata gap in dexter-api first). If an embedded widget is wanted instead of a redirect, Crossmint is the only provider whose iframe/SDK the live dexter.cash CSP already allows (frame-src/connect-src/script-src at /etc/nginx/nginx.conf:116) — any other embedded provider costs a one-line $csp_val map edit + nginx reload. Second mount (fast follow, same session state available): the depositActions span in VaultHome's deposit row (VaultHome.tsx:256-265) so /wallet itself offers the buy without the extra hop. Do not touch InitializedBanner — it is orphaned dead code on this branch."
+    },
+    "providers": {
+      "summary": "All five providers (MoonPay, Coinbase Onramp, Stripe, Transak, Ramp Network) support fiat→USDC-on-Solana delivered to a user-supplied address as of July 2026, but every one of them now requires a backend for the address-prefill path except Ramp Network. MoonPay requires HMAC-signed URLs when walletAddress is passed; Coinbase requires a server-minted sessionToken (mandatory since 2025-07-31); Stripe requires a server-side onramp_sessions mint to set wallet_address (its client-only hosted URL cannot prefill an address); Transak completed a mandatory migration to a backend-only session API (partner IP allowlist + access-token) for all widget URLs; only Ramp still accepts userAddress as a plain unsigned query/SDK param, but its API key comes through a contact-form/sales pipeline. Onboarding: Coinbase CDP is fully self-serve with instant free Secret API keys (and dexter-api already holds a CDP_API_KEY); Transak and MoonPay give instant sandbox keys but gate production behind KYB review; Stripe requires an application (reviewed ~48h) even for test access and is US-only (no Hawaii); Ramp is slowest to keys. Small-purchase ($20) KYC: Coinbase is lightest for its existing-account base (sign in, no new KYC; note hosted-widget guest checkout was discontinued 2026-06-30, Apple Pay guest flow now lives in the Headless Onramp API); Stripe uses tiered Link-networked KYC (SSN for US, doc+selfie only at higher tiers, returning Link users skip); Transak has a no-document Simple KYC tier (SSN still required for US); Ramp mandates ID verification for US users at any amount; MoonPay is heaviest (ID doc + selfie/liveness on first purchase) and worst on fees for $20 card buys (4.5% with $3.99 minimum ≈ 20% effective).",
+      "facts": [
+        {
+          "fact": "MoonPay supports USDC on Solana as currency code usdc_sol, isSupportedInUS: true, min buy $5, max $30,000 (live currencies API).",
+          "source": "https://api.moonpay.com/v3/currencies"
+        },
+        {
+          "fact": "MoonPay widget: hosted URL (redirect or iframe) plus Web/React SDKs; params include apiKey (publishable), currencyCode, walletAddress, baseCurrencyAmount. Pre-filling walletAddress REQUIRES passing currencyCode and signing the URL (HMAC-SHA256 with the secret key) — i.e. a backend is required to lock the destination address.",
+          "source": "https://dev.moonpay.com/docs/ramps-sdk-buy-params"
+        },
+        {
+          "fact": "MoonPay go-live is gated: dashboard sign-up gives test keys immediately, but production requires Account Review + Business Verification (KYB) and per-product approval before live API keys appear.",
+          "source": "https://support.moonpay.com/en/articles/388689-how-to-go-live-with-moonpay-as-a-partner"
+        },
+        {
+          "fact": "MoonPay end-user fees: 4.5% for card payments and 1% for bank transfers, each with a $3.99/€3.99/£3.99 minimum — on a $20 card buy that minimum is ~20% effective.",
+          "source": "https://www.moonpay.com/legal/pricing_disclosure"
+        },
+        {
+          "fact": "MoonPay first-purchase KYC for US users is full: identity document (e.g. driver's license, both sides for state IDs) plus selfie/3D liveness check, verified during the first transaction.",
+          "source": "https://support.moonpay.com/en/articles/383332-how-to-verify-your-moonpay-account"
+        },
+        {
+          "fact": "Coinbase Onramp hosted URL is https://pay.coinbase.com/buy/select-asset?sessionToken=... — sessionToken is mandatory on all Onramp/Offramp URLs (enforced since July 31, 2025). Token is minted server-side: JWT signed with a CDP Secret API key → POST /onramp/v1/token with the destination wallet address + blockchains; tokens are single-use and expire in 5 minutes. No client-only integration exists.",
+          "source": "https://docs.cdp.coinbase.com/onramp/introduction/quickstart and https://docs.cdp.coinbase.com/onramp-&-offramp/onramp-apis/generating-onramp-url"
+        },
+        {
+          "fact": "Coinbase Onramp URL accepts defaultAsset, defaultNetwork, presetFiatAmount, fiatCurrency, redirectUrl, partnerUserRef — e.g. defaultAsset=USDC&defaultNetwork=solana&presetFiatAmount=20 with the Solana destination address baked into the session token. USDC on Solana requires a Solana-formatted destination address.",
+          "source": "https://docs.cdp.coinbase.com/onramp-&-offramp/onramp-apis/generating-onramp-url"
+        },
+        {
+          "fact": "Coinbase CDP onboarding is fully self-serve and free: create account at portal.cdp.coinbase.com, verify email + 2FA, create a Secret API Key (Client API Keys do not work for Onramp). No application/approval step for the hosted onramp; domain allowlisting is only called out for production Offramp redirect URLs. Headless Onramp (Apple Pay/Google Pay native) additionally requires app approval.",
+          "source": "https://docs.cdp.coinbase.com/onramp/introduction/quickstart"
+        },
+        {
+          "fact": "Coinbase Onramp end-user pricing: spread + Coinbase fee (FAQ cites 2.5% card, 0.5% ACH), but Coinbase runs 0% fees on all USDC onramps/offramps for integrated developers.",
+          "source": "https://docs.cdp.coinbase.com/onramp/additional-resources/faq and https://www.coinbase.com/developer-platform/discover/launches/zero-fee-usdc"
+        },
+        {
+          "fact": "Coinbase KYC UX: existing Coinbase account holders just sign in (no new KYC — best-in-class for a $20 buy). Guest Checkout (US residents, debit card / Apple Pay, min $5, up to $500/week) via the Coinbase-HOSTED widget was discontinued June 30, 2026 — i.e. as of this week the hosted flow requires a Coinbase account; the Apple Pay guest path now lives in the Headless Onramp API (backend-driven, US-only, requires app approval).",
+          "source": "https://docs.cdp.coinbase.com/onramp/additional-resources/faq and https://docs.cdp.coinbase.com/onramp/headless-onramp/overview"
+        },
+        {
+          "fact": "Stripe onramp supports solana as destination_network and usdc as destination_currency; USDC (Solana) is available across the US including NY (NY exclusions only hit XLM and USDC on Stellar/Avalanche/Polygon). The onramp product itself is restricted to users located in the United States, excluding Hawaii.",
+          "source": "https://docs.stripe.com/crypto/onramp/stripe-hosted and https://stripe.com/legal/crypto-onramp"
+        },
+        {
+          "fact": "Stripe integration modes: (1) Stripe-hosted page at crypto.link.com — a client-side Standalone URL builder can preset source_currency, amount, destination_currency/network WITHOUT a backend, but CANNOT prefill a wallet address; (2) to lock/prefill wallet_address you must mint a session server-side via POST https://api.stripe.com/v1/crypto/onramp_sessions with your secret key (no signature scheme, just the API call) and use the returned redirect_url; (3) Embedded JS onramp and (4) mobile SDK (private preview).",
+          "source": "https://docs.stripe.com/crypto/onramp/stripe-hosted and https://docs.stripe.com/api/crypto/onramp_sessions"
+        },
+        {
+          "fact": "Stripe onboarding is an application pipeline, not self-serve: 'To access the Stripe onramp, including testing environments, you must submit your application' from the dashboard; most applications reviewed within 48 hours. Fees are quote-time disclosed (transaction fee + payment processing + spread); no flat published rate.",
+          "source": "https://docs.stripe.com/crypto/onramp"
+        },
+        {
+          "fact": "Stripe onramp KYC is tiered and Link-networked: L0/L1 collect personal info with SSN as the only supported idNumber for US users; document + selfie only at L2; customers with existing Link/onramp KYC on file skip re-verification — strong returning-user UX for small buys.",
+          "source": "https://docs.stripe.com/crypto/onramp/kyc-integration-guide"
+        },
+        {
+          "fact": "Transak supports USDC on Solana via widget params cryptoCurrencyCode=USDC&network=solana with walletAddress as destination (customer can edit unless disableWalletAddressForm); no URL-signing scheme for walletAddress itself.",
+          "source": "https://docs.transak.com/customization/query-parameters"
+        },
+        {
+          "fact": "Transak has completed a MANDATORY migration away from plain query-param widget URLs: every widget launch now requires POST /api/v2/auth/session called 'only from the partner backend, with partner IPs whitelisted' using x-api-key + access-token headers; returns a single-use widgetUrl (sessionId JWT) that expires in 5 minutes. Direct frontend calls are not supported — a backend is now unconditionally required.",
+          "source": "https://docs.transak.com/api/public/create-widget-url and https://docs.transak.com/docs/migration-to-api-based-transak-widget-url"
+        },
+        {
+          "fact": "Transak onboarding: self-serve at dashboard.transak.com with a staging API key immediately; production API key unlocks only after KYB approval (submitted at forms.transak.com/kyb). Licensed coverage across US/UK/EU/AU/CA. Fees roughly 0.99%–3.5% by payment method plus spread, with minimum-fee floors on some methods.",
+          "source": "https://docs.transak.com/docs/onboarding-and-integration-process-overview and https://support.transak.com/en/articles/7845942-how-does-transak-calculate-prices-and-fees"
+        },
+        {
+          "fact": "Transak KYC is multi-level and quote-dynamic: Simple KYC = personal + address details only (no ID document); Standard KYC adds document + selfie; SSN is required for US users at any KYC level — so a $20 US buy can land on the no-document tier but still asks for SSN.",
+          "source": "https://docs.transak.com/docs/kyc and https://transak.com/kyc"
+        },
+        {
+          "fact": "Ramp Network supports USDC on Solana for onramp: SPL token on SOLANA chain, enabled:true, min purchase ~$7.15, max ~$17,154 (live assets API; legacy identifier format SOLANA_USDC, new unified params inAsset/outAsset).",
+          "source": "https://api.ramp.network/api/host-api/v3/assets?currencyCode=USD and https://docs.rampnetwork.com/assets"
+        },
+        {
+          "fact": "Ramp Network is the ONLY provider of the five where the destination address needs no backend: userAddress is 'an optional string parameter that pre-sets the address the crypto will be sent to' with no signing/session requirement, usable in hosted-URL mode or embedded SDK/iframe. hostApiKey is a required parameter.",
+          "source": "https://docs.rampnetwork.com/configuration"
+        },
+        {
+          "fact": "Ramp Network onboarding is a contact/sales pipeline, not instant self-serve: to receive an API key 'you fill out a form and Ramp's team will reach back to you'; staging + production keys issued; partner fees are 'tailored'/negotiable rather than published.",
+          "source": "https://docs.rampnetwork.com/getting-started and https://support.rampnetwork.com/en/articles/31329-are-ramp-network-fees-negotiable-for-integration-partners"
+        },
+        {
+          "fact": "Ramp Network KYC for US users is mandatory at ANY transaction amount (US and Ireland explicitly called out): personal info + identity document (passport/driver's license), possibly proof of address — no under-threshold no-KYC tier for the US.",
+          "source": "https://support.rampnetwork.com/en/articles/441-what-are-the-kyc-limits-and-requirements"
+        }
+      ],
+      "recommendation": "RANKING (a) — fastest to live for dexter.cash: 1) Coinbase Onramp — CDP portal is fully self-serve with an instant free Secret API Key, no application for the hosted flow, and dexter-api already holds a working CDP_API_KEY (the coinbase-cdp-call skill uses it), so the only build is a tiny authenticated POST /onramp/v1/token endpoint in dexter-api that mints a session token for the user's Solana address and redirects to pay.coinbase.com/buy/select-asset?sessionToken=...&defaultAsset=USDC&defaultNetwork=solana&presetFiatAmount=20. Could ship same-day. 2) Transak — staging key instant, production after KYB review; backend session-mint endpoint required regardless. 3) MoonPay — sandbox instant but Account Review + KYB + per-product approval before live keys, plus HMAC URL-signing endpoint needed. 4) Stripe — application required even for test access (~48h review, crypto-fit judgment call), US-only audience. 5) Ramp Network — API key via sales contact form; timeline is whenever their team responds. RANKING (b) — best ~$20 US purchase UX: 1) Coinbase — anyone with a Coinbase account signs in with zero additional KYC, ACH at 0.5% (and 0% USDC promo); caveat: hosted-widget guest checkout died June 30, 2026, so non-Coinbase users need the Headless Onramp API (app approval, backend Apple Pay flow). 2) Stripe — Link-networked tiered KYC; first-timers give SSN but no doc/selfie at low tiers, returning Link users skip entirely; fees quote-disclosed. 3) Transak — Simple KYC tier can skip the ID document (SSN still collected for US); fees 0.99–3.5%. 4) Ramp — mandatory ID-doc verification for US at any amount. 5) MoonPay — doc + selfie/liveness on first purchase AND the $3.99 minimum fee makes a $20 card buy ~20% expensive. API-key reality: nothing is usable with zero sign-up — every address-prefill path needs partner keys, and all except Ramp also need a backend call (Coinbase session token, Stripe onramp_sessions, Transak session API, MoonPay HMAC signing); Ramp is the lone no-backend option but has the slowest key acquisition. VERDICT: build Coinbase Onramp first (existing CDP key + self-serve + best repeat-user KYC), add Transak as the fallback rail for users without Coinbase accounts once its KYB clears; skip MoonPay for small purchases, treat Stripe as a later add if the application friction is worth Link's returning-user base, and only bother with Ramp if the no-backend property ever matters more than time-to-key."
+    },
+    "trail": {
+      "summary": "test",
+      "facts": [
+        {
+          "fact": "test fact",
+          "source": "test source"
+        }
+      ]
+    }
+  },
+  "workflowProgress": [
+    {
+      "type": "workflow_phase",
+      "index": 1,
+      "title": "Recon"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 1,
+      "label": "existing-assets",
+      "phaseIndex": 1,
+      "phaseTitle": "Recon",
+      "agentId": "a23819f72b3b5395c",
+      "model": "claude-fable-5",
+      "state": "done",
+      "startedAt": 1783110891024,
+      "queuedAt": 1783110890995,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "Full onramp-asset sweep across dexter-api, dexter-fe, dexte…",
+      "promptPreview": "Inventory EVERY existing on-ramp asset across Branch's repos — keys, env vars, routes, prior integrations. Sweep /home/branchmanager/websites/{dexter-api,dexter-fe,dexter-mcp,x402gle,dexter-agents,dexter-lab}/ :\n1. grep .env files (they exist locally) case-insensitive for: moonpay, onramp, on_ramp, transak, ramp_, stripe, coinbase, mesh, sardine, banxa, topper, kado — list every key name found (va…",
+      "lastProgressAt": 1783111161627,
+      "tokens": 95950,
+      "toolCalls": 31,
+      "durationMs": 270603,
+      "resultPreview": "{\"summary\":\"Full onramp-asset sweep across dexter-api, dexter-fe, dexter-mcp, x402gle, dexter-agents, dexter-lab. Provider keys found: Coinbase CDP (CDP_API_KEY, live, with working Ed25519-JWT auth code already in prod) and a MoonPay PARTNER relationship (no API key — it's the Dextercard carrier integration via @dexterai/dextercard + captcha-solver keys CAPSOLVER/NOPECHA, partner-team green-lit). …"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 2,
+      "label": "mount-points",
+      "phaseIndex": 1,
+      "phaseTitle": "Recon",
+      "agentId": "ae1206bdadc707d72",
+      "model": "claude-fable-5",
+      "state": "done",
+      "startedAt": 1783110891025,
+      "queuedAt": 1783110890996,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "The funded-wallet journey on wallet-launch-surfaces has exa…",
+      "promptPreview": "Map WHERE an embedded on-ramp mounts in the funded-wallet journey, in /home/branchmanager/websites/dexter-fe (branch wallet-launch-surfaces):\n1. The deposit surfaces: app/components/wallet/vault/DepositPanel.tsx (props, where it renders: /tabs/deposit DepositView), app/tabs/VaultHome.tsx's deposit-address row (mounted at /wallet), InitializedBanner. What does each show today (address + QR + copy)?…",
+      "lastProgressAt": 1783111117621,
+      "tokens": 78150,
+      "toolCalls": 31,
+      "durationMs": 226596,
+      "resultPreview": "{\"summary\":\"The funded-wallet journey on wallet-launch-surfaces has exactly two live deposit surfaces, both address-and-QR only: DepositPanel (mounted on /tabs/deposit via DepositView) and VaultHome's deposit-address row (mounted at /wallet; /tabs now redirects there). InitializedBanner is orphaned on this branch — no importer. The on-ramp target is the swig v2 wallet PDA (receiveAddress, off-curv…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 3,
+      "label": "provider-reality",
+      "phaseIndex": 1,
+      "phaseTitle": "Recon",
+      "agentId": "a1f3e2e9d16e36331",
+      "model": "claude-fable-5",
+      "state": "done",
+      "startedAt": 1783110891026,
+      "queuedAt": 1783110891007,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "All five providers (MoonPay, Coinbase Onramp, Stripe, Trans…",
+      "promptPreview": "Research (web) the REAL integration options for a fiat→USDC-on-Solana on-ramp delivering to an arbitrary user address, as of mid-2026. Providers to compare: MoonPay, Coinbase Onramp, Stripe (crypto onramp), Transak, Ramp Network. For each answer ONLY from current official docs/pages (WebSearch + WebFetch):\n1. Does it support USDC on SOLANA as a buyable asset delivered to a user-supplied wallet add…",
+      "lastProgressAt": 1783111230076,
+      "tokens": 73510,
+      "toolCalls": 39,
+      "durationMs": 339050,
+      "resultPreview": "{\"summary\":\"All five providers (MoonPay, Coinbase Onramp, Stripe, Transak, Ramp Network) support fiat→USDC-on-Solana delivered to a user-supplied address as of July 2026, but every one of them now requires a backend for the address-prefill path except Ramp Network. MoonPay requires HMAC-signed URLs when walletAddress is passed; Coinbase requires a server-minted sessionToken (mandatory since 2025-0…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 4,
+      "label": "decision-trail",
+      "phaseIndex": 1,
+      "phaseTitle": "Recon",
+      "agentId": "a0615cfdd8aa96422",
+      "model": "claude-fable-5",
+      "fallbackModel": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1783110891027,
+      "queuedAt": 1783110891007,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "test",
+      "promptPreview": "Find the DECISION TRAIL on on-ramps in Branch's history so the lane doesn't re-litigate settled calls. Tools: claude-conv CLI (~/.local/bin/claude-conv) + memory files.\n1. claude-conv search \"moonpay\" -i | head -30; claude-conv search \"onramp\" -i | head -30; claude-conv search \"on-ramp\" -i | head -20 — for the most relevant hits, open the sessions (claude-conv show <id> --tail as needed) and extra…",
+      "lastProgressAt": 1783111226755,
+      "tokens": 104640,
+      "toolCalls": 28,
+      "durationMs": 335728,
+      "resultPreview": "{\"summary\":\"test\",\"facts\":[{\"fact\":\"test fact\",\"source\":\"test source\"}]}"
+    }
+  ],
+  "totalTokens": 352250,
+  "totalToolCalls": 129
+}

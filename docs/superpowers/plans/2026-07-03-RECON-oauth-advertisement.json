@@ -1,0 +1,405 @@
+{
+  "summary": "Deep recon for the open-mcp OAuth advertisement: the proven probe wiring, live server routing, AS contracts from the mail record",
+  "agentCount": 4,
+  "logs": [],
+  "result": {
+    "probe": {
+      "summary": "The on-disk file /home/branchmanager/websites/dexter-mcp/probe/oauth-timing-probe.mjs is NOT what ran — it is a stale draft, truncated mid-statement at line 98 (ends at a bare `return`, no newline, mtime Jul 2 23:58), with different paths (/mcp-probe-a, /mcp-probe-b), a different default port (3941), and a per-slug PRM. The probe that actually ran was `probe-oauth-server.mjs` at the dexter-mcp repo root (never committed, deleted at teardown); I recovered its complete source from the raw transcript of session dc060fc9-4780-4bfa-ba96-954839d3d8bf (the OpenDexter-fable seat, Jul 3 ~00:00Z). It was a standalone raw node:http process on 127.0.0.1:3932, PM2 name `dexter-open-mcp-probe`, reached via a temporary nginx `location /mcp-probe` prefix block in /etc/nginx/sites-available/open.dexter.cash proxying to :3932 ahead of the catch-all (live connector on :3931 untouched). Two doors: /mcp-probe/connect 401'd everything including initialize (connect-time challenge); /mcp-probe/tool let initialize + notifications/initialized + tools/list through anonymously on a real StreamableHTTPServerTransport and 401'd only tools/call (mid-session challenge). Both doors returned the identical header `WWW-Authenticate: Bearer error=\"invalid_token\", error_description=\"authentication required\", resource_metadata=\"https://open.dexter.cash/mcp-probe/.well-known/oauth-protected-resource\"` with a JSON-RPC error body (code -32001). The PRM it served: {\"resource\":\"https://open.dexter.cash/mcp-probe\",\"authorization_servers\":[\"https://mcp.dexter.cash\"],\"scopes_supported\":[\"wallet.read\"],\"bearer_methods_supported\":[\"header\"]}. It did NOT stand up its own AS — it delegated to the existing live mcp.dexter.cash AS (which proxies /mcp/authorize, /mcp/token, /mcp/register into dexter-api connectorOAuth). Nginx logs on BOTH hosts prove claude.ai ran the FULL dance both times: Door A (00:04:37-41Z) — MCP client (UA Claude-User, 160.79.106.x) POST → 401; claude.ai's OAuth machine (UA python-httpx/0.28.1, same IP range) re-POSTed to read the challenge, fetched the exact PRM URL ~126ms later, fetched mcp.dexter.cash/.well-known/oauth-authorization-server (200), POST /mcp/register → 201 (DCR client dcr_b8c3bd1c...), then Branch's iPhone (73.244.67.64) opened GET /mcp/authorize with response_type=code, PKCE S256, state, redirect_uri=https://claude.ai/api/mcp/auth_callback, scope=wallet.read (copied verbatim from PRM scopes_supported), resource=https://open.dexter.cash/mcp-probe (RFC 8707, copied from PRM resource) → 302 to the Supabase email login page. Door B (00:05:27-00:06:15Z) — anonymous initialize/tools/list succeeded with no login; tools/call → 401 at 00:06:09; claude.ai then opened a NEW session, re-fetched PRM, re-fetched AS metadata, registered a FRESH DCR client (dcr_6cde09f7...), and opened /mcp/authorize on the phone at 00:06:15 — the mid-session challenge triggers the full dance (the load-bearing answer). No /token call and no Bearer ever appeared: Branch cancelled at the email screen, so the token-exchange + authed-retry leg is proven only up to the authorize landing. Teardown (same session): pm2 delete dexter-open-mcp-probe, rm probe-oauth-server.mjs, nginx /mcp-probe block removed (two passes — first pass left a stray .bak in sites-enabled and the block in place → 502; second pass placed a clean config, removed the stray, verified /mcp-probe/health 404 + live /health 200 + zero :3932 references), and the teardown memory note was deleted. Bonus evidence: post-teardown, claude.ai's fallback discovery order against a bare endpoint (no resource_metadata header) is path-inserted /.well-known/oauth-protected-resource/mcp, then root /.well-known/oauth-protected-resource, then root /.well-known/oauth-authorization-server — all on the resource host — and it retries dead connectors for 17+ hours.",
+      "facts": [
+        {
+          "fact": "The surviving file probe/oauth-timing-probe.mjs is a stale TRUNCATED draft: 97 lines ending mid-statement at a bare `return` (no trailing newline), mtime 2026-07-02 23:58:06, default port 3941, doors /mcp-probe-a and /mcp-probe-b, per-slug PRM including a resource_name field, JSON-line logging. None of that matches the run.",
+          "source": "/home/branchmanager/websites/dexter-mcp/probe/oauth-timing-probe.mjs + stat/tail -c inspection"
+        },
+        {
+          "fact": "The probe that actually ran was /home/branchmanager/websites/dexter-mcp/probe-oauth-server.mjs (repo root, never committed, deleted at teardown). Full source recovered from the Write tool call in raw transcript /home/branchmanager/.claude/projects/-home-branchmanager-websites-dexter-api/dc060fc9-4780-4bfa-ba96-954839d3d8bf.jsonl; a copy of the extraction is at /tmp/claude-1001/-home-branchmanager-websites-dexter-api/f3dd8ceb-8bbd-4bb4-ad48-24d3f22e5620/scratchpad/probe-writes.txt",
+          "source": "raw session jsonl dc060fc9 (Write tool input)"
+        },
+        {
+          "fact": "PRM served (single doc for both doors) at https://open.dexter.cash/mcp-probe/.well-known/oauth-protected-resource: {\"resource\":\"https://open.dexter.cash/mcp-probe\",\"authorization_servers\":[\"https://mcp.dexter.cash\"],\"scopes_supported\":[\"wallet.read\"],\"bearer_methods_supported\":[\"header\"]} — Content-Type application/json, 174 bytes plain (158 gzipped in nginx log). Verified by in-session curl and by nginx access log.",
+          "source": "transcript line 5157 (curl output) + open-mcp-access.log"
+        },
+        {
+          "fact": "WWW-Authenticate header, byte-identical at BOTH doors: `Bearer error=\"invalid_token\", error_description=\"authentication required\", resource_metadata=\"https://open.dexter.cash/mcp-probe/.well-known/oauth-protected-resource\"` on HTTP 401 with body {\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32001,\"message\":\"authentication required (probe challenge)\"},\"id\":null}. Door A returned it on EVERY request including initialize; Door B returned it ONLY on tools/call (initialize, notifications/initialized, tools/list passed anonymously to a real StreamableHTTPServerTransport with one tool, probe_ping).",
+          "source": "recovered probe-oauth-server.mjs source + curl verification in transcript lines 5163-5180"
+        },
+        {
+          "fact": "AS advertised = https://mcp.dexter.cash, the EXISTING live AS — the probe did NOT proxy its own /authorize//token. mcp.dexter.cash serves root /.well-known/oauth-authorization-server with issuer https://mcp.dexter.cash/mcp, authorization_endpoint /mcp/authorize, token_endpoint /mcp/token, registration_endpoint /mcp/register (all proxied into dexter-api connectorOAuth), userinfo https://dexter.cash/api/connector/oauth/userinfo, PKCE S256 only, grant_types authorization_code+refresh_token, token_endpoint_auth_methods none/client_secret_post/client_secret_basic, scopes wallet.read/wallet.trade/openid.",
+          "source": "live curl of https://mcp.dexter.cash/.well-known/oauth-authorization-server (742 bytes; 354 bytes gzipped matches the log entry claude.ai fetched)"
+        },
+        {
+          "fact": "Serving: standalone node process (raw node:http + @modelcontextprotocol/sdk McpServer/StreamableHTTPServerTransport), hard-coded PORT 3932 bound to 127.0.0.1, PM2 process name dexter-open-mcp-probe (pm2 id 73, pid 1922452). Nginx: a `location /mcp-probe { proxy_http_version 1.1; proxy_set_header Host/X-Real-IP/X-Forwarded-For/X-Forwarded-Proto; proxy_pass http://127.0.0.1:3932; proxy_buffering off; }` prefix block added to /etc/nginx/sites-available/open.dexter.cash ahead of the catch-all `location /`, so the live connector on :3931 was untouched (verified 200 throughout).",
+          "source": "recovered source (httpServer.listen(PORT,'127.0.0.1')) + transcript nginx diff at export lines 5129-5143"
+        },
+        {
+          "fact": "Teardown removed: PM2 process (pm2 delete dexter-open-mcp-probe), the file probe-oauth-server.mjs (rm), the nginx /mcp-probe location block, a stray .bak config nginx was also loading from sites-enabled, and the memory note project_oauth_probe_teardown.md. First teardown pass failed (cp couldn't stat .bak-20260703 — the real backup was .bak-20260702 — and /mcp-probe/health returned 502 with the block still present); second pass placed a clean config and verified: live /health 200, /mcp-probe/health 404, zero probe/3932 references in nginx, 0 probe processes. Only residue today: the `access_log ... open-mcp-access.log mcp_redacted` line (pre-existing, kept) and the stale draft in probe/.",
+          "source": "transcript export lines 5422-5453 + live diff of open.dexter.cash vs .bak-20260702"
+        },
+        {
+          "fact": "Door A timeline (nginx open-mcp-access.log + probe PM2 log): 00:04:37 POST /mcp-probe/connect 401 (UA Claude-User, 160.79.106.35 — the MCP data plane); 00:04:39 POST /mcp-probe/connect 401 (UA python-httpx/0.28.1, 160.79.106.37 — claude.ai's separate OAuth-discovery component re-reading the challenge itself); 00:04:40.017 GET the exact PRM URL 200 (~126ms after the 401); same second on mcp.dexter.cash: GET /.well-known/oauth-authorization-server 200 + POST /mcp/register 201 (DCR); 00:04:41 Branch's iPhone (73.244.67.64, CriOS, referer https://claude.ai/) GET /mcp/authorize → 302 to the login UI.",
+          "source": "~/.pm2/logs/dexter-open-mcp-probe-out.log + /home/branchmanager/websites/degenduel/logs/nginx_logs/open-mcp-access.log + mcp.dexter.cash access log entries"
+        },
+        {
+          "fact": "Door B timeline — the load-bearing result: 00:05:27 initialize 200 → anonymous session d2d86635, notifications/initialized 202, tools/list 200, NO login anywhere; 00:06:09.276 tools/call → 401 mid-session; claude.ai then opened a NEW session (initialize 00:06:14.145, session 91a404e1), fetched the PRM at 00:06:14.286, fetched AS metadata + registered a FRESH DCR client at 00:06:14, and opened /mcp/authorize on the user's phone at 00:06:15. Conclusion proven live: a mid-session 401 on tools/call triggers the complete OAuth dance, mid-conversation — 'anonymous until the exact moment you spend' is supported by claude.ai.",
+          "source": "dexter-open-mcp-probe-out.log + both nginx access logs"
+        },
+        {
+          "fact": "The exact authorize request claude.ai constructed (both dances): GET /mcp/authorize?response_type=code&client_id=dcr_b8c3bd1c0d3db640a35cb395533191d5&redirect_uri=https%3A%2F%2Fclaude.ai%2Fapi%2Fmcp%2Fauth_callback&code_challenge=...&code_challenge_method=S256&state=...&scope=wallet.read&resource=https%3A%2F%2Fopen.dexter.cash%2Fmcp-probe — scope copied verbatim from PRM scopes_supported, resource param (RFC 8707) copied verbatim from PRM resource, PKCE S256, opened in the USER'S browser, not server-side. Door B's dance used a different fresh DCR client_id (dcr_6cde09f7b36df97b0964e629bd7f786e) — claude.ai does fresh DCR per dance.",
+          "source": "mcp.dexter.cash nginx access log 00:04:41 and 00:06:15"
+        },
+        {
+          "fact": "No token exchange ever happened: zero /mcp/token hits in the window and zero Bearer tokens in the probe log — Branch cancelled at the authorize landing page, which was the OLD account rail (dexter.cash/connector/auth Supabase magic-link email page, confirmed by his two screenshots in-session). Gate A therefore proves: 401→PRM→AS-metadata→DCR→authorize-landing, both doors. The /token + Bearer-retry leg with claude.ai remains unobserved.",
+          "source": "probe log (no bearer lines) + mcp.dexter.cash log + transcript screenshots discussion"
+        },
+        {
+          "fact": "claude.ai's fallback discovery order when it has NO resource_metadata pointer (observed 08:05:44Z post-teardown from 160.79.106.35 python-httpx against open.dexter.cash): (1) /.well-known/oauth-protected-resource/mcp (RFC 9728 path-inserted for resource /mcp), (2) /.well-known/oauth-protected-resource (root), (3) /.well-known/oauth-authorization-server (root) — all on the RESOURCE host. During the probe, with the header present, it fetched ONLY the exact URL from resource_metadata (no fallback probing).",
+          "source": "open-mcp-access.log 08:05:44 entries vs 00:04:40/00:06:14 entries"
+        },
+        {
+          "fact": "claude.ai keeps retrying dead connectors for 17+ hours after teardown: POST-then-GET pairs to /mcp-probe/tool (404) at 01:52, 06:26, 07:56, and 17:03 UTC on Jul 3, all UA Claude-User.",
+          "source": "open-mcp-access.log post-teardown entries"
+        },
+        {
+          "fact": "The probe run and result routing happened in session dc060fc9-4780-4bfa-ba96-954839d3d8bf (OpenDexter-fable seat, working dir dexter-api). Result was mailed to api-fable, main-fable, connect-fable; api-fable's 0016Z reply locked the production split: open-mcp serves PRM + 401s only on VAULT-AUTHORITY tool calls (x402_fetch/x402_pay/dexter_passkey) with fail-closed aud enforcement; dexter-api AS gets a scope=vault authorize branch that 302s to /tabs/setup (passkey ceremony replaces the email page); token→mcp_vault_bindings seeding happens on the authed tool-call POST.",
+          "source": "transcript export lines 5324-5500 incl. agent-mail bodies"
+        }
+      ],
+      "interfaces": [
+        "PRM document shape proven with claude.ai (GET, 200, application/json): {\"resource\":\"<exact public base URL of the MCP resource>\",\"authorization_servers\":[\"https://mcp.dexter.cash\"],\"scopes_supported\":[\"<scope claude.ai will request verbatim>\"],\"bearer_methods_supported\":[\"header\"]} — four fields were sufficient; no resource_name needed.",
+        "401 challenge shape proven at both doors: status 401, header WWW-Authenticate: Bearer error=\"invalid_token\", error_description=\"authentication required\", resource_metadata=\"<absolute URL of the PRM doc>\" — body: {\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32001,\"message\":\"authentication required (probe challenge)\"},\"id\":null} with Content-Type application/json.",
+        "Door-B anonymous pass-through set proven: initialize (200 + mcp-session-id header), notifications/initialized (202), tools/list (200) all succeed with no auth; 401 fired ONLY on method === 'tools/call'. claude.ai tolerates this split and shows the connector as healthy until the call.",
+        "AS metadata claude.ai consumed (GET https://mcp.dexter.cash/.well-known/oauth-authorization-server, ROOT path on the AS host): {issuer:\"https://mcp.dexter.cash/mcp\", authorization_endpoint:\"https://mcp.dexter.cash/mcp/authorize\", token_endpoint:\"https://mcp.dexter.cash/mcp/token\", registration_endpoint:\"https://mcp.dexter.cash/mcp/register\", code_challenge_methods_supported:[\"S256\"], grant_types_supported:[\"authorization_code\",\"refresh_token\"], token_endpoint_auth_methods_supported:[\"none\",\"client_secret_post\",\"client_secret_basic\"], response_types_supported:[\"code\"], scopes_supported:[\"wallet.read\",\"wallet.trade\",\"openid\"]}.",
+        "DCR request claude.ai makes: POST <registration_endpoint> → 201 with a fresh client_id per dance (observed dcr_<32hex> format from dexter-api connectorOAuth); it then immediately builds the authorize URL with that client_id.",
+        "Authorize request claude.ai constructs (opened in the END USER'S browser): GET <authorization_endpoint>?response_type=code&client_id=<dcr id>&redirect_uri=https://claude.ai/api/mcp/auth_callback&code_challenge=<S256>&code_challenge_method=S256&state=<random>&scope=<PRM scopes_supported joined>&resource=<PRM resource value, RFC 8707> — the resource param is what the production /token mint should bind aud to.",
+        "claude.ai client fingerprint: MCP data plane = UA 'Claude-User' from 160.79.106.32/27; OAuth discovery/DCR machine = UA 'python-httpx/0.28.1' from the same range (it re-POSTs the MCP endpoint itself to read WWW-Authenticate); authorize hop = the user's own browser IP/UA with referer https://claude.ai/."
+      ],
+      "gotchas": [
+        "Do NOT build from probe/oauth-timing-probe.mjs — it is a truncated (ends mid-statement), never-run draft with different routes (/mcp-probe-a,-b), a different port (3941), per-slug PRM docs, and a stray resource_name field. The proven artifact is the recovered probe-oauth-server.mjs source (extraction saved at /tmp/claude-1001/-home-branchmanager-websites-dexter-api/f3dd8ceb-8bbd-4bb4-ad48-24d3f22e5620/scratchpad/probe-writes.txt).",
+        "The probe never verified anything: it accepted/never even saw a Bearer, and the draft explicitly decoded JWTs WITHOUT signature verification. Production must verify signature AND enforce per-resource aud fail-closed (api-fable split, main-fable ruling 1).",
+        "The probe's PRM advertised scope wallet.read and claude.ai requested exactly that, verbatim, in /authorize. Production PRM must advertise the REAL vault scope (scope=vault per the confirmed split) — whatever is in scopes_supported is what claude.ai will ask the AS for.",
+        "The probe pointed the dance at the existing account rail, so authorize landed on the Supabase magic-link EMAIL page (dexter.cash/connector/auth) — the exact screen Branch rejects. Production's vault-scope authorize branch must 302 to the /tabs/setup passkey ceremony instead; that swap is the whole remaining build.",
+        "The probe only served the PRM at the exact URL named in resource_metadata. Production should ALSO serve the RFC 9728 path-inserted form (/.well-known/oauth-protected-resource/mcp) and consider root fallbacks, because claude.ai probes exactly those (in that order) when it reconnects without a challenge header in hand — observed live at 08:05Z.",
+        "After a mid-session 401, claude.ai abandons the anonymous session and starts a NEW one (fresh initialize, new mcp-session-id) before/while running the dance. Production binding must attach to the token/new session, not the session that received the 401 — this favors the Bearer-claim→mcp_vault_bindings design over pure session-id rows.",
+        "The probe challenged on ALL tools/call. Production challenges only VAULT-AUTHORITY tools (x402_fetch/x402_pay/dexter_passkey arm) and must keep initialize/tools/list anonymous — proven safe with claude.ai.",
+        "claude.ai does a FRESH DCR registration per dance (two dcr_ clients created 90 seconds apart). Production AS will accumulate dcr_ client rows from every reconnect/re-auth; plan for idempotency or GC.",
+        "The token-exchange leg (/token POST, authed retry with Bearer) was NEVER exercised against claude.ai — Branch cancelled at the login screen. Gate A covers discovery→DCR→authorize-landing only; the first production login will be the first live test of code exchange + Bearer retry.",
+        "Probe used error=\"invalid_token\" even for a missing token (RFC 6750 would say no error code for absent creds). claude.ai didn't care — but don't cargo-cult it as spec-required.",
+        "Teardown ordering lesson: pm2-delete before removing the nginx block leaves a public 502 door, and cp-ing a backup into sites-enabled makes nginx LOAD the backup as a second vhost. Teardown needed a second pass; verify 404 (not 502) and zero proxy_pass references when removing.",
+        "claude.ai retries dead connectors for at least 17 hours (observed 01:52→17:03 UTC). Expect stale-connector noise at any path that ever hosted an MCP endpoint, and expect instant reconnect traffic the moment the real OAuth door goes live."
+      ]
+    },
+    "server": {
+      "facts": [
+        {
+          "fact": "HTTP request handler is a raw node http.createServer at open-mcp-server.mjs:2604. Branch order: OPTIONS 2607-2611; pathname normalization + link-token extraction (/mcp/<dlt_...> and x-dexter-link-token header) 2613-2630; /health + /mcp/health 2633-2646; POST /dbg/webauthn-probe 2657-2686; GET /.well-known/mcp.json 2689-2708; catch-all 404 for anything not '/' or '/mcp' at 2711-2715; GET(SSE) 2718-2743; POST 2746-2834; DELETE 2837-2851; 405 fallback 2853-2854.",
+          "source": "/home/branchmanager/websites/dexter-mcp/open-mcp-server.mjs:2604-2855"
+        },
+        {
+          "fact": "GET /.well-known/oauth-protected-resource (and /oauth-protected-resource/mcp) currently falls into the 404 catch-all at line 2711. The natural slot is a new branch right after the mcp.json branch ends (line 2708) and before line 2711. No nginx change needed: /etc/nginx/sites-enabled/open.dexter.cash has a single `location /` proxying everything to 127.0.0.1:3931.",
+          "source": "/home/branchmanager/websites/dexter-mcp/open-mcp-server.mjs:2689-2715 and /etc/nginx/sites-enabled/open.dexter.cash:6-16"
+        },
+        {
+          "fact": "d192047 verifier: OPEN_MCP_VAULT_AUDIENCE='https://open.dexter.cash/mcp' (line 2422); DEXTER_JWKS=createRemoteJWKSet('https://dexter.cash/.well-known/jwks.json') (2423). seedOAuthVaultBinding(req, sessionId) at 2425-2464: extractBearer (2558-2564) -> jose jwtVerify with issuer='https://dexter.cash', audience=OPEN_MCP_VAULT_AUDIENCE, algorithms=['ES256'] -> requires payload.dexter_surface -> POSTs {access_token, mcp_session_id} to dexter-api /api/passkey-vault/pair/oauth-seed with HMAC internal headers -> markSessionBound on 200. Any verify failure silently returns (anon/HS256 untouched).",
+          "source": "/home/branchmanager/websites/dexter-mcp/open-mcp-server.mjs:2413-2464"
+        },
+        {
+          "fact": "seedOAuthVaultBinding is invoked (awaited) on EVERY POST when the session is not yet marked bound: `if (sessionId && !sessionMeta.get(sessionId)?.bound) await seedOAuthVaultBinding(req, sessionId)` at 2756-2758, BEFORE transport dispatch. A second, legacy rail runs in parallel: tryBindUserFromRequest (2570-2584) verifies an HS256 Bearer against MCP_JWT_SECRET and populates userBindings (account-level, used by card tools + dexter_passkey branch 1).",
+          "source": "/home/branchmanager/websites/dexter-mcp/open-mcp-server.mjs:2746-2777"
+        },
+        {
+          "fact": "A request with NO Bearer today: fully anonymous, 200 everywhere. POST initialize creates a transport with no auth check (2798-2832); tools/call dispatches normally; /health reports `auth: false`. Spend attempts without a binding get an IN-BAND HTTP-200 tool result: x402Fetch resolves user_handle via HMAC-signed GET /api/passkey-anon/mcp-binding/<sessionId> (lines 501-517); if none, buildVaultRequired (431-459) returns {status:402, mode:'vault_required', next_tool:'dexter_passkey', enroll_url,...} as tool output — never an HTTP 401.",
+          "source": "/home/branchmanager/websites/dexter-mcp/open-mcp-server.mjs:480-517, 431-459, 2798-2832"
+        },
+        {
+          "fact": "Tool dispatch happens INSIDE the MCP SDK (McpServer + StreamableHTTPServerTransport from @modelcontextprotocol/sdk, installed 1.18.0, declared ^1.17.4). The server code never sees 'tools/call' — it just calls transport.handleRequest(req, res). Therefore the only place to emit a raw HTTP 401 for spend-class tools is in the POST branch BEFORE `await transport.handleRequest(req, res)` at line 2777 (existing-session path). New-session POSTs (2798+) are always initialize, never tools/call, so they need no interception.",
+          "source": "/home/branchmanager/websites/dexter-mcp/open-mcp-server.mjs:29-30, 2760-2777, 2798-2832"
+        },
+        {
+          "fact": "To inspect the tool name pre-dispatch you must read and JSON-parse the POST body at the HTTP layer; the SDK explicitly supports this — StreamableHTTPServerTransport.handleRequest(req, res, parsedBody) takes the pre-parsed body as third arg (node_modules/@modelcontextprotocol/sdk/dist/esm/server/streamableHttp.js:97). Bodies may be JSON-RPC batch arrays (SDK does `messages.some(isInitializeRequest)` at streamableHttp.js:311), so scan every message for method==='tools/call' and params.name in the spend set.",
+          "source": "/home/branchmanager/websites/dexter-mcp/node_modules/@modelcontextprotocol/sdk/dist/esm/server/streamableHttp.js:97,311"
+        },
+        {
+          "fact": "Full tool roster (ALL_TOOLS, line 153): x402_search, x402_pay, x402_fetch, x402_check, x402_access, x402_wallet, x402_compose_skill, promote_skill, card_status, card_issue, card_link_wallet, card_freeze, card_login_request_otp, card_login_complete, dexter_passkey_probe, dexter_passkey. Registration lines: x402_search 1241, x402_pay 1263, x402_fetch 1293, x402_check 1338, x402_access 1405, x402_wallet 1433, dexter_passkey_probe 1470, x402_compose_skill 1490, promote_skill 1598, dexter_passkey 1691, card tools via composeCardTools(shared @dexterai/x402-mcp-tools) 2089, card_login_request_otp 2107, card_login_complete 2209.",
+          "source": "/home/branchmanager/websites/dexter-mcp/open-mcp-server.mjs:153, 1241-2209"
+        },
+        {
+          "fact": "Vault-binding awareness = three layers: (1) in-memory fast flag sessionMeta.get(sessionId)?.bound (Map at 2385, set by markSessionBound 2394 from oauth-seed 2456, link-token bind 2484, HS256 bind 2765/2805, or successful x402Fetch resolution 519); (2) in-memory userBindings/getUserBinding (2501, 2586) for HS256 account rail; (3) the DURABLE truth: HMAC-signed GET `${API_BASE_FALLBACK}/api/passkey-anon/mcp-binding/<sessionId>` (x402Fetch 501-507, headers via signedInternalHeaders 471-478 using INTERNAL_DEXTERCARD_HMAC_SECRET). Challenge condition for spend tools = tools/call spend-name AND !extractBearer(req) AND !sessionMeta.bound AND the durable /mcp-binding lookup returns no user_handle.",
+          "source": "/home/branchmanager/websites/dexter-mcp/open-mcp-server.mjs:471-519, 2385-2399, 2501, 2586"
+        },
+        {
+          "fact": "Spend-class candidates: x402_pay (1263, alias of fetch), x402_fetch (1293, destructiveHint), and dexter_passkey's arm path (1691; branch 2 at 1832-1884 mints a vault pairing via mintVaultPairingRequest when not_enrolled). x402_search/x402_check are readOnlyHint anonymous; x402_wallet is readOnlyHint (session-wallet rail); x402_access is identity-proof, not spend; card tools have their own Supabase pairing rail (cardsAdapter 1945-2027 throws DextercardPairingRequiredError, caught by the server.tool wrapper 2064-2087 which converts it to an in-band auth_required result).",
+          "source": "/home/branchmanager/websites/dexter-mcp/open-mcp-server.mjs:1263-1467, 1691-1884, 1945-2094"
+        },
+        {
+          "fact": "mcp.dexter.cash precedent (http-server-oauth.mjs, port 3930): raw HTTP 401 on the envelope, node-served PRM. unauthorized() at 579-644 sets `WWW-Authenticate: Bearer realm=\"MCP\", authorization_uri=..., token_uri=..., client_id=..., scope=..., issuer=...` and ALWAYS appends `resource_metadata=\"<origin>/.well-known/oauth-protected-resource/mcp\"` (628-640), then writes 401 with a JSON-RPC error body {code:-32000}. It challenges at SESSION CREATION: new session + no valid Bearer -> 401 (1414-1419); existing sessions reuse auth. PRM served in serveOAuthMetadata 1106-1179 at /.well-known/oauth-protected-resource, .../mcp, and /mcp/.well-known/... variants, returning {resource: base, authorization_servers: [base], scopes_supported: ['wallet.read','wallet.trade']} per RFC 9728.",
+          "source": "/home/branchmanager/websites/dexter-mcp/http-server-oauth.mjs:579-644, 1106-1179, 1396-1419"
+        },
+        {
+          "fact": "nginx: /etc/nginx/sites-enabled/open.dexter.cash proxies ALL paths (location /) to 127.0.0.1:3931 — /.well-known/* already reaches node, so the PRM endpoint is purely a node-side addition. /etc/nginx/sites-enabled/mcp.dexter.cash likewise proxies everything (comment: 'Proxy everything (including /.well-known) to MCP HTTP server') to 127.0.0.1:3930 — mcp.dexter.cash's PRM is node-served, not nginx-served.",
+          "source": "/etc/nginx/sites-enabled/open.dexter.cash:6-16, /etc/nginx/sites-enabled/mcp.dexter.cash:4-13"
+        },
+        {
+          "fact": "Returning a raw HTTP 401 mid-session is safe for the session cache: the 401 path would run before transport.handleRequest, touching nothing in transports/userBindings/sessionMeta, so the session survives and the client's post-OAuth retry with the same mcp-session-id lands on the same transport; seedOAuthVaultBinding (2756) then seeds the binding from the new Bearer before dispatch. mcp.dexter.cash already proves claude.ai handles envelope 401 + resource_metadata as the OAuth trigger.",
+          "source": "/home/branchmanager/websites/dexter-mcp/open-mcp-server.mjs:2746-2777"
+        },
+        {
+          "fact": "The /.well-known/mcp.json manifest (2689-2708) advertises only 6 tools and the copy says 'Five tools, no authentication required' — stale on both counts (16 tools registered) and will need updating as part of the advertisement build.",
+          "source": "/home/branchmanager/websites/dexter-mcp/open-mcp-server.mjs:2689-2708"
+        }
+      ],
+      "interfaces": [
+        "PRM endpoint insertion point: open-mcp-server.mjs:2708-2710 — add `if (url.pathname === '/.well-known/oauth-protected-resource' || url.pathname === '/.well-known/oauth-protected-resource/mcp') { ... }` between the closing of the mcp.json branch (line 2708) and the 404 catch-all (line 2711). Serve RFC 9728 JSON; resource should align with the verified audience 'https://open.dexter.cash/mcp' (line 2422); AS = https://dexter.cash.",
+        "Spend-tool 401 interception point: open-mcp-server.mjs:2760-2777 — inside `if (sessionId && transports.has(sessionId))`, after touchSession/binding updates (2761-2775) and after the awaited seedOAuthVaultBinding (2756-2758), read+parse the body, and if any message is method==='tools/call' with params.name in the spend set AND !extractBearer(req) AND !sessionMeta.get(sessionId)?.bound AND the durable mcp-binding lookup misses, write 401 + WWW-Authenticate (with resource_metadata pointing at the new PRM) and return; otherwise call `await transport.handleRequest(req, res, parsedBody)` (3rd-arg form, SDK 1.18.0 supports it — node_modules/@modelcontextprotocol/sdk/dist/esm/server/streamableHttp.js:97).",
+        "Durable binding check to reuse: signedInternalHeaders(value) open-mcp-server.mjs:471-478 + the GET `${API_BASE_FALLBACK}/api/passkey-anon/mcp-binding/<sessionId>` pattern at open-mcp-server.mjs:501-507 (2s timeout, returns {user_handle}).",
+        "Bearer verification to reuse for the challenge decision: extractBearer open-mcp-server.mjs:2558-2564; ES256 vault-Bearer verify inside seedOAuthVaultBinding open-mcp-server.mjs:2431-2438 (jose jwtVerify, iss https://dexter.cash, aud https://open.dexter.cash/mcp, DEXTER_JWKS line 2423).",
+        "WWW-Authenticate template to copy: http-server-oauth.mjs:579-644 (unauthorized()) — especially the resource_metadata append logic at 628-640 and the JSON-RPC-shaped 401 body at 642-643. PRM response shape: http-server-oauth.mjs:1168-1179.",
+        "In-band spend gate that stays as fallback: buildVaultRequired open-mcp-server.mjs:431-459 (mode:'vault_required', next_tool:'dexter_passkey', retry envelope) and ensureVaultPairing 400-418 — the 401 advertisement layers on top of, not replaces, this funnel.",
+        "Session-bound bookkeeping: sessionMeta Map open-mcp-server.mjs:2385, markSessionBound 2394-2399, touchSession 2387-2392; transports Map 2376; reaper 2864-2887 (anon 90min / bound 7d).",
+        "Constants: PORT (OPEN_MCP_PORT, default 3931) line 62; SERVER_NAME 'OpenDexter' line 67; API_BASE_FALLBACK (API_BASE_URL, default http://127.0.0.1:3030) line 69; ALL_TOOLS line 153; createOpenMcpServer() line 1211."
+      ],
+      "gotchas": [
+        "You CANNOT emit an HTTP 401 from inside a tool callback: by the time a registerTool handler runs, StreamableHTTPServerTransport has already committed the response status/stream. The challenge must be pre-transport in the raw http handler (before line 2777). Consequence: 'x402_fetch when payment needed' cannot be known pre-dispatch (the 402 probe happens inside x402Fetch) — the pre-dispatch 401 fires on tool NAME (x402_pay/x402_fetch/dexter_passkey) for unbound+Bearer-less sessions, and the in-band vault_required path remains the fallback once dispatched.",
+        "Intercepting means consuming the request body; you MUST pass the parsed body as the 3rd arg to transport.handleRequest(req, res, parsedBody) or the SDK will hang reading an already-drained stream. Bodies can be JSON-RPC batch arrays — check every message. GET (SSE) and DELETE paths must remain untouched.",
+        "Do not challenge on the in-memory `sessionMeta.bound` flag alone: it dies on PM2 restart while mcp_vault_bindings rows survive (popout/passkey-bound sessions only get re-marked bound after a successful x402Fetch resolution, line 519). Before 401ing, run the HMAC-signed /api/passkey-anon/mcp-binding/<sessionId> lookup — otherwise you'd throw an OAuth wall at an already-paying vault user after every restart.",
+        "Keep the seedOAuthVaultBinding await (2756-2758) BEFORE the new challenge check: a post-OAuth retry carries the ES256 Bearer, and the seed must land (marking bound) before the spend-tool gate evaluates, or the first retry re-challenges. Note extractBearer(req) presence alone should suppress the 401 (let seed/verify decide validity) — challenging a request that carries a Bearer would loop clients whose token verification is merely slow/transient.",
+        "A 401 must NOT tear down the session: don't touch transports/userBindings/sessionMeta on the challenge path — the client retries with the same mcp-session-id. Also the 404-on-unknown-session behavior (2781-2796) is load-bearing for the claude.ai proxy; don't reorder it.",
+        "writeCors (2597-2602) only exposes 'mcp-session-id'; add 'WWW-Authenticate' to Access-Control-Expose-Headers if browser-based MCP clients matter (claude.ai's proxy is server-side and unaffected).",
+        "There is NO build step: PM2 dexter-open-mcp runs open-mcp-server.mjs directly — after editing, `pm2 restart dexter-open-mcp` is the whole deploy, but note the reaper/session maps are in-memory, so a restart drops all anonymous sessions (bound ones recover via link tokens/Bearer/mcp-binding lookup).",
+        "Repo state: working tree clean at c0de469, but untracked paths exist — .agents/, .claude/, probe/ (contains oauth-timing-probe.mjs from the OAuth lane), skills-lock.json, skills/pay. Leave them alone; don't git add -A.",
+        "Pre-existing wart at open-mcp-server.mjs:1312-1313: duplicated `annotations: { destructiveHint: true }` key in the x402_fetch registration (second wins, harmless — but don't 'fix' it silently in an unrelated diff).",
+        "The /.well-known/mcp.json copy ('Five tools, no authentication required', 6 tools listed) is stale vs the 16-tool ALL_TOOLS — the advertisement build should update it, and health's `auth: false` claim (2639) becomes half-true once spend tools challenge.",
+        "mcp.dexter.cash's PRM advertises authorization_servers=[its own origin] because http-server-oauth.mjs proxies /authorize+/token itself; open.dexter.cash's OAuth rail is dexter.cash-issued (ES256, iss=https://dexter.cash, JWKS at dexter.cash) — the new PRM should point authorization_servers at the dexter.cash AS, not blindly copy the mcp.dexter.cash shape."
+      ],
+      "summary": "Mapped open-mcp-server.mjs (2894 lines, PM2 dexter-open-mcp, :3931, SDK @modelcontextprotocol/sdk 1.18.0). Routing: raw http.createServer at 2604 with branches /health 2633, /dbg/webauthn-probe 2657, /.well-known/mcp.json 2689, 404 catch-all 2711, GET/SSE 2718, POST 2746, DELETE 2837 — the PRM endpoint slots between 2708 and 2711, and nginx needs no change (location / proxies everything to :3931; mcp.dexter.cash's PRM is likewise node-served on :3930). Auth today is strictly optional: no Bearer = anonymous session, 200s everywhere; spend without a vault binding returns an in-band HTTP-200 'vault_required' tool result (431-459). The d192047 verifier (seedOAuthVaultBinding 2425, ES256 via jose against dexter.cash JWKS, aud https://open.dexter.cash/mcp) runs awaited on every POST for unbound sessions at 2756 and seeds mcp_vault_bindings via dexter-api /oauth-seed. Tool dispatch lives inside the SDK, so the ONLY raw-401 interception point is the POST existing-session path before transport.handleRequest at 2777: parse the body (then pass it as handleRequest's 3rd arg — SDK-supported), detect tools/call on spend-class names (x402_pay 1263, x402_fetch 1293, dexter_passkey 1691 of the 16 in ALL_TOOLS line 153), and challenge only when no Bearer AND no binding (in-memory sessionMeta.bound 2385 fast path + the durable HMAC-signed /api/passkey-anon/mcp-binding/<sessionId> lookup from x402Fetch 501-507 as truth). A 401 from inside a tool callback is impossible (response already committed), and mcp.dexter.cash's http-server-oauth.mjs provides the exact precedent to copy: envelope-level 401 with WWW-Authenticate including resource_metadata pointing at a node-served /.well-known/oauth-protected-resource/mcp (unauthorized() 579-644, PRM 1168-1179), which claude.ai already handles as the OAuth trigger."
+    },
+    "as": {
+      "facts": [
+        {
+          "fact": "GET /api/connector/oauth/authorize requires client_id + redirect_uri (400 invalid_request otherwise). Client must be in the static allowlist (Claude cid_59e99d1247b444bca4631382ecff3e36, ChatGPT cid_a859560609a6448aa2f3a1c29f6ab496, OPEN_MCP cid_opendexter_open_mcp, plus CONNECTOR_ALLOWED_CLIENT_IDS env) OR a DB-registered DCR client whose registered redirect_uris contain the redirect. Unknown dcr_* client_ids are auto-resurrected if the redirect is allowlisted.",
+          "source": "/home/branchmanager/websites/dexter-api/src/routes/connectorOAuth.ts:416-484 (allowlists at :21-95)"
+        },
+        {
+          "fact": "scope=vault routes ONLY on an EXACT single-token match (scopeTokens.length===1 && ==='vault'); 'openid vault email' falls through to the Supabase connector rail. The vault branch then: (1) requires isAllowedRedirect(redirectUri) — first-party connector callbacks only, else 400 invalid_redirect 'scope=vault requires a first-party connector redirect_uri'; (2) requires PKCE code_challenge with method S256 (mandatory, no skip); (3) creates a passkey_vault_pairings row (vpair_<36hex>, flow='oauth_code', stores client_id/redirect_uri/state/scope/code_challenge); (4) 302s to https://dexter.cash/tabs/setup?request_id=vpair_... (or returns JSON {login_url} when Accept: application/json / response_mode=json). Live-verified: authorize with claude.ai callback returned 302 -> https://dexter.cash/tabs/setup?request_id=vpair_96ca...",
+          "source": "/home/branchmanager/websites/dexter-api/src/routes/connectorOAuth.ts:486-588"
+        },
+        {
+          "fact": "Redirect allowlist (the 51bbe519 fix, review finding [1]): isAllowedRedirect() in connectorRedirect.ts gates the vault branch. DEFAULT_ALLOWED_REDIRECTS includes https://claude.ai/api/mcp/auth_callback (claude.ai's callback — present, works), chatgpt.com/chat.openai.com connector_platform_oauth_redirect, dexter.cash/mcp/callback, mcp.dexter.cash/callback, branch.bet callbacks, dexter.cash/connector/auth/done, dexter.cash/wallet/setup-passkey. Extendable via CONNECTOR_ALLOWED_REDIRECTS env (comma-sep); prod .env sets NO extras, so defaults are the effective allowlist. Re-asserted fail-closed at /pair/authorize-approve before any code is minted.",
+          "source": "/home/branchmanager/websites/dexter-api/src/routes/connectorRedirect.ts:20-58; passkeyVaultPairing.ts:262-265"
+        },
+        {
+          "fact": "vac_ code issuance: POST /api/passkey-vault/pair/authorize-approve (passkey-gated — fresh WebAuthn assertion + 16-byte handle) claims the vpair_ row atomically (completed_at null -> set, single-use race-safe) and mints vac_<48hex> (sha256-at-rest in passkey_vault_oauth_codes with client_id/redirect_uri/state/PKCE/user_handle/swig_address), returning redirect_url = redirect_uri + ?code&state which the ceremony page assigns.",
+          "source": "/home/branchmanager/websites/dexter-api/src/routes/passkeyVaultPairing.ts:218-340"
+        },
+        {
+          "fact": "POST /api/connector/oauth/token supports grant_type=authorization_code and refresh_token only (else unsupported_grant_type). Codes matching /^vac_[0-9a-f]{48}$/ route to handleVaultCodeGrant: 5-min TTL, PKCE verifier MANDATORY (S256), client_id/redirect_uri optional-but-must-match, then mints the ES256 access token + dlt_ refresh link token, burns the code + creates the mcp_link_tokens surface (rail='oauth', label '<Client> (OAuth)') in ONE transaction. Response: {token_type:'bearer', access_token, expires_in:3600, refresh_token:'dlt_<48hex>', scope:'vault'}. Refresh tokens matching /^dlt_[0-9a-f]{48}$/ route to handleVaultRefreshGrant: must be live, unrevoked, rail==='oauth' (bind-rail dlt_ refused); no rotation — same refresh_token returned.",
+          "source": "/home/branchmanager/websites/dexter-api/src/routes/connectorOAuth.ts:1047-1246,1438-1447"
+        },
+        {
+          "fact": "The vault access token (mintVaultSessionToken): ES256, kid dx-2026-07-a, iss https://dexter.cash (DEXTER_TOKEN_ISSUER), sub = base64url(16-byte user_handle), aud = OPEN_MCP_VAULT_AUDIENCE = 'https://open.dexter.cash/mcp' (a hardcoded constant in BOTH repos — byte-for-byte, deliberately not an env var), exp = iat + 3600 (honest 1h), claims dexter:{ver:1, vault:<swig_address>, userHandle, agentGrant:null} plus top-level dexter_surface = sha256hex of the dlt_ refresh token. Verifiable offline at https://dexter.cash/.well-known/jwks.json (live 200; single EC P-256 key kid dx-2026-07-a; static file aliased from dexter-fe/public/.well-known/jwks.json in nginx).",
+          "source": "/home/branchmanager/websites/dexter-api/src/vault/mintVaultSessionToken.ts:26-123; /etc/nginx/sites-enabled/dexter.cash:537-538"
+        },
+        {
+          "fact": "dexter-api itself serves NO /.well-known/oauth-authorization-server and no PRM anywhere (grep across src confirms; live probe https://api.dexter.cash/.well-known/oauth-authorization-server = 404). It DOES serve RFC 7591 DCR at POST /api/mcp/dcr/register (public-client registration, HTTPS/native-scheme/localhost redirect_uris, PKCE required default, stores in mcp_oauth_clients).",
+          "source": "/home/branchmanager/websites/dexter-api/src/routes/mcpDcr.ts:89-151; live curl"
+        },
+        {
+          "fact": "mcp.dexter.cash's AS surface is dexter-mcp's http-server-oauth.mjs (port 3930, nginx proxies everything). It serves /.well-known/oauth-authorization-server (also /mcp path-insertion variants) advertising issuer https://mcp.dexter.cash/mcp, authorization_endpoint https://mcp.dexter.cash/mcp/authorize, token_endpoint https://mcp.dexter.cash/mcp/token, registration_endpoint https://mcp.dexter.cash/mcp/register, code_challenge_methods [S256], grant_types [authorization_code, refresh_token], scopes_supported [wallet.read, wallet.trade, openid]. /authorize|/token|/register are thin proxies to dexter-api's /api/connector/oauth/authorize, /api/connector/oauth/token, /api/mcp/dcr/register — the authorize proxy fetches with accept:application/json and 302s the UA to the returned login_url. Issuer/endpoints derive from X-Forwarded-Host (effectiveBaseUrl), so the same code serves dexter.cash-hosted metadata too (live: issuer https://dexter.cash/mcp).",
+          "source": "/home/branchmanager/websites/dexter-mcp/http-server-oauth.mjs:426-487,826-962,1105-1248,1329-1340; live curls"
+        },
+        {
+          "fact": "open.dexter.cash (open-mcp-server.mjs, port 3931; nginx proxies all paths) serves ONLY /.well-known/mcp.json ('no authentication required') — NO oauth-protected-resource, NO oauth-authorization-server, NO 401/WWW-Authenticate challenge anywhere. Live probes: /.well-known/oauth-protected-resource and /oauth-protected-resource/mcp and /oauth-authorization-server all 404. This is the entire missing PRM/discovery surface for the vault rail.",
+          "source": "/home/branchmanager/websites/dexter-mcp/open-mcp-server.mjs:2689-2715; /etc/nginx/sites-enabled/open.dexter.cash; live curls"
+        },
+        {
+          "fact": "oauth-seed chain (deployed): claude.ai presents the ES256 Bearer on MCP calls -> open-mcp seedOAuthVaultBinding() verifies it against https://dexter.cash/.well-known/jwks.json (iss https://dexter.cash, aud 'https://open.dexter.cash/mcp', ES256) and, if payload.dexter_surface exists, POSTs {access_token, mcp_session_id} to https://api.dexter.cash/api/passkey-vault/pair/oauth-seed with HMAC-SHA256(INTERNAL_DEXTERCARD_HMAC_SECRET) over `${ts}.${access_token}.${mcp_session_id}` in x-internal-timestamp/x-internal-signature (±5min). dexter-api RE-verifies the token (verifyVaultSessionToken, same iss/aud/alg fail-closed), requires dexter_surface (refuses NULL-hash always-live bindings), requires the surface row live + rail='oauth' + same handle, then upserts mcp_vault_bindings(mcp_session_id, user_handle, link_token_hash=dexter_surface).",
+          "source": "/home/branchmanager/websites/dexter-mcp/open-mcp-server.mjs:2413-2464; /home/branchmanager/websites/dexter-api/src/routes/passkeyVaultPairing.ts:660-773"
+        },
+        {
+          "fact": "Issuer split the PRM design must respect: the TOKEN's iss is https://dexter.cash (what open-mcp's jwtVerify checks), while the AS metadata issuer claude.ai would discover is https://mcp.dexter.cash/mcp (or an open.dexter.cash-hosted equivalent). These need not match for the client (the access token is opaque to claude.ai), but PRM authorization_servers must list the AS-metadata issuer identifier (RFC 9728 — issuer ids, not metadata URLs), i.e. 'https://mcp.dexter.cash/mcp', NOT 'https://dexter.cash'.",
+          "source": "mintVaultSessionToken.ts:26 vs http-server-oauth.mjs:1147-1155; RFC 9728 comment at http-server-oauth.mjs:1174"
+        }
+      ],
+      "interfaces": [
+        "AS issuer (already live, serves metadata+DCR+authorize+token): https://mcp.dexter.cash/mcp",
+        "AS metadata: https://mcp.dexter.cash/.well-known/oauth-authorization-server (200, JSON) and RFC 8414 path-insertion form https://mcp.dexter.cash/.well-known/oauth-authorization-server/mcp",
+        "authorize: GET https://mcp.dexter.cash/mcp/authorize  (proxy of GET https://api.dexter.cash/api/connector/oauth/authorize; also live at https://dexter.cash/api/connector/oauth/authorize)",
+        "token: POST https://mcp.dexter.cash/mcp/token  (proxy of POST https://api.dexter.cash/api/connector/oauth/token)",
+        "registration (RFC 7591 DCR): POST https://mcp.dexter.cash/mcp/register  (proxy of POST https://api.dexter.cash/api/mcp/dcr/register)",
+        "PRM to BUILD on open.dexter.cash: https://open.dexter.cash/.well-known/oauth-protected-resource/mcp (+ bare /.well-known/oauth-protected-resource) returning {\"resource\":\"https://open.dexter.cash/mcp\",\"authorization_servers\":[\"https://mcp.dexter.cash/mcp\"],\"scopes_supported\":[\"vault\"]}",
+        "WWW-Authenticate to BUILD on open.dexter.cash 401s: Bearer resource_metadata=\"https://open.dexter.cash/.well-known/oauth-protected-resource/mcp\", scope=\"vault\"",
+        "aud / PRM resource (byte-exact, hardcoded both sides): https://open.dexter.cash/mcp",
+        "JWKS (token verification): https://dexter.cash/.well-known/jwks.json (ES256, kid dx-2026-07-a)",
+        "internal binding seed: POST https://api.dexter.cash/api/passkey-vault/pair/oauth-seed (HMAC x-internal-timestamp/x-internal-signature; body {access_token, mcp_session_id})",
+        "ceremony page the authorize 302s to: https://dexter.cash/tabs/setup?request_id=vpair_<36hex>",
+        "claude.ai callback (allowlisted): https://claude.ai/api/mcp/auth_callback"
+      ],
+      "gotchas": [
+        "BUILD ITEM (the one hard gap): open.dexter.cash serves NO PRM, NO AS metadata, and never emits 401/WWW-Authenticate — open-mcp-server.mjs has zero OAuth discovery surface (only /.well-known/mcp.json, which says 'no authentication required'). claude.ai cannot discover the vault rail against open.dexter.cash today. Need: PRM endpoint(s) + a 401 challenge with resource_metadata, either in open-mcp-server.mjs or nginx.",
+        "Scope advertisement trap: the vault branch fires ONLY on scope being exactly 'vault' (single token). Existing AS metadata advertises scopes_supported [wallet.read, wallet.trade, openid] — if claude.ai derives its requested scope from AS metadata instead of PRM scopes_supported, it will request the wrong scopes and land on the Supabase connector rail. The PRM must say scopes_supported:[\"vault\"] and ideally the 401 challenge scope=\"vault\"; verify which source claude.ai actually copies before shipping.",
+        "Legacy Supabase redirect trap: the EXACT path /mcp/.well-known/oauth-authorization-server on host 3930 302s to Supabase's OIDC discovery ('Track 1 for Claude', http-server-oauth.mjs:1134) — only the root and path-insertion forms return the real AS JSON. If claude.ai fetches the /mcp-prefixed form for issuer https://mcp.dexter.cash/mcp it gets bounced to Supabase. Path-insertion (/.well-known/oauth-authorization-server/mcp) is served correctly; test which form claude.ai uses, or kill the redirect.",
+        "Issuer mismatch is intentional but must not leak into PRM: token iss = https://dexter.cash; AS metadata issuer = https://mcp.dexter.cash/mcp. PRM authorization_servers must carry the AS issuer (mcp.dexter.cash/mcp), not the token issuer. Alternative: proxy /authorize,/token,/register,/.well-known/* on open.dexter.cash to 3930 — effectiveBaseUrl is X-Forwarded-Host-driven so metadata would self-consistently advertise open.dexter.cash/mcp/* as issuer (but note PUBLIC_URL override in effectiveBaseUrl and the strict RFC 8414 issuer==metadata-host check some clients do).",
+        "DCR accepts ANY https redirect_uri, but scope=vault authorize independently refuses non-first-party redirects via isAllowedRedirect — new money-rail clients are added via CONNECTOR_ALLOWED_REDIRECTS env (currently unset in prod; defaults only). claude.ai works because https://claude.ai/api/mcp/auth_callback is in DEFAULT_ALLOWED_REDIRECTS.",
+        "Allowlist duplication drift hazard: DEFAULT_ALLOWED_REDIRECTS lives in TWO files — connectorOAuth.ts:21 (gates static-client redirects) and connectorRedirect.ts:20 (gates the vault branch via isAllowedRedirect; also includes dexter.cash/wallet/setup-passkey which the other copy lacks). Both independently parse CONNECTOR_ALLOWED_REDIRECTS. An allowlist change touching one file only will half-apply.",
+        "oauth-seed refuses tokens without dexter_surface (missing_surface) and surfaces that are revoked/bind-rail — a token minted by any future path that skips surfaceHash can authenticate tool calls but can never seed a spend binding.",
+        "Refresh tokens (dlt_) never rotate on refresh (v1 decision, documented) and the vault refresh grant returns the SAME dlt_; revocation is per-surface via mcp_link_tokens.revoked_at, which bites via invalid_grant at refresh AND instantly at spend (link_token_hash on the binding).",
+        "vpair_ pairing rows are created UNAUTHENTICATED by the vault authorize branch (15-min ceremony TTL, 1h janitor retention) — my live probe created one (vpair_96ca5ea2...); it expires harmlessly.",
+        "The mint-before-burn ordering in handleVaultCodeGrant means a 500 at mint leaves the vac_ code intact and retryable; the burn+surface-create is a single transaction — do not 'simplify' this ordering."
+      ],
+      "summary": "AS side fully mapped and live-verified. dexter-api (behind api.dexter.cash AND dexter.cash/api) is the real authorization server: GET /api/connector/oauth/authorize routes a pure scope=vault request (exact single-token match, PKCE S256 mandatory, redirect_uri must pass the first-party isAllowedRedirect allowlist which includes https://claude.ai/api/mcp/auth_callback) into a vpair_ pairing row and 302s to https://dexter.cash/tabs/setup?request_id=vpair_... (live-tested: real 302 returned). Passkey approval at /pair/authorize-approve mints a single-use vac_ code; POST /api/connector/oauth/token (grants: authorization_code + refresh_token) redeems it — PKCE enforced — for {access_token: ES256 JWT iss=https://dexter.cash, sub=b64url(user_handle), aud='https://open.dexter.cash/mcp' byte-exact, dexter:{ver:1,vault:swig,userHandle,agentGrant:null}, dexter_surface=sha256(dlt_), 1h honest expiry, kid dx-2026-07-a; refresh_token: dlt_ rail='oauth'; scope:'vault'}. dexter-api serves NO AS metadata itself; metadata+DCR live in dexter-mcp's http-server-oauth.mjs (port 3930 = mcp.dexter.cash), which advertises issuer https://mcp.dexter.cash/mcp with /mcp/authorize, /mcp/token, /mcp/register all proxying to dexter-api (DCR at /api/mcp/dcr/register, RFC 7591). The deployed oauth-seed chain works: open-mcp verifies the Bearer against dexter.cash JWKS, HMAC-POSTs it to /api/passkey-vault/pair/oauth-seed, dexter-api re-verifies and writes the token-scoped mcp_vault_bindings row. The one hard build item: open.dexter.cash serves no PRM and no 401 challenge (all oauth well-knowns 404 live) — the ad-facing rail needs a PRM at https://open.dexter.cash/.well-known/oauth-protected-resource/mcp declaring resource https://open.dexter.cash/mcp, authorization_servers ['https://mcp.dexter.cash/mcp'], scopes_supported ['vault'], plus a WWW-Authenticate resource_metadata challenge — and watch the scope-advertisement and legacy-Supabase-redirect traps in gotchas."
+    },
+    "contracts": {
+      "facts": [
+        {
+          "fact": "CHALLENGE PLACEMENT (locked by step-0 probe, Gate A cleared): the open.dexter.cash OAuth 401 challenge fires on the VAULT/SPEND tool calls only — x402_fetch, x402_pay, dexter_passkey arm, etc. — NOT at initialize. initialize, notifications/initialized, tools/list, and anonymous browse/search/x402_check stay open with no challenge. Probe proved BOTH doors work against Branch's real claude.ai app (Door A connect-time 401 at initialize: claude.ai fetched the PRM doc; Door B mid-session 401 on tools/call: claude.ai fetched the PRM doc and ran the OAuth dance MID-SESSION with no connector death), so mid-session was chosen as the better UX, not forced. Discovery chain advertised: WWW-Authenticate -> RFC-9728 PRM doc -> authorization_servers=[https://mcp.dexter.cash] (the real working AS).",
+          "source": "/home/branchmanager/.agent-mail/read/api-fable/2026-07-03T0007Z--OpenDexter-fable--to--api-fable--step-0-probe-result-gate-a-cleared-claude-ai-runs-the-oauth-dance-mid-session-both-doors-challenge-placement-the-spend-tool-calls-build-unblocked.md"
+        },
+        {
+          "fact": "AUD STRING, BYTE-EXACT: `https://open.dexter.cash/mcp` — no trailing slash, no path variance, fail-closed, reject anything else. It is the OPEN_MCP_VAULT_AUDIENCE constant api-fable stamps on every vault-scope token.",
+          "source": "/home/branchmanager/.agent-mail/read/OpenDexter-fable/2026-07-03T0629Z--api-fable--to--OpenDexter-fable--aud-locked-https-open-dexter-cash-mcp-byte-exact-full-token-shape-real-mint-verified-use-dexter-surface-for-revoke-that-bites.md"
+        },
+        {
+          "fact": "TOKEN SHAPE open-mcp verifies (real-mint verified against live JWKS https://dexter.cash/.well-known/jwks.json): header alg=ES256, kid=dx-2026-07-a, typ=JWT; iss=`https://dexter.cash`; sub=base64url(16-byte user_handle) which decodes to the mcp_vault_bindings handle (verified: sub d9hVDX8xU-t3XsycP3frAQ decodes to the vault's 16-byte handle); aud=https://open.dexter.cash/mcp byte-exact; exp-iat=3600 (honest 1h, refresh is the AS's job); claim dexter:{ver:1, vault:<swig_address>, userHandle:<same base64url as sub>, agentGrant:null} — identical shape to the Phase-1 Supabase hook so account-backed and anon vaults verify the same way; PLUS top-level claim dexter_surface = sha256 hex of the grant's refresh link token (dlt_), deliberately TOP-LEVEL and NOT inside the dexter claim (that shape is the cross-phase contract; agentGrant stays reserved). dexter_surface is what makes per-surface revoke bite at the NEXT tool call instead of waiting out the 1h TTL. Option 1 locked: token always mints dexter.cash iss ES256 for both vault types — one issuer, one JWKS, one aud; HS256 stays off the vault spend door.",
+          "source": "/home/branchmanager/.agent-mail/read/OpenDexter-fable/2026-07-03T0629Z--api-fable--to--OpenDexter-fable--aud-locked-*.md (shape) + /home/branchmanager/.agent-mail/read/OpenDexter-fable/2026-07-03T0042Z--api-fable--to--OpenDexter-fable--option-1-locked-*.md (single issuer)"
+        },
+        {
+          "fact": "ROUTING CONSTRAINT (main-fable's hard rule, the last thing gating the flip): OAuth sessions seed the vault binding ONLY via POST /api/passkey-vault/pair/oauth-seed — NEVER via /bind-mcp-session. /bind-mcp-session writes link_token_hash=NULL, and the spend gate `WHERE link_token_hash IS NULL OR (t.revoked_at IS NULL)` treats a NULL-hash binding as ALWAYS-LIVE, which silently no-ops per-surface revoke on the whole OAuth rail. /oauth-seed structurally cannot write NULL (hash derived from the verified token's dexter_surface; missing -> 400 missing_surface). main-fable swept every repo: /bind-mcp-session has ZERO live callers anywhere — it is an orphaned path, but any new OAuth code path reaching it is 'the one bug that reopens the money hole'.",
+          "source": "/home/branchmanager/.agent-mail/inbox/OpenDexter-fable/2026-07-03T0727Z--main-fable--*decision-build-to-option-b-*.md + 2026-07-03T0729Z--api-fable--*oauth-sessions-only-via-oauth-seed*.md + /home/branchmanager/.agent-mail/read/api-fable/2026-07-03T0735Z--main-fable--*go-granted-*.md"
+        },
+        {
+          "fact": "OAUTH-SEED CONTRACT (deployed dexter-api 6daa3c24, dark, prod-verified 4/4 live + 10/10 negative matrix; Option B = dexter-api re-verifies, ruled by main-fable over Option A because re-verify survives a leaked internal secret): POST /api/passkey-vault/pair/oauth-seed with headers x-internal-timestamp (ms epoch, ±5min) and x-internal-signature = HMAC-SHA256(`${ts}.${access_token}.${mcp_session_id}`, INTERNAL_DEXTERCARD_HMAC_SECRET) — the ACCESS TOKEN IS INSIDE the signed material, same secret as /link-token/bind. Body {access_token, mcp_session_id}. Returns {ok:true, user_handle:<base64url>}. dexter-api re-verifies ES256 sig + iss + aud byte-exact + expiry, derives handle from sub and link_token_hash from dexter_surface, requires the surface to be a LIVE non-revoked rail='oauth' link token owned by that same handle, then idempotently UPSERTs mcp_vault_bindings — safe to call every session, self-heals after restart. Errors: 503 service_disabled | 400 invalid_fields | 401 timestamp_out_of_range | 401 bad_signature | 401 invalid_token | 400 missing_surface | 400 surface_not_live | 400 surface_handle_mismatch | 500 internal_error.",
+          "source": "/home/branchmanager/.agent-mail/inbox/OpenDexter-fable/2026-07-03T0723Z--api-fable--to--OpenDexter-fable--oauth-seed-live-dark-6daa3c24-option-b-chosen-*.md"
+        },
+        {
+          "fact": "VERIFIER FLOW (open-mcp side, locked): on a vault-authority tool call -> verifyDexterSession locally (aud byte-exact) for the CHALLENGE decision -> if valid, POST /oauth-seed passing the RAW Bearer through (open-mcp never extracts handle/surface for the seed) -> proceed to already-live session-mode spend (mcp_session_id on the anon pay call). On invalid Bearer or non-ok seed -> 401 challenge. Legacy HS256 stays off this door.",
+          "source": "/home/branchmanager/.agent-mail/inbox/OpenDexter-fable/2026-07-03T0723Z (flow) + 2026-07-03T0727Z--main-fable (integration block, steps 1-3)"
+        },
+        {
+          "fact": "WHAT d192047 SHIPPED (api-fable built OpenDexter-fable's block itself, dexter-mcp commit d192047, dexter-open-mcp restarted): seedOAuthVaultBinding(req, sessionId) in open-mcp-server.mjs — extractBearer -> jose jwtVerify against https://dexter.cash/.well-known/jwks.json {iss:'https://dexter.cash', aud:'https://open.dexter.cash/mcp', alg ES256} -> on valid vault Bearer with dexter_surface, POST /oauth-seed with the HMAC over `${ts}.${access_token}.${mcp_session_id}`. Called in the POST handler right after tryBindUserFromRequest, gated on !sessionMeta.get(sessionId)?.bound so it fires once per session, idempotent, off the hot path; anon/HS256 untouched (verify throws -> skip); NO /bind-mcp-session call added (NULL-hash hole stays orphaned); widgetMeta/pairing-mint/other uncommitted files untouched. Proven 6/6 through LIVE servers: real ES256 Bearer POSTed to :3931 -> binding seeded -> mcp_vault_bindings.link_token_hash == the Bearer's dexter_surface -> /mcp-binding resolves 200 -> revoke surface -> /mcp-binding 404 (revoke bites).",
+          "source": "/home/branchmanager/.agent-mail/inbox/OpenDexter-fable/2026-07-03T0750Z--api-fable--*done-i-built-shipped-your-open-mcp-seed-block-d192047-*.md"
+        },
+        {
+          "fact": "REMAINING PRECONDITIONS FOR THE FLIP and who held them: main-fable's original five-item sequence was (1) OpenDexter-fable's dark verify+seed+challenge block staged, (2) oauth-seed live, (3) joint chain test (a) non-NULL link_token_hash == Bearer's dexter_surface + (b) revoke mid-session -> next anon pay = no_live_binding, (4) main-fable GO, (5) Branch GO — 'nothing flips before all five'. By 0735Z api-fable had proven (a)+(b) 4/4 solo (both endpoints are dexter-api's), so main-fable granted GO conditioned on exactly ONE observation: a real OAuth session through the staged open-mcp verifier producing the non-NULL token-scoped binding row. d192047's 6/6 live-chain proof (0750Z) satisfied that routing row. After 0750Z the only named remaining preconditions: a real claude.ai Face-ID session as acceptance (holder: whoever drives the live claude.ai test — was OpenDexter-fable's lane, absorbed by api-fable) and Branch's final GO (holder: Branch).",
+          "source": "/home/branchmanager/.agent-mail/inbox/OpenDexter-fable/2026-07-03T0727Z (five-gate sequence) + /home/branchmanager/.agent-mail/read/api-fable/2026-07-03T0735Z (GO conditioned on one row) + inbox/OpenDexter-fable/2026-07-03T0750Z (row proven; Face-ID acceptance left)"
+        },
+        {
+          "fact": "BRANCH PERSONAL RULINGS in these mails: (1) 'prompt on the grant, never on the spend' — Branch's law, the reason the mid-session/tool-call challenge placement is the ruling, cited verbatim in the probe result; (2) Branch ruled OAuth-native connect is the build in the first place, after seeing the dlt_-URL hand-paste flow on his iPhone ('horrible'); (3) Branch personally directed api-fable to build + ship OpenDexter-fable's open-mcp seed block (d192047) when OpenDexter-fable went idle ~30min mid-thread and blocked the flip; (4) Branch holds the final GO on the flip — every stated sequence terminates in 'Branch GO'.",
+          "source": "(1) read/api-fable/2026-07-03T0007Z probe-result; (2) read/api-fable/2026-07-02T2314Z--OpenDexter-fable--*branch-ruling-oauth-native-connect-*.md; (3) inbox/OpenDexter-fable/2026-07-03T0750Z; (4) inbox/OpenDexter-fable/2026-07-03T0727Z + read/api-fable/2026-07-03T0735Z"
+        },
+        {
+          "fact": "SECURITY CONTEXT riding the same contract: the lane's code review caught a real consent/login-CSRF — DCR registration accepted any HTTPS redirect, letting an attacker register their own redirect, drive scope=vault authorize, phish a victim through Face-ID, and receive the victim's code (a standing Tab-capped spend credential). FIXED before flip: scope=vault only issues codes to first-party connector callbacks (claude.ai / chatgpt / dexter). open-mcp's byte-exact aud enforcement is named as the second lock on that same door. Money-path e2e for the AS branch passed 26/26 (authorize -> code grant -> refresh, JWTs vs live JWKS, single-use, PKCE, rail discrimination); authorize branch live as dexter-api 51bbe519.",
+          "source": "/home/branchmanager/.agent-mail/read/OpenDexter-fable/2026-07-03T0629Z--api-fable--*aud-locked-*.md + read/OpenDexter-fable/2026-07-03T0648Z (51bbe519 live)"
+        }
+      ],
+      "gotchas": [
+        "NEVER route an OAuth session through /bind-mcp-session — it writes link_token_hash=NULL, which the spend gate treats as ALWAYS-LIVE, silently killing per-surface revoke for the whole OAuth rail. The path is orphaned (zero live callers) but exists; do not revive it.",
+        "The oauth-seed HMAC signed material is `${ts}.${access_token}.${mcp_session_id}` — the access token is INSIDE the signature, unlike /link-token/bind's ts.session pattern. Signing only ts.session gets 401 bad_signature.",
+        "aud must be byte-exact `https://open.dexter.cash/mcp` — no trailing slash. Any variance is a fail-closed reject on both sides (open-mcp verify AND dexter-api re-verify).",
+        "dexter_surface rides TOP-LEVEL in the JWT, deliberately NOT inside the `dexter` claim — the dexter claim shape is the frozen cross-phase contract (agentGrant reserved). Don't move it.",
+        "The challenge must NOT fire at initialize — anonymous attach + tools/list stay open; 401 only on vault/spend tool calls. Both placements were proven to work with claude.ai, so connect-time 401 would be a UX regression, not a necessity.",
+        "HS256/legacy tokens stay OFF the vault spend door entirely — verify throws -> skip seed, anon path untouched (d192047 preserves this).",
+        "Do not extend issueMcpJwt for vault tokens — its 512-char header cap silently trims optional claims (mcpJwt.ts:85-127), exactly the claims this contract needs (pre-existing trap flagged in the 2314Z lane brief).",
+        "The open-mcp seed block already EXISTS and is proven (d192047, 6/6) — anyone 'building' it again is duplicating shipped work; the only open acceptance item was a real claude.ai Face-ID session plus Branch's final GO."
+      ],
+      "interfaces": [
+        "POST /api/passkey-vault/pair/oauth-seed (dexter-api 6daa3c24) — headers: x-internal-timestamp (ms epoch, ±5min), x-internal-signature = HMAC-SHA256(`${ts}.${access_token}.${mcp_session_id}`, INTERNAL_DEXTERCARD_HMAC_SECRET); body: {access_token, mcp_session_id}; returns {ok:true, user_handle:<base64url>}; errors: 503 service_disabled, 400 invalid_fields, 401 timestamp_out_of_range, 401 bad_signature, 401 invalid_token, 400 missing_surface, 400 surface_not_live, 400 surface_handle_mismatch, 500 internal_error",
+        "Vault-scope access token (ES256, kid dx-2026-07-a, JWKS https://dexter.cash/.well-known/jwks.json): iss=https://dexter.cash; sub=base64url(16-byte user_handle); aud=https://open.dexter.cash/mcp (byte-exact); exp-iat=3600; dexter:{ver:1, vault:<swig_address>, userHandle:<sub>, agentGrant:null}; top-level dexter_surface=sha256hex(refresh dlt_ link token)",
+        "open-mcp verifier flow: vault-authority tool call -> verifyDexterSession(aud byte-exact) -> 401 challenge on fail -> POST /oauth-seed with raw Bearer + mcp_session_id -> session-mode spend (mcp_session_id on anon pay call)",
+        "seedOAuthVaultBinding(req, sessionId) in dexter-mcp open-mcp-server.mjs (commit d192047): extractBearer -> jose jwtVerify {iss, aud, ES256} -> POST oauth-seed; called after tryBindUserFromRequest, gated on !sessionMeta.get(sessionId)?.bound",
+        "OAuth discovery chain the advertisement serves: 401 + WWW-Authenticate -> RFC-9728 Protected Resource Metadata doc -> authorization_servers=[https://mcp.dexter.cash]"
+      ],
+      "summary": "Extracted the locked contracts from the Jul 2-3 agent-mail record for the OAuth advertisement build. (1) Challenge placement: 401 OAuth challenge fires ONLY on vault/spend tool calls (x402_fetch, x402_pay, dexter_passkey arm); initialize, tools/list, browse/search/x402_check stay anonymous — both doors were empirically proven against Branch's real claude.ai, mid-session chosen as the ruling, matching Branch's 'prompt on the grant, never on the spend' law. (2) aud byte-exact: https://open.dexter.cash/mcp (no trailing slash, fail-closed, = OPEN_MCP_VAULT_AUDIENCE). (3) Token shape: ES256 kid dx-2026-07-a, iss https://dexter.cash, sub=base64url(16-byte user_handle), aud as above, 1h honest TTL, dexter:{ver:1,vault,userHandle,agentGrant:null}, plus TOP-LEVEL dexter_surface=sha256hex(refresh dlt_) for revoke-that-bites; verified against live JWKS; one issuer for both vault types, HS256 off the vault door. (4) Routing constraint: OAuth sessions seed mcp_vault_bindings ONLY via POST /oauth-seed (Option B, dexter-api re-verifies the raw Bearer and derives handle+hash itself), NEVER /bind-mcp-session whose NULL hash makes bindings always-live and no-ops revoke. (5) Flip preconditions: main-fable's five-gate sequence collapsed after api-fable proved (a)+(b) 4/4 and then built OpenDexter-fable's own seed block (dexter-mcp d192047, 6/6 live chain proof incl. revoke-bites); after 0750Z only a real claude.ai Face-ID acceptance session and Branch's final GO remained. (6) Branch's personal rulings: the prompt-on-the-grant law, ordering the OAuth-native connect build (dlt_ hand-paste = 'horrible'), directing api-fable to build the idle OpenDexter-fable's block, and holding the final GO."
+    }
+  },
+  "workflowProgress": [
+    {
+      "type": "workflow_phase",
+      "index": 1,
+      "title": "Recon"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 1,
+      "label": "probe-wiring",
+      "phaseIndex": 1,
+      "phaseTitle": "Recon",
+      "agentId": "af5ac547f7f339c13",
+      "model": "claude-fable-5",
+      "state": "done",
+      "startedAt": 1783110948976,
+      "queuedAt": 1783110948960,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "The on-disk file /home/branchmanager/websites/dexter-mcp/pr…",
+      "promptPreview": "Read /home/branchmanager/websites/dexter-mcp/probe/oauth-timing-probe.mjs IN FULL — this is the step-0 probe that PROVED claude.ai runs the OAuth discovery dance against open.dexter.cash/mcp-probe (July 3 ~00:04Z, Gate A cleared: PRM fetched, both challenge doors worked). Also check the same dir for any siblings/readme and git log for probe-related commits.\nReport precisely: (1) the exact PRM docu…",
+      "lastProgressAt": 1783111598436,
+      "tokens": 97928,
+      "toolCalls": 33,
+      "durationMs": 649459,
+      "resultPreview": "{\"summary\":\"The on-disk file /home/branchmanager/websites/dexter-mcp/probe/oauth-timing-probe.mjs is NOT what ran — it is a stale draft, truncated mid-statement at line 98 (ends at a bare `return`, no newline, mtime Jul 2 23:58), with different paths (/mcp-probe-a, /mcp-probe-b), a different default port (3941), and a per-slug PRM. The probe that actually ran was `probe-oauth-server.mjs` at the de…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 2,
+      "label": "live-server",
+      "phaseIndex": 1,
+      "phaseTitle": "Recon",
+      "agentId": "a2369f32e3b689df2",
+      "model": "claude-fable-5",
+      "state": "done",
+      "startedAt": 1783110948978,
+      "queuedAt": 1783110948960,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "Mapped open-mcp-server.mjs (2894 lines, PM2 dexter-open-mcp…",
+      "promptPreview": "Map /home/branchmanager/websites/dexter-mcp/open-mcp-server.mjs (the LIVE open.dexter.cash server, PM2 dexter-open-mcp, port :3931) for the advertisement build. Read the routing + auth sections:\n1. The HTTP request handler: every url.pathname branch (health ~2633, /dbg ~2657, /.well-known/mcp.json ~2689, the /mcp POST handling ~2740+). Where would GET /.well-known/oauth-protected-resource (+ /oaut…",
+      "lastProgressAt": 1783111224254,
+      "tokens": 92432,
+      "toolCalls": 25,
+      "durationMs": 275276,
+      "resultPreview": "{\"facts\":[{\"fact\":\"HTTP request handler is a raw node http.createServer at open-mcp-server.mjs:2604. Branch order: OPTIONS 2607-2611; pathname normalization + link-token extraction (/mcp/<dlt_...> and x-dexter-link-token header) 2613-2630; /health + /mcp/health 2633-2646; POST /dbg/webauthn-probe 2657-2686; GET /.well-known/mcp.json 2689-2708; catch-all 404 for anything not '/' or '/mcp' at 2711-2…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 3,
+      "label": "as-rail",
+      "phaseIndex": 1,
+      "phaseTitle": "Recon",
+      "agentId": "ab725c04a49fcba21",
+      "model": "claude-fable-5",
+      "state": "done",
+      "startedAt": 1783110948979,
+      "queuedAt": 1783110948960,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "AS side fully mapped and live-verified. dexter-api (behind …",
+      "promptPreview": "Map the AUTHORIZATION SERVER side in /home/branchmanager/websites/dexter-api (branch main) for the vault-scope OAuth rail that the advertisement will point claude.ai at:\n1. src/routes/connectorOAuth.ts: the GET /api/connector/oauth/authorize handler (~:416) — how does scope=vault route (the 51bbe519 branch that 302s to /tabs/setup)? What params does it require (client_id, redirect_uri, PKCE, state…",
+      "lastProgressAt": 1783111302550,
+      "tokens": 108307,
+      "toolCalls": 39,
+      "durationMs": 353571,
+      "resultPreview": "{\"facts\":[{\"fact\":\"GET /api/connector/oauth/authorize requires client_id + redirect_uri (400 invalid_request otherwise). Client must be in the static allowlist (Claude cid_59e99d1247b444bca4631382ecff3e36, ChatGPT cid_a859560609a6448aa2f3a1c29f6ab496, OPEN_MCP cid_opendexter_open_mcp, plus CONNECTOR_ALLOWED_CLIENT_IDS env) OR a DB-registered DCR client whose registered redirect_uris contain the re…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 4,
+      "label": "locked-contracts",
+      "phaseIndex": 1,
+      "phaseTitle": "Recon",
+      "agentId": "a22c36dc71ed9c944",
+      "model": "claude-fable-5",
+      "state": "done",
+      "startedAt": 1783110948979,
+      "queuedAt": 1783110948960,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "Extracted the locked contracts from the Jul 2-3 agent-mail …",
+      "promptPreview": "Extract the LOCKED CONTRACTS for the OAuth advertisement from the agent-mail record (July 2-3), so the build matches what the crew + Branch ruled. Read these mail files IN FULL (paths under /home/branchmanager/.agent-mail/read/ and inbox/):\n- read/api-fable/2026-07-03T0007Z--OpenDexter-fable--to--api-fable--step-0-probe-result-gate-a-cleared-*.md (the probe result: both doors, challenge placement …",
+      "lastProgressAt": 1783111097434,
+      "tokens": 54784,
+      "toolCalls": 13,
+      "durationMs": 148455,
+      "resultPreview": "{\"facts\":[{\"fact\":\"CHALLENGE PLACEMENT (locked by step-0 probe, Gate A cleared): the open.dexter.cash OAuth 401 challenge fires on the VAULT/SPEND tool calls only — x402_fetch, x402_pay, dexter_passkey arm, etc. — NOT at initialize. initialize, notifications/initialized, tools/list, and anonymous browse/search/x402_check stay open with no challenge. Probe proved BOTH doors work against Branch's re…"
+    }
+  ],
+  "totalTokens": 353451,
+  "totalToolCalls": 110
+}
