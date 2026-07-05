@@ -42,6 +42,7 @@ import {
 } from '@dexterai/x402-mcp-tools';
 import { mintPairingRequest, pollPairingResult, mintVaultPairingRequest, pollVaultPairingResult, fetchVaultStateBySession, fetchVaultStateByUserHandle } from './lib/pairing-mint.mjs';
 import { shouldChallengeSpend } from './lib/spend-challenge.mjs';
+import { applyRailTabOffer } from './lib/rail-tab-offer.mjs';
 
 // Per-request context carrying the MCP `extra` object into deep
 // callbacks (the shared registrars' adapter.getOperations() doesn't
@@ -340,8 +341,8 @@ async function x402Search({ query, limit, unverified, testnets, rerank }) {
 
 // ─── Tool: x402_pay ─────────────────────────────────────────────────────────
 
-async function x402Pay({ url, method, body, sessionToken, sessionKey }, extra) {
-  const result = await x402Fetch({ url, method, body, sessionToken, sessionKey }, extra);
+async function x402Pay({ url, method, body, sessionToken, sessionKey, tab }, extra) {
+  const result = await x402Fetch({ url, method, body, sessionToken, sessionKey, tab }, extra);
   return {
     ...result,
     tool: 'x402_pay',
@@ -525,7 +526,14 @@ function signedInternalHeaders(value) {
   return { 'x-internal-timestamp': ts, 'x-internal-signature': sig };
 }
 
-async function x402Fetch({ url, method, body, multipart, sessionToken, sessionKey }, extra) {
+async function x402Fetch({ url, method, body, multipart, sessionToken, sessionKey, tab }, extra) {
+  // Rail-tab offer gate (T4-5b): when dexter-api attaches a `railTabOffer`
+  // to a pay response, render it in-band (lib/rail-tab-offer.mjs). Absent or
+  // unknown offer → the legacy object below passes through UNTOUCHED (same
+  // reference — the mode-gate that lets this deploy before the api side).
+  // `tab: false` suppresses all offer rendering (x402-mcp-tools parity).
+  const tabEnabled = tab !== false;
+  const offerCall = { url, method, body, ...(multipart ? { multipart } : {}) };
   // ── Non-custodial passkey-vault path (the ONLY way to pay here) ───────────
   // The remote MCP URL holds NO funds of its own. The buyer's identity is the
   // MCP session's live vault binding: we resolve user_handle through the
@@ -685,7 +693,7 @@ async function x402Fetch({ url, method, body, multipart, sessionToken, sessionKe
                   || 'The payment was dispatched and may have settled. Do NOT retry — re-running could pay twice. Check the vault balance or the merchant before re-attempting.',
               };
             }
-            return {
+            const legacySuccess = {
               status: anonBody.status ?? 200,
               mode: anonBody.paid ? 'vault_ready' : 'vault_no_payment_required',
               data: anonBody.data,
@@ -695,8 +703,9 @@ async function x402Fetch({ url, method, body, multipart, sessionToken, sessionKe
               vault: anonBody.vault,
               paySource: 'anon_vault',
             };
+            return applyRailTabOffer({ legacy: legacySuccess, anonBody, tabEnabled, call: offerCall });
           }
-          return {
+          const legacyError = {
             status: anonRes.status || 500,
             mode: 'vault_error',
             error: anonBody?.error || 'anon_multipart_fetch_failed',
@@ -704,6 +713,7 @@ async function x402Fetch({ url, method, body, multipart, sessionToken, sessionKe
             requirements: anonBody?.requirements ?? null,
             paySource: 'anon_vault',
           };
+          return applyRailTabOffer({ legacy: legacyError, anonBody, tabEnabled, call: offerCall });
         }
 
         // JSON branch — original /v2/pay/anon/x402/fetch.
@@ -746,7 +756,7 @@ async function x402Fetch({ url, method, body, multipart, sessionToken, sessionKe
                 || 'The payment was dispatched and may have settled. Do NOT retry — re-running could pay twice. Check the vault balance or the merchant before re-attempting.',
             };
           }
-          return {
+          const legacySuccess = {
             status: anonBody.status ?? 200,
             mode: anonBody.paid ? 'vault_ready' : 'vault_no_payment_required',
             data: anonBody.data,
@@ -756,10 +766,14 @@ async function x402Fetch({ url, method, body, multipart, sessionToken, sessionKe
             vault: anonBody.vault,
             paySource: 'anon_vault',
           };
+          return applyRailTabOffer({ legacy: legacySuccess, anonBody, tabEnabled, call: offerCall });
         }
         // Surface the dexter-api error directly so the agent can route
-        // (e.g. no_solana_accept) instead of silently doing anything else.
-        return {
+        // (e.g. no_solana_accept) instead of silently doing anything else —
+        // unless it carries a renderable railTabOffer, in which case the
+        // offer becomes the response (bare tab_consent_required relays as-is
+        // only when the offer object is absent/unknown).
+        const legacyError = {
           status: anonRes.status || 500,
           mode: 'vault_error',
           error: anonBody?.error || 'anon_fetch_failed',
@@ -767,6 +781,7 @@ async function x402Fetch({ url, method, body, multipart, sessionToken, sessionKe
           requirements: anonBody?.requirements ?? null,
           paySource: 'anon_vault',
         };
+        return applyRailTabOffer({ legacy: legacyError, anonBody, tabEnabled, call: offerCall });
     } catch (err) {
       console.warn(`[x402_fetch] anon paid call failed: ${err?.message || err}`);
       // Network/timeout talking to the vault path. FAIL CLOSED — never leak
@@ -1335,6 +1350,7 @@ function createOpenMcpServer() {
       url: z.string().url().describe('The x402 resource URL to call'),
       method: z.enum(['GET', 'POST', 'PUT', 'DELETE']).default('GET').describe('HTTP method'),
       body: z.any().optional().describe('Request body (for POST/PUT). Can be object or string.'),
+      tab: z.boolean().optional().describe('Running-tab offers (default true): when this seller supports a running tab, the response includes the offer. Set false to hide tab offers for this call and pay one-shot only.'),
     },
     _meta: PAY_META,
   }, async (args, extra) => {
@@ -1372,6 +1388,7 @@ function createOpenMcpServer() {
         })).describe('Files to upload as multipart parts.'),
         fields: z.record(z.string()).optional().describe('Extra text fields to include in the multipart body.'),
       }).optional().describe('Pass to upload files to a multipart x402 endpoint (image-gen, transcription, document processing). Vault-paid, Solana-only.'),
+      tab: z.boolean().optional().describe('Running-tab offers (default true): when this seller supports a running tab, the response includes the offer. Set false to hide tab offers for this call and pay one-shot only.'),
     },
     annotations: { destructiveHint: true },
     _meta: FETCH_META,
