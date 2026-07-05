@@ -1158,7 +1158,13 @@ function serveOAuthMetadata(pathname, res, req) {
       response_types_supported: ['code'],
       grant_types_supported: ['authorization_code', 'refresh_token'],
       code_challenge_methods_supported: ['S256'],
-      scopes_supported: publishWithOpenId,
+      // `vault` rides along with the legacy wallet.*/openid scopes: it is
+      // the exact single token that routes dexter-api's authorize to the
+      // passkey vault rail (Face-ID page). open.dexter.cash's PRM advertises
+      // it, and RFC 9728 clients that intersect PRM scopes with this AS
+      // metadata must find it here too or the intersection comes up empty
+      // and the client falls back to the legacy email connector.
+      scopes_supported: publishWithOpenId.includes('vault') ? publishWithOpenId : [...publishWithOpenId, 'vault'],
       id_token_signing_alg_values_supported: rsaPublicJwk ? ['RS256'] : (HS256_SECRET ? ['HS256'] : []),
       mcp: { client_id: clientId || '', redirect_uri: `${effectiveBaseUrl(req)}/callback` }
     }));

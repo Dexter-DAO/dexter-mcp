@@ -4,16 +4,13 @@ import './instrument.open-mcp.mjs';
 /**
  * Dexter Open MCP Server — x402 Gateway
  *
- * Public, no-auth MCP server with five tools:
- *   - x402_search: Discover x402 resources in the Dexter marketplace
- *   - x402_pay:    Call any x402 resource with canonical settlement (alias of x402_fetch)
- *   - x402_fetch:  Call any x402 resource with automatic payment
- *   - x402_check:  Preview endpoint pricing without paying
- *   - x402_access: Access identity-gated endpoints with wallet proof
- *   - x402_wallet: Session dashboard for anonymous spend funding/status
+ * Public x402 gateway (see ALL_TOOLS for the full roster). Browse/search
+ * tools are anonymous; spend-class tools (x402_pay, x402_fetch,
+ * dexter_passkey) 401-challenge unbound Bearer-less sessions into the vault
+ * OAuth rail (RFC 9728 PRM at /.well-known/oauth-protected-resource[/mcp]).
  *
  * Completely separate from the authenticated MCP server (http-server-oauth.mjs).
- * Shares no state, no sessions, no auth.
+ * Shares no state, no sessions.
  *
  * Usage:
  *   OPEN_MCP_PORT=3931 node open-mcp-server.mjs
@@ -44,6 +41,7 @@ import {
   DextercardPairingRequiredError,
 } from '@dexterai/x402-mcp-tools';
 import { mintPairingRequest, pollPairingResult, mintVaultPairingRequest, pollVaultPairingResult, fetchVaultStateBySession, fetchVaultStateByUserHandle } from './lib/pairing-mint.mjs';
+import { shouldChallengeSpend } from './lib/spend-challenge.mjs';
 
 // Per-request context carrying the MCP `extra` object into deep
 // callbacks (the shared registrars' adapter.getOperations() doesn't
@@ -2463,6 +2461,103 @@ async function seedOAuthVaultBinding(req, sessionId) {
   }
 }
 
+// ── RFC 9728 Protected Resource Metadata (the OAuth advertisement) ──────────
+// claude.ai resolves this document from the 401 challenge's resource_metadata
+// pointer, or — reconnecting without a challenge in hand — probes the
+// path-inserted /mcp form, then the root form (observed live 2026-07-03), so
+// we serve BOTH paths. scopes_supported is copied VERBATIM into the client's
+// authorize request: `vault` (exact single token) is what routes dexter-api's
+// authorize to the Face-ID passkey page instead of the legacy email connector.
+//
+// authorization_servers carries the AS ISSUER IDENTIFIER (RFC 9728), and the
+// ROOT form (no /mcp path) is deliberate: every RFC 8414 resolution strategy
+// against a path-less issuer lands on
+//   https://mcp.dexter.cash/.well-known/oauth-authorization-server
+// which serves the real AS JSON (live-verified 200; and the step-0 probe
+// proved claude.ai completes discovery→DCR→authorize with exactly this
+// value). The /mcp-suffixed issuer would invite path-APPENDED resolution —
+//   https://mcp.dexter.cash/mcp/.well-known/oauth-authorization-server
+// — which 302s to Supabase OIDC (live-verified): the email rail this
+// advertisement exists to kill.
+const OPEN_MCP_PRM_URL = 'https://open.dexter.cash/.well-known/oauth-protected-resource/mcp';
+const OPEN_MCP_PRM = Object.freeze({
+  resource: OPEN_MCP_VAULT_AUDIENCE,
+  authorization_servers: ['https://mcp.dexter.cash'],
+  scopes_supported: ['vault'],
+});
+
+// ── Spend-tool 401 challenge (impure inputs for lib/spend-challenge.mjs) ────
+// The decision itself is pure and lives in lib/spend-challenge.mjs.
+// lookupDurableVaultBinding mirrors x402Fetch's /mcp-binding resolution: the
+// DURABLE truth. The in-memory `bound` flag dies on restart while
+// mcp_vault_bindings rows survive — challenging on the flag alone would
+// OAuth-wall an already-paying user after every pm2 restart.
+async function lookupDurableVaultBinding(sessionId) {
+  try {
+    const bindRes = await fetch(
+      `${API_BASE_FALLBACK}/api/passkey-anon/mcp-binding/${encodeURIComponent(sessionId)}`,
+      {
+        headers: signedInternalHeaders(sessionId),
+        signal: AbortSignal.timeout(2000),
+      },
+    );
+    if (bindRes.ok) {
+      const binding = await bindRes.json().catch(() => null);
+      return Boolean(binding?.user_handle);
+    }
+    if (bindRes.status === 404) return false; // definitively unbound
+    // 401/403/5xx is NOT evidence of "unbound" (HMAC secret drift, api
+    // trouble). Fail OPEN — treat as bound so we never wall a paying user;
+    // the in-band vault_required funnel downstream still gates real spend.
+    console.warn(`[open-mcp] mcp-binding lookup returned ${bindRes.status} for ${sessionId} — fail-open, no challenge`);
+    return true;
+  } catch (err) {
+    console.warn(`[open-mcp] mcp-binding lookup failed (${err?.message || err}) for ${sessionId} — fail-open, no challenge`);
+    return true;
+  }
+}
+
+// Reads a POST body so the raw handler can inspect tools/call names the SDK
+// never surfaces (tool dispatch happens inside StreamableHTTPServerTransport,
+// and a tool callback cannot emit a 401 — the response is already committed).
+// Caps at the SDK's own MAXIMUM_MESSAGE_SIZE (4mb). IMPORTANT: once this has
+// run the stream is drained — every transport.handleRequest on that path MUST
+// receive the parsed body as the 3rd argument or the SDK hangs re-reading it.
+const MAX_POST_BODY_BYTES = 4 * 1024 * 1024;
+function readRequestBody(req) {
+  return new Promise((resolve, reject) => {
+    let raw = '';
+    req.on('data', (chunk) => {
+      raw += chunk;
+      if (raw.length > MAX_POST_BODY_BYTES) {
+        reject(new Error('body exceeds 4mb limit'));
+        req.destroy();
+      }
+    });
+    req.on('end', () => resolve(raw));
+    req.on('error', reject);
+  });
+}
+
+// The challenge itself — same shape as http-server-oauth.mjs's
+// unauthorized(): HTTP 401, JSON-RPC error body (-32001, matching this
+// server's existing auth-shaped errors), WWW-Authenticate carrying the PRM
+// pointer plus scope="vault" (the token claude.ai copies into its authorize
+// request — the Face-ID router). Touches NO session state: the client
+// retries on the same mcp-session-id after completing OAuth.
+function writeSpendChallenge(res) {
+  res.writeHead(401, {
+    'Content-Type': 'application/json',
+    'Cache-Control': 'no-store',
+    'WWW-Authenticate': `Bearer resource_metadata="${OPEN_MCP_PRM_URL}", scope="vault"`,
+  });
+  res.end(JSON.stringify({
+    jsonrpc: '2.0',
+    error: { code: -32001, message: 'authentication required' },
+    id: null,
+  }));
+}
+
 async function bindLinkTokenToSession(linkToken, sessionId) {
   if (!linkToken || !sessionId || !INTERNAL_HMAC_SECRET) return false;
   try {
@@ -2636,7 +2731,11 @@ const httpServer = http.createServer(async (req, res) => {
       ok: true,
       name: SERVER_NAME,
       tools: ALL_TOOLS,
-      auth: false,
+      // Honest auth claim: browse/search is anonymous; spend-class tools
+      // (x402_pay / x402_fetch / dexter_passkey) 401-challenge unbound
+      // Bearer-less sessions into the vault OAuth rail.
+      auth: 'optional',
+      spendToolsAuth: 'vault',
       sessions: transports.size,
       boundSessions: [...sessionMeta.values()].filter((m) => m.bound).length,
       rssMb: Math.round(process.memoryUsage().rss / 1048576),
@@ -2693,8 +2792,9 @@ const httpServer = http.createServer(async (req, res) => {
       url: 'https://open.dexter.cash/mcp',
       description:
         'Public x402 gateway. Search, pay, and call any x402 resource with canonical settlement. ' +
-        'Five tools, no authentication required.',
-      version: '1.1.0',
+        'Browse and pricing tools are anonymous; spend tools (x402_pay, x402_fetch, dexter_passkey) ' +
+        'require a Dexter vault binding via OAuth (scope=vault) or passkey pairing.',
+      version: '1.2.0',
       tools: [
         { name: 'x402_search', description: 'Semantic capability search over the x402 marketplace. Returns tiered results (strong + related) with cross-encoder LLM rerank.' },
         { name: 'x402_pay', description: 'Alias for x402_fetch. Pays and calls an x402 endpoint.' },
@@ -2702,8 +2802,31 @@ const httpServer = http.createServer(async (req, res) => {
         { name: 'x402_check', description: 'Preview endpoint pricing and payment options per chain without paying.' },
         { name: 'x402_access', description: 'Use wallet proof to access identity-gated endpoints that advertise Sign-In-With-X.' },
         { name: 'x402_wallet', description: 'Multi-chain session with Solana + EVM wallets. Fund any chain, pay on any chain.' },
+        { name: 'x402_compose_skill', description: 'Compose a Claude Code skill bundle from an x402gle host; optionally publish it to the x402gle skills marketplace.' },
+        { name: 'promote_skill', description: 'Change the visibility (public / unlisted / archived) of a composed skill you own.' },
+        { name: 'card_status', description: 'Check Dextercard status for the bound user.' },
+        { name: 'card_issue', description: 'Issue a Dextercard for the bound user.' },
+        { name: 'card_link_wallet', description: 'Link a funding wallet to the bound user\'s Dextercard.' },
+        { name: 'card_freeze', description: 'Freeze the bound user\'s Dextercard.' },
+        { name: 'card_login_request_otp', description: 'Start agent-driven Dextercard provisioning: trigger the carrier one-time-code email (captcha solved server-side).' },
+        { name: 'card_login_complete', description: 'Finish Dextercard provisioning by exchanging the emailed OTP for a carrier session.' },
+        { name: 'dexter_passkey_probe', description: 'Diagnostic: test whether WebAuthn ceremonies can run inside the chat client\'s widget iframe.' },
+        { name: 'dexter_passkey', description: 'Set up or check the user\'s Dexter passkey-secured Solana wallet (non-custodial vault). Read-only from the MCP side.' },
       ],
     }));
+    return;
+  }
+
+  // ── RFC 9728 Protected Resource Metadata — the OAuth front door ────────
+  // Served at both the path-inserted /mcp form and the root form (claude.ai
+  // probes exactly those, in that order, when it has no resource_metadata
+  // pointer in hand). Shape + rationale at OPEN_MCP_PRM's definition.
+  if (
+    url.pathname === '/.well-known/oauth-protected-resource'
+    || url.pathname === '/.well-known/oauth-protected-resource/mcp'
+  ) {
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+    res.end(JSON.stringify(OPEN_MCP_PRM));
     return;
   }
 
@@ -2773,8 +2896,57 @@ const httpServer = http.createServer(async (req, res) => {
       if (linkToken && !sessionMeta.get(sessionId)?.bound) {
         void bindLinkTokenToSession(linkToken, sessionId);
       }
+
+      // ── Spend-tool OAuth challenge (pre-transport) ──────────────────────
+      // Tool dispatch happens inside the SDK and a tool callback can never
+      // emit a 401 (response already committed), so the raw handler reads
+      // the body here to see the tools/call names. From this point the
+      // stream is DRAINED: every handleRequest below must get parsedBody as
+      // the 3rd argument or the SDK hangs re-reading the request.
+      let rawBody;
+      try {
+        rawBody = await readRequestBody(req);
+      } catch (err) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          jsonrpc: '2.0',
+          error: { code: -32700, message: 'Parse error', data: String(err?.message || err) },
+          id: null,
+        }));
+        return;
+      }
+      let parsedBody;
+      try {
+        parsedBody = JSON.parse(rawBody);
+      } catch (err) {
+        // Mirror the SDK's own parse-error shape (it can no longer produce
+        // it itself — the stream is drained).
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          jsonrpc: '2.0',
+          error: { code: -32700, message: 'Parse error', data: String(err) },
+          id: null,
+        }));
+        return;
+      }
+
+      const hasBearer = Boolean(extractBearer(req));
+      const boundInMemory = Boolean(sessionMeta.get(sessionId)?.bound);
+      // Cheap inputs first; the durable lookup (an HTTP round trip to
+      // dexter-api) runs only when they alone would challenge. Never
+      // challenge on the in-memory flag alone — it dies on restart while
+      // mcp_vault_bindings rows survive.
+      if (shouldChallengeSpend({ messages: parsedBody, hasBearer, boundInMemory, boundDurable: false })) {
+        const boundDurable = await lookupDurableVaultBinding(sessionId);
+        if (shouldChallengeSpend({ messages: parsedBody, hasBearer, boundInMemory, boundDurable })) {
+          console.log(`[open-mcp] spend challenge (401 → vault OAuth) for session ${sessionId}`);
+          writeSpendChallenge(res);
+          return; // session state untouched — the client retries on the same id
+        }
+      }
+
       const transport = transports.get(sessionId);
-      await transport.handleRequest(req, res);
+      await transport.handleRequest(req, res, parsedBody);
       return;
     }
 
@@ -2889,6 +3061,6 @@ setInterval(() => {
 httpServer.listen(PORT, () => {
   console.log(`[open-mcp] ${SERVER_NAME} listening on :${PORT}`);
   console.log(`[open-mcp] Tools: ${ALL_TOOLS.join(', ')}`);
-  console.log(`[open-mcp] Auth: none (public)`);
+  console.log(`[open-mcp] Auth: optional — anonymous browse; spend tools 401-challenge for a vault binding`);
   console.log(`[open-mcp] Capability search: ${DEXTER_API}${CAPABILITY_PATH}`);
 });
