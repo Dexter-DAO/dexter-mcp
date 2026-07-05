@@ -103,7 +103,7 @@ test('dual-rail 200: legacy success payload survives untouched, offer appended',
   const legacy = buildLegacySuccess(dualRail200WithOffer);
   const expectedLegacy = JSON.parse(JSON.stringify(legacy));
   const res = applyRailTabOffer({
-    legacy, anonBody: dualRail200WithOffer, tabEnabled: true, call: CALL,
+    legacy, anonBody: dualRail200WithOffer, tabEnabled: true, succeeded: true, call: CALL,
   });
 
   // Offer must NEVER degrade a successful paid call: every legacy field intact.
@@ -123,12 +123,38 @@ test('dual-rail 200: legacy success payload survives untouched, offer appended',
   assertCleanCopy(res, 'dual-rail 200');
 });
 
+// ── Skew guard: success is the CALLER's branch knowledge, not anonBody.ok ────
+// The wire sites sit inside `if (anonBody?.ok)` (truthy). A paid body whose
+// `ok` is truthy-but-not-boolean-true must still be treated as the delivered
+// success it is: offer APPENDS, never replaces the paid data with a
+// consent-402.
+
+test('success branch with ok:1 (truthy non-true): offer appends, paid data never degraded', () => {
+  const body = { ...dualRail200WithOffer, ok: 1 };
+  const legacy = buildLegacySuccess(body);
+  const expectedLegacy = JSON.parse(JSON.stringify(legacy));
+  const res = applyRailTabOffer({
+    legacy, anonBody: body, tabEnabled: true, succeeded: true, call: CALL,
+  });
+
+  // The paid result was already delivered — every legacy field must survive.
+  for (const [key, value] of Object.entries(expectedLegacy)) {
+    assert.deepEqual(res[key], value, `legacy field "${key}" changed`);
+  }
+  assert.equal(res.mode, 'vault_ready', 'delivered result must not become a consent-402');
+  assert.notEqual(res.reason, 'tab_consent_required', 'must not degrade to offer-as-response');
+  assert.ok(res.tabOffer, 'offer appended to the delivered result');
+  assert.equal(res.tabOffer.mode, 'tab_available');
+  assert.equal(res.tabOffer.consent_url, CONSENT_LINK);
+  assertCleanCopy(res, 'ok:1 success append');
+});
+
 // ── Fixture 2: tab-only 402 — offer-as-response with the consent tap ─────────
 
 test('tab-only 402: offer becomes the response, consent link is the action', () => {
   const legacy = buildLegacyError(tabOnly402ConsentRequired.httpStatus, tabOnly402ConsentRequired.body);
   const res = applyRailTabOffer({
-    legacy, anonBody: tabOnly402ConsentRequired.body, tabEnabled: true, call: CALL,
+    legacy, anonBody: tabOnly402ConsentRequired.body, tabEnabled: true, succeeded: false, call: CALL,
   });
 
   assert.notEqual(res, legacy, 'must replace the bare error relay');
@@ -152,7 +178,7 @@ test('tab-only 402: offer becomes the response, consent link is the action', () 
 test('tab_pending 402: almost-ready honesty, no consent link anywhere', () => {
   const legacy = buildLegacyError(tabPending402.httpStatus, tabPending402.body);
   const res = applyRailTabOffer({
-    legacy, anonBody: tabPending402.body, tabEnabled: true, call: CALL,
+    legacy, anonBody: tabPending402.body, tabEnabled: true, succeeded: false, call: CALL,
   });
 
   assert.notEqual(res, legacy);
@@ -176,7 +202,7 @@ test('regression: legacy no_exact_scheme_accept relays byte-identical (same refe
   Object.freeze(legacy); // any mutation throws under ESM strict mode
 
   const res = applyRailTabOffer({
-    legacy, anonBody: legacy402NoOffer.body, tabEnabled: true, call: CALL,
+    legacy, anonBody: legacy402NoOffer.body, tabEnabled: true, succeeded: false, call: CALL,
   });
 
   assert.equal(res, legacy, 'must return the exact same object reference');
@@ -188,7 +214,7 @@ test('regression: unknown offer mode renders as today\'s fallback', () => {
   const legacy = buildLegacyError(unknownMode402.httpStatus, unknownMode402.body);
   Object.freeze(legacy);
   const res = applyRailTabOffer({
-    legacy, anonBody: unknownMode402.body, tabEnabled: true, call: CALL,
+    legacy, anonBody: unknownMode402.body, tabEnabled: true, succeeded: false, call: CALL,
   });
   assert.equal(res, legacy);
 });
@@ -197,14 +223,14 @@ test('regression: malformed offer (non-object) renders as today\'s fallback', ()
   const body = { ok: false, error: 'tab_consent_required', railTabOffer: 'yes please' };
   const legacy = buildLegacyError(402, body);
   Object.freeze(legacy);
-  assert.equal(applyRailTabOffer({ legacy, anonBody: body, tabEnabled: true, call: CALL }), legacy);
+  assert.equal(applyRailTabOffer({ legacy, anonBody: body, tabEnabled: true, succeeded: false, call: CALL }), legacy);
 });
 
 test('regression: tab_available with no consent link never renders a dead tap', () => {
   const body = { ok: false, error: 'tab_consent_required', railTabOffer: { mode: 'tab_available' } };
   const legacy = buildLegacyError(402, body);
   Object.freeze(legacy);
-  assert.equal(applyRailTabOffer({ legacy, anonBody: body, tabEnabled: true, call: CALL }), legacy);
+  assert.equal(applyRailTabOffer({ legacy, anonBody: body, tabEnabled: true, succeeded: false, call: CALL }), legacy);
 });
 
 // ── Fixture 5: tab:false suppresses ALL offer rendering ──────────────────────
@@ -213,7 +239,7 @@ test('tab:false suppresses the 402 offer (raw relay, same reference)', () => {
   const legacy = buildLegacyError(tabOnly402ConsentRequired.httpStatus, tabOnly402ConsentRequired.body);
   Object.freeze(legacy);
   const res = applyRailTabOffer({
-    legacy, anonBody: tabOnly402ConsentRequired.body, tabEnabled: false, call: CALL,
+    legacy, anonBody: tabOnly402ConsentRequired.body, tabEnabled: false, succeeded: false, call: CALL,
   });
   assert.equal(res, legacy);
   assert.ok(!JSON.stringify(res).includes('tabOffer'));
@@ -223,7 +249,7 @@ test('tab:false suppresses the 200 append (paid data only, same reference)', () 
   const legacy = buildLegacySuccess(dualRail200WithOffer);
   Object.freeze(legacy);
   const res = applyRailTabOffer({
-    legacy, anonBody: dualRail200WithOffer, tabEnabled: false, call: CALL,
+    legacy, anonBody: dualRail200WithOffer, tabEnabled: false, succeeded: true, call: CALL,
   });
   assert.equal(res, legacy);
   assert.equal(res.tabOffer, undefined);
@@ -238,7 +264,7 @@ test('tab_pending on a 200: paid data intact, pending block appended, no link', 
   };
   const legacy = buildLegacySuccess(body);
   const expectedLegacy = JSON.parse(JSON.stringify(legacy));
-  const res = applyRailTabOffer({ legacy, anonBody: body, tabEnabled: true, call: CALL });
+  const res = applyRailTabOffer({ legacy, anonBody: body, tabEnabled: true, succeeded: true, call: CALL });
 
   for (const [key, value] of Object.entries(expectedLegacy)) {
     assert.deepEqual(res[key], value, `legacy field "${key}" changed`);
@@ -255,15 +281,15 @@ test('copy audit: every rendered mode is free of banned strings', () => {
   const rendered = [
     applyRailTabOffer({
       legacy: buildLegacySuccess(dualRail200WithOffer),
-      anonBody: dualRail200WithOffer, tabEnabled: true, call: CALL,
+      anonBody: dualRail200WithOffer, tabEnabled: true, succeeded: true, call: CALL,
     }),
     applyRailTabOffer({
       legacy: buildLegacyError(402, tabOnly402ConsentRequired.body),
-      anonBody: tabOnly402ConsentRequired.body, tabEnabled: true, call: CALL,
+      anonBody: tabOnly402ConsentRequired.body, tabEnabled: true, succeeded: false, call: CALL,
     }),
     applyRailTabOffer({
       legacy: buildLegacyError(402, tabPending402.body),
-      anonBody: tabPending402.body, tabEnabled: true, call: CALL,
+      anonBody: tabPending402.body, tabEnabled: true, succeeded: false, call: CALL,
     }),
   ];
   for (const res of rendered) assertCleanCopy(res, `mode=${res.mode}`);

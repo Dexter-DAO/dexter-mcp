@@ -703,7 +703,7 @@ async function x402Fetch({ url, method, body, multipart, sessionToken, sessionKe
               vault: anonBody.vault,
               paySource: 'anon_vault',
             };
-            return applyRailTabOffer({ legacy: legacySuccess, anonBody, tabEnabled, call: offerCall });
+            return applyRailTabOffer({ legacy: legacySuccess, anonBody, tabEnabled, succeeded: true, call: offerCall });
           }
           const legacyError = {
             status: anonRes.status || 500,
@@ -713,7 +713,7 @@ async function x402Fetch({ url, method, body, multipart, sessionToken, sessionKe
             requirements: anonBody?.requirements ?? null,
             paySource: 'anon_vault',
           };
-          return applyRailTabOffer({ legacy: legacyError, anonBody, tabEnabled, call: offerCall });
+          return applyRailTabOffer({ legacy: legacyError, anonBody, tabEnabled, succeeded: false, call: offerCall });
         }
 
         // JSON branch — original /v2/pay/anon/x402/fetch.
@@ -766,7 +766,7 @@ async function x402Fetch({ url, method, body, multipart, sessionToken, sessionKe
             vault: anonBody.vault,
             paySource: 'anon_vault',
           };
-          return applyRailTabOffer({ legacy: legacySuccess, anonBody, tabEnabled, call: offerCall });
+          return applyRailTabOffer({ legacy: legacySuccess, anonBody, tabEnabled, succeeded: true, call: offerCall });
         }
         // Surface the dexter-api error directly so the agent can route
         // (e.g. no_solana_accept) instead of silently doing anything else —
@@ -781,7 +781,7 @@ async function x402Fetch({ url, method, body, multipart, sessionToken, sessionKe
           requirements: anonBody?.requirements ?? null,
           paySource: 'anon_vault',
         };
-        return applyRailTabOffer({ legacy: legacyError, anonBody, tabEnabled, call: offerCall });
+        return applyRailTabOffer({ legacy: legacyError, anonBody, tabEnabled, succeeded: false, call: offerCall });
     } catch (err) {
       console.warn(`[x402_fetch] anon paid call failed: ${err?.message || err}`);
       // Network/timeout talking to the vault path. FAIL CLOSED — never leak
