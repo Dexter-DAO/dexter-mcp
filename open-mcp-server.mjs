@@ -444,8 +444,8 @@ function buildVaultRequired({ pairing, url, method, body, requirements, merchant
     retry: { tool: 'x402_fetch', url, method: method || 'GET', body: body ?? null },
     // Human-relayable copy. Dexter holds no keys — the wallet is the user's passkey.
     message:
-      'To pay for this, you need a Dexter wallet — held by your passkey, not by Dexter (non-custodial). ' +
-      'It takes about 20 seconds to set up: open the link below, approve with your face or fingerprint, ' +
+      'To pay for this, you need a Dexter wallet. It lives on your passkey, so only you can ever spend from it. ' +
+      'Setup takes about 20 seconds: open the link below, approve with your face or fingerprint, ' +
       'and I\'ll complete the purchase automatically.',
     instructions:
       'Show the user enroll_url and ask them to set up their passkey wallet. Then call dexter_passkey to ' +
@@ -1050,7 +1050,7 @@ async function x402Wallet(_args, extra) {
       message:
         pendingUsdc > 0
           ? `You have $${pendingUsdc.toFixed(2)} USDC waiting in your wallet address, but the wallet hasn't been activated yet. ` +
-            'Go to dexter.cash/wallet and tap any action (withdraw, pay) to activate in one tap. No new funds needed — the activation uses your passkey that\'s already set up.'
+            'Go to dexter.cash/wallet and tap any action (withdraw, pay) to activate in one tap. Activation uses the passkey you already set up and needs no new funds.'
           : 'Your wallet address is ready to receive USDC, but the wallet hasn\'t been activated yet. ' +
             'Go to dexter.cash/wallet and tap any action to activate in one tap with your passkey.',
       instructions:
@@ -1472,8 +1472,8 @@ function createOpenMcpServer() {
       url: z.string().url().describe('The protected resource URL to call'),
       method: z.enum(['GET', 'POST', 'PUT', 'DELETE']).default('GET').describe('HTTP method'),
       body: z.string().optional().describe('JSON request body for POST/PUT'),
-      sessionToken: z.string().optional().describe('Existing OpenDexter session token. If omitted, OpenDexter will create or resume a session.'),
-      sessionKey: z.string().optional().describe('Optional stable session key for reusable OpenDexter sessions.'),
+      sessionToken: z.string().optional().describe('Token for the legacy per-session access context this tool uses for wallet-proof auth. If omitted, a fresh access session starts automatically. This context is specific to x402_access and is separate from the Dexter wallet that x402_pay and x402_fetch spend from.'),
+      sessionKey: z.string().optional().describe('Optional stable key for reusing the same legacy access-session context across calls (for example, caller-hash on phone).'),
       network: z.string().optional().describe('Optional preferred auth network, e.g. solana:... or eip155:8453'),
     },
     _meta: ACCESS_META,

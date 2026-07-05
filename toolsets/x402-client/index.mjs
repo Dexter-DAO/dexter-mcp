@@ -333,23 +333,34 @@ async function getWalletSnapshot(extra) {
     }
   } catch (err) {
     const msg = err?.message || String(err);
-    return { address, error: `Failed to load balances: ${msg}`, tip: 'Wallet resolved, but balance lookup failed.' };
+    console.warn(`[x402_wallet] balance read failed for ${address}: ${msg}`);
+    return buildWalletReadError(address);
   }
 
+  // The balance endpoint answered with a non-2xx status. Same truth as the
+  // catch above: the wallet exists, we just could not read its balance. Never
+  // render a bound wallet as $0 over a read failure.
+  return buildWalletReadError(address);
+}
+
+/**
+ * Balance read failed for a resolved (bound) wallet. Mirror the open MCP's
+ * vault_read_error shape so the shared widget renders the honest retry view
+ * instead of a $0 wallet card. The wallet exists; this is our read outage.
+ */
+function buildWalletReadError(address) {
   return {
+    mode: 'vault_read_error',
+    user_bound: true,
+    retryable: true,
     address,
     solanaAddress: address,
-    evmAddress: null,
-    network: 'multichain',
-    chainBalances: {},
-    balances: {
-      usdc: 0,
-      fundedAtomic: '0',
-      spentAtomic: '0',
-      availableAtomic: '0',
-    },
-    supportedNetworks: ['solana'],
-    tip: `Wallet resolved (${address}), but live balances were unavailable. Deposit USDC on Solana.`,
+    message:
+      'I could not read your wallet balance just now. Your wallet and funds are safe; this is a temporary problem on our side. Try again in a moment.',
+    instructions:
+      'Do NOT tell the user to set up or fund a wallet. Their wallet is bound and resolved; only the balance read failed. Ask them to retry x402_wallet in a few seconds.',
+    tip: 'Could not read your wallet balance right now. Your funds are safe. Try again in a moment.',
+    reason: 'balance_read_failed',
   };
 }
 
