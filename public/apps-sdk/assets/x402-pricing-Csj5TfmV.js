@@ -13,9 +13,10 @@ import "./Warning-fnh1SKl0.js";
 import "./use-openai-global-CD95Kk1r.js";
 import "./Check-BZrRAPv_.js";
 import "./Copy-CMyF_UKx.js";
-function ResourceIdentity({ resource, fallbackUrl }) {
-  const name = resource?.display_name || prettyHost(resource?.host || hostFromUrl(fallbackUrl));
-  const meta = buildMetaLine(resource, fallbackUrl);
+function ResourceIdentity({ resource, fallbackUrl, resourceRef }) {
+  const refUrl = fallbackUrl || resourceUrlFrom(resourceRef);
+  const name = resource?.display_name?.trim() || prettyHost(resource?.host) || hostPath(refUrl) || descriptionFrom(resourceRef) || "Unknown endpoint";
+  const meta = buildMetaLine(resource, refUrl);
   const icon = resource?.icon_url || null;
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-pricing__identity", children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "dx-pricing__identity-icon", children: icon ? /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -36,15 +37,31 @@ function ResourceIdentity({ resource, fallbackUrl }) {
     ] })
   ] });
 }
-function buildMetaLine(resource, fallbackUrl) {
+function buildMetaLine(resource, refUrl) {
   const parts = [];
   if (resource?.category) parts.push(resource.category);
-  const host = resource?.host || hostFromUrl(fallbackUrl);
+  const host = resource?.host || hostFromUrl(refUrl);
   if (host) parts.push(host);
   if (typeof resource?.hit_count === "number" && resource.hit_count > 0) {
     parts.push(`${formatHitCount(resource.hit_count)} calls`);
   }
   return parts.join(" · ");
+}
+function resourceUrlFrom(ref) {
+  if (typeof ref === "string") return ref.trim() || null;
+  if (ref && typeof ref === "object") {
+    const o = ref;
+    if (typeof o.url === "string" && o.url.trim()) return o.url.trim();
+    if (typeof o.resource === "string" && o.resource.trim()) return o.resource.trim();
+  }
+  return null;
+}
+function descriptionFrom(ref) {
+  if (ref && typeof ref === "object") {
+    const o = ref;
+    if (typeof o.description === "string" && o.description.trim()) return o.description.trim();
+  }
+  return null;
 }
 function hostFromUrl(url) {
   if (!url) return null;
@@ -54,8 +71,19 @@ function hostFromUrl(url) {
     return null;
   }
 }
+function hostPath(url) {
+  if (!url) return null;
+  try {
+    const u = new URL(url);
+    const host = u.hostname.replace(/^www\./i, "");
+    const path = u.pathname && u.pathname !== "/" ? u.pathname.replace(/\/$/, "") : "";
+    return `${host}${path}`;
+  } catch {
+    return null;
+  }
+}
 function prettyHost(host) {
-  if (!host) return "Unknown endpoint";
+  if (!host) return null;
   return host.replace(/^www\./i, "");
 }
 function ResourceDescription({ description }) {
@@ -67,8 +95,23 @@ function shortenAddress(addr) {
   if (addr.length <= 12) return addr;
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 }
+function schemeLabel(scheme) {
+  switch ((scheme || "").toLowerCase()) {
+    case "exact":
+      return "One-shot payment";
+    case "tab":
+      return "Streaming tab";
+    case "upto":
+      return "Metered tab";
+    case "":
+      return null;
+    default:
+      return scheme || null;
+  }
+}
 function PaymentRouteRow({ option, isBest }) {
   const { name: chainName } = getChain(option.network);
+  const scheme = schemeLabel(option.scheme);
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: `dx-pricing__route ${isBest ? "dx-pricing__route--best" : ""}`, children: [
     /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-pricing__route-chain", children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx(ChainIcon, { network: option.network, size: 20 }),
@@ -77,7 +120,7 @@ function PaymentRouteRow({ option, isBest }) {
           /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-pricing__route-chain-name", children: chainName }),
           isBest ? /* @__PURE__ */ jsxRuntimeExports.jsx(Badge, { color: "success", size: "sm", children: "Best" }) : null
         ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-pricing__route-chain-asset", children: "USDC" })
+        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-pricing__route-chain-asset", children: scheme ? `USDC · ${scheme}` : "USDC" })
       ] })
     ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-pricing__route-payto", children: [
@@ -267,7 +310,8 @@ function PricingCheck() {
         ResourceIdentity,
         {
           resource: authEnrichment?.resource ?? null,
-          fallbackUrl: toolInput?.url ?? null
+          fallbackUrl: toolInput?.url ?? null,
+          resourceRef: toolOutput.resource
         }
       ),
       /* @__PURE__ */ jsxRuntimeExports.jsx(ResourceDescription, { description: authEnrichment?.resource?.description ?? null }),
@@ -297,7 +341,8 @@ function PricingCheck() {
         ResourceIdentity,
         {
           resource: errEnrichment?.resource ?? null,
-          fallbackUrl: toolInput?.url ?? null
+          fallbackUrl: toolInput?.url ?? null,
+          resourceRef: toolOutput.resource
         }
       ),
       /* @__PURE__ */ jsxRuntimeExports.jsx(ResourceDescription, { description: errEnrichment?.resource?.description ?? null }),
@@ -312,7 +357,8 @@ function PricingCheck() {
         ResourceIdentity,
         {
           resource: toolOutput.enrichment?.resource ?? null,
-          fallbackUrl: toolInput?.url ?? null
+          fallbackUrl: toolInput?.url ?? null,
+          resourceRef: toolOutput.resource
         }
       ),
       /* @__PURE__ */ jsxRuntimeExports.jsx(ResourceDescription, { description: toolOutput.enrichment?.resource?.description ?? null }),
@@ -349,7 +395,8 @@ function PricingCheck() {
       ResourceIdentity,
       {
         resource: enrichment?.resource ?? null,
-        fallbackUrl: toolInput?.url ?? null
+        fallbackUrl: toolInput?.url ?? null,
+        resourceRef: toolOutput.resource
       }
     ),
     /* @__PURE__ */ jsxRuntimeExports.jsx(ResourceDescription, { description: enrichment?.resource?.description ?? null }),

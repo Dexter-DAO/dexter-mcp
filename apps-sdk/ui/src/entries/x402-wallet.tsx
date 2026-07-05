@@ -2,15 +2,15 @@ import '../styles/sdk.css';
 
 import { createRoot } from 'react-dom/client';
 import { useState, useEffect } from 'react';
-import { Badge } from '@openai/apps-sdk-ui/components/Badge';
 import { Button, CopyButton } from '@openai/apps-sdk-ui/components/Button';
 import { Alert } from '@openai/apps-sdk-ui/components/Alert';
-import { Globe } from '@openai/apps-sdk-ui/components/Icon';
 import { useToolOutput, useOpenAIGlobal, useMaxHeight, useAdaptiveTheme, useAdaptiveCallToolFn, useAdaptiveOpenExternal } from '../sdk';
 import { ChainIcon, UsdcIcon, useIntrinsicHeight, DebugPanel, normalizeWalletPayload, type WalletChainBalance } from '../components/x402';
 
 const WORDMARK_URL = 'https://dexter.cash/wordmarks/dexter-wordmark.svg';
 const LOGO_MARK_URL = 'https://dexter.cash/assets/pokedexter/dexter-logo.svg';
+const ENROLL_FALLBACK_URL = 'https://dexter.cash/wallet/setup-passkey';
+const ACTIVATE_FALLBACK_URL = 'https://dexter.cash/wallet';
 
 type SessionFunding = {
   amountAtomic?: string;
@@ -30,9 +30,14 @@ function formatUsdcDisplay(value: number): string {
   return `$${value.toFixed(2)}`;
 }
 
-function formatAtomicUsdc(atomic: string): string {
-  const n = Number(atomic) / 1e6;
-  return formatUsdcDisplay(n);
+/** Dexter logo + wordmark lockup, shared across every wallet-widget state. */
+function Brandmark() {
+  return (
+    <div className="flex items-center gap-3 min-w-0">
+      <img src={LOGO_MARK_URL} alt="Dexter logo" width={24} height={24} style={{ width: 24, height: 24, flexShrink: 0 }} />
+      <img src={WORDMARK_URL} alt="Dexter" height={22} style={{ height: 22, width: 'auto', opacity: 0.9 }} />
+    </div>
+  );
 }
 
 function ChainBalanceRow({ caip2, balance }: { caip2: string; balance: WalletChainBalance }) {
@@ -45,6 +50,21 @@ function ChainBalanceRow({ caip2, balance }: { caip2: string; balance: WalletCha
       <span className={`text-sm font-semibold tabular-nums ${hasFunds ? 'text-success' : 'text-tertiary'}`}>
         {formatUsdcDisplay(amount)}
       </span>
+    </div>
+  );
+}
+
+/** Copyable Solana deposit address for a bound vault (add-funds affordance). */
+function VaultAddressPanel({ address }: { address: string }) {
+  return (
+    <div className="flex flex-col gap-2 rounded-2xl bg-surface-secondary p-4">
+      <span className="text-xs text-tertiary uppercase font-semibold">Add USDC on Solana</span>
+      <div className="flex items-center gap-2 min-w-0">
+        <ChainIcon network="solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp" size={16} />
+        <span className="text-xs font-mono text-secondary truncate flex-1">{address}</span>
+        <CopyButton copyValue={address} variant="ghost" color="secondary" size="sm" />
+      </div>
+      <span className="text-3xs text-tertiary">Send USDC to this address on Solana and it lands in your wallet.</span>
     </div>
   );
 }
@@ -141,7 +161,7 @@ function SessionDetails({ sessionToken, sessionId, expiresAt }: {
         onClick={() => setExpanded(!expanded)}
       >
         <span>Session Details</span>
-        <span className="text-2xs">{expanded ? '\u25B2' : '\u25BC'}</span>
+        <span className="text-2xs">{expanded ? '▲' : '▼'}</span>
       </button>
       {expanded && (
         <div className="px-4 py-3 flex flex-col gap-2 border-t border-subtle bg-surface">
@@ -172,19 +192,90 @@ function SessionDetails({ sessionToken, sessionId, expiresAt }: {
   );
 }
 
+/** Frame shared by the standalone (invitation / read-error) states. */
+function StandaloneCard({ theme, maxHeight, children }: {
+  theme: string;
+  maxHeight: number | null;
+  children: React.ReactNode;
+}) {
+  return (
+    <div data-theme={theme} className="p-4" style={{ maxHeight: maxHeight ?? undefined }}>
+      <div
+        className="rounded-2xl border border-default bg-surface p-5 flex flex-col gap-4"
+        style={{ background: 'linear-gradient(135deg, rgba(209,63,0,0.10) 0%, rgba(255,107,0,0.05) 52%, transparent 100%)' }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/** No wallet bound yet — an invitation to set one up, not an empty balance. */
+function InvitationView({ theme, maxHeight, enrollUrl }: {
+  theme: string;
+  maxHeight: number | null;
+  enrollUrl?: string;
+}) {
+  const openExternal = useAdaptiveOpenExternal();
+  const url = enrollUrl || ENROLL_FALLBACK_URL;
+  return (
+    <StandaloneCard theme={theme} maxHeight={maxHeight}>
+      <Brandmark />
+      <div className="flex flex-col gap-1">
+        <span className="text-xs text-tertiary uppercase tracking-wider font-semibold">Dexter Wallet</span>
+        <span className="heading-lg">Set up your wallet</span>
+      </div>
+      <span className="text-sm text-secondary">
+        Your Dexter wallet lives on your passkey, unlocked by your face or fingerprint. Setup takes about 20 seconds, then I can pay for x402 APIs for you.
+      </span>
+      <Button variant="solid" color="primary" size="md" block onClick={() => openExternal(url)}>
+        Set up wallet
+      </Button>
+    </StandaloneCard>
+  );
+}
+
+/** Bound wallet whose balance we couldn't read — funds are safe, retry. */
+function ReadErrorView({ theme, maxHeight, message, onRetry, refreshing }: {
+  theme: string;
+  maxHeight: number | null;
+  message?: string;
+  onRetry: () => void;
+  refreshing: boolean;
+}) {
+  return (
+    <StandaloneCard theme={theme} maxHeight={maxHeight}>
+      <Brandmark />
+      <div className="flex flex-col gap-1">
+        <span className="text-xs text-tertiary uppercase tracking-wider font-semibold">Your Dexter Wallet</span>
+        <span className="heading-lg">Couldn't reach your wallet</span>
+      </div>
+      <span className="text-sm text-secondary">
+        {message || 'Your wallet and funds are safe. This is a temporary problem reading your balance. Try again in a moment.'}
+      </span>
+      <Button variant="solid" color="primary" size="md" block onClick={onRetry} disabled={refreshing}>
+        {refreshing ? 'Retrying…' : 'Try again'}
+      </Button>
+    </StandaloneCard>
+  );
+}
+
 function WalletDashboard() {
   const rawToolOutput = useToolOutput<Record<string, unknown>>();
   const toolMeta = useOpenAIGlobal('toolResponseMetadata') as Record<string, unknown> | null;
   const widgetState = useOpenAIGlobal('widgetState') as { sessionToken?: string } | null;
   const theme = useAdaptiveTheme();
   const callTool = useAdaptiveCallToolFn();
+  const openExternal = useAdaptiveOpenExternal();
   const maxHeight = useMaxHeight();
   const containerRef = useIntrinsicHeight();
   const [refreshing, setRefreshing] = useState(false);
 
-  // Multiple wallet producers existed before the canonical contract landed.
-  // Normalize here so ChatGPT can render legacy, transitional, and canonical
-  // payloads while server-side producers converge on one stable shape.
+  // Multiple wallet producers feed this widget: the open MCP's non-custodial
+  // vault (mode: vault_required / vault_read_error / vault_not_activated /
+  // vault_ready / vault_funding_required), the authenticated managed-wallet
+  // snapshot (no mode, address + balances), and legacy custodial-session
+  // payloads (sessionId / sessionFunding). Normalize, then render per shape.
   const toolOutput = normalizeWalletPayload(rawToolOutput);
 
   useEffect(() => { document.documentElement.setAttribute('data-theme', theme); }, [theme]);
@@ -203,7 +294,7 @@ function WalletDashboard() {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    try { await callTool('x402_wallet', sessionToken ? { sessionToken } : {}); }
+    try { await callTool('x402_wallet', {}); }
     finally { setRefreshing(false); }
   };
 
@@ -225,7 +316,31 @@ function WalletDashboard() {
     );
   }
 
-  if (toolOutput.error && !toolOutput.solanaAddress && !toolOutput.address) {
+  const mode = toolOutput.mode;
+
+  // No wallet bound → invitation, never a $0 "needs funding" wallet card.
+  if (mode === 'vault_required') {
+    return <InvitationView theme={theme} maxHeight={maxHeight} enrollUrl={toolOutput.enrollUrl} />;
+  }
+
+  // Bound wallet we couldn't read → honest retry, never the enroll funnel.
+  if (mode === 'vault_read_error') {
+    return (
+      <ReadErrorView
+        theme={theme}
+        maxHeight={maxHeight}
+        message={toolOutput.message || toolOutput.tip}
+        onRetry={handleRefresh}
+        refreshing={refreshing}
+      />
+    );
+  }
+
+  const solanaAddress = toolOutput.solanaAddress || toolOutput.address;
+  const evmAddress = toolOutput.evmAddress;
+
+  // Hard error with nothing to show (e.g. authenticated "No wallet configured").
+  if (toolOutput.error && !solanaAddress && !evmAddress) {
     const isSessionError = toolOutput.mode === 'session_error';
     return (
       <div data-theme={theme} className="p-4" style={{ maxHeight: maxHeight ?? undefined }}>
@@ -233,10 +348,10 @@ function WalletDashboard() {
           color="warning"
           title={isSessionError
             ? (toolOutput.error === 'unknown_session_token' ? 'Session Not Found' : 'Session Error')
-            : 'Wallet Not Configured'}
+            : 'Wallet Not Available'}
           description={toolOutput.message || toolOutput.hint || toolOutput.tip || (isSessionError
-            ? 'Call x402_wallet with no arguments to create a new session.'
-            : 'Open the wallet tool on the active MCP surface to create or resolve a usable x402 wallet.')}
+            ? 'Call x402_wallet with no arguments to resolve your wallet.'
+            : 'No wallet is available on this surface right now.')}
         />
       </div>
     );
@@ -246,14 +361,110 @@ function WalletDashboard() {
   const chainBals = toolOutput.chainBalances || {};
   const totalUsdc = toolOutput.balances?.usdc ?? 0;
   const hasAnyFunds = totalUsdc > 0;
-  const ready = isSession ? (toolOutput.state === 'active') : hasAnyFunds;
-  const sessionResolution = toolOutput.sessionResolution?.mode;
-
-  const solanaAddress = toolOutput.solanaAddress || toolOutput.address;
-  const evmAddress = toolOutput.evmAddress;
-
   const firstClassChains = Object.entries(chainBals).filter(([, b]) => b.tier === 'first');
   const secondClassFunded = Object.entries(chainBals).filter(([, b]) => b.tier === 'second' && Number(b.available) > 0);
+
+  // ── Legacy custodial-session shape (kept truthful for its own producers) ──
+  if (isSession) {
+    const ready = toolOutput.state === 'active';
+    const sessionResolution = toolOutput.sessionResolution?.mode;
+    return (
+      <div data-theme={theme} ref={containerRef} className="p-4 overflow-y-auto" style={{ maxHeight: maxHeight ?? undefined }}>
+        <div
+          className="rounded-2xl border border-default bg-surface p-4 flex flex-col gap-4"
+          style={{ background: 'linear-gradient(135deg, rgba(209,63,0,0.08) 0%, rgba(255,107,0,0.04) 52%, transparent 100%)' }}
+        >
+          <div className="relative overflow-hidden rounded-xl px-4 pt-4 pb-3 bg-surface/70">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <Brandmark />
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs text-tertiary uppercase tracking-wider font-semibold">OpenDexter Session</span>
+                  <span className="heading-lg">Wallet Overview</span>
+                </div>
+              </div>
+              <Button variant="soft" color="secondary" size="sm" onClick={handleRefresh} disabled={refreshing}>
+                {refreshing ? '...' : 'Refresh'}
+              </Button>
+            </div>
+            <div className="mt-2">
+              <span className="text-sm text-secondary">
+                {ready ? 'Session funded and ready to pay x402 endpoints.' : 'Fund this session to start making x402 calls.'}
+              </span>
+            </div>
+            <div className="absolute bottom-0 left-4 right-4 h-px" style={{ background: 'linear-gradient(90deg, #ff6b00 0%, transparent 100%)', opacity: 0.18 }} />
+          </div>
+
+          <div className="flex items-center gap-3 px-3 py-3 rounded-xl bg-surface-secondary">
+            <UsdcIcon size={24} />
+            <span className="text-xs text-tertiary uppercase flex-1">Total Available</span>
+            <span className={`heading-xl ${hasAnyFunds ? 'text-success' : 'text-tertiary'}`}>
+              {formatUsdcDisplay(totalUsdc)}
+            </span>
+          </div>
+
+          {(firstClassChains.length > 0 || secondClassFunded.length > 0) && (
+            <div className="rounded-xl bg-surface-secondary overflow-hidden divide-y divide-subtle">
+              {firstClassChains.map(([caip2, bal]) => (
+                <ChainBalanceRow key={caip2} caip2={caip2} balance={bal} />
+              ))}
+              {secondClassFunded.map(([caip2, bal]) => (
+                <ChainBalanceRow key={caip2} caip2={caip2} balance={bal} />
+              ))}
+            </div>
+          )}
+
+          {sessionToken && (
+            <SessionDetails sessionToken={sessionToken} sessionId={toolOutput.sessionId} expiresAt={toolOutput.expiresAt} />
+          )}
+
+          {sessionResolution && (
+            <Alert
+              color={sessionResolution === 'created_new' ? 'info' : 'success'}
+              variant="soft"
+              title={
+                sessionResolution === 'created_new'
+                  ? 'New session created'
+                  : sessionResolution === 'resumed_from_context'
+                    ? 'Resumed from conversation'
+                    : sessionResolution === 'resumed_from_token'
+                      ? 'Resumed from session token'
+                      : 'Session resolved'
+              }
+              description={
+                sessionResolution === 'created_new'
+                  ? 'No reusable session was found for this conversation, so OpenDexter created a new one.'
+                  : sessionResolution === 'resumed_from_context'
+                    ? 'OpenDexter reused the session already bound to this conversation.'
+                    : sessionResolution === 'resumed_from_token'
+                      ? 'OpenDexter resumed the session from the provided secret token.'
+                      : toolOutput.sessionResolution?.reason
+              }
+            />
+          )}
+
+          <DepositPanel
+            solanaAddress={solanaAddress}
+            evmAddress={evmAddress || undefined}
+            funding={toolOutput.sessionFunding as SessionFunding | undefined}
+          />
+
+          <Alert color={ready ? 'success' : 'warning'} title={ready ? 'Ready for x402 execution' : 'Awaiting funding on any chain'} />
+
+          {toolOutput.tip && <Alert color="info" variant="soft" description={toolOutput.tip} />}
+          <DebugPanel widgetName="x402-wallet" />
+        </div>
+      </div>
+    );
+  }
+
+  // ── Bound Dexter wallet (non-custodial vault or authenticated managed wallet) ──
+  const notActivated = mode === 'vault_not_activated';
+  const subtitle = notActivated
+    ? 'One quick activation and your wallet is ready to pay.'
+    : hasAnyFunds
+      ? 'Funded and ready to pay for x402 APIs.'
+      : 'Your wallet is empty. Add USDC on Solana to start paying.';
 
   return (
     <div data-theme={theme} ref={containerRef} className="p-4 overflow-y-auto" style={{ maxHeight: maxHeight ?? undefined }}>
@@ -265,13 +476,10 @@ function WalletDashboard() {
         <div className="relative overflow-hidden rounded-xl px-4 pt-4 pb-3 bg-surface/70">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
-              <img src={LOGO_MARK_URL} alt="Dexter logo" width={24} height={24} style={{ width: 24, height: 24, flexShrink: 0 }} />
-              <img src={WORDMARK_URL} alt="Dexter" height={22} style={{ height: 22, width: 'auto', opacity: 0.9 }} />
+              <Brandmark />
               <div className="flex flex-col gap-1">
-                <span className="text-xs text-tertiary uppercase tracking-wider font-semibold">
-                  {isSession ? 'OpenDexter Session' : 'x402 Settlement Wallet'}
-                </span>
-                <span className="heading-lg">Wallet Overview</span>
+                <span className="text-xs text-tertiary uppercase tracking-wider font-semibold">Your Dexter Wallet</span>
+                <span className="heading-lg">Wallet</span>
               </div>
             </div>
             <Button variant="soft" color="secondary" size="sm" onClick={handleRefresh} disabled={refreshing}>
@@ -279,9 +487,7 @@ function WalletDashboard() {
             </Button>
           </div>
           <div className="mt-2">
-            <span className="text-sm text-secondary">
-              {ready ? 'Session funded and ready to pay x402 endpoints.' : 'Fund this session to start making x402 calls.'}
-            </span>
+            <span className="text-sm text-secondary">{subtitle}</span>
           </div>
           <div className="absolute bottom-0 left-4 right-4 h-px" style={{ background: 'linear-gradient(90deg, #ff6b00 0%, transparent 100%)', opacity: 0.18 }} />
         </div>
@@ -307,52 +513,35 @@ function WalletDashboard() {
           </div>
         )}
 
-        {/* Session details */}
-        {isSession && sessionToken && (
-          <SessionDetails sessionToken={sessionToken} sessionId={toolOutput.sessionId} expiresAt={toolOutput.expiresAt} />
-        )}
-
-        {isSession && sessionResolution && (
+        {/* Activation CTA (counterfactual vault not yet deployed) */}
+        {notActivated && (
           <Alert
-            color={sessionResolution === 'created_new' ? 'info' : 'success'}
-            variant="soft"
-            title={
-              sessionResolution === 'created_new'
-                ? 'New session created'
-                : sessionResolution === 'resumed_from_context'
-                  ? 'Resumed from conversation'
-                  : sessionResolution === 'resumed_from_token'
-                    ? 'Resumed from session token'
-                    : 'Session resolved'
-            }
-            description={
-              sessionResolution === 'created_new'
-                ? 'No reusable session was found for this conversation, so OpenDexter created a new one.'
-                : sessionResolution === 'resumed_from_context'
-                  ? 'OpenDexter reused the session already bound to this conversation.'
-                  : sessionResolution === 'resumed_from_token'
-                    ? 'OpenDexter resumed the session from the provided secret token.'
-                    : toolOutput.sessionResolution?.reason
-            }
+            color="warning"
+            title="Activate to finish setup"
+            description="Approve once with your passkey to turn your wallet on. No new funds needed."
           />
         )}
-
-        {/* Deposit section */}
-        {isSession && (
-          <DepositPanel
-            solanaAddress={solanaAddress}
-            evmAddress={evmAddress}
-            funding={toolOutput.sessionFunding as SessionFunding | undefined}
-          />
+        {notActivated && (
+          <Button
+            variant="solid"
+            color="primary"
+            size="md"
+            block
+            onClick={() => openExternal(toolOutput.activateUrl || ACTIVATE_FALLBACK_URL)}
+          >
+            Activate wallet
+          </Button>
         )}
 
-        {/* Readiness */}
-        <Alert
-          color={ready ? 'success' : 'warning'}
-          title={ready
-            ? 'Ready for x402 execution'
-            : isSession ? 'Awaiting funding on any chain' : 'Needs funding'}
-        />
+        {/* Add-funds address (bound wallet always has one) */}
+        {!notActivated && solanaAddress && <VaultAddressPanel address={solanaAddress} />}
+
+        {!notActivated && (
+          <Alert
+            color={hasAnyFunds ? 'success' : 'info'}
+            title={hasAnyFunds ? 'Ready to pay for x402 APIs' : 'Add USDC to start paying'}
+          />
+        )}
 
         {toolOutput.tip && <Alert color="info" variant="soft" description={toolOutput.tip} />}
         <DebugPanel widgetName="x402-wallet" />
@@ -363,7 +552,7 @@ function WalletDashboard() {
 
 const root = document.getElementById('x402-wallet-root');
 if (root) {
-  root.setAttribute('data-widget-build', '2026-03-05.1');
+  root.setAttribute('data-widget-build', '2026-07-05.1');
   createRoot(root).render(<WalletDashboard />);
 }
 

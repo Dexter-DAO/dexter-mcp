@@ -456,6 +456,56 @@ function buildVaultRequired({ pairing, url, method, body, requirements, merchant
   };
 }
 
+/**
+ * Ask the durable binding table whether an MCP session resolves to a vault.
+ * Same HMAC-gated lookup x402Fetch uses to find who's paying. Returns:
+ *   { ok: true,  bound: true  } — session resolves to a vault user_handle
+ *   { ok: true,  bound: false } — session is definitively NOT bound
+ *   { ok: false, bound: false } — the lookup itself failed (can't prove either)
+ * Callers use `ok` to avoid mistaking an outage for a missing wallet.
+ */
+async function checkSessionVaultBinding(sessionId) {
+  if (!sessionId) return { ok: true, bound: false };
+  try {
+    const res = await fetch(
+      `${API_BASE_FALLBACK}/api/passkey-anon/mcp-binding/${encodeURIComponent(sessionId)}`,
+      { headers: signedInternalHeaders(sessionId), signal: AbortSignal.timeout(2000) },
+    );
+    if (res.status === 404) return { ok: true, bound: false };
+    if (!res.ok) return { ok: false, bound: false };
+    const binding = await res.json().catch(() => null);
+    return { ok: true, bound: Boolean(binding?.user_handle) };
+  } catch (err) {
+    console.warn(`[x402_wallet] binding lookup failed: ${err?.message || err}`);
+    return { ok: false, bound: false };
+  }
+}
+
+/**
+ * Response for a session that IS bound to a vault but whose /state read failed.
+ * This is the honest answer to a transient read error: the user has a wallet
+ * and funds, we just couldn't read them this instant. Never the enroll funnel,
+ * never a "$0 / needs funding" card — those tell a real wallet it doesn't exist.
+ */
+function buildVaultReadError() {
+  return {
+    status: 503,
+    mode: 'vault_read_error',
+    paySource: 'anon_vault',
+    user_bound: true,
+    vault_status: 'read_error',
+    retryable: true,
+    // Human-relayable copy. The user already has a wallet; this is our outage.
+    message:
+      'I could not reach your Dexter wallet just now. Your wallet and funds are safe; this is a temporary problem on our side. Try again in a moment.',
+    instructions:
+      'Do NOT tell the user to set up or fund a wallet. They already have one — this is a transient read failure on our side. ' +
+      'Ask them to retry x402_wallet (or the payment) in a few seconds.',
+    tip: 'Could not read your wallet right now. Your funds are safe. Try again in a moment.',
+    reason: 'vault_state_read_failed',
+  };
+}
+
 // dexter-api requires a clean session id or none at all: a PRESENT-but-
 // malformed mcp_session_id on the pay endpoints 400s `invalid_mcp_session_id`
 // (no silent downgrade to handle mode). Mirror of dexter-api's SESSION_ID_RE.
@@ -909,10 +959,15 @@ async function x402Wallet(_args, extra) {
   const sessionId = extra ? extractMcpSessionId(extra) : null;
 
   let state = null;
+  let stateReadFailed = false;
   if (sessionId) {
     try {
       state = await fetchVaultStateBySession(sessionId);
     } catch (err) {
+      // The /state HTTP call itself errored (network / 5xx). This is NOT a
+      // clean "not enrolled" — that comes back 200 with a status. Remember it
+      // so a transient read failure never gets mistaken for a missing wallet.
+      stateReadFailed = true;
       console.warn(`[x402_wallet] /state read failed: ${err?.message || err}`);
     }
   }
@@ -930,6 +985,21 @@ async function x402Wallet(_args, extra) {
     });
   }
 
+  // The /state read errored. Before assuming "no wallet", ask the durable
+  // binding table whether this session is bound to a vault. A bound user whose
+  // state we merely couldn't read HAS a wallet (and funds) — routing them to
+  // the enroll funnel or showing a $0 card is the exact incident we're killing.
+  // Only a session the binding table confirms is NOT bound falls through to the
+  // enroll funnel below; an unproven binding (its lookup also failed) is treated
+  // as bound so a real wallet is never told it doesn't exist.
+  if (stateReadFailed && sessionId) {
+    const binding = await checkSessionVaultBinding(sessionId);
+    if (binding.bound || !binding.ok) {
+      markSessionBound(sessionId);
+      return buildVaultReadError();
+    }
+  }
+
   // Vault not ready (not enrolled, awaiting ceremony, or provisioning) →
   // surface the same enroll funnel x402_fetch uses, so both tools route the
   // user through one setup.
@@ -940,7 +1010,7 @@ async function x402Wallet(_args, extra) {
       url: null,
       method: null,
       body: null,
-      reason: state?.status || 'vault_lookup_failed',
+      reason: stateReadFailed ? 'vault_lookup_failed' : (state?.status || 'not_enrolled'),
     });
   }
 
@@ -1260,13 +1330,11 @@ function createOpenMcpServer() {
 
   server.registerTool('x402_pay', {
     title: 'x402 Pay',
-    description: 'Alias for x402_fetch. Prefer x402_fetch for all paid API calls. Requires an active OpenDexter session; use x402_wallet to create or resume one first when needed.',
+    description: "Alias for x402_fetch. Prefer x402_fetch for all paid API calls. Payment comes from the user's own Dexter wallet, the non-custodial passkey vault bound to this session. There is no server session to create or fund first. If no wallet is bound yet, the call returns a short one-time setup link to relay to the user; once they finish, retry the same call and it pays.",
     inputSchema: {
       url: z.string().url().describe('The x402 resource URL to call'),
       method: z.enum(['GET', 'POST', 'PUT', 'DELETE']).default('GET').describe('HTTP method'),
       body: z.any().optional().describe('Request body (for POST/PUT). Can be object or string.'),
-      sessionToken: z.string().optional().describe('Anonymous OpenDexter session token for canonical x402 settlement when no local key is configured.'),
-      sessionKey: z.string().optional().describe('Optional stable session key for reusable OpenDexter sessions (for example, caller-hash on phone).'),
     },
     _meta: PAY_META,
   }, async (args, extra) => {
@@ -1290,7 +1358,7 @@ function createOpenMcpServer() {
 
   server.registerTool('x402_fetch', {
     title: 'x402 Fetch',
-    description: 'Call any x402-protected API and pay automatically from the active OpenDexter session. Use x402_wallet to create or resume a session first. The session checks balances across all funded chains (Solana, Base, Polygon, Arbitrum, Optimism, Avalanche) and picks the best-funded chain that the endpoint accepts — no chain parameter needed.',
+    description: "Call any x402-protected API and pay automatically from the user's own Dexter wallet, the non-custodial passkey vault bound to this session. There is no session to set up first. If no wallet is bound yet, the call returns a short one-time setup link to relay to the user; once they finish, retry the same call and it pays. The vault settles in USDC on Solana.",
     inputSchema: {
       url: z.string().url().describe('The x402 resource URL to call'),
       method: z.enum(['GET', 'POST', 'PUT', 'DELETE']).default('GET').describe('HTTP method'),
@@ -1304,10 +1372,7 @@ function createOpenMcpServer() {
         })).describe('Files to upload as multipart parts.'),
         fields: z.record(z.string()).optional().describe('Extra text fields to include in the multipart body.'),
       }).optional().describe('Pass to upload files to a multipart x402 endpoint (image-gen, transcription, document processing). Vault-paid, Solana-only.'),
-      sessionToken: z.string().optional().describe('Anonymous OpenDexter session token for canonical x402 settlement when no local key is configured.'),
-      sessionKey: z.string().optional().describe('Optional stable session key for reusable OpenDexter sessions (for example, caller-hash on phone).'),
     },
-    annotations: { destructiveHint: true },
     annotations: { destructiveHint: true },
     _meta: FETCH_META,
   }, async (args, extra) => {
@@ -1430,10 +1495,8 @@ function createOpenMcpServer() {
 
   server.registerTool('x402_wallet', {
     title: 'x402 Wallet',
-    description: 'Create or resume an OpenDexter multi-chain session. Each session has both a Solana wallet and an EVM wallet (same address on Base, Polygon, Arbitrum, Optimism, Avalanche). Returns whether the session was newly created or resumed, plus balances, deposit addresses, and a Solana Pay QR code for funding.',
-    inputSchema: {
-      sessionToken: z.string().optional().describe('Pass an existing session token to check its status and balance instead of creating a new session.'),
-    },
+    description: "Read-only view of the user's Dexter wallet, the non-custodial passkey vault bound to this session. Returns the wallet's Solana address and USDC balance when a vault is bound. When none is bound, returns a short one-time setup link to relay to the user instead of a balance. Dexter holds no keys and runs no server-side session wallet, so there is nothing here to create or fund on the server.",
+    inputSchema: {},
     annotations: { readOnlyHint: true },
     _meta: WALLET_META,
   }, async (args, extra) => {

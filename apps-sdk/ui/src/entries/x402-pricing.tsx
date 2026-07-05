@@ -171,6 +171,7 @@ function PricingCheck() {
         <ResourceIdentity
           resource={authEnrichment?.resource ?? null}
           fallbackUrl={toolInput?.url ?? null}
+          resourceRef={toolOutput.resource}
         />
         <ResourceDescription description={authEnrichment?.resource?.description ?? null} />
         <Alert
@@ -209,6 +210,7 @@ function PricingCheck() {
         <ResourceIdentity
           resource={errEnrichment?.resource ?? null}
           fallbackUrl={toolInput?.url ?? null}
+          resourceRef={toolOutput.resource}
         />
         <ResourceDescription description={errEnrichment?.resource?.description ?? null} />
         <Alert color="danger" title="Pricing unavailable" description={unavailableMessage(toolOutput)} />
@@ -227,6 +229,7 @@ function PricingCheck() {
         <ResourceIdentity
           resource={toolOutput.enrichment?.resource ?? null}
           fallbackUrl={toolInput?.url ?? null}
+          resourceRef={toolOutput.resource}
         />
         <ResourceDescription description={toolOutput.enrichment?.resource?.description ?? null} />
         <div className="dx-pricing__state">
@@ -275,6 +278,7 @@ function PricingCheck() {
       <ResourceIdentity
         resource={enrichment?.resource ?? null}
         fallbackUrl={toolInput?.url ?? null}
+        resourceRef={toolOutput.resource}
       />
       <ResourceDescription description={enrichment?.resource?.description ?? null} />
 

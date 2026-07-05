@@ -9,6 +9,26 @@ function shortenAddress(addr: string | null): string {
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 }
 
+/**
+ * Human label for a payment scheme so two rows on the same chain/asset/price
+ * are distinguishable. "exact" is a one-shot charge; "tab" (and EVM "upto") is
+ * a metering lane that keeps a running tab as you use the endpoint.
+ */
+function schemeLabel(scheme: string | null | undefined): string | null {
+  switch ((scheme || '').toLowerCase()) {
+    case 'exact':
+      return 'One-shot payment';
+    case 'tab':
+      return 'Streaming tab';
+    case 'upto':
+      return 'Metered tab';
+    case '':
+      return null;
+    default:
+      return scheme || null;
+  }
+}
+
 interface RowProps {
   option: PaymentOption;
   isBest: boolean;
@@ -16,6 +36,7 @@ interface RowProps {
 
 export function PaymentRouteRow({ option, isBest }: RowProps) {
   const { name: chainName } = getChain(option.network);
+  const scheme = schemeLabel(option.scheme);
   return (
     <div className={`dx-pricing__route ${isBest ? 'dx-pricing__route--best' : ''}`}>
       <div className="dx-pricing__route-chain">
@@ -29,7 +50,7 @@ export function PaymentRouteRow({ option, isBest }: RowProps) {
               </Badge>
             ) : null}
           </div>
-          <span className="dx-pricing__route-chain-asset">USDC</span>
+          <span className="dx-pricing__route-chain-asset">{scheme ? `USDC · ${scheme}` : 'USDC'}</span>
         </div>
       </div>
       <div className="dx-pricing__route-payto">

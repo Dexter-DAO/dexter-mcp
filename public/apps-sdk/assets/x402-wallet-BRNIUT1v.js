@@ -1,4 +1,4 @@
-import { j as jsxRuntimeExports, u as useToolOutput, e as useAdaptiveTheme, h as useAdaptiveCallToolFn, r as reactExports, f as useAdaptiveOpenExternal } from "./adapter-Cqp56u5t.js";
+import { j as jsxRuntimeExports, u as useToolOutput, e as useAdaptiveTheme, h as useAdaptiveCallToolFn, f as useAdaptiveOpenExternal, r as reactExports } from "./adapter-Cqp56u5t.js";
 /* empty css             */
 import { c as clientExports } from "./client-DVhZ5jh_.js";
 import { B as Button } from "./Button-BoXwCpzo.js";
@@ -70,6 +70,9 @@ function normalizeWalletPayload(toolOutput) {
     sessionToken: typeof raw.sessionToken === "string" ? raw.sessionToken : void 0,
     sessionFunding: raw.sessionFunding && typeof raw.sessionFunding === "object" ? raw.sessionFunding : void 0,
     mode: typeof raw.mode === "string" ? raw.mode : void 0,
+    userBound: typeof raw.user_bound === "boolean" ? raw.user_bound : void 0,
+    enrollUrl: typeof raw.enroll_url === "string" ? raw.enroll_url : typeof raw.pairing_url === "string" ? raw.pairing_url : void 0,
+    activateUrl: typeof raw.activate_url === "string" ? raw.activate_url : void 0,
     expiresAt: typeof raw.expiresAt === "string" ? raw.expiresAt : null,
     message: typeof raw.message === "string" ? raw.message : void 0,
     hint: typeof raw.hint === "string" ? raw.hint : void 0,
@@ -81,10 +84,18 @@ function normalizeWalletPayload(toolOutput) {
 }
 const WORDMARK_URL = "https://dexter.cash/wordmarks/dexter-wordmark.svg";
 const LOGO_MARK_URL = "https://dexter.cash/assets/pokedexter/dexter-logo.svg";
+const ENROLL_FALLBACK_URL = "https://dexter.cash/wallet/setup-passkey";
+const ACTIVATE_FALLBACK_URL = "https://dexter.cash/wallet";
 function formatUsdcDisplay(value) {
   if (value < 0.01) return `$${value.toFixed(4)}`;
   if (value < 1) return `$${value.toFixed(3)}`;
   return `$${value.toFixed(2)}`;
+}
+function Brandmark() {
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-3 min-w-0", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: LOGO_MARK_URL, alt: "Dexter logo", width: 24, height: 24, style: { width: 24, height: 24, flexShrink: 0 } }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: WORDMARK_URL, alt: "Dexter", height: 22, style: { height: 22, width: "auto", opacity: 0.9 } })
+  ] });
 }
 function ChainBalanceRow({ caip2, balance }) {
   const amount = Number(balance.available) / 1e6;
@@ -93,6 +104,17 @@ function ChainBalanceRow({ caip2, balance }) {
     /* @__PURE__ */ jsxRuntimeExports.jsx(ChainIcon, { network: caip2, size: 20 }),
     /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-sm flex-1", children: balance.name }),
     /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: `text-sm font-semibold tabular-nums ${hasFunds ? "text-success" : "text-tertiary"}`, children: formatUsdcDisplay(amount) })
+  ] });
+}
+function VaultAddressPanel({ address }) {
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-2 rounded-2xl bg-surface-secondary p-4", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-xs text-tertiary uppercase font-semibold", children: "Add USDC on Solana" }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2 min-w-0", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx(ChainIcon, { network: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp", size: 16 }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-xs font-mono text-secondary truncate flex-1", children: address }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(CopyButton, { copyValue: address, variant: "ghost", color: "secondary", size: "sm" })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-3xs text-tertiary", children: "Send USDC to this address on Solana and it lands in your wallet." })
   ] });
 }
 function DepositPanel({ solanaAddress, evmAddress, funding }) {
@@ -168,12 +190,47 @@ function SessionDetails({ sessionToken, sessionId, expiresAt }) {
     ] })
   ] });
 }
+function StandaloneCard({ theme, maxHeight, children }) {
+  return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "data-theme": theme, className: "p-4", style: { maxHeight: maxHeight ?? void 0 }, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+    "div",
+    {
+      className: "rounded-2xl border border-default bg-surface p-5 flex flex-col gap-4",
+      style: { background: "linear-gradient(135deg, rgba(209,63,0,0.10) 0%, rgba(255,107,0,0.05) 52%, transparent 100%)" },
+      children
+    }
+  ) });
+}
+function InvitationView({ theme, maxHeight, enrollUrl }) {
+  const openExternal = useAdaptiveOpenExternal();
+  const url = enrollUrl || ENROLL_FALLBACK_URL;
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs(StandaloneCard, { theme, maxHeight, children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx(Brandmark, {}),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-1", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-xs text-tertiary uppercase tracking-wider font-semibold", children: "Dexter Wallet" }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "heading-lg", children: "Set up your wallet" })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-sm text-secondary", children: "Your Dexter wallet lives on your passkey, unlocked by your face or fingerprint. Setup takes about 20 seconds, then I can pay for x402 APIs for you." }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(Button, { variant: "solid", color: "primary", size: "md", block: true, onClick: () => openExternal(url), children: "Set up wallet" })
+  ] });
+}
+function ReadErrorView({ theme, maxHeight, message, onRetry, refreshing }) {
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs(StandaloneCard, { theme, maxHeight, children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx(Brandmark, {}),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-1", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-xs text-tertiary uppercase tracking-wider font-semibold", children: "Your Dexter Wallet" }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "heading-lg", children: "Couldn't reach your wallet" })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-sm text-secondary", children: message || "Your wallet and funds are safe. This is a temporary problem reading your balance. Try again in a moment." }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(Button, { variant: "solid", color: "primary", size: "md", block: true, onClick: onRetry, disabled: refreshing, children: refreshing ? "Retrying…" : "Try again" })
+  ] });
+}
 function WalletDashboard() {
   const rawToolOutput = useToolOutput();
   const toolMeta = useOpenAIGlobal("toolResponseMetadata");
   const widgetState = useOpenAIGlobal("widgetState");
   const theme = useAdaptiveTheme();
   const callTool = useAdaptiveCallToolFn();
+  const openExternal = useAdaptiveOpenExternal();
   const maxHeight = useMaxHeight();
   const containerRef = useIntrinsicHeight();
   const [refreshing, setRefreshing] = reactExports.useState(false);
@@ -195,7 +252,7 @@ function WalletDashboard() {
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
-      await callTool("x402_wallet", sessionToken ? { sessionToken } : {});
+      await callTool("x402_wallet", {});
     } finally {
       setRefreshing(false);
     }
@@ -212,14 +269,32 @@ function WalletDashboard() {
       loadingElapsed >= 8 && /* @__PURE__ */ jsxRuntimeExports.jsx(Button, { variant: "soft", color: "secondary", size: "sm", onClick: () => window.location.reload(), children: "Retry" })
     ] });
   }
-  if (toolOutput.error && !toolOutput.solanaAddress && !toolOutput.address) {
+  const mode = toolOutput.mode;
+  if (mode === "vault_required") {
+    return /* @__PURE__ */ jsxRuntimeExports.jsx(InvitationView, { theme, maxHeight, enrollUrl: toolOutput.enrollUrl });
+  }
+  if (mode === "vault_read_error") {
+    return /* @__PURE__ */ jsxRuntimeExports.jsx(
+      ReadErrorView,
+      {
+        theme,
+        maxHeight,
+        message: toolOutput.message || toolOutput.tip,
+        onRetry: handleRefresh,
+        refreshing
+      }
+    );
+  }
+  const solanaAddress = toolOutput.solanaAddress || toolOutput.address;
+  const evmAddress = toolOutput.evmAddress;
+  if (toolOutput.error && !solanaAddress && !evmAddress) {
     const isSessionError = toolOutput.mode === "session_error";
     return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "data-theme": theme, className: "p-4", style: { maxHeight: maxHeight ?? void 0 }, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
       Alert,
       {
         color: "warning",
-        title: isSessionError ? toolOutput.error === "unknown_session_token" ? "Session Not Found" : "Session Error" : "Wallet Not Configured",
-        description: toolOutput.message || toolOutput.hint || toolOutput.tip || (isSessionError ? "Call x402_wallet with no arguments to create a new session." : "Open the wallet tool on the active MCP surface to create or resolve a usable x402 wallet.")
+        title: isSessionError ? toolOutput.error === "unknown_session_token" ? "Session Not Found" : "Session Error" : "Wallet Not Available",
+        description: toolOutput.message || toolOutput.hint || toolOutput.tip || (isSessionError ? "Call x402_wallet with no arguments to resolve your wallet." : "No wallet is available on this surface right now.")
       }
     ) });
   }
@@ -227,12 +302,67 @@ function WalletDashboard() {
   const chainBals = toolOutput.chainBalances || {};
   const totalUsdc = toolOutput.balances?.usdc ?? 0;
   const hasAnyFunds = totalUsdc > 0;
-  const ready = isSession ? toolOutput.state === "active" : hasAnyFunds;
-  const sessionResolution = toolOutput.sessionResolution?.mode;
-  const solanaAddress = toolOutput.solanaAddress || toolOutput.address;
-  const evmAddress = toolOutput.evmAddress;
   const firstClassChains = Object.entries(chainBals).filter(([, b]) => b.tier === "first");
   const secondClassFunded = Object.entries(chainBals).filter(([, b]) => b.tier === "second" && Number(b.available) > 0);
+  if (isSession) {
+    const ready = toolOutput.state === "active";
+    const sessionResolution = toolOutput.sessionResolution?.mode;
+    return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "data-theme": theme, ref: containerRef, className: "p-4 overflow-y-auto", style: { maxHeight: maxHeight ?? void 0 }, children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
+      "div",
+      {
+        className: "rounded-2xl border border-default bg-surface p-4 flex flex-col gap-4",
+        style: { background: "linear-gradient(135deg, rgba(209,63,0,0.08) 0%, rgba(255,107,0,0.04) 52%, transparent 100%)" },
+        children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "relative overflow-hidden rounded-xl px-4 pt-4 pb-3 bg-surface/70", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-start justify-between gap-3", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-3 min-w-0", children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx(Brandmark, {}),
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-1", children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-xs text-tertiary uppercase tracking-wider font-semibold", children: "OpenDexter Session" }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "heading-lg", children: "Wallet Overview" })
+                ] })
+              ] }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx(Button, { variant: "soft", color: "secondary", size: "sm", onClick: handleRefresh, disabled: refreshing, children: refreshing ? "..." : "Refresh" })
+            ] }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "mt-2", children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-sm text-secondary", children: ready ? "Session funded and ready to pay x402 endpoints." : "Fund this session to start making x402 calls." }) }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute bottom-0 left-4 right-4 h-px", style: { background: "linear-gradient(90deg, #ff6b00 0%, transparent 100%)", opacity: 0.18 } })
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-3 px-3 py-3 rounded-xl bg-surface-secondary", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(UsdcIcon, { size: 24 }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-xs text-tertiary uppercase flex-1", children: "Total Available" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: `heading-xl ${hasAnyFunds ? "text-success" : "text-tertiary"}`, children: formatUsdcDisplay(totalUsdc) })
+          ] }),
+          (firstClassChains.length > 0 || secondClassFunded.length > 0) && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "rounded-xl bg-surface-secondary overflow-hidden divide-y divide-subtle", children: [
+            firstClassChains.map(([caip2, bal]) => /* @__PURE__ */ jsxRuntimeExports.jsx(ChainBalanceRow, { caip2, balance: bal }, caip2)),
+            secondClassFunded.map(([caip2, bal]) => /* @__PURE__ */ jsxRuntimeExports.jsx(ChainBalanceRow, { caip2, balance: bal }, caip2))
+          ] }),
+          sessionToken && /* @__PURE__ */ jsxRuntimeExports.jsx(SessionDetails, { sessionToken, sessionId: toolOutput.sessionId, expiresAt: toolOutput.expiresAt }),
+          sessionResolution && /* @__PURE__ */ jsxRuntimeExports.jsx(
+            Alert,
+            {
+              color: sessionResolution === "created_new" ? "info" : "success",
+              variant: "soft",
+              title: sessionResolution === "created_new" ? "New session created" : sessionResolution === "resumed_from_context" ? "Resumed from conversation" : sessionResolution === "resumed_from_token" ? "Resumed from session token" : "Session resolved",
+              description: sessionResolution === "created_new" ? "No reusable session was found for this conversation, so OpenDexter created a new one." : sessionResolution === "resumed_from_context" ? "OpenDexter reused the session already bound to this conversation." : sessionResolution === "resumed_from_token" ? "OpenDexter resumed the session from the provided secret token." : toolOutput.sessionResolution?.reason
+            }
+          ),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            DepositPanel,
+            {
+              solanaAddress,
+              evmAddress: evmAddress || void 0,
+              funding: toolOutput.sessionFunding
+            }
+          ),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(Alert, { color: ready ? "success" : "warning", title: ready ? "Ready for x402 execution" : "Awaiting funding on any chain" }),
+          toolOutput.tip && /* @__PURE__ */ jsxRuntimeExports.jsx(Alert, { color: "info", variant: "soft", description: toolOutput.tip }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(DebugPanel, { widgetName: "x402-wallet" })
+        ]
+      }
+    ) });
+  }
+  const notActivated = mode === "vault_not_activated";
+  const subtitle = notActivated ? "One quick activation and your wallet is ready to pay." : hasAnyFunds ? "Funded and ready to pay for x402 APIs." : "Your wallet is empty. Add USDC on Solana to start paying.";
   return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "data-theme": theme, ref: containerRef, className: "p-4 overflow-y-auto", style: { maxHeight: maxHeight ?? void 0 }, children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
     "div",
     {
@@ -242,16 +372,15 @@ function WalletDashboard() {
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "relative overflow-hidden rounded-xl px-4 pt-4 pb-3 bg-surface/70", children: [
           /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-start justify-between gap-3", children: [
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-3 min-w-0", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: LOGO_MARK_URL, alt: "Dexter logo", width: 24, height: 24, style: { width: 24, height: 24, flexShrink: 0 } }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: WORDMARK_URL, alt: "Dexter", height: 22, style: { height: 22, width: "auto", opacity: 0.9 } }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx(Brandmark, {}),
               /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-1", children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-xs text-tertiary uppercase tracking-wider font-semibold", children: isSession ? "OpenDexter Session" : "x402 Settlement Wallet" }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "heading-lg", children: "Wallet Overview" })
+                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-xs text-tertiary uppercase tracking-wider font-semibold", children: "Your Dexter Wallet" }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "heading-lg", children: "Wallet" })
               ] })
             ] }),
             /* @__PURE__ */ jsxRuntimeExports.jsx(Button, { variant: "soft", color: "secondary", size: "sm", onClick: handleRefresh, disabled: refreshing, children: refreshing ? "..." : "Refresh" })
           ] }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "mt-2", children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-sm text-secondary", children: ready ? "Session funded and ready to pay x402 endpoints." : "Fund this session to start making x402 calls." }) }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "mt-2", children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-sm text-secondary", children: subtitle }) }),
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute bottom-0 left-4 right-4 h-px", style: { background: "linear-gradient(90deg, #ff6b00 0%, transparent 100%)", opacity: 0.18 } })
         ] }),
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-3 px-3 py-3 rounded-xl bg-surface-secondary", children: [
@@ -263,29 +392,31 @@ function WalletDashboard() {
           firstClassChains.map(([caip2, bal]) => /* @__PURE__ */ jsxRuntimeExports.jsx(ChainBalanceRow, { caip2, balance: bal }, caip2)),
           secondClassFunded.map(([caip2, bal]) => /* @__PURE__ */ jsxRuntimeExports.jsx(ChainBalanceRow, { caip2, balance: bal }, caip2))
         ] }),
-        isSession && sessionToken && /* @__PURE__ */ jsxRuntimeExports.jsx(SessionDetails, { sessionToken, sessionId: toolOutput.sessionId, expiresAt: toolOutput.expiresAt }),
-        isSession && sessionResolution && /* @__PURE__ */ jsxRuntimeExports.jsx(
+        notActivated && /* @__PURE__ */ jsxRuntimeExports.jsx(
           Alert,
           {
-            color: sessionResolution === "created_new" ? "info" : "success",
-            variant: "soft",
-            title: sessionResolution === "created_new" ? "New session created" : sessionResolution === "resumed_from_context" ? "Resumed from conversation" : sessionResolution === "resumed_from_token" ? "Resumed from session token" : "Session resolved",
-            description: sessionResolution === "created_new" ? "No reusable session was found for this conversation, so OpenDexter created a new one." : sessionResolution === "resumed_from_context" ? "OpenDexter reused the session already bound to this conversation." : sessionResolution === "resumed_from_token" ? "OpenDexter resumed the session from the provided secret token." : toolOutput.sessionResolution?.reason
+            color: "warning",
+            title: "Activate to finish setup",
+            description: "Approve once with your passkey to turn your wallet on. No new funds needed."
           }
         ),
-        isSession && /* @__PURE__ */ jsxRuntimeExports.jsx(
-          DepositPanel,
+        notActivated && /* @__PURE__ */ jsxRuntimeExports.jsx(
+          Button,
           {
-            solanaAddress,
-            evmAddress,
-            funding: toolOutput.sessionFunding
+            variant: "solid",
+            color: "primary",
+            size: "md",
+            block: true,
+            onClick: () => openExternal(toolOutput.activateUrl || ACTIVATE_FALLBACK_URL),
+            children: "Activate wallet"
           }
         ),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
+        !notActivated && solanaAddress && /* @__PURE__ */ jsxRuntimeExports.jsx(VaultAddressPanel, { address: solanaAddress }),
+        !notActivated && /* @__PURE__ */ jsxRuntimeExports.jsx(
           Alert,
           {
-            color: ready ? "success" : "warning",
-            title: ready ? "Ready for x402 execution" : isSession ? "Awaiting funding on any chain" : "Needs funding"
+            color: hasAnyFunds ? "success" : "info",
+            title: hasAnyFunds ? "Ready to pay for x402 APIs" : "Add USDC to start paying"
           }
         ),
         toolOutput.tip && /* @__PURE__ */ jsxRuntimeExports.jsx(Alert, { color: "info", variant: "soft", description: toolOutput.tip }),
@@ -296,6 +427,6 @@ function WalletDashboard() {
 }
 const root = document.getElementById("x402-wallet-root");
 if (root) {
-  root.setAttribute("data-widget-build", "2026-03-05.1");
+  root.setAttribute("data-widget-build", "2026-07-05.1");
   clientExports.createRoot(root).render(/* @__PURE__ */ jsxRuntimeExports.jsx(WalletDashboard, {}));
 }

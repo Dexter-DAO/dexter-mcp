@@ -25,6 +25,9 @@ export type CanonicalWalletPayload = {
   sessionToken?: string;
   sessionFunding?: Record<string, unknown>;
   mode?: string;
+  userBound?: boolean;
+  enrollUrl?: string;
+  activateUrl?: string;
   expiresAt?: string | null;
   message?: string;
   hint?: string;
@@ -131,6 +134,14 @@ export function normalizeWalletPayload(toolOutput: unknown): CanonicalWalletPayl
         ? (raw.sessionFunding as Record<string, unknown>)
         : undefined,
     mode: typeof raw.mode === 'string' ? raw.mode : undefined,
+    userBound: typeof raw.user_bound === 'boolean' ? raw.user_bound : undefined,
+    enrollUrl:
+      typeof raw.enroll_url === 'string'
+        ? raw.enroll_url
+        : typeof raw.pairing_url === 'string'
+          ? raw.pairing_url
+          : undefined,
+    activateUrl: typeof raw.activate_url === 'string' ? raw.activate_url : undefined,
     expiresAt: typeof raw.expiresAt === 'string' ? raw.expiresAt : null,
     message: typeof raw.message === 'string' ? raw.message : undefined,
     hint: typeof raw.hint === 'string' ? raw.hint : undefined,
