@@ -44,6 +44,11 @@ const CHAIN_META: Record<string, { name: string; tier: 'first' | 'second' }> = {
   'eip155:42161': { name: 'Arbitrum', tier: 'second' },
   'eip155:10': { name: 'Optimism', tier: 'second' },
   'eip155:43114': { name: 'Avalanche', tier: 'second' },
+  'eip155:56': { name: 'BSC', tier: 'second' },
+  'eip155:1187947933': { name: 'SKALE', tier: 'second' },
+  'eip155:480': { name: 'World Chain', tier: 'second' },
+  'eip155:143': { name: 'Monad', tier: 'second' },
+  'eip155:4663': { name: 'Robinhood', tier: 'second' },
 };
 
 function toAtomicString(usdc: number): string {

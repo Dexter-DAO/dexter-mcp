@@ -27,9 +27,15 @@ export function formatUsdcFloat(value: number): string {
 }
 
 export function getExplorerUrl(tx: string, network?: string): string {
+  if (network?.includes('1187947933')) return `https://skale-base-explorer.skalenodes.com/tx/${tx}`;
   if (network?.includes('8453')) return `https://basescan.org/tx/${tx}`;
   if (network?.includes('137')) return `https://polygonscan.com/tx/${tx}`;
   if (network?.includes('42161')) return `https://arbiscan.io/tx/${tx}`;
+  if (network?.includes('43114')) return `https://snowtrace.io/tx/${tx}`;
+  if (network?.includes('4663')) return `https://robinhoodchain.blockscout.com/tx/${tx}`;
+  if (network?.includes('480')) return `https://worldscan.org/tx/${tx}`;
+  if (network?.includes('143')) return `https://monadvision.com/tx/${tx}`;
+  if (network?.includes('56')) return `https://bscscan.com/tx/${tx}`;
   if (network?.includes('10') && network?.includes('eip155')) return `https://optimistic.etherscan.io/tx/${tx}`;
   return `https://solscan.io/tx/${tx}`;
 }
