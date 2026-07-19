@@ -582,7 +582,11 @@ async function x402Fetch({ url, method, body, multipart, sessionToken, sessionKe
     try {
       const vaultState = await fetchVaultStateByUserHandle(user_handle);
       if (vaultState.vault && vaultState.vault.isActivated === false) {
-        const receiveAddress = vaultState.vault.receiveAddress ?? vaultState.vault.swigAddress;
+        // NEVER fall back to swigAddress: it is the Swig CONFIG PDA and cannot
+        // own a USDC ATA — funds sent there strand. dexter-api emits null for an
+        // undeployed swig on purpose; honor that fail-safe (deposit address is
+        // "unavailable until activated"), never substitute the config address.
+        const receiveAddress = vaultState.vault.receiveAddress ?? null;
         const onchainPending = vaultState.onchain || null;
         const pendingUsdc = Number(String(onchainPending?.usdcAtomic ?? '0')) / 1e6;
         console.log(`[x402Fetch] vault not activated — returning vault_not_activated: ${String(user_handle).slice(0, 8)}...`);
@@ -1034,7 +1038,10 @@ async function x402Wallet(_args, extra) {
   // deployed yet. The user must go to dexter.cash/wallet and tap any action to activate.
   const isActivated = state.vault.isActivated !== false; // undefined (legacy) → treat as active
   if (!isActivated) {
-    const receiveAddress = state.vault.receiveAddress ?? state.vault.swigAddress;
+    // NEVER fall back to swigAddress (the Swig CONFIG PDA — it cannot own a USDC
+    // ATA, so funds sent there strand). dexter-api emits null for an undeployed
+    // swig by design; honor that fail-safe rather than show a fund-losing address.
+    const receiveAddress = state.vault.receiveAddress ?? null;
     const onchainPending = state.onchain || null;
     const pendingUsdcAtomic = String(onchainPending?.usdcAtomic ?? '0');
     const pendingUsdc = Number(pendingUsdcAtomic) / 1e6;
@@ -1066,12 +1073,12 @@ async function x402Wallet(_args, extra) {
         pendingUsdc > 0
           ? `You have $${pendingUsdc.toFixed(2)} USDC waiting in your wallet address, but the wallet hasn't been activated yet. ` +
             'Go to dexter.cash/wallet and tap any action (withdraw, pay) to activate in one tap. Activation uses the passkey you already set up and needs no new funds.'
-          : 'Your wallet address is ready to receive USDC, but the wallet hasn\'t been activated yet. ' +
-            'Go to dexter.cash/wallet and tap any action to activate in one tap with your passkey.',
+          : 'Your wallet isn\'t activated yet. Activate it at dexter.cash/wallet (one passkey tap with the passkey you already set up); your deposit address appears once it\'s active.',
       instructions:
         'Tell the user to open dexter.cash/wallet and tap any action (e.g. withdraw) to activate their wallet. ' +
-        'Activation takes one passkey tap — it\'s the first-use Swig deployment. Once activated, x402_fetch will work normally.',
-      tip: `Wallet not yet activated. Open ${receiveAddress !== state.vault.swigAddress ? `your wallet at ` : ''}dexter.cash/wallet to activate (one passkey tap).`,
+        'Activation takes one passkey tap — it\'s the first-use Swig deployment. Once activated, x402_fetch will work normally. ' +
+        'Do NOT give the user a deposit address until the wallet is activated — there isn\'t a valid one yet.',
+      tip: 'Wallet not yet activated. Open dexter.cash/wallet to activate (one passkey tap); the deposit address is available after activation.',
     };
   }
 
