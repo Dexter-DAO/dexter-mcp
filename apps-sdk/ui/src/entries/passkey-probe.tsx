@@ -79,8 +79,9 @@ function reportToServer(payload: unknown): Promise<void> {
 // client's widget iframe. The popout-based passkey flow depends on this — if
 // blocked, we fall back to a deep link the user manually taps.
 //
-// Test target: the existing dexter.cash/connector/auth/done page (always
-// reachable, no side effects, returns immediately to the user). We don't try
+// Test target: dexter.cash/connector/link-check — a neutral page that exists
+// for exactly this (always reachable, no side effects, and it never claims a
+// wallet was connected; the old /connector/auth/done target did). We don't try
 // to round-trip a result; we just observe whether the call returned a window
 // reference and whether it actually opened.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -107,7 +108,7 @@ type PopupOutcome =
 async function runPopupProbe(setOutcome: (o: PopupOutcome) => void): Promise<void> {
   setOutcome({ kind: 'running' });
   const env = nowEnv();
-  const target = 'https://dexter.cash/connector/auth/done?probe=popup';
+  const target = 'https://dexter.cash/connector/link-check?probe=popup';
   let win: Window | null = null;
   try {
     win = window.open(target, 'dexterPopupProbe', 'noopener=no,popup=yes');
@@ -390,7 +391,7 @@ function PasskeyProbe() {
       probe: 'anchor',
       outcome: { kind: 'tapped' },
       env,
-      target: 'https://dexter.cash/connector/auth/done?probe=anchor',
+      target: 'https://dexter.cash/connector/link-check?probe=anchor',
     });
   }, []);
   // openLink probe: the spec-blessed escape hatch. Widget asks the host
@@ -400,7 +401,7 @@ function PasskeyProbe() {
   // silently fall through to window.open() on rejection.
   const onTapOpenLink = useCallback(async () => {
     const e = nowEnv();
-    const target = 'https://dexter.cash/connector/auth/done?probe=openlink';
+    const target = 'https://dexter.cash/connector/link-check?probe=openlink';
     setOpenLink({ kind: 'running' });
     const result = await openLinkProbe(target);
     if (result.ok) {
@@ -508,7 +509,7 @@ function PasskeyProbe() {
         ) : null}
 
         <a
-          href="https://dexter.cash/connector/auth/done?probe=anchor"
+          href="https://dexter.cash/connector/link-check?probe=anchor"
           target="_blank"
           rel="noopener noreferrer"
           className="passkey-probe-button passkey-probe-button--anchor"
