@@ -21,7 +21,7 @@
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.6",
-    "@dexterai/mcp-instructions": "^2.0.2",
+    "@dexterai/mcp-instructions": "^2.1.0",
     "@dexterai/vault": "^0.37.3",
     "@dexterai/x402": "^5.4.2",
     "@dexterai/x402-core": "^1.3.0",

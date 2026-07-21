@@ -56,7 +56,7 @@ import {
   checkEndpointPricing,
 } from '@dexterai/x402-core';
 import { composeSkill } from '@dexterai/x402-skills';
-import { SERVER_INSTRUCTIONS as SHARED_SERVER_INSTRUCTIONS } from '@dexterai/mcp-instructions';
+import { buildServerInstructions, HOSTED_CAPS, assertInstructionRosterParity } from '@dexterai/mcp-instructions';
 
 const PORT = parseInt(process.env.OPEN_MCP_PORT || '3931', 10);
 // Agent-facing server name. Single source of truth — referenced by the MCP
@@ -1288,11 +1288,13 @@ const SKILLS_ROOT = (() => {
   }
 })();
 
-// Instructions now live in @dexterai/mcp-instructions — single source of truth
-// shared with the npm-installable server at opendexter-ide/packages/mcp/.
-// Update the text there, publish a patch to @dexterai/mcp-instructions, bump
-// the dependency here, and both servers ship the new guidance together.
-const SERVER_INSTRUCTIONS = SHARED_SERVER_INSTRUCTIONS;
+// Instructions live in @dexterai/mcp-instructions, rendered per-surface:
+// HOSTED_CAPS describes THIS connector's roster/behavior (no x402_settings,
+// no card_login_start, passkey+skill tools present, Solana-only funding).
+// Update the text there, publish, bump the dependency here — and the boot
+// parity assertion below (before `return server`) refuses to serve any
+// rendering that names a tool this roster lacks.
+const SERVER_INSTRUCTIONS = buildServerInstructions(HOSTED_CAPS);
 
 /**
  * Resolve the caller's principal from an MCP `extra` context.
@@ -1474,12 +1476,25 @@ function createOpenMcpServer() {
   server.registerTool('x402_pay', {
     title: 'x402 Pay',
     description: "Alias for x402_fetch. Prefer x402_fetch for all paid API calls. Payment comes from the user's own Dexter wallet, the non-custodial passkey vault bound to this session. There is no server session to create or fund first. If no wallet is bound yet, the call returns a short one-time setup link to relay to the user; once they finish, retry the same call and it pays.",
+    // Schema is byte-identical to x402_fetch's (drift register Q3): the
+    // instructions promise "x402_pay, identical" — so it must accept the
+    // same body typing and multipart uploads, not a divergent subset.
     inputSchema: {
       url: z.string().url().describe('The x402 resource URL to call'),
       method: z.enum(['GET', 'POST', 'PUT', 'DELETE']).default('GET').describe('HTTP method'),
-      body: z.any().optional().describe('Request body (for POST/PUT). Can be object or string.'),
+      body: z.string().optional().describe('JSON request body for POST/PUT — the RAW payload the seller expects, e.g. {"q":"latest news"}. NEVER send a schema descriptor (anything shaped like {"type":"http","method":...,"bodyType":...,"body":{...}}) — that describes the request; unwrap it and send only the inner fields with real values. Field names come from the search result\'s inputSchema or x402_check.'),
+      multipart: z.object({
+        files: z.array(z.object({
+          fieldName: z.string().describe('Form field name expected by the x402 endpoint.'),
+          path: z.string().describe('Absolute filesystem path to the file to upload.'),
+          filename: z.string().optional().describe('Filename to send (defaults to basename of path).'),
+          contentType: z.string().optional().describe('MIME type (defaults to application/octet-stream).'),
+        })).describe('Files to upload as multipart parts.'),
+        fields: z.record(z.string()).optional().describe('Extra text fields to include in the multipart body.'),
+      }).optional().describe('Pass to upload files to a multipart x402 endpoint (image-gen, transcription, document processing). Vault-paid, Solana-only.'),
       tab: z.boolean().optional().describe('Running-tab offers (default true): when this seller supports a running tab, the response includes the offer. Set false to hide tab offers for this call and pay one-shot only.'),
     },
+    annotations: { destructiveHint: true },
     _meta: PAY_META,
   }, async (args, extra) => {
     try {
@@ -2574,6 +2589,10 @@ function createOpenMcpServer() {
   } catch (err) {
     console.warn('[open-mcp] Failed to register widget resources:', err?.message || err);
   }
+
+  // Physics, not vigilance: if the served instructions ever name a tool this
+  // connector doesn't register, refuse to boot (drift register R1).
+  assertInstructionRosterParity(SERVER_INSTRUCTIONS, ALL_TOOLS);
 
   return server;
 }
