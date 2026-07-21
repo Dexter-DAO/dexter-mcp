@@ -295,11 +295,71 @@ const {
 
 // ─── Tool: x402_search ──────────────────────────────────────────────────────
 
+// Payability filter (2026-07-20): a chain-bound wallet (phone, anon vault —
+// Solana-only) must never be handed results it cannot pay. Discovery keeps
+// network as a soft signal (capability ≠ payment rail); PAYING surfaces pass
+// `network` and get a hard filter over each result's declared accepts.
+// Aliases resolve to CAIP-2 prefixes; unknown-network results are dropped
+// when the filter is on — strict payability is what the caller asked for.
+// Envelope-schema unwrap (2026-07-20, same investigation as the network
+// filter above). Some sellers publish their bazaar schema AS the HTTP-call
+// envelope — {type, method, bodyType, body: {...real fields}} — the source
+// of truth for "how to call me," not "the payload." @dexterai/x402-core's
+// checkEndpointPricing (used below) inherits that shape verbatim when a
+// seller declares it that way. Confirmed live: an agent shown this schema
+// correctly filled every required top-level field — including type/method/
+// bodyType alongside the real payload — and sent the whole envelope as the
+// body (stableenrich.dev, 2026-07-20 call). Local copy of the dexter-api fix
+// (src/services/x402/sanitizeSellerResponse.ts) — same logic, no cross-repo
+// import boundary.
+function unwrapEnvelopeSchema(schema) {
+  if (!schema || typeof schema !== 'object' || Array.isArray(schema)) return schema;
+  const required = Array.isArray(schema.required) ? schema.required : [];
+  const properties = schema.properties && typeof schema.properties === 'object' ? schema.properties : null;
+  if (!properties || (!required.includes('body') && !required.includes('queryParams'))) return schema;
+  const looksLikeEnvelope = required.includes('type') || required.includes('method') || required.includes('bodyType');
+  if (!looksLikeEnvelope) return schema;
+  const inner = properties.body ?? properties.queryParams;
+  return inner && typeof inner === 'object' ? inner : schema;
+}
+
+const NETWORK_PREFIXES = {
+  solana: 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp',
+  base: 'eip155:8453',
+  ethereum: 'eip155:1',
+  polygon: 'eip155:137',
+  arbitrum: 'eip155:42161',
+  optimism: 'eip155:10',
+  avalanche: 'eip155:43114',
+};
+
+function resolveNetworkPrefix(raw) {
+  const v = String(raw || '').trim().toLowerCase();
+  if (!v) return null;
+  if (NETWORK_PREFIXES[v]) return NETWORK_PREFIXES[v];
+  if (v.includes(':')) return v; // raw CAIP-2 (or prefix) passthrough
+  return null;
+}
+
+function payableOn(result, prefix) {
+  // Exact CAIP-2 match, NOT startsWith — "eip155:10" (Optimism) startsWith
+  // "eip155:1" (Ethereum), so a raw prefix test would wrongly keep Optimism/
+  // Polygon/etc. for network:"ethereum" and hand the wallet unpayable results
+  // (review 2026-07-20). A chain id may carry a trailing "/asset" segment, so
+  // accept an exact id OR the id followed by "/".
+  const want = prefix.toLowerCase();
+  const chains = Array.isArray(result?.chains) ? result.chains : [];
+  return chains.some((c) => {
+    const net = String(c?.network || '').toLowerCase();
+    return net === want || net.startsWith(want + '/');
+  });
+}
+
 /**
  * Semantic capability search via @dexterai/x402-core.
  * All HTTP logic, formatting, and response building comes from the shared package.
  */
-async function x402Search({ query, limit, unverified, testnets, rerank }) {
+async function x402Search({ query, limit, unverified, testnets, rerank, network }) {
   const rawQuery = typeof query === 'string' ? query.trim() : '';
   logX402SearchDebug('start', {
     rawQuery,
@@ -327,9 +387,32 @@ async function x402Search({ query, limit, unverified, testnets, rerank }) {
 
   const response = buildSearchResponse(searchResult);
 
+  // Hard payability filter — applied AFTER ranking so relevance is untouched;
+  // we only remove what the caller's wallet cannot pay.
+  const prefix = resolveNetworkPrefix(network);
+  if (network && !prefix) {
+    response.searchMeta.note = `${response.searchMeta.note} (network "${network}" not recognized — filter skipped; use "solana", "base", or a CAIP-2 id)`;
+  } else if (prefix) {
+    const beforeCount = response.strongResults.length + response.relatedResults.length;
+    response.strongResults = response.strongResults.filter((r) => payableOn(r, prefix));
+    response.relatedResults = response.relatedResults.filter((r) => payableOn(r, prefix));
+    response.strongCount = response.strongResults.length;
+    response.relatedCount = response.relatedResults.length;
+    response.count = response.strongCount + response.relatedCount;
+    const dropped = beforeCount - response.count;
+    if (dropped > 0) {
+      response.searchMeta.note = `${response.searchMeta.note}; ${dropped} result(s) hidden — not payable on ${network}`;
+    }
+    if (response.count === 0 && beforeCount > 0) {
+      response.searchMeta.mode = 'empty';
+      response.tip = `Matches exist but none are payable on ${network}. Try a different phrasing — or the capability may only be sold on other networks today.`;
+    }
+  }
+
   logX402SearchDebug('result', {
     rawQuery,
     mode: response.searchMeta.mode,
+    network: network ?? null,
     strongCount: response.strongCount,
     relatedCount: response.relatedCount,
     topSimilarity: response.topSimilarity,
@@ -981,7 +1064,10 @@ async function x402Wallet(_args, extra) {
   let stateReadFailed = false;
   if (sessionId) {
     try {
-      state = await fetchVaultStateBySession(sessionId);
+      // money:true — the dashboard reports the full picture (cash + open
+      // credit + earning), the same composition the dexter.cash wallet
+      // headline shows. Pay paths skip it; only the dashboard pays the reads.
+      state = await fetchVaultStateBySession(sessionId, { money: true });
     } catch (err) {
       // The /state HTTP call itself errored (network / 5xx). This is NOT a
       // clean "not enrolled" — that comes back 200 with a status. Remember it
@@ -1106,6 +1192,35 @@ async function x402Wallet(_args, extra) {
     'eip155:43114': { available: '0', name: 'Avalanche', tier: 'second' },
   };
 
+  // Money composition (state.money rides ?money=1): open credit line + carry
+  // position. spendingPower mirrors the dexter.cash wallet headline — cash
+  // plus open credit — so every surface quotes the same number. The honest
+  // split stays visible: purchases settle from cash until credit auto-draw
+  // ships on the payment rail.
+  const money = state.money || null;
+  const creditAvailUsd = money?.creditAvailableAtomic ? Number(money.creditAvailableAtomic) / 1e6 : 0;
+  const lineOpen = money?.creditCapAtomic != null && Number(money.creditCapAtomic) > 0;
+  const isEarning = Boolean(money?.isEarning);
+  const spendingPowerUsd = usdcAvailable + (lineOpen ? creditAvailUsd : 0);
+  const spendingPower = money
+    ? {
+        totalUsd: Number(spendingPowerUsd.toFixed(6)),
+        cashAtomic: usdcAtomic,
+        creditAvailableAtomic: lineOpen ? money.creditAvailableAtomic : null,
+        note: lineOpen
+          ? 'Total the user can spend = cash + open credit, matching the dexter.cash wallet headline. Purchases settle from cash; the credit line covers the rest of the headline number but is not yet drawn automatically at payment time.'
+          : 'No credit line open; spending power equals cash.',
+      }
+    : null;
+  const credit = lineOpen
+    ? {
+        capAtomic: money.creditCapAtomic,
+        borrowedAtomic: money.creditBorrowedAtomic,
+        availableAtomic: money.creditAvailableAtomic,
+      }
+    : null;
+  const earning = money ? { isEarning, baseAtomic: money.earnBaseAtomic } : null;
+
   let tip;
   if (!ataExists) {
     tip = 'Your wallet needs a one-time USDC activation before deposits work. Open dexter.cash/wallet, sign in, and tap Activate.';
@@ -1113,8 +1228,10 @@ async function x402Wallet(_args, extra) {
     tip = `Send USDC on Solana to ${receiveAddress} to fund your wallet. Then I can pay for x402 APIs.`;
   } else if (withdrawalBlocked) {
     tip = `Wallet is funded ($${usdcAvailable.toFixed(2)} USDC available). ${pendingVoucherCount} open tab(s); withdrawal is gated until they settle.`;
+  } else if (lineOpen) {
+    tip = `Spending power $${spendingPowerUsd.toFixed(2)}: $${usdcAvailable.toFixed(2)} cash plus $${creditAvailUsd.toFixed(2)} open credit. ${isEarning ? 'Cash is earning.' : 'Cash is idle (can earn at dexter.cash/wallet).'} Purchases settle from cash.`;
   } else {
-    tip = `Wallet is funded ($${usdcAvailable.toFixed(2)} USDC available). Use x402_fetch to call paid APIs.`;
+    tip = `Wallet is funded ($${usdcAvailable.toFixed(2)} USDC available). ${isEarning ? 'Balance is earning.' : ''} Use x402_fetch to call paid APIs.`;
   }
 
   return {
@@ -1138,6 +1255,9 @@ async function x402Wallet(_args, extra) {
       spentAtomic: '0',
       availableAtomic: usdcAtomic,
     },
+    spendingPower,
+    credit,
+    earning,
     vault: {
       vaultPda: state.vault.vaultPda,
       swigAddress,
@@ -1332,7 +1452,8 @@ function createOpenMcpServer() {
     title: 'x402 Search',
     description: 'Semantic capability search over the x402 marketplace across Solana and EVM chains. Pass a natural-language query and get back two tiers: strongResults (high-confidence capability hits) and relatedResults (adjacent services that cleared the similarity floor). The ranker handles synonym expansion and alternate phrasings internally — do NOT pre-filter by chain or category. The top strong results are reordered by a cross-encoder LLM rerank unless rerank:false is passed. Use the searchMeta.mode field to distinguish a direct hit (strong matches present) from related_only (only adjacencies) or empty (nothing in the index). Multi-chain resources expose every payment option they accept via each result\'s chains[] field.',
     inputSchema: {
-      query: z.string().describe('Natural-language description of the capability you want. e.g. "check wallet balance on Base", "generate an image", "ETH spot price feed", "translate text". Broad terms are valid — the ranker handles breadth internally. Do NOT pre-filter by chain or category; the search layer handles those semantically.'),
+      query: z.string().describe('Natural-language description of the capability you want. e.g. "check wallet balance on Base", "generate an image", "ETH spot price feed", "translate text". Broad terms are valid — the ranker handles breadth internally. Do NOT pre-filter by category; the search layer handles that semantically.'),
+      network: z.string().optional().describe('Hard payability filter: only return endpoints payable on this network ("solana", "base", "ethereum", "polygon", "arbitrum", "optimism", "avalanche", or a CAIP-2 id). ALWAYS pass this when the paying wallet is chain-bound — Dexter passkey vaults (phone calls, connectors) pay on Solana only, so pass "solana" there. Results that cannot be paid on the given network are removed after ranking.'),
       limit: z.number().min(1).max(50).optional().default(20).describe('Max results across strong + related tiers combined (1-50, default 20)'),
       unverified: z.boolean().optional().describe('Include unverified resources (default false). Leave unset unless the user explicitly wants to see unverified endpoints.'),
       testnets: z.boolean().optional().describe('Include testnet-only resources (default false). Testnets are excluded by default to keep the marketplace view clean.'),
@@ -1385,7 +1506,7 @@ function createOpenMcpServer() {
     inputSchema: {
       url: z.string().url().describe('The x402 resource URL to call'),
       method: z.enum(['GET', 'POST', 'PUT', 'DELETE']).default('GET').describe('HTTP method'),
-      body: z.string().optional().describe('JSON request body for POST/PUT'),
+      body: z.string().optional().describe('JSON request body for POST/PUT — the RAW payload the seller expects, e.g. {"q":"latest news"}. NEVER send a schema descriptor (anything shaped like {"type":"http","method":...,"bodyType":...,"body":{...}}) — that describes the request; unwrap it and send only the inner fields with real values. Field names come from the search result\'s inputSchema or x402_check.'),
       multipart: z.object({
         files: z.array(z.object({
           fieldName: z.string().describe('Form field name expected by the x402 endpoint.'),
@@ -1436,6 +1557,7 @@ function createOpenMcpServer() {
     try {
       // Live probe (authoritative for pricing).
       const result = await checkEndpointPricing(args);
+      if (result?.inputSchema) result.inputSchema = unwrapEnvelopeSchema(result.inputSchema);
 
       // Best-effort DB enrichment. We never fail the tool call if this misses;
       // we tag enrichment_source so the caller knows which path produced what.
@@ -1495,7 +1617,7 @@ function createOpenMcpServer() {
     inputSchema: {
       url: z.string().url().describe('The protected resource URL to call'),
       method: z.enum(['GET', 'POST', 'PUT', 'DELETE']).default('GET').describe('HTTP method'),
-      body: z.string().optional().describe('JSON request body for POST/PUT'),
+      body: z.string().optional().describe('JSON request body for POST/PUT — the RAW payload the seller expects, e.g. {"q":"latest news"}. NEVER send a schema descriptor (anything shaped like {"type":"http","method":...,"bodyType":...,"body":{...}}) — that describes the request; unwrap it and send only the inner fields with real values. Field names come from the search result\'s inputSchema or x402_check.'),
       sessionToken: z.string().optional().describe('Token for the legacy per-session access context this tool uses for wallet-proof auth. If omitted, a fresh access session starts automatically. This context is specific to x402_access and is separate from the Dexter wallet that x402_pay and x402_fetch spend from.'),
       sessionKey: z.string().optional().describe('Optional stable key for reusing the same legacy access-session context across calls (for example, caller-hash on phone).'),
       network: z.string().optional().describe('Optional preferred auth network, e.g. solana:... or eip155:8453'),

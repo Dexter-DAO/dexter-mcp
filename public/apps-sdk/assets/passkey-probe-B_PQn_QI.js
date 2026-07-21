@@ -13,7 +13,7 @@ function reportToServer(payload) {
 async function runPopupProbe(setOutcome) {
   setOutcome({ kind: "running" });
   const env = nowEnv();
-  const target = "https://dexter.cash/connector/auth/done?probe=popup";
+  const target = "https://dexter.cash/connector/link-check?probe=popup";
   let win = null;
   try {
     win = window.open(target, "dexterPopupProbe", "noopener=no,popup=yes");
@@ -238,12 +238,12 @@ function PasskeyProbe() {
       probe: "anchor",
       outcome: { kind: "tapped" },
       env: env2,
-      target: "https://dexter.cash/connector/auth/done?probe=anchor"
+      target: "https://dexter.cash/connector/link-check?probe=anchor"
     });
   }, []);
   const onTapOpenLink = reactExports.useCallback(async () => {
     const e = nowEnv();
-    const target = "https://dexter.cash/connector/auth/done?probe=openlink";
+    const target = "https://dexter.cash/connector/link-check?probe=openlink";
     setOpenLink({ kind: "running" });
     const result = await openLinkProbe(target);
     if (result.ok) {
@@ -334,7 +334,7 @@ function PasskeyProbe() {
     /* @__PURE__ */ jsxRuntimeExports.jsx(
       "a",
       {
-        href: "https://dexter.cash/connector/auth/done?probe=anchor",
+        href: "https://dexter.cash/connector/link-check?probe=anchor",
         target: "_blank",
         rel: "noopener noreferrer",
         className: "passkey-probe-button passkey-probe-button--anchor",
