@@ -1154,7 +1154,12 @@ async function x402Wallet(_args, extra) {
         isActivated: false,
       },
       activate_url: 'https://dexter.cash/wallet',
-      retry: { tool: 'x402_pay', url, method: method || 'POST', body: body ?? null },
+      // Retry the WALLET check after activation — this branch is inside
+      // x402Wallet, which has no url/method/body in scope (referencing them
+      // threw a ReferenceError that swallowed this whole payload and cost
+      // every not-activated user the Activate CTA; found in the Jul 23
+      // renderer autopsy, board #94/#95).
+      retry: { tool: 'x402_wallet' },
       message:
         pendingUsdc > 0
           ? `You have $${pendingUsdc.toFixed(2)} USDC waiting in your wallet address, but the wallet hasn't been activated yet. ` +
