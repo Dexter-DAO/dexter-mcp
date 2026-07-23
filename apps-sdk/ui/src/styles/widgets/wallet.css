@@ -20,7 +20,9 @@
   -webkit-font-smoothing: antialiased;
 }
 .dxw-root *, .dxw-root *::before, .dxw-root *::after { box-sizing: border-box; }
-.dxw-root button {
+/* :where() keeps this reset at element-specificity so class-based backgrounds
+   (swatches, the CTA, the address pill) win without needing !important. */
+:where(.dxw-root) button {
   font: inherit; background: none; border: none; cursor: pointer;
   color: inherit; text-align: inherit; padding: 0;
 }
@@ -245,6 +247,27 @@
 .dxw-addr:hover { background: #F1EAE0; }
 .dxw-addr svg { display: block; stroke: var(--ink-2); }
 .dxw-footnote { margin-top: 16px; font-size: 11px; color: var(--ink-3); line-height: 1.5; }
+
+/* activity sheet */
+.dxw-act-list { margin-top: 4px; }
+.dxw-act-row { display: flex; align-items: center; gap: 10px; padding: 13px 0; }
+.dxw-act-row + .dxw-act-row { border-top: 1px solid var(--hair); }
+.dxw-act-main { font-size: 13px; color: var(--ink); }
+.dxw-act-sub { font-size: 11px; color: var(--ink-3); margin-top: 2px; }
+.dxw-act-amt { margin-left: auto; font-size: 13px; color: var(--ink); }
+.dxw-empty { margin-top: 16px; font-size: 12.5px; color: var(--ink-3); line-height: 1.5; }
+
+/* compact non-ready states */
+.dxw-simple { margin-top: 24px; padding-bottom: 6px; }
+.dxw-simple-title { font-family: "Inter Display", "Inter", sans-serif; font-weight: 600; font-size: 17px; color: var(--ink); }
+.dxw-simple-body { margin-top: 8px; font-size: 13px; color: var(--ink-2); line-height: 1.5; }
+.dxw-cta {
+  margin-top: 18px; width: 100%;
+  background: var(--ember); color: #fff;
+  border-radius: 12px; padding: 13px 0;
+  font-size: 14px; font-weight: 600; text-align: center;
+}
+.dxw-cta:hover { filter: brightness(1.04); }
 
 @media (prefers-reduced-motion: reduce) {
   .dxw-seg-work::after,

@@ -1052,6 +1052,43 @@ const SOLANA_MAINNET_CAIP2 = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
  * non-Solana ones report zero with available='0'. That keeps the widget
  * rendering rather than crashing on a missing key.
  */
+/**
+ * The wallet's recent money events, for the dashboard's Activity view.
+ * Best-effort: resolves the session's user_handle via the durable binding,
+ * then reads the real /activity stream (settled x402 payments + earning moves).
+ * Any failure returns [] — activity never blocks or fails the wallet read.
+ * Shape emitted to the widget: [{ at, kind, amountAtomic, host, sig }].
+ */
+async function fetchWalletActivity(sessionId) {
+  if (!sessionId) return [];
+  try {
+    const bindRes = await fetch(
+      `${API_BASE_FALLBACK}/api/passkey-anon/mcp-binding/${encodeURIComponent(sessionId)}`,
+      { headers: signedInternalHeaders(sessionId), signal: AbortSignal.timeout(2000) },
+    );
+    if (!bindRes.ok) return [];
+    const userHandle = (await bindRes.json())?.user_handle;
+    if (!userHandle) return [];
+
+    const actRes = await fetch(
+      `${API_BASE_FALLBACK}/api/passkey-anon/activity?user_handle=${encodeURIComponent(userHandle)}`,
+      { signal: AbortSignal.timeout(3000) },
+    );
+    if (!actRes.ok) return [];
+    const items = (await actRes.json())?.items;
+    if (!Array.isArray(items)) return [];
+
+    return items.slice(0, 12).map((it) => {
+      let host = null;
+      if (it.resourceUrl) { try { host = new URL(it.resourceUrl).host.replace(/^www\./, ''); } catch { /* keep null */ } }
+      return { at: it.at, kind: it.kind, amountAtomic: it.amountAtomic, host, sig: it.sig };
+    });
+  } catch (err) {
+    console.warn(`[x402_wallet] activity read failed: ${err?.message || err}`);
+    return [];
+  }
+}
+
 async function x402Wallet(_args, extra) {
   // Identity = the MCP session's live vault binding, resolved server-side.
   // The old x-dexter-user-handle PHONE PATH is RETIRED (money-path ruling: a
@@ -1239,11 +1276,17 @@ async function x402Wallet(_args, extra) {
     tip = `Wallet is funded ($${usdcAvailable.toFixed(2)} USDC available). ${isEarning ? 'Balance is earning.' : ''} Use x402_fetch to call paid APIs.`;
   }
 
+  // Real recent activity (settled payments + earning moves). Best-effort —
+  // fetchWalletActivity swallows failures into [] so a slow read never breaks
+  // the wallet dashboard.
+  const activity = await fetchWalletActivity(sessionId);
+
   return {
     mode: ataExists && usdcAvailable > 0 ? 'vault_ready' : 'vault_funding_required',
     paySource: 'anon_vault',
     vault_status: 'ready',
     user_bound: true,
+    activity,
     // Canonical wallet payload — same field names ChatGPT widgets already
     // consume from the legacy session shape, so the widget keeps rendering
     // without a schema change. EVM is honestly null.

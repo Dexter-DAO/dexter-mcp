@@ -5,6 +5,6 @@ export { useIntrinsicHeight } from './useIntrinsicHeight';
 export { formatCalls, shortenHash, shortenAddress, formatUsdc, formatUsdcFloat, getExplorerUrl } from './format';
 export { DebugPanel } from './DebugPanel';
 export { normalizeWalletPayload } from './walletPayload';
-export type { CanonicalWalletPayload, WalletChainBalance } from './walletPayload';
+export type { CanonicalWalletPayload, WalletChainBalance, WalletMoney, WalletActivityItem } from './walletPayload';
 export { SponsoredCard } from './SponsoredCard';
 export type { Recommendation } from './SponsoredCard';
