@@ -4,6 +4,19 @@ export type WalletChainBalance = {
   tier: 'first' | 'second';
 };
 
+export type WalletMoney = {
+  /** Total spendable = cash + open credit (the dexter.cash wallet headline). */
+  spendableUsd: number;
+  /** Cash the user actually holds, in USDC. */
+  cashUsd: number;
+  /** Open (undrawn) credit available, in USDC. 0 when no line. */
+  creditAvailableUsd: number;
+  /** Position currently earning yield, in USDC. 0 when idle. */
+  atWorkUsd: number;
+  /** Whether the earning position is live. */
+  isEarning: boolean;
+};
+
 export type CanonicalWalletPayload = {
   address?: string;
   solanaAddress?: string;
@@ -17,6 +30,14 @@ export type CanonicalWalletPayload = {
     spentAtomic?: string;
     availableAtomic?: string;
   };
+  /** Non-custodial money composition (server emits spendingPower/credit/earning). */
+  money?: WalletMoney;
+  /** True when open agent tabs gate withdrawal. */
+  withdrawalBlocked?: boolean;
+  /** Count of open agent tabs against the wallet. */
+  pendingVoucherCount?: number;
+  /** Whether the wallet's USDC account is activated on-chain. */
+  activated?: boolean;
   supportedNetworks?: string[];
   tip?: string;
   error?: string;
@@ -104,6 +125,28 @@ export function normalizeWalletPayload(toolOutput: unknown): CanonicalWalletPayl
 
   const balancesRecord =
     typeof raw.balances === 'object' && raw.balances ? (raw.balances as Record<string, unknown>) : {};
+
+  // Non-custodial money composition. The server emits spendingPower (cash +
+  // open credit), credit{availableAtomic}, and earning{isEarning, baseAtomic}.
+  const atomicToUsd = (v: unknown): number => {
+    const n = typeof v === 'number' ? v : Number(v ?? 0);
+    return Number.isFinite(n) ? n / 1e6 : 0;
+  };
+  const sp = raw.spendingPower && typeof raw.spendingPower === 'object'
+    ? (raw.spendingPower as Record<string, unknown>) : null;
+  const cr = raw.credit && typeof raw.credit === 'object'
+    ? (raw.credit as Record<string, unknown>) : null;
+  const ea = raw.earning && typeof raw.earning === 'object'
+    ? (raw.earning as Record<string, unknown>) : null;
+  const cashUsd = sp ? atomicToUsd(sp.cashAtomic) : (typeof explicitUsdc === 'number' ? explicitUsdc : 0);
+  const creditAvailableUsd = cr ? atomicToUsd(cr.availableAtomic) : (sp ? atomicToUsd(sp.creditAvailableAtomic) : 0);
+  const spendableUsd = sp && typeof sp.totalUsd === 'number' ? sp.totalUsd : cashUsd + creditAvailableUsd;
+  const isEarning = ea ? Boolean(ea.isEarning) : false;
+  const atWorkUsd = ea ? atomicToUsd(ea.baseAtomic) : 0;
+  const money: CanonicalWalletPayload['money'] = (sp || cr || ea)
+    ? { spendableUsd, cashUsd, creditAvailableUsd, atWorkUsd, isEarning }
+    : undefined;
+
   const address = typeof raw.address === 'string' ? raw.address : undefined;
   const solanaAddress =
     typeof raw.solanaAddress === 'string'
@@ -126,6 +169,13 @@ export function normalizeWalletPayload(toolOutput: unknown): CanonicalWalletPayl
           ? balancesRecord.availableAtomic
           : toAtomicString(Number.isFinite(explicitUsdc) ? explicitUsdc : 0),
     },
+    money,
+    withdrawalBlocked: typeof raw.withdrawalBlocked === 'boolean' ? raw.withdrawalBlocked : undefined,
+    pendingVoucherCount: typeof raw.pendingVoucherCount === 'number' ? raw.pendingVoucherCount : undefined,
+    activated:
+      raw.vault && typeof raw.vault === 'object' && typeof (raw.vault as Record<string, unknown>).isActivated === 'boolean'
+        ? (raw.vault as Record<string, unknown>).isActivated as boolean
+        : raw.mode === 'vault_ready' ? true : undefined,
     supportedNetworks: Array.isArray(raw.supportedNetworks)
       ? raw.supportedNetworks.filter((v): v is string => typeof v === 'string')
       : undefined,

@@ -1,0 +1,252 @@
+/*
+ * Dexter Wallet widget — direction B (Calm Home + Sheets).
+ * Approved visual spec: apps-sdk/design-reference/wallet-widget-B-calm-home-sheets.*
+ * All classes namespaced `dxw-` so nothing collides with the shared SDK styles.
+ */
+
+.dxw-root {
+  --page:    #F1EEE8;
+  --paper:   #FFFDF9;
+  --ink:     #1D1710;
+  --ink-2:   #6F6659;
+  --ink-3:   #A39784;
+  --hair:    rgba(61, 50, 39, .10);
+  --hair-2:  rgba(61, 50, 39, .16);
+  --ember:   #F2681A;
+  --gold:    #CBAD72;
+  --card-gold: #d4b87e;
+  font-family: "Inter", system-ui, sans-serif;
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+.dxw-root *, .dxw-root *::before, .dxw-root *::after { box-sizing: border-box; }
+.dxw-root button {
+  font: inherit; background: none; border: none; cursor: pointer;
+  color: inherit; text-align: inherit; padding: 0;
+}
+.dxw-mono { font-family: "JetBrains Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+
+/* ---------- widget frame ---------- */
+.dxw-widget {
+  position: relative;
+  width: 100%;
+  max-width: 390px;
+  margin: 0 auto;
+  background: var(--paper);
+  border: 1px solid rgba(58, 46, 36, .08);
+  border-radius: 24px;
+  box-shadow:
+    0 1px 2px rgba(26, 21, 17, .04),
+    0 10px 28px rgba(26, 21, 17, .07),
+    0 32px 64px -24px rgba(26, 21, 17, .14);
+  padding: 22px 22px 8px;
+  overflow: hidden;
+}
+
+.dxw-head { display: flex; align-items: center; justify-content: space-between; }
+.dxw-head .dxw-lockup svg { display: block; }
+.dxw-custody { font-size: 11px; color: var(--ink-3); letter-spacing: .01em; }
+
+.dxw-hero { margin-top: 30px; }
+.dxw-spend-label { font-size: 13px; color: var(--ink-2); }
+.dxw-spend-amount {
+  margin-top: 6px;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500; font-size: 44px; line-height: 1; color: var(--ink);
+  display: flex; align-items: baseline;
+}
+.dxw-spend-amount .dxw-cur { font-size: 26px; color: var(--ink-3); margin-right: 3px; font-weight: 400; }
+.dxw-spend-amount .dxw-cents { font-size: 26px; color: var(--ink-2); }
+
+/* composition bar */
+.dxw-comp { margin-top: 22px; }
+.dxw-comp-bar { display: flex; gap: 3px; height: 6px; }
+.dxw-comp-bar .dxw-seg { border-radius: 2px; min-width: 0; }
+.dxw-seg-own    { background: var(--ember); }
+.dxw-seg-credit {
+  background: repeating-linear-gradient(135deg,
+    rgba(242, 104, 26, .60) 0 3px, rgba(242, 104, 26, .14) 3px 6px);
+}
+.dxw-seg-work   { background: var(--gold); position: relative; overflow: hidden; }
+.dxw-seg-work::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(100deg, transparent 20%, rgba(255, 251, 240, .75) 50%, transparent 80%);
+  transform: translateX(-100%);
+  animation: dxw-sheen 3.2s ease-in-out infinite;
+}
+@keyframes dxw-sheen { 0% { transform: translateX(-100%); } 55%, 100% { transform: translateX(100%); } }
+
+.dxw-legend { margin-top: 12px; font-size: 12px; }
+.dxw-legend .dxw-row { display: flex; justify-content: space-between; align-items: baseline; padding: 3px 0; }
+.dxw-legend .dxw-cluster { display: flex; align-items: baseline; gap: 7px; color: var(--ink-2); }
+.dxw-legend .dxw-amt { font-family: "JetBrains Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; font-size: 12px; color: #3A2E24; }
+.dxw-dot { width: 8px; height: 8px; border-radius: 2px; display: inline-block; transform: translateY(.5px); flex: none; }
+.dxw-dot-own { background: var(--ember); }
+.dxw-dot-credit { background: repeating-linear-gradient(135deg, rgba(242, 104, 26, .6) 0 2px, rgba(242, 104, 26, .15) 2px 4px); }
+.dxw-dot-work { background: var(--gold); }
+
+/* ---------- card ---------- */
+.dxw-card {
+  margin-top: 24px;
+  width: 100%; aspect-ratio: 1.586 / 1;
+  border-radius: 14px;
+  position: relative;
+  padding: 18px 20px 16px;
+  display: flex; flex-direction: column;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .06),
+    0 2px 4px rgba(20, 14, 8, .18),
+    0 18px 36px -12px rgba(20, 14, 8, .38);
+}
+.dxw-card-top { display: flex; align-items: center; justify-content: space-between; }
+.dxw-card-brand {
+  font-family: "Inter Display", "Inter", sans-serif;
+  font-weight: 700; font-size: 13px; letter-spacing: .22em;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, .55);
+}
+.dxw-freeze {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; font-weight: 500;
+  border: 1px solid rgba(212, 184, 126, .32);
+  border-radius: 999px; padding: 5px 11px;
+}
+.dxw-freeze svg { display: block; }
+.dxw-chip { margin-top: 22px; }
+.dxw-pan {
+  margin-top: 18px;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 17px; letter-spacing: .06em;
+  display: flex; align-items: center; gap: 14px;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, .55);
+}
+.dxw-pan .dxw-reveal {
+  margin-left: auto;
+  display: flex; align-items: center; gap: 5px;
+  font-family: "Inter", sans-serif; font-size: 10.5px; letter-spacing: .01em;
+  white-space: nowrap;
+}
+.dxw-card-bottom {
+  margin-top: auto;
+  display: flex; align-items: flex-end; justify-content: space-between;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, .55);
+}
+.dxw-holder { font-size: 11.5px; letter-spacing: .14em; font-weight: 500; }
+.dxw-exp { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12px; opacity: .75; }
+.dxw-visa {
+  font-family: "Inter Display", "Inter", sans-serif;
+  font-style: italic; font-weight: 800; font-size: 16px; letter-spacing: .08em;
+}
+
+.dxw-card-status {
+  margin-top: 12px;
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 12px; color: var(--ink-2);
+}
+.dxw-swatches { display: flex; align-items: center; gap: 8px; }
+.dxw-swatch { width: 12px; height: 12px; border-radius: 50%; cursor: pointer; border: none; }
+.dxw-swatch-orange { background: linear-gradient(135deg, #ff8a3a, #c84510); }
+.dxw-swatch-obsidian { background: linear-gradient(135deg, #1a1a1c, #050506); }
+.dxw-swatch-moon { background: linear-gradient(135deg, #2a3548, #0a0d18); }
+.dxw-swatch[aria-pressed="true"] { box-shadow: 0 0 0 1.5px var(--paper), 0 0 0 3px var(--ember); }
+
+/* ---------- actions ---------- */
+.dxw-actions {
+  margin-top: 20px;
+  display: grid; grid-template-columns: repeat(4, 1fr);
+}
+.dxw-action {
+  display: flex; flex-direction: column; align-items: center; gap: 7px;
+  padding: 12px 0 13px; border-radius: 12px;
+  font-size: 12px; font-weight: 500; color: #3A2E24;
+}
+.dxw-action:hover { background: rgba(242, 104, 26, .05); }
+.dxw-action svg { display: block; stroke: var(--ink-2); }
+.dxw-action.dxw-primary svg { stroke: var(--ember); }
+
+/* last transaction teaser */
+.dxw-last-tx {
+  margin-top: 6px;
+  border-top: 1px solid var(--hair);
+  display: flex; align-items: center; gap: 10px;
+  padding: 13px 2px 15px; width: 100%;
+}
+.dxw-last-tx .dxw-tx-main { font-size: 12.5px; color: var(--ink); }
+.dxw-last-tx .dxw-tx-sub { font-size: 11px; color: var(--ink-3); margin-top: 2px; }
+.dxw-last-tx .dxw-tx-amt { margin-left: auto; font-size: 13px; color: var(--ink); }
+.dxw-last-tx .dxw-chev { flex: none; }
+
+/* ---------- sheet overlay ---------- */
+.dxw-scrim {
+  position: absolute; inset: 0;
+  background: rgba(26, 17, 9, .38);
+  animation: dxw-fade .18s ease-out;
+  z-index: 5;
+}
+@keyframes dxw-fade { from { opacity: 0; } to { opacity: 1; } }
+.dxw-sheet {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  background: var(--paper);
+  border-radius: 18px 18px 24px 24px;
+  box-shadow: 0 -14px 44px rgba(24, 16, 9, .28);
+  padding: 8px 22px 22px;
+  z-index: 6;
+  animation: dxw-rise .26s cubic-bezier(.2, .8, .2, 1);
+}
+@keyframes dxw-rise { from { transform: translateY(100%); } to { transform: translateY(0); } }
+.dxw-grabber { width: 36px; height: 4px; border-radius: 999px; background: #E2D9CB; margin: 4px auto 16px; }
+.dxw-sheet h2 {
+  font-family: "Inter Display", "Inter", sans-serif;
+  font-size: 18px; font-weight: 600; letter-spacing: -.01em; color: var(--ink);
+  margin: 0;
+}
+.dxw-sheet-close {
+  position: absolute; top: 14px; right: 16px;
+  width: 28px; height: 28px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--ink-3);
+}
+.dxw-sheet-close:hover { background: rgba(61, 50, 39, .06); color: var(--ink-2); }
+
+/* deposit sheet */
+.dxw-fund-row {
+  display: flex; align-items: center; gap: 13px;
+  padding: 15px 0; width: 100%;
+}
+.dxw-fund-row + .dxw-fund-row { border-top: 1px solid var(--hair); }
+.dxw-fund-row .dxw-mark { flex: none; }
+.dxw-fund-row .dxw-f-main { font-size: 14px; font-weight: 500; color: var(--ink); }
+.dxw-fund-row .dxw-f-sub { font-size: 12px; color: var(--ink-3); margin-top: 2px; }
+.dxw-fund-row .dxw-f-meta { margin-left: auto; font-size: 11.5px; color: var(--ink-3); display: flex; align-items: center; gap: 6px; }
+
+.dxw-or {
+  display: flex; align-items: center; gap: 12px;
+  font-size: 11.5px; color: var(--ink-3);
+  margin: 6px 0 16px;
+}
+.dxw-or::before, .dxw-or::after { content: ""; flex: 1; height: 1px; background: var(--hair); }
+
+.dxw-receive { display: flex; gap: 16px; align-items: flex-start; }
+.dxw-qr-tile {
+  flex: none; width: 104px; height: 104px;
+  background: #fff; border: 1px solid var(--hair-2); border-radius: 10px;
+  padding: 8px;
+}
+.dxw-qr-tile svg { display: block; width: 100%; height: 100%; }
+.dxw-receive .dxw-r-title { font-size: 13.5px; font-weight: 600; color: var(--ink); }
+.dxw-receive .dxw-r-sub { font-size: 12px; color: var(--ink-2); margin-top: 3px; line-height: 1.45; }
+.dxw-addr {
+  margin-top: 10px;
+  display: inline-flex; align-items: center; gap: 8px;
+  background: #F6F1E9; border-radius: 8px;
+  padding: 7px 11px;
+  font-size: 12px; color: #3A2E24;
+}
+.dxw-addr:hover { background: #F1EAE0; }
+.dxw-addr svg { display: block; stroke: var(--ink-2); }
+.dxw-footnote { margin-top: 16px; font-size: 11px; color: var(--ink-3); line-height: 1.5; }
+
+@media (prefers-reduced-motion: reduce) {
+  .dxw-seg-work::after,
+  .dxw-sheet, .dxw-scrim { animation: none; }
+}
