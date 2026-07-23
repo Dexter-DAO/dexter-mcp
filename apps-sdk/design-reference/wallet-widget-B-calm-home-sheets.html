@@ -1,0 +1,632 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dexter Wallet — The Calm Home + Sheets</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  button { font:inherit; background:none; border:none; cursor:pointer; color:inherit; text-align:inherit; }
+
+  :root {
+    --page:    #F1EEE8;
+    --paper:   #FFFDF9;
+    --ink:     #1D1710;
+    --ink-2:   #6F6659;
+    --ink-3:   #A39784;
+    --hair:    rgba(61,50,39,.10);
+    --hair-2:  rgba(61,50,39,.16);
+    --ember:   #F2681A;
+    --gold:    #CBAD72;
+    --card-gold: #d4b87e;
+  }
+
+  html, body { background:var(--page); }
+  body {
+    font-family:"Inter", system-ui, sans-serif;
+    color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+    padding:52px 24px 72px;
+  }
+  .display { font-family:"Inter Display","Inter",sans-serif; }
+  .mono { font-family:"JetBrains Mono", ui-monospace, monospace; font-variant-numeric:tabular-nums; }
+
+  /* ---------- page scaffolding ---------- */
+  .sheet-title-page {
+    text-align:center; font-size:12px; color:var(--ink-3);
+    margin-bottom:44px; letter-spacing:.01em;
+  }
+  .stage { display:flex; flex-direction:column; align-items:center; }
+  .frames-row {
+    display:flex; gap:56px; flex-wrap:wrap; justify-content:center;
+    margin-top:72px; align-items:flex-start;
+  }
+  .frame { display:flex; flex-direction:column; align-items:center; }
+  .frame-cap {
+    font-size:11.5px; color:var(--ink-3); margin-bottom:12px;
+    align-self:flex-start; padding-left:2px;
+  }
+
+  .chat-bubble {
+    align-self:flex-end;
+    background:#E7E1D6; color:#3A3229;
+    font-size:13px; line-height:1;
+    padding:9px 14px; border-radius:16px 16px 4px 16px;
+    margin-bottom:14px;
+  }
+  .hero-col { display:flex; flex-direction:column; width:390px; }
+
+  /* ---------- the widget ---------- */
+  .widget {
+    width:390px;
+    background:var(--paper);
+    border:1px solid rgba(58,46,36,.08);
+    border-radius:24px;
+    box-shadow:
+      0 1px 2px rgba(26,21,17,.04),
+      0 10px 28px rgba(26,21,17,.07),
+      0 32px 64px -24px rgba(26,21,17,.14);
+    padding:22px 22px 8px;
+  }
+
+  .w-head { display:flex; align-items:center; justify-content:space-between; }
+  .w-head .lockup svg { display:block; }
+  .custody-line { font-size:11px; color:var(--ink-3); letter-spacing:.01em; }
+
+  .w-hero { margin-top:30px; }
+  .spend-label { font-size:13px; color:var(--ink-2); }
+  .spend-amount {
+    margin-top:6px;
+    font-family:"JetBrains Mono", ui-monospace, monospace;
+    font-variant-numeric:tabular-nums;
+    font-weight:500; font-size:44px; line-height:1; color:var(--ink);
+    display:flex; align-items:baseline;
+  }
+  .spend-amount .cur { font-size:26px; color:var(--ink-3); margin-right:3px; font-weight:400; }
+  .spend-amount .amt-cents { font-size:26px; color:var(--ink-2); }
+
+  /* composition bar */
+  .comp { margin-top:22px; }
+  .comp-bar { display:flex; gap:3px; height:6px; }
+  .comp-bar .seg { border-radius:2px; }
+  .seg-own    { flex:1034.5 1 0; background:var(--ember); }
+  .seg-credit {
+    flex:250 1 0;
+    background:repeating-linear-gradient(135deg,
+      rgba(242,104,26,.60) 0 3px, rgba(242,104,26,.14) 3px 6px);
+  }
+  .seg-work   { flex:2002.24 1 0; background:var(--gold); position:relative; overflow:hidden; }
+  .seg-work::after {
+    content:""; position:absolute; inset:0;
+    background:linear-gradient(100deg, transparent 20%, rgba(255,251,240,.75) 50%, transparent 80%);
+    transform:translateX(-100%);
+    animation:sheen 3.2s ease-in-out infinite;
+  }
+  @keyframes sheen { 0%{transform:translateX(-100%)} 55%{transform:translateX(100%)} 100%{transform:translateX(100%)} }
+
+  .comp-legend { margin-top:12px; font-size:12px; }
+  .comp-legend .row { display:flex; justify-content:space-between; align-items:baseline; padding:3px 0; }
+  .comp-legend .cluster { display:flex; align-items:baseline; gap:7px; color:var(--ink-2); }
+  .comp-legend .amt { font-family:"JetBrains Mono",ui-monospace,monospace; font-variant-numeric:tabular-nums; font-size:12px; color:#3A2E24; }
+  .dot { width:8px; height:8px; border-radius:2px; display:inline-block; transform:translateY(.5px); }
+  .dot-own { background:var(--ember); }
+  .dot-credit { background:repeating-linear-gradient(135deg, rgba(242,104,26,.6) 0 2px, rgba(242,104,26,.15) 2px 4px); }
+  .dot-work { background:var(--gold); }
+
+  /* ---------- the card ---------- */
+  .card {
+    margin-top:24px;
+    width:346px; height:218px;           /* ISO ID-1, 1.586:1 */
+    border-radius:14px;
+    position:relative;
+    padding:18px 20px 16px;
+    display:flex; flex-direction:column;
+    background:
+      radial-gradient(ellipse 110% 70% at 8% 8%,  rgba(60,50,40,.55) 0%, transparent 60%),
+      radial-gradient(ellipse 90% 70% at 92% 92%, rgba(20,24,32,.85) 0%, transparent 65%),
+      linear-gradient(135deg, #1a1a1c 0%, #121214 35%, #0a0a0c 70%, #050506 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.06),
+      0 2px 4px rgba(20,14,8,.18),
+      0 18px 36px -12px rgba(20,14,8,.38);
+    color:var(--card-gold);
+  }
+  .card-top { display:flex; align-items:center; justify-content:space-between; }
+  .card-brand {
+    font-family:"Inter Display","Inter",sans-serif;
+    font-weight:700; font-size:13px; letter-spacing:.22em;
+    text-shadow:0 1px 1px rgba(0,0,0,.55);
+  }
+  .freeze {
+    display:flex; align-items:center; gap:6px;
+    font-size:11px; font-weight:500; color:rgba(212,184,126,.9);
+    border:1px solid rgba(212,184,126,.32);
+    border-radius:999px; padding:5px 11px;
+  }
+  .freeze:hover { border-color:rgba(212,184,126,.6); }
+  .freeze svg { display:block; }
+
+  .chip { margin-top:22px; }
+  .pan {
+    margin-top:18px;
+    font-family:"JetBrains Mono",ui-monospace,monospace;
+    font-size:17px; letter-spacing:.06em;
+    display:flex; align-items:center; gap:14px;
+    text-shadow:0 1px 1px rgba(0,0,0,.55);
+  }
+  .pan .reveal {
+    margin-left:auto;
+    display:flex; align-items:center; gap:5px;
+    font-family:"Inter",sans-serif; font-size:10.5px; letter-spacing:.01em;
+    color:rgba(212,184,126,.55);
+    white-space:nowrap;
+  }
+  .pan .reveal:hover { color:rgba(212,184,126,.9); }
+  .card-bottom {
+    margin-top:auto;
+    display:flex; align-items:flex-end; justify-content:space-between;
+    text-shadow:0 1px 1px rgba(0,0,0,.55);
+  }
+  .holder { font-size:11.5px; letter-spacing:.14em; font-weight:500; }
+  .exp { font-family:"JetBrains Mono",ui-monospace,monospace; font-size:12px; opacity:.75; }
+  .visa {
+    font-family:"Inter Display","Inter",sans-serif;
+    font-style:italic; font-weight:800; font-size:16px; letter-spacing:.08em;
+  }
+
+  .card-status {
+    margin-top:12px;
+    display:flex; align-items:center; justify-content:space-between;
+    font-size:12px; color:var(--ink-2);
+  }
+  .swatches { display:flex; align-items:center; gap:8px; }
+  .swatch { width:12px; height:12px; border-radius:50%; cursor:pointer; }
+  .swatch-orange { background:linear-gradient(135deg,#ff8a3a,#c84510); }
+  .swatch-obsidian { background:linear-gradient(135deg,#1a1a1c,#050506); box-shadow:0 0 0 1.5px var(--paper), 0 0 0 3px var(--ember); }
+  .swatch-moon { background:linear-gradient(135deg,#2a3548,#0a0d18); }
+
+  /* ---------- actions ---------- */
+  .actions {
+    margin-top:20px;
+    display:grid; grid-template-columns:repeat(4,1fr);
+  }
+  .action {
+    display:flex; flex-direction:column; align-items:center; gap:7px;
+    padding:12px 0 13px; border-radius:12px;
+    font-size:12px; font-weight:500; color:#3A2E24;
+  }
+  .action:hover { background:rgba(242,104,26,.05); }
+  .action svg { display:block; stroke:var(--ink-2); }
+  .action.primary svg { stroke:var(--ember); }
+
+  /* last transaction teaser */
+  .last-tx {
+    margin-top:6px;
+    border-top:1px solid var(--hair);
+    display:flex; align-items:center; gap:10px;
+    padding:13px 2px 15px;
+    cursor:pointer;
+  }
+  .last-tx .tx-main { font-size:12.5px; color:var(--ink); }
+  .last-tx .tx-sub { font-size:11px; color:var(--ink-3); margin-top:2px; }
+  .last-tx .tx-amt { margin-left:auto; font-size:13px; color:var(--ink); }
+  .last-tx .chev { flex:none; }
+
+  /* ---------- sheet stages (frames 2 & 3) ---------- */
+  .sheet-stage {
+    position:relative;
+    width:390px;
+    height:648px;              /* synced to hero height by script */
+    border-radius:24px;
+    overflow:hidden;
+    background:#E4DED2;
+    box-shadow:
+      0 1px 2px rgba(26,21,17,.04),
+      0 10px 28px rgba(26,21,17,.07),
+      0 32px 64px -24px rgba(26,21,17,.14);
+  }
+  .home-behind {
+    position:absolute; inset:0;
+    transform:scale(.965) translateY(4px); transform-origin:top center;
+    filter:blur(2.5px) saturate(.9);
+  }
+  .home-behind .widget { box-shadow:none; }
+  .scrim {
+    position:absolute; inset:0;
+    background:rgba(26,17,9,.38);
+  }
+  .sheet {
+    position:absolute; left:0; right:0; bottom:0;
+    background:var(--paper);
+    border-radius:18px 18px 24px 24px;
+    box-shadow:0 -14px 44px rgba(24,16,9,.28);
+    padding:8px 22px 22px;
+  }
+  .grabber { width:36px; height:4px; border-radius:999px; background:#E2D9CB; margin:4px auto 16px; }
+  .sheet h2 {
+    font-family:"Inter Display","Inter",sans-serif;
+    font-size:18px; font-weight:600; letter-spacing:-.01em; color:var(--ink);
+  }
+
+  /* deposit sheet */
+  .fund-row {
+    display:flex; align-items:center; gap:13px;
+    padding:15px 0; cursor:pointer;
+  }
+  .fund-row + .fund-row { border-top:1px solid var(--hair); }
+  .fund-row .mark { flex:none; }
+  .fund-row .f-main { font-size:14px; font-weight:500; color:var(--ink); }
+  .fund-row .f-sub { font-size:12px; color:var(--ink-3); margin-top:2px; }
+  .fund-row .f-meta { margin-left:auto; font-size:11.5px; color:var(--ink-3); display:flex; align-items:center; gap:6px; }
+
+  .or-rule {
+    display:flex; align-items:center; gap:12px;
+    font-size:11.5px; color:var(--ink-3);
+    margin:6px 0 16px;
+  }
+  .or-rule::before, .or-rule::after { content:""; flex:1; height:1px; background:var(--hair); }
+
+  .receive { display:flex; gap:16px; align-items:flex-start; }
+  .qr-tile {
+    flex:none; width:104px; height:104px;
+    background:#fff; border:1px solid var(--hair-2); border-radius:10px;
+    padding:8px;
+  }
+  .qr-tile svg { display:block; width:100%; height:100%; }
+  .receive .r-title { font-size:13.5px; font-weight:600; color:var(--ink); }
+  .receive .r-sub { font-size:12px; color:var(--ink-2); margin-top:3px; line-height:1.45; }
+  .addr {
+    margin-top:10px;
+    display:inline-flex; align-items:center; gap:8px;
+    background:#F6F1E9; border-radius:8px;
+    padding:7px 11px;
+    font-size:12px; color:#3A2E24;
+    cursor:pointer;
+  }
+  .addr:hover { background:#F1EAE0; }
+  .addr svg { display:block; stroke:var(--ink-2); }
+  .sheet .footnote { margin-top:16px; font-size:11px; color:var(--ink-3); line-height:1.5; }
+
+  /* agents sheet */
+  .master {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:16px 0 14px;
+  }
+  .master .m-main { font-size:14px; font-weight:500; color:var(--ink); }
+  .master .m-sub { font-size:12px; color:var(--ink-3); margin-top:2px; }
+  .switch {
+    flex:none; width:46px; height:28px; border-radius:14px;
+    background:var(--ember); position:relative; cursor:pointer;
+  }
+  .switch::after {
+    content:""; position:absolute; top:2px; right:2px;
+    width:24px; height:24px; border-radius:50%;
+    background:#fff; box-shadow:0 1px 3px rgba(26,17,8,.3);
+  }
+
+  .tab-card {
+    border:1px solid var(--hair-2); border-radius:12px;
+    padding:14px 15px 13px;
+  }
+  .tab-card .t-row { display:flex; align-items:baseline; justify-content:space-between; }
+  .tab-card .t-name { font-size:13.5px; font-weight:600; color:var(--ink); }
+  .tab-card .t-amt { font-size:12.5px; color:#3A2E24; }
+  .tab-card .t-amt .cap { color:var(--ink-3); }
+  .tab-track { margin-top:11px; height:3px; border-radius:2px; background:#EFE8DD; overflow:hidden; }
+  .tab-fill { width:17.2%; height:100%; background:var(--ember); border-radius:2px; }
+  .tab-card .t-foot { margin-top:11px; display:flex; align-items:center; justify-content:space-between; }
+  .tab-card .t-foot .t-sub { font-size:11px; color:var(--ink-3); }
+  .tab-card .close-tab { font-size:12px; font-weight:500; color:var(--ember); }
+  .tab-card .close-tab:hover { text-decoration:underline; }
+
+  .roster { margin-top:8px; }
+  .agent-row {
+    display:flex; align-items:center; gap:11px;
+    padding:14px 0;
+  }
+  .agent-row + .agent-row { border-top:1px solid var(--hair); }
+  .status-dot { flex:none; width:7px; height:7px; border-radius:50%; }
+  .status-on { background:#3E9B4F; }
+  .status-off { background:#C9BEAF; }
+  .agent-row .a-name { font-size:13.5px; font-weight:500; color:var(--ink); }
+  .agent-row .a-sub { font-size:11.5px; color:var(--ink-3); margin-top:2px; }
+  .agent-row .a-cap { margin-left:auto; font-size:12px; color:var(--ink-2); }
+  .agent-row.add { color:var(--ink-2); font-size:13px; cursor:pointer; }
+  .agent-row.add:hover { color:var(--ink); }
+  .agent-row.add svg { stroke:var(--ink-2); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .seg-work::after { animation:none; }
+    .sheet { animation:none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="sheet-title-page">Dexter Wallet widget &mdash; direction B, the calm home + sheets</div>
+
+<div class="stage">
+
+  <!-- ============ FRAME 1 · HOME ============ -->
+  <div class="frame">
+    <div class="hero-col">
+      <div class="frame-cap">1 &middot; Home &mdash; resting</div>
+      <div class="chat-bubble">show my wallet</div>
+
+      <div class="widget" id="home-widget">
+
+        <div class="w-head">
+          <span class="lockup"><svg viewBox="0 0 662 142" width="122" height="26.2" role="img" aria-label="Dexter Wallet" xmlns="http://www.w3.org/2000/svg"><g transform="translate(-16.45,-27.42) scale(0.60944)"><g transform="translate(20,150) scale(1.085,1.038) translate(-20,-150)"><path d="M 88,46 C 160,37 260,37 314,44 C 332,46 340,56 340,72 L 340,216 C 340,232 332,242 314,244 C 260,252 160,252 88,254 C 50,253 24,244 20,210 L 20,90 C 24,56 50,47 88,46 Z" fill="#FDFAF5" stroke="#F2681A" stroke-width="9" stroke-linejoin="round"/></g>
+<path d="M 88,46 C 160,37 260,37 314,44 C 332,46 340,56 340,72 L 340,216 C 340,232 332,242 314,244 C 260,252 160,252 88,254 C 50,253 24,244 20,210 L 20,90 C 24,56 50,47 88,46 Z" fill="#FDFAF5" stroke="#F2681A" stroke-width="9" stroke-linejoin="round"/>
+<clipPath id="lkL"><path d="M 88,46 C 160,37 260,37 314,44 C 332,46 340,56 340,72 L 340,216 C 340,232 332,242 314,244 C 260,252 160,252 88,254 C 50,253 24,244 20,210 L 20,90 C 24,56 50,47 88,46 Z"/></clipPath>
+<g clip-path="url(#lkL)"><path fill="#F2681A" transform="translate(-13.3,8.4) scale(1.4200)" d="m142.92669,22.61505c0.86324,0.194 1.72648,0.38801 2.61589,0.58789c36.11824,8.20868 68.78991,24.97766 95.38402,50.74539c1.01664,0.98356 2.03328,1.9671 3.08073,2.98047c10.83948,10.66464 10.83948,10.66464 11.04686,14.61978c-2.0583,3.55128 -5.4353,4.17725 -9.16927,5.29556c-0.79453,0.24692 -1.58907,0.49385 -2.40767,0.74825c-28.1259,8.42762 -60.94703,6.3666 -87.13391,-7.16491c-0.85657,-0.48718 -1.71313,-0.97434 -2.59566,-1.47628c-7.37383,-4.05183 -12.58845,-3.35686 -20.59012,-1.54122c-22.76373,3.99921 -48.47173,1.53219 -68.68914,-9.74291c-4.87964,-3.88153 -8.23277,-8.29209 -10.20832,-14.21874c-0.93353,-10.37559 -0.67244,-18.43528 5.83333,-26.83331c19.57482,-23.38104 55.98802,-20.36071 82.83325,-13.99999z"/></g>
+<path fill="#F2681A" transform="translate(96.5,-14.5)" d="m172.67667,203.08363c7.27323,0.09365 13.23073,1.96539 18.86718,6.65365c2.87863,3.07269 3.85875,5.11784 4.24739,9.31509c-0.12031,1.01062 -0.24062,2.02125 -0.36458,3.0625c-2.55208,0.94792 -2.55208,0.94792 -5.83333,1.16667c-3.28125,-2.84375 -3.28125,-2.84375 -5.83333,-5.83333c-0.35643,0.579 -0.71286,1.15801 -1.08008,1.75456c-7.60197,11.28517 -20.05618,17.73584 -33.04945,21.09112c-20.36149,3.09912 -36.81163,-1.65702 -53.37039,-13.73111c-2.33333,-2.11458 -2.33333,-2.11458 -4.66666,-5.61458c0.41869,-3.45422 0.98768,-4.48767 3.5,-6.99999c4.07251,0.3672 5.9462,2.12995 8.74999,4.95833c9.81467,8.93246 22.53228,11.87016 35.51494,11.694c11.74161,-1.0497 22.38219,-5.85464 31.56832,-13.15233c2.05879,-2.45035 2.05879,-2.45035 3.5,-4.66666c-1.66031,0.07219 -1.66031,0.07219 -3.35416,0.14583c-3.64583,-0.14583 -3.64583,-0.14583 -5.97916,-2.47916c0.7534,-6.17789 1.46481,-7.18518 7.58333,-7.36458z"/></g><g transform="translate(254.18,0) scale(0.56189)"><g transform="translate(-11.79,-68.82)"><path fill="#F2681A" d="M11.79,181.18v-112.36h89.11c4.26,0,8.14,1.04,11.62,3.12s6.29,4.87,8.43,8.35c2.13,3.49,3.2,7.36,3.2,11.63v66.16c0,4.17-1.07,8.01-3.2,11.55-2.13,3.54-4.94,6.34-8.43,8.43s-7.36,3.12-11.62,3.12H11.79ZM99.65,156.83v-63.67h-63.83v63.67h63.83Z"/><path fill="#F2681A" d="M141.94,181.18v-112.36h103.78v24.34h-79.27v19.66h63.83v24.34h-63.83v19.66h79.27v24.34h-103.78Z"/><path fill="#F2681A" d="M259.6,181.18v-8.27l40.1-47.91-40.1-47.91v-8.27h25.12l31.21,36.99,30.9-36.99h25.12v8.27l-40.26,47.91,40.26,47.75v8.43h-25.12l-31.21-36.83-30.9,36.83h-25.12Z"/><path fill="#F2681A" d="M426.27,181.18v-88.01h-44.01v-24.34h112.36v24.34h-44.01v88.01h-24.34Z"/><path fill="#F2681A" d="M506.63,181.18v-112.36h103.77v24.34h-79.27v19.66h63.83v24.34h-63.83v19.66h79.27v24.34h-103.77Z"/><path fill="#F2681A" d="M625.85,181.18v-112.2h89.11c4.26,0,8.14,1.04,11.63,3.12,3.48,2.08,6.29,4.89,8.43,8.43,2.13,3.54,3.2,7.39,3.2,11.55v29.02c0,4.16-1.07,8.01-3.2,11.55-2.13,3.54-4.94,6.35-8.43,8.43-3.49,2.08-7.36,3.12-11.63,3.12l-64.92.16v36.83h-24.19ZM713.71,119.85v-26.69h-63.67v26.69h63.67ZM713.09,181.18l-32.61-38.86h31.68l25.9,30.59v8.27h-24.97Z"/></g><g transform="translate(0,140.36)" fill="#3A2E24"><g transform="scale(1.00147)"><path fill-rule="evenodd" transform="translate(0.00,0)" d="M0,0 h24.34 v88.02 h27.9 v-63.68 h24.34 v63.68 h27.9 V0 h24.34 v112.36 H0 Z"/><path fill-rule="evenodd" transform="translate(148.82,0)" d="M0,112.36 v-100.36 a12,12 0 0 1 12,-12 h79.9 a12,12 0 0 1 12,12 v100.36 h-24.34 v-31 h-55.32 v31 Z M24.34,24.34 h55.22 v32.34 h-55.22 Z"/><path fill-rule="evenodd" transform="translate(272.72,0)" d="M0,0 h24.34 v88.02 h64 v24.34 H0 Z"/><path fill-rule="evenodd" transform="translate(381.06,0)" d="M0,0 h24.34 v88.02 h64 v24.34 H0 Z"/><path fill-rule="evenodd" transform="translate(489.40,0)" d="M0,112.36 v-112.36 h103.78 v24.34 h-79.27 v19.66 h63.83 v24.34 h-63.83 v19.66 h79.27 v24.34 Z"/><path fill-rule="evenodd" transform="translate(613.18,0)" d="M44.01,112.36 v-88.01 h-44.01 v-24.34 h112.36 v24.34 h-44.01 v88.01 Z"/></g></g></g></svg></span>
+          <span class="custody-line">Held by your passkey</span>
+        </div>
+
+        <div class="w-hero">
+          <div class="spend-label">You can spend</div>
+          <div class="spend-amount"><span class="cur">$</span><span class="amt-int">1,284</span><span class="amt-cents">.50</span></div>
+        </div>
+
+        <div class="comp">
+          <div class="comp-bar">
+            <div class="seg seg-own"></div>
+            <div class="seg seg-credit"></div>
+            <div class="seg seg-work"></div>
+          </div>
+          <div class="comp-legend">
+            <div class="row">
+              <span class="cluster"><span class="dot dot-own"></span>Yours&nbsp;<span class="amt">$1,034.50</span></span>
+              <span class="cluster"><span class="dot dot-credit"></span>Credit&nbsp;<span class="amt">$250.00</span></span>
+            </div>
+            <div class="row">
+              <span class="cluster"><span class="dot dot-work"></span>At work, earning 2.8%</span>
+              <span class="amt">$2,002.24</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-top">
+            <span class="card-brand">DEXTER</span>
+            <button class="freeze">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M8 1v14M2 4.5l12 7M14 4.5l-12 7"/></svg>
+              Freeze
+            </button>
+          </div>
+          <div class="chip">
+            <svg width="44" height="32" viewBox="0 0 44 32">
+              <defs><linearGradient id="chipg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ecd6a4"/><stop offset=".5" stop-color="#cfa964"/><stop offset="1" stop-color="#a37c3f"/></linearGradient></defs>
+              <rect x=".5" y=".5" width="43" height="31" rx="5.5" fill="url(#chipg)" stroke="rgba(70,50,18,.55)"/>
+              <path d="M14 .5v8.5a5 5 0 0 1-5 5H.5 M14 31.5v-8.5a5 5 0 0 0-5-5H.5 M30 .5v8.5a5 5 0 0 0 5 5h8.5 M30 31.5v-8.5a5 5 0 0 1 5-5h8.5 M14 16h16" stroke="rgba(70,50,18,.55)" fill="none"/>
+            </svg>
+          </div>
+          <div class="pan">
+            <span>&bull;&bull;&bull;&bull;</span><span>&bull;&bull;&bull;&bull;</span><span>&bull;&bull;&bull;&bull;</span><span>x402</span>
+            <button class="reveal">
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8Z"/><circle cx="8" cy="8" r="2"/></svg>
+              tap to reveal
+            </button>
+          </div>
+          <div class="card-bottom">
+            <span class="holder">BRANCH MANAGER</span>
+            <span class="exp">&bull;&bull;/&bull;&bull;</span>
+            <span class="visa">VISA</span>
+          </div>
+        </div>
+
+        <div class="card-status">
+          <span>Active &mdash; pays straight from your balance</span>
+          <span class="swatches">
+            <span class="swatch swatch-orange" title="Original"></span>
+            <span class="swatch swatch-obsidian" title="Obsidian"></span>
+            <span class="swatch swatch-moon" title="Moonagents"></span>
+          </span>
+        </div>
+
+        <div class="actions">
+          <button class="action primary">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3v9.2M10 12.2 6.6 8.8M10 12.2l3.4-3.4"/><path d="M3.5 13.8v1.7a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2v-1.7"/></svg>
+            Deposit
+          </button>
+          <button class="action">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke-width="1.5" stroke-linecap="round"><rect x="2.5" y="4.5" width="15" height="11.5" rx="2"/><path d="M2.5 8.75h15"/></svg>
+            Card
+          </button>
+          <button class="action">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke-width="1.5" stroke-linejoin="round"><path d="M10 2.2l1.9 5.9L18 10l-6.1 1.9L10 17.8l-1.9-5.9L2 10l6.1-1.9z"/></svg>
+            Agents
+          </button>
+          <button class="action">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 2.5h9V17l-2.25-1.4L10 17l-2.25-1.4L5.5 17z"/><path d="M8 6.5h4M8 9.5h4"/></svg>
+            Activity
+          </button>
+        </div>
+
+        <div class="last-tx">
+          <div>
+            <div class="tx-main">Image generation &mdash; fal.ai</div>
+            <div class="tx-sub">2 min ago &middot; paid by Claude</div>
+          </div>
+          <span class="tx-amt mono">&minus;$0.04</span>
+          <svg class="chev" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#A39784" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4l4 4-4 4"/></svg>
+        </div>
+
+      </div><!-- /widget -->
+    </div>
+  </div>
+
+  <div class="frames-row">
+
+    <!-- ============ FRAME 2 · DEPOSIT SHEET ============ -->
+    <div class="frame">
+      <div class="frame-cap">2 &middot; Deposit &mdash; one tap from home</div>
+      <div class="sheet-stage">
+        <div class="home-behind"></div>
+        <div class="scrim"></div>
+
+        <div class="sheet">
+          <div class="grabber"></div>
+          <h2>Add money</h2>
+
+          <div style="margin-top:6px;">
+            <div class="fund-row">
+              <span class="mark">
+                <svg width="30" height="30" viewBox="0 0 30 30"><circle cx="15" cy="15" r="15" fill="#7D00FE"/><path d="M19.9 7.6a8.4 8.4 0 1 0 2.7 10.5 6.9 6.9 0 0 1-2.7-10.5z" fill="#fff"/></svg>
+              </span>
+              <span>
+                <div class="f-main">Debit card or Apple Pay</div>
+                <div class="f-sub">via MoonPay &middot; Visa, Mastercard</div>
+              </span>
+              <span class="f-meta">~2 min
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#A39784" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4l4 4-4 4"/></svg>
+              </span>
+            </div>
+            <div class="fund-row">
+              <span class="mark">
+                <svg width="30" height="30" viewBox="0 0 30 30"><circle cx="15" cy="15" r="15" fill="#0052FF"/><path d="M15 7.4a7.6 7.6 0 1 0 7.4 9.5h-4.1a3.7 3.7 0 1 1 0-3.8h4.1A7.6 7.6 0 0 0 15 7.4z" fill="#fff"/></svg>
+              </span>
+              <span>
+                <div class="f-main">Coinbase account</div>
+                <div class="f-sub">transfer in, no card needed</div>
+              </span>
+              <span class="f-meta">instant
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#A39784" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4l4 4-4 4"/></svg>
+              </span>
+            </div>
+          </div>
+
+          <div class="or-rule">or receive crypto</div>
+
+          <div class="receive">
+            <div class="qr-tile">
+              <svg viewBox="0 0 33 33" shape-rendering="crispEdges"><path stroke="#2A2118" d="M0 0.5h7m2 0h1m1 0h2m1 0h3m2 0h3m4 0h7M0 1.5h1m5 0h1m8 0h1m2 0h1m1 0h3m1 0h1m1 0h1m5 0h1M0 2.5h1m1 0h3m1 0h1m1 0h1m1 0h2m2 0h1m6 0h2m3 0h1m1 0h3m1 0h1M0 3.5h1m1 0h3m1 0h1m1 0h2m5 0h1m2 0h1m2 0h2m3 0h1m1 0h3m1 0h1M0 4.5h1m1 0h3m1 0h1m1 0h2m1 0h1m2 0h4m2 0h1m1 0h3m1 0h1m1 0h3m1 0h1M0 5.5h1m5 0h1m1 0h1m1 0h5m3 0h2m4 0h1m1 0h1m5 0h1M0 6.5h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7M8 7.5h2m2 0h1m3 0h1m1 0h4m2 0h1M0 8.5h1m1 0h5m6 0h2m1 0h2m1 0h2m1 0h2m2 0h5M0 9.5h1m2 0h3m1 0h2m2 0h1m1 0h2m2 0h2m1 0h2m3 0h3m1 0h1M2 10.5h1m1 0h1m1 0h1m1 0h3m1 0h4m1 0h1m2 0h1m3 0h1m2 0h3m1 0h1M0 11.5h1m1 0h2m1 0h1m4 0h2m1 0h1m3 0h3m1 0h1m1 0h8m1 0h1M0 12.5h1m1 0h3m1 0h1m4 0h2m1 0h1m1 0h1m2 0h1m11 0h2M1 13.5h2m1 0h2m1 0h1m2 0h2m3 0h1m2 0h1m2 0h2m2 0h2m2 0h1m2 0h1M1 14.5h1m2 0h5m1 0h2m1 0h6m3 0h1m1 0h2m4 0h2M7 15.5h1m2 0h1m1 0h1m2 0h1m2 0h1m1 0h2m4 0h1m2 0h4M1 16.5h1m3 0h3m4 0h5m8 0h1m2 0h1M1 17.5h1m1 0h3m1 0h1m2 0h3m1 0h3m2 0h5m1 0h3m1 0h1m2 0h1M0 18.5h1m4 0h3m4 0h5m1 0h1m5 0h1m5 0h2M4 19.5h1m3 0h2m1 0h2m1 0h3m4 0h1m3 0h3m1 0h2M0 20.5h2m4 0h1m4 0h3m4 0h3m1 0h1m1 0h2m2 0h1m3 0h1M0 21.5h3m4 0h2m5 0h3m2 0h1m3 0h1m2 0h1m3 0h3M0 22.5h1m1 0h1m1 0h3m2 0h2m3 0h1m3 0h1m1 0h2m4 0h1m1 0h2m1 0h1M0 23.5h1m2 0h2m2 0h1m1 0h2m1 0h1m3 0h1m1 0h2m1 0h3m1 0h1m3 0h4M0 24.5h1m1 0h1m1 0h3m1 0h1m2 0h2m4 0h1m1 0h2m1 0h1m1 0h5m1 0h1M8 25.5h2m1 0h1m4 0h2m1 0h1m2 0h1m1 0h1m3 0h1m1 0h1M0 26.5h7m5 0h2m1 0h1m1 0h1m2 0h3m1 0h1m1 0h1m1 0h4M0 27.5h1m5 0h1m1 0h1m5 0h11m3 0h3m1 0h1M0 28.5h1m1 0h3m1 0h1m1 0h4m2 0h3m4 0h2m1 0h5m2 0h1M0 29.5h1m1 0h3m1 0h1m1 0h1m3 0h1m1 0h2m2 0h6m1 0h1m1 0h6M0 30.5h1m1 0h3m1 0h1m1 0h2m1 0h2m2 0h2m1 0h1m2 0h2m6 0h2M0 31.5h1m5 0h1m2 0h1m3 0h3m3 0h1m1 0h1m2 0h1m2 0h2m1 0h1M0 32.5h7m1 0h1m6 0h4m1 0h6m2 0h2m1 0h1"/></svg>
+            </div>
+            <div>
+              <div class="r-title">Receive on Solana</div>
+              <div class="r-sub">USDC or SOL, from any wallet or exchange.</div>
+              <span class="addr mono">6yKDrT&hellip;2mRk4
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"/></svg>
+              </span>
+            </div>
+          </div>
+
+          <div class="footnote">Your first deposit switches the wallet on by itself &mdash; Dexter covers the network fee.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ FRAME 3 · AGENTS SHEET ============ -->
+    <div class="frame">
+      <div class="frame-cap">3 &middot; Agents &mdash; one tap from home</div>
+      <div class="sheet-stage">
+        <div class="home-behind"></div>
+        <div class="scrim"></div>
+
+        <div class="sheet">
+          <div class="grabber"></div>
+          <h2>Agents</h2>
+
+          <div class="master">
+            <span>
+              <div class="m-main">Allowed to spend</div>
+              <div class="m-sub">Off pauses every tab instantly.</div>
+            </span>
+            <span class="switch" role="switch" aria-checked="true"></span>
+          </div>
+
+          <div class="tab-card">
+            <div class="t-row">
+              <span class="t-name">Claude &mdash; open tab</span>
+              <span class="t-amt mono">$0.86 <span class="cap">of $5.00</span></span>
+            </div>
+            <div class="tab-track"><div class="tab-fill"></div></div>
+            <div class="t-foot">
+              <span class="t-sub">23 payments today</span>
+              <button class="close-tab">Close tab</button>
+            </div>
+          </div>
+
+          <div class="roster">
+            <div class="agent-row">
+              <span class="status-dot status-on"></span>
+              <span>
+                <div class="a-name">Claude</div>
+                <div class="a-sub">this chat &middot; connected now</div>
+              </span>
+              <span class="a-cap mono">$5.00/day</span>
+            </div>
+            <div class="agent-row">
+              <span class="status-dot status-off"></span>
+              <span>
+                <div class="a-name">Clawdexter</div>
+                <div class="a-sub">Telegram &middot; paused</div>
+              </span>
+              <span class="a-cap mono">$2.00/wk</span>
+            </div>
+            <div class="agent-row add">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke-width="1.5" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>
+              Add an agent
+            </div>
+          </div>
+
+          <div class="footnote">Raising a cap confirms with your passkey &mdash; Face ID, one tap.</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /frames-row -->
+</div>
+
+<script>
+(function () {
+  var home = document.getElementById('home-widget');
+
+  // Clone the resting home into both sheet stages, dimmed behind the sheet.
+  document.querySelectorAll('.home-behind').forEach(function (slot) {
+    var c = home.cloneNode(true);
+    c.removeAttribute('id');
+    slot.appendChild(c);
+  });
+
+  // Keep all three frames the same height.
+  function sync() {
+    var h = home.offsetHeight;
+    document.querySelectorAll('.sheet-stage').forEach(function (el) {
+      el.style.height = h + 'px';
+    });
+  }
+  sync();
+  window.addEventListener('load', sync);
+
+  // Count-up on the hero headline only.
+  if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    var intEl = home.querySelector('.amt-int');
+    var centsEl = home.querySelector('.amt-cents');
+    var target = 1284.50, dur = 700, t0 = null, done = false;
+    function settle() {
+      done = true;
+      intEl.textContent = '1,284';
+      centsEl.textContent = '.50';
+    }
+    function step(ts) {
+      if (done) return;
+      if (t0 === null) t0 = ts;
+      var p = Math.min((ts - t0) / dur, 1);
+      var e = 1 - Math.pow(1 - p, 3); // ease-out cubic
+      var v = target * e;
+      var whole = Math.floor(v);
+      intEl.textContent = whole.toLocaleString('en-US');
+      centsEl.textContent = '.' + Math.round((v - whole) * 100).toString().padStart(2, '0');
+      if (p < 1) requestAnimationFrame(step);
+      else settle();
+    }
+    requestAnimationFrame(step);
+    setTimeout(settle, dur + 150); // guarantees the resting value even if rAF stalls
+  }
+})();
+</script>
+
+</body>
+</html>
