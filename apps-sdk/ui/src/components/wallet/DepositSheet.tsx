@@ -8,8 +8,16 @@ import { Chevron, CoinbaseMark, CopyIcon, MoonPayMark } from './icons';
  * Apple Pay supported) or a Coinbase account, plus receive-crypto for the
  * crypto-native. The onramp buttons route to the web deposit flow for now —
  * the real MoonPay/Coinbase/Apple-Pay integration is a later step (board #95).
- * Activation is invisible: the first deposit switches the wallet on and Dexter
- * covers the network fee, so there's never a dead-end "activate first" wall.
+ *
+ * ACTIVATION — GROUND TRUTH (on-chain verified 2026-07-24):
+ * Receiving a deposit works and does NOT require any Dexter action. The SENDER's
+ * wallet (Phantom/Coinbase) creates the USDC mailbox (ATA) and pays its ~$0.15
+ * rent in the same transfer — Dexter does not normally pay it. Deposits to a
+ * fresh, not-yet-deployed wallet land fine. So the deposit sheet needs NO
+ * activate step. Separately, the smart wallet "activates" (Swig deploys, ~$0.85
+ * paid by the facilitator) on the first SIGNING action (a withdrawal/payment),
+ * and only once the wallet holds ≥ $1 — never on a deposit. Do NOT add copy
+ * claiming a deposit activates anything, and do NOT gate deposit behind activation.
  */
 export function DepositSheet({ address, onClose, onOpenExternal, depositUrl }: {
   address?: string;
@@ -65,7 +73,7 @@ export function DepositSheet({ address, onClose, onOpenExternal, depositUrl }: {
         </div>
       </div>
 
-      <div className="dxw-footnote">Your first deposit switches the wallet on by itself — Dexter covers the network fee.</div>
+      <div className="dxw-footnote">Send USDC on Solana from any wallet or exchange — it lands here.</div>
     </Sheet>
   );
 }
