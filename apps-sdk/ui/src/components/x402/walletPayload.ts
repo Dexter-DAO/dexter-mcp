@@ -27,6 +27,18 @@ export type WalletMoney = {
   atWorkUsd: number;
   /** Whether the earning position is live. */
   isEarning: boolean;
+  /**
+   * Live attested earning rate in percent (server-gated to a fresh
+   * attestation). null = don't show a number — never render a stale rate.
+   */
+  earnRatePct: number | null;
+};
+
+export type WalletCard = {
+  /** Read-only card summary from the server; 'none' when no card is linked. */
+  status: 'none' | 'active' | 'frozen';
+  last4: string | null;
+  expiry: string | null;
 };
 
 export type CanonicalWalletPayload = {
@@ -44,6 +56,8 @@ export type CanonicalWalletPayload = {
   };
   /** Non-custodial money composition (server emits spendingPower/credit/earning). */
   money?: WalletMoney;
+  /** Dextercard summary (reveal/freeze ride the widget-only token, not tools). */
+  card?: WalletCard;
   /** True when open agent tabs gate withdrawal. */
   withdrawalBlocked?: boolean;
   /** Count of open agent tabs against the wallet. */
@@ -157,8 +171,21 @@ export function normalizeWalletPayload(toolOutput: unknown): CanonicalWalletPayl
   const spendableUsd = sp && typeof sp.totalUsd === 'number' ? sp.totalUsd : cashUsd + creditAvailableUsd;
   const isEarning = ea ? Boolean(ea.isEarning) : false;
   const atWorkUsd = ea ? atomicToUsd(ea.baseAtomic) : 0;
+  const earnRatePct = ea && typeof ea.ratePct === 'number' && Number.isFinite(ea.ratePct) ? ea.ratePct : null;
   const money: CanonicalWalletPayload['money'] = (sp || cr || ea)
-    ? { spendableUsd, cashUsd, creditAvailableUsd, atWorkUsd, isEarning }
+    ? { spendableUsd, cashUsd, creditAvailableUsd, atWorkUsd, isEarning, earnRatePct }
+    : undefined;
+
+  // Dextercard summary. Anything malformed reads as "no card" — the widget
+  // never renders a card state it can't back with server data.
+  const cardRaw = raw.card && typeof raw.card === 'object' ? (raw.card as Record<string, unknown>) : null;
+  const cardStatus = cardRaw?.status === 'active' || cardRaw?.status === 'frozen' ? cardRaw.status : 'none';
+  const card: CanonicalWalletPayload['card'] = cardRaw
+    ? {
+        status: cardStatus,
+        last4: typeof cardRaw.last4 === 'string' && cardRaw.last4 ? cardRaw.last4 : null,
+        expiry: typeof cardRaw.expiry === 'string' && cardRaw.expiry ? cardRaw.expiry : null,
+      }
     : undefined;
 
   // Recent activity — the server emits { at, kind, amountAtomic, host, sig }.
@@ -202,6 +229,7 @@ export function normalizeWalletPayload(toolOutput: unknown): CanonicalWalletPayl
           : toAtomicString(Number.isFinite(explicitUsdc) ? explicitUsdc : 0),
     },
     money,
+    card,
     withdrawalBlocked: typeof raw.withdrawalBlocked === 'boolean' ? raw.withdrawalBlocked : undefined,
     pendingVoucherCount: typeof raw.pendingVoucherCount === 'number' ? raw.pendingVoucherCount : undefined,
     activated:

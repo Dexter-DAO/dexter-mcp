@@ -9,7 +9,8 @@ export function CompositionBar({ own, credit, atWork, earnPct }: {
   own: number;
   credit: number;
   atWork: number;
-  earnPct: number;
+  /** Live attested rate in percent; null = no fresh number, show no rate. */
+  earnPct: number | null;
 }) {
   return (
     <div className="dxw-comp">
@@ -31,7 +32,7 @@ export function CompositionBar({ own, credit, atWork, earnPct }: {
         </div>
         {atWork > 0 ? (
           <div className="dxw-row">
-            <span className="dxw-cluster"><span className="dxw-dot dxw-dot-work" />At work, earning {earnPct}%</span>
+            <span className="dxw-cluster"><span className="dxw-dot dxw-dot-work" />{earnPct != null ? `At work, earning ${earnPct}%` : 'At work, earning'}</span>
             <span className="dxw-amt">{fmtUsd(atWork)}</span>
           </div>
         ) : null}

@@ -17,7 +17,7 @@ import './instrument.open-mcp.mjs';
  */
 
 import http from 'node:http';
-import { randomUUID, createHmac } from 'node:crypto';
+import { randomUUID, randomBytes, createHmac } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 import { basename } from 'node:path';
@@ -86,18 +86,21 @@ if (!DEXTER_INTERNAL_TOKEN) {
  */
 const CAPABILITY_PATH = '/api/x402gle/capability';
 const WIDGET_DOMAIN = 'https://dexter.cash';
-const WIDGET_CSP = {
-  resource_domains: [
-    'https://api.dexter.cash',
-    'https://cdn.dexscreener.com', 'https://raw.githubusercontent.com', 'https://metadata.jup.ag',
-    'https://cdn.jsdelivr.net', 'https://dexter.cash', 'https://api.qrserver.com',
-    'https://*.digitaloceanspaces.com', 'https://*.cloudfront.net', 'https://*.amazonaws.com',
-    'https://*.cloudflare.com', 'https://*.r2.dev', 'https://*.blob.core.windows.net',
-    'https://*.supabase.co', 'https://*.imgix.net', 'https://*.vercel.app',
-    'https://*.replicate.delivery', 'https://*.openai.com', 'https://images.unsplash.com',
-  ],
-  connect_domains: ['https://x402.dexter.cash', 'https://api.dexter.cash', 'https://open.dexter.cash', 'https://dexter.cash'],
-};
+// ONE CSP for both the tool-level widgetMeta (here) and the resource-level
+// registration (apps-sdk/register.mjs) — the same builder, so they can never
+// drift again (they had; board #94). Lazy + memoized because module body
+// order puts the widgetMeta calls before the env fallbacks below; the asset
+// base literal here matches that fallback exactly.
+let cachedWidgetCsp = null;
+function getWidgetCsp() {
+  if (!cachedWidgetCsp) {
+    const assetBase = String(
+      process.env.TOKEN_AI_APPS_SDK_ASSET_BASE || 'https://dexter.cash/mcp/app-assets/assets',
+    ).trim();
+    cachedWidgetCsp = buildWidgetCsp(assetBase);
+  }
+  return cachedWidgetCsp;
+}
 
 // Friendly first-name guess from an email local part. Used by the
 // dexter_passkey ready-state welcome line. We deliberately avoid a real
@@ -133,7 +136,7 @@ function widgetMeta(templateUri, invoking, invoked, description) {
     'openai/widgetAccessible': true,
     'openai/widgetDomain': WIDGET_DOMAIN,
     'openai/widgetPrefersBorder': true,
-    'openai/widgetCSP': WIDGET_CSP,
+    'openai/widgetCSP': getWidgetCsp(),
     'openai/toolInvocation/invoking': invoking,
     'openai/toolInvocation/invoked': invoked,
     'openai/widgetDescription': description,
@@ -157,7 +160,7 @@ if (!process.env.TOKEN_AI_MCP_PUBLIC_URL) process.env.TOKEN_AI_MCP_PUBLIC_URL = 
 if (!process.env.TOKEN_AI_WIDGET_DOMAIN) process.env.TOKEN_AI_WIDGET_DOMAIN = 'https://dexter.cash';
 if (!process.env.TOKEN_AI_APPS_SDK_ASSET_BASE) process.env.TOKEN_AI_APPS_SDK_ASSET_BASE = 'https://dexter.cash/mcp/app-assets/assets';
 
-import { registerAppsSdkResources } from './apps-sdk/register.mjs';
+import { registerAppsSdkResources, buildWidgetCsp } from './apps-sdk/register.mjs';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -1089,6 +1092,110 @@ async function fetchWalletActivity(sessionId) {
   }
 }
 
+// ─── Dextercard-in-wallet (board #94/#95) ───────────────────────────────────
+// The wallet payload carries a small read-only card summary; reveal/freeze
+// ride widget-frame-only HTTP endpoints authed by a short-TTL token delivered
+// via _meta (the sessionToken side-channel pattern — the model never sees it).
+// No card tools involved.
+const CARD_API_BASE = (process.env.DEXTER_API_URL || 'http://127.0.0.1:3030').replace(/\/+$/, '');
+const CARD_HMAC_SECRET = (process.env.INTERNAL_DEXTERCARD_HMAC_SECRET || '').trim();
+
+// Card operations for a session's dextercard-scope binding, or null. Unlike
+// the card tools' adapter this NEVER mints a pairing — an unbound session
+// simply reads as "no card"; the wallet render is never interrupted by auth.
+function cardOpsForSession(sessionId) {
+  if (!sessionId || !CARD_HMAC_SECRET) return null;
+  const binding = getUserBinding(sessionId);
+  if (!binding) return null;
+  return createRemoteCardOperations({
+    baseUrl: CARD_API_BASE,
+    userId: binding.userId,
+    hmacSecret: CARD_HMAC_SECRET,
+  });
+}
+
+async function readCardSummary(sessionId) {
+  try {
+    const ops = cardOpsForSession(sessionId);
+    if (!ops) return { status: 'none' };
+    // Bounded: a slow card carrier must never hang the wallet dashboard
+    // (same lesson as the bounded /state money read).
+    const card = await Promise.race([
+      ops.cardRetrieve(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('card_read_timeout')), 2500)),
+    ]);
+    const status = String(card?.status || '').toLowerCase();
+    return {
+      status: status === 'frozen' ? 'frozen' : 'active',
+      last4: typeof card?.last4 === 'string' && card.last4 ? card.last4 : null,
+      expiry: typeof card?.expiry === 'string' && card.expiry ? card.expiry : null,
+    };
+  } catch {
+    // No card account, carrier down, or timeout — all render as "no card".
+    return { status: 'none' };
+  }
+}
+
+// token -> { sessionId, exp }. Minted per wallet render, redeemed by the
+// /widget/card/* HTTP endpoints.
+const widgetCardTokens = new Map();
+const WIDGET_CARD_TOKEN_TTL_MS = 10 * 60 * 1000;
+function mintWidgetCardToken(sessionId) {
+  for (const [t, rec] of widgetCardTokens) {
+    if (rec.exp < Date.now()) widgetCardTokens.delete(t);
+  }
+  const token = randomBytes(24).toString('base64url');
+  widgetCardTokens.set(token, { sessionId, exp: Date.now() + WIDGET_CARD_TOKEN_TTL_MS });
+  return token;
+}
+function redeemWidgetCardToken(token) {
+  const rec = typeof token === 'string' ? widgetCardTokens.get(token) : null;
+  if (!rec || rec.exp < Date.now()) return null;
+  return rec.sessionId;
+}
+
+// rid -> { url, exp }. The carrier's reveal URL is PCI-safe and single-use;
+// we stream it through THIS origin exactly once so the frozen widget CSP
+// never has to name the carrier's image host. Short window: the widget
+// fetches the image immediately after minting.
+const revealImageIds = new Map();
+function mintRevealImageId(url) {
+  for (const [k, rec] of revealImageIds) {
+    if (rec.exp < Date.now()) revealImageIds.delete(k);
+  }
+  const rid = randomBytes(18).toString('base64url');
+  revealImageIds.set(rid, { url, exp: Date.now() + 60 * 1000 });
+  return rid;
+}
+
+// ─── Live earning rate for the composition legend ───────────────────────────
+// The same attested number the dexter.cash wallet shows (GET /api/yield/rate).
+// Cached 5 min; PRESENTED only while the attestation is fresh (15 min,
+// mirroring dexter-fe yieldFeed RATE_FRESH_MS) — a stale keeper drops the %
+// from the legend rather than showing a dead number.
+const YIELD_RATE_CACHE_MS = 5 * 60 * 1000;
+const YIELD_RATE_FRESH_MS = 15 * 60 * 1000;
+let yieldRateCache = { readAt: 0, bps: null, attestedAt: null };
+async function readEarningRatePct() {
+  try {
+    if (Date.now() - yieldRateCache.readAt > YIELD_RATE_CACHE_MS) {
+      const res = await fetch(`${CARD_API_BASE}/api/yield/rate`, { signal: AbortSignal.timeout(2500) });
+      const body = res.ok ? await res.json() : null;
+      yieldRateCache = {
+        readAt: Date.now(),
+        bps: Number.isFinite(body?.snapshot?.currentRateBps) ? body.snapshot.currentRateBps : null,
+        attestedAt: typeof body?.snapshot?.attestedAt === 'string' ? body.snapshot.attestedAt : null,
+      };
+    }
+    const attestedMs = yieldRateCache.attestedAt ? Date.parse(yieldRateCache.attestedAt) : NaN;
+    if (!Number.isFinite(yieldRateCache.bps)) return null;
+    if (Number.isNaN(attestedMs) || Date.now() - attestedMs > YIELD_RATE_FRESH_MS) return null;
+    return yieldRateCache.bps / 100;
+  } catch {
+    return null;
+  }
+}
+
 async function x402Wallet(_args, extra) {
   // Identity = the MCP session's live vault binding, resolved server-side.
   // The old x-dexter-user-handle PHONE PATH is RETIRED (money-path ruling: a
@@ -1197,16 +1304,26 @@ async function x402Wallet(_args, extra) {
       // every not-activated user the Activate CTA; found in the Jul 23
       // renderer autopsy, board #94/#95).
       retry: { tool: 'x402_wallet' },
+      // Ground truth (census-verified Jul 24, board #97): deposits to an
+      // undeployed wallet WORK — the sender's transfer creates the USDC
+      // token account at the receive address, which is valid from birth.
+      // "Activation" is the one-tap Swig deployment that happens on the
+      // first SIGNING action (withdraw/pay) and needs a $1+ balance.
       message:
         pendingUsdc > 0
-          ? `You have $${pendingUsdc.toFixed(2)} USDC waiting in your wallet address, but the wallet hasn't been activated yet. ` +
-            'Go to dexter.cash/wallet and tap any action (withdraw, pay) to activate in one tap. Activation uses the passkey you already set up and needs no new funds.'
-          : 'Your wallet isn\'t activated yet. Activate it at dexter.cash/wallet (one passkey tap with the passkey you already set up); your deposit address appears once it\'s active.',
+          ? `You have $${pendingUsdc.toFixed(2)} USDC in your wallet. To spend it, finish setup at dexter.cash/wallet — ` +
+            'one tap of the passkey you already created (any action, e.g. withdraw or pay, completes it).'
+          : receiveAddress
+            ? `Your wallet is ready to receive: send USDC on Solana to ${receiveAddress}. ` +
+              'Once it holds at least $1, one passkey tap at dexter.cash/wallet (any action) finishes setup and payments unlock.'
+            : 'Your wallet is set up to receive deposits, but the deposit address could not be read just now — try again in a moment.',
       instructions:
-        'Tell the user to open dexter.cash/wallet and tap any action (e.g. withdraw) to activate their wallet. ' +
-        'Activation takes one passkey tap — it\'s the first-use Swig deployment. Once activated, x402_fetch will work normally. ' +
-        'Do NOT give the user a deposit address until the wallet is activated — there isn\'t a valid one yet.',
-      tip: 'Wallet not yet activated. Open dexter.cash/wallet to activate (one passkey tap); the deposit address is available after activation.',
+        'The wallet exists and CAN receive deposits right now — the deposit address is valid from birth; the sender\'s ' +
+        'transfer creates the token account. Spending is what needs the one-time setup tap: after the wallet holds $1+, ' +
+        'any action at dexter.cash/wallet (withdraw, pay) completes it with one passkey tap, then x402_fetch works normally.',
+      tip: receiveAddress
+        ? `Deposits work now (send USDC on Solana to ${receiveAddress}). First spend needs one passkey tap at dexter.cash/wallet.`
+        : 'Deposits work once the address loads; first spend needs one passkey tap at dexter.cash/wallet.',
     };
   }
 
@@ -1261,12 +1378,20 @@ async function x402Wallet(_args, extra) {
         availableAtomic: money.creditAvailableAtomic,
       }
     : null;
-  const earning = money ? { isEarning, baseAtomic: money.earnBaseAtomic } : null;
+  const earning = money
+    ? { isEarning, baseAtomic: money.earnBaseAtomic, ratePct: await readEarningRatePct() }
+    : null;
+
+  // Read-only card summary + (when a card exists) the widget-only token that
+  // arms the in-frame reveal/freeze rail. `_cardToken` is stripped into _meta
+  // by the tool registration — the model never sees it.
+  const cardSummary = await readCardSummary(sessionId);
 
   let tip;
-  if (!ataExists) {
-    tip = 'Your wallet needs a one-time USDC activation before deposits work. Open dexter.cash/wallet, sign in, and tap Activate.';
-  } else if (usdcAvailable === 0) {
+  if (usdcAvailable === 0) {
+    // NOTE: a missing USDC token account does NOT block deposits — the
+    // sender's transfer creates it (census-verified Jul 24, board #97).
+    // Zero balance gets the same honest answer either way: send USDC.
     tip = `Send USDC on Solana to ${receiveAddress} to fund your wallet. Then I can pay for x402 APIs.`;
   } else if (withdrawalBlocked) {
     tip = `Wallet is funded ($${usdcAvailable.toFixed(2)} USDC available). ${pendingVoucherCount} open tab(s); withdrawal is gated until they settle.`;
@@ -1282,11 +1407,14 @@ async function x402Wallet(_args, extra) {
   const activity = await fetchWalletActivity(sessionId);
 
   return {
-    mode: ataExists && usdcAvailable > 0 ? 'vault_ready' : 'vault_funding_required',
+    // A missing USDC token account never gates readiness — deposits create it.
+    mode: usdcAvailable > 0 ? 'vault_ready' : 'vault_funding_required',
     paySource: 'anon_vault',
     vault_status: 'ready',
     user_bound: true,
     activity,
+    card: cardSummary,
+    _cardToken: cardSummary.status !== 'none' && sessionId ? mintWidgetCardToken(sessionId) : undefined,
     // Canonical wallet payload — same field names ChatGPT widgets already
     // consume from the legacy session shape, so the widget keeps rendering
     // without a schema change. EVM is honestly null.
@@ -1711,9 +1839,12 @@ function createOpenMcpServer() {
   }, async (args, extra) => {
     try {
       const result = await x402Wallet(args, extra);
-      const { _sessionToken, ...publicResult } = result;
+      const { _sessionToken, _cardToken, ...publicResult } = result;
       const meta = { ...WALLET_META };
       if (_sessionToken) meta.sessionToken = _sessionToken;
+      // Widget-frame-only card credential (reveal/freeze rail). _meta is
+      // invisible to the model — same side-channel as sessionToken.
+      if (_cardToken) meta.dexterCardToken = _cardToken;
       return { content: [{ type: 'text', text: JSON.stringify(publicResult, null, 2) }], structuredContent: publicResult, _meta: meta };
     } catch (err) {
       const data = { error: err?.message || String(err) };
@@ -3057,6 +3188,84 @@ const httpServer = http.createServer(async (req, res) => {
     req.on('error', () => {
       try { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ ok: false, error: 'request_error' })); } catch {}
     });
+    return;
+  }
+
+  // ─── /widget/card/* — widget-frame-only Dextercard rail (board #94/#95) ──
+  // Auth = the short-TTL token x402_wallet minted into _meta.dexterCardToken
+  // (widget-visible, never model-visible). PAN/CVV never transit tool results:
+  // /reveal returns a single-use SAME-ORIGIN image URL; /reveal-image streams
+  // the carrier's PCI-safe render exactly once, no-store. Freeze/unfreeze ride
+  // the same token. No card tools involved.
+  if (pathname === '/widget/card/reveal' || pathname === '/widget/card/freeze') {
+    if (req.method !== 'POST') {
+      res.writeHead(405, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, error: 'method_not_allowed' }));
+      return;
+    }
+    let raw = '';
+    req.on('data', (chunk) => { raw += chunk; if (raw.length > 16 * 1024) req.destroy(); });
+    req.on('end', async () => {
+      const respond = (code, body) => {
+        res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+        res.end(JSON.stringify(body));
+      };
+      try {
+        let body = null;
+        try { body = JSON.parse(raw); } catch { /* keep null */ }
+        const sessionId = redeemWidgetCardToken(body?.token);
+        if (!sessionId) { respond(401, { ok: false, error: 'bad_token' }); return; }
+        const ops = cardOpsForSession(sessionId);
+        if (!ops) { respond(409, { ok: false, error: 'card_not_linked' }); return; }
+        if (pathname === '/widget/card/reveal') {
+          const r = await ops.cardReveal();
+          if (!r?.url) { respond(502, { ok: false, error: 'reveal_unavailable' }); return; }
+          const rid = mintRevealImageId(r.url);
+          respond(200, {
+            ok: true,
+            imageUrl: `https://open.dexter.cash/widget/card/reveal-image?rid=${rid}`,
+            expiresAt: r.expiresAt || null,
+          });
+          return;
+        }
+        const action = body?.action === 'unfreeze' ? 'unfreeze' : 'freeze';
+        const card = action === 'freeze' ? await ops.cardFreeze() : await ops.cardUnfreeze();
+        const status = String(card?.status || '').toLowerCase();
+        respond(200, { ok: true, status: status === 'frozen' ? 'frozen' : 'active' });
+      } catch (err) {
+        respond(502, { ok: false, error: err?.message || 'card_operation_failed' });
+      }
+    });
+    req.on('error', () => {
+      try { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ ok: false, error: 'request_error' })); } catch {}
+    });
+    return;
+  }
+
+  if (pathname === '/widget/card/reveal-image') {
+    const rid = url.searchParams.get('rid');
+    const rec = rid ? revealImageIds.get(rid) : null;
+    if (rec) revealImageIds.delete(rid); // single use, even on failure
+    if (!rec || rec.exp < Date.now()) {
+      res.writeHead(404, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+      res.end(JSON.stringify({ ok: false, error: 'gone' }));
+      return;
+    }
+    try {
+      const upstream = await fetch(rec.url, { signal: AbortSignal.timeout(8000) });
+      if (!upstream.ok) throw new Error(`upstream ${upstream.status}`);
+      const bytes = Buffer.from(await upstream.arrayBuffer());
+      res.writeHead(200, {
+        'Content-Type': upstream.headers.get('content-type') || 'image/png',
+        'Content-Length': bytes.length,
+        'Cache-Control': 'no-store, max-age=0',
+        'Referrer-Policy': 'no-referrer',
+      });
+      res.end(bytes);
+    } catch (err) {
+      res.writeHead(502, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+      res.end(JSON.stringify({ ok: false, error: err?.message || 'reveal_fetch_failed' }));
+    }
     return;
   }
 

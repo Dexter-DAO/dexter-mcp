@@ -71,12 +71,26 @@ function fileExistsSync(filePath) {
  * This tells ChatGPT's sandbox which domains the widget may contact.
  * @see https://developers.openai.com/apps-sdk/reference#component-resource-_meta-fields
  *
+ * EXPORTED and shared with open-mcp-server.mjs's tool-level widgetMeta so the
+ * tool-side and resource-side CSPs can never drift again (they had: resources
+ * carried Sentry + *.oaistatic.com, tools carried open.dexter.cash — board
+ * #94). The CSP freezes at the OpenAI submission scan, so ONE builder is the
+ * final word.
+ *
  * @param {string} assetBase - Base URL for widget assets
  * @returns {{ connect_domains: string[], resource_domains: string[] }}
  */
-function buildWidgetCsp(assetBase) {
+export function buildWidgetCsp(assetBase) {
   const resourceDomains = [];
   const connectDomains = [];
+
+  // The hosted MCP origin: widget-frame fetches (webauthn probe log sink, the
+  // Dextercard reveal/freeze rail) and the single-use card reveal IMAGE both
+  // ride open.dexter.cash — connect for the fetches, resource for the image.
+  connectDomains.push('https://open.dexter.cash');
+  resourceDomains.push('https://open.dexter.cash');
+  // The wallet/site origin (ui/open-link targets, shared assets).
+  connectDomains.push('https://dexter.cash');
 
   // Allow fetching assets from the asset base origin
   try {

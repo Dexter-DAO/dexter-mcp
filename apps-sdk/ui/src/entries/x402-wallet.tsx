@@ -3,7 +3,7 @@ import '../styles/widgets/wallet.css';
 
 import { createRoot } from 'react-dom/client';
 import { useMemo } from 'react';
-import { useToolOutput, useMaxHeight, useAdaptiveOpenExternal } from '../sdk';
+import { useToolOutput, useToolResponseMetadata, useMaxHeight, useAdaptiveOpenExternal } from '../sdk';
 import { useIntrinsicHeight, normalizeWalletPayload } from '../components/x402';
 import { WalletHome, SimpleState } from '../components/wallet';
 
@@ -21,6 +21,8 @@ const SETUP_URL = 'https://dexter.cash/wallet/setup-passkey';
 
 function WalletApp() {
   const toolOutput = useToolOutput();
+  const meta = useToolResponseMetadata<{ dexterCardToken?: string }>();
+  const cardToken = typeof meta?.dexterCardToken === 'string' ? meta.dexterCardToken : null;
   const payload = useMemo(() => normalizeWalletPayload(toolOutput), [toolOutput]);
   const containerRef = useIntrinsicHeight<HTMLDivElement>();
   useMaxHeight();
@@ -41,11 +43,17 @@ function WalletApp() {
       />
     );
   } else if (payload.activated === false || (mode === 'vault_not_activated')) {
+    // Ground truth (census-verified Jul 24, board #97): deposits to an
+    // undeployed wallet WORK — the address is valid from birth and the
+    // sender's transfer creates the token account. Only SPENDING waits on
+    // the one-tap first-use setup. The server's message carries the
+    // balance-aware sentence (funds waiting vs. ready to receive).
     view = (
       <SimpleState
-        title="Activate your wallet"
-        body="One passkey tap switches your wallet on — Dexter covers the network fee. Your deposit address appears the moment it's active."
-        cta="Activate with your passkey"
+        title={payload.balances.usdc > 0 ? 'Money in — one tap to spend it' : 'Ready to receive'}
+        body={payload.message ||
+          'Deposits work right now. When you\'re ready to spend, one tap of your passkey finishes setup.'}
+        cta="Open your wallet"
         href={payload.activateUrl || WALLET_URL}
         onOpenExternal={openExternal}
       />
@@ -61,7 +69,7 @@ function WalletApp() {
       />
     );
   } else {
-    view = <WalletHome payload={payload} onOpenExternal={openExternal} />;
+    view = <WalletHome payload={payload} cardToken={cardToken} onOpenExternal={openExternal} />;
   }
 
   return <div className="dxw-root" ref={containerRef}>{view}</div>;

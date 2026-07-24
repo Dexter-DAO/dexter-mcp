@@ -14,10 +14,6 @@ import { ActivityIcon, AgentsIcon, CardIcon, Chevron, DepositIcon } from './icon
 const WALLET_URL = 'https://dexter.cash/wallet';
 const DEPOSIT_URL = 'https://dexter.cash/wallet/deposit';
 
-// Placeholder yield rate for the composition legend until the server emits the
-// live APY alongside the earning position.
-const EARN_PCT = 2.8;
-
 type OpenSheet = null | 'deposit' | 'activity';
 
 /**
@@ -26,8 +22,10 @@ type OpenSheet = null | 'deposit' | 'activity';
  * beyond the resting view lives one gesture below it in a single sheet — only
  * one sheet is ever open, which is what keeps the surface calm.
  */
-export function WalletHome({ payload, onOpenExternal }: {
+export function WalletHome({ payload, cardToken, onOpenExternal }: {
   payload: CanonicalWalletPayload;
+  /** Widget-only Dextercard credential from _meta; null = reveal not armed. */
+  cardToken: string | null;
   onOpenExternal: (url: string) => void;
 }) {
   const [sheet, setSheet] = useState<OpenSheet>(null);
@@ -54,8 +52,14 @@ export function WalletHome({ payload, onOpenExternal }: {
       </div>
 
       <SpendHeadline value={spendable} />
-      <CompositionBar own={own} credit={credit} atWork={atWork} earnPct={EARN_PCT} />
-      <CardFace theme={cardTheme} last4="x402" onTheme={setCardTheme} />
+      <CompositionBar own={own} credit={credit} atWork={atWork} earnPct={money?.earnRatePct ?? null} />
+      <CardFace
+        theme={cardTheme}
+        card={payload.card ?? { status: 'none', last4: null, expiry: null }}
+        cardToken={cardToken}
+        onTheme={setCardTheme}
+        onOpenExternal={onOpenExternal}
+      />
 
       <div className="dxw-actions">
         <button className="dxw-action dxw-primary" onClick={() => setSheet('deposit')} type="button">

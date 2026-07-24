@@ -29,6 +29,7 @@ const HOST: HostRuntime = detectHost();
 
 let _mcpToolOutput: unknown = null;
 let _mcpToolInput: unknown = null;
+let _mcpToolMeta: unknown = null;
 let _mcpTheme: Theme = 'dark';
 let _mcpInitDone = false;
 const _mcpListeners = new Set<() => void>();
@@ -42,8 +43,11 @@ function initMcpAppsOnce() {
   _mcpInitDone = true;
 
   mcpApps.onNotification('ui/notifications/tool-result', (params: unknown) => {
-    const p = params as { content?: Array<{ type: string; text?: string }>; structuredContent?: unknown } | undefined;
+    const p = params as { content?: Array<{ type: string; text?: string }>; structuredContent?: unknown; _meta?: unknown } | undefined;
     _mcpToolOutput = p?.structuredContent ?? tryParseTextContent(p?.content);
+    // Widget-only side-channel (sessionToken, dexterCardToken). Absent on
+    // hosts that strip _meta — consumers must treat null as "not armed".
+    _mcpToolMeta = p?._meta ?? null;
     notifyMcpListeners();
   });
 
@@ -104,6 +108,27 @@ export function useToolOutput<T = unknown>(): T | null {
       ? () => (window.openai?.toolOutput ?? null) as T | null
       : HOST === 'mcp-apps'
         ? () => _mcpToolOutput as T | null
+        : () => null,
+    () => null,
+  );
+}
+
+/**
+ * Get the tool response _meta — the widget-only side-channel (sessionToken,
+ * dexterCardToken). Never rendered to the model; may be null on hosts that
+ * don't deliver it.
+ */
+export function useToolResponseMetadata<T = Record<string, unknown>>(): T | null {
+  return useSyncExternalStore(
+    HOST === 'chatgpt'
+      ? (onChange) => subscribeChatGPT('toolResponseMetadata', onChange)
+      : HOST === 'mcp-apps'
+        ? (onChange) => subscribeMcpApps(onChange)
+        : () => () => {},
+    HOST === 'chatgpt'
+      ? () => (window.openai?.toolResponseMetadata ?? null) as T | null
+      : HOST === 'mcp-apps'
+        ? () => _mcpToolMeta as T | null
         : () => null,
     () => null,
   );
