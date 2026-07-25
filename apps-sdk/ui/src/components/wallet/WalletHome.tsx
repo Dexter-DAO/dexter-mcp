@@ -88,11 +88,15 @@ export function WalletHome({ payload, cardToken, walletToken, onOpenExternal }: 
   // for the approved layout but routes to the web wallet where agents live.
   const onAgents = () => onOpenExternal(WALLET_URL);
 
-  // ONE quiet invite at a time (calm-surface law): personhood first (the end
-  // game — Branch priority), then the credit line. Verified users with a line
-  // see neither.
-  const showVerifyInvite = (!verified || WALLET_FEATURES.personhoodInvitePreview) && payload.personhood !== undefined;
-  const showCreditInvite = !showVerifyInvite && Boolean(money && !money.hasCreditLine);
+  // ONE quiet invite at a time (calm-surface law). ORDER MATTERS (Branch
+  // ruling, Jul 25): credit FIRST — the vouched tier opens a line with zero
+  // identity claims, so World ID must never read as a prerequisite for
+  // credit. Verification is how the line GROWS (engine contract), so its
+  // invite shows once a line exists. Verified users with a line see neither.
+  const showCreditInvite = Boolean(money && !money.hasCreditLine);
+  const showVerifyInvite = !showCreditInvite
+    && (!verified || WALLET_FEATURES.personhoodInvitePreview)
+    && payload.personhood !== undefined;
 
   return (
     <div className="dxw-widget">
@@ -133,21 +137,21 @@ export function WalletHome({ payload, cardToken, walletToken, onOpenExternal }: 
         </button>
       </div>
 
-      {showVerifyInvite ? (
-        <button className="dxw-invite" onClick={() => onOpenExternal(WALLET_URL)} type="button">
-          <span className="dxw-invite-mark"><WorldMark size={15} /></span>
-          <span>
-            <div className="dxw-invite-main">Prove you're one human</div>
-            <div className="dxw-invite-sub">Verify with World ID — your wallet's foundation for credit</div>
-          </span>
-          <Chevron />
-        </button>
-      ) : showCreditInvite ? (
+      {showCreditInvite ? (
         <button className="dxw-invite" onClick={() => onOpenExternal(WALLET_URL)} type="button">
           <span className="dxw-invite-mark"><CreditMark size={15} /></span>
           <span>
             <div className="dxw-invite-main">Open your credit line</div>
-            <div className="dxw-invite-sub">A $1 line to start — free to open, nothing drawn</div>
+            <div className="dxw-invite-sub">A $1 line to start — free to open, nothing drawn, no ID needed</div>
+          </span>
+          <Chevron />
+        </button>
+      ) : showVerifyInvite ? (
+        <button className="dxw-invite" onClick={() => onOpenExternal(WALLET_URL)} type="button">
+          <span className="dxw-invite-mark"><WorldMark size={15} /></span>
+          <span>
+            <div className="dxw-invite-main">Prove you're one human</div>
+            <div className="dxw-invite-sub">Verify with World ID — verified humans get the bigger lines</div>
           </span>
           <Chevron />
         </button>
