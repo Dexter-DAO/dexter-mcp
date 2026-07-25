@@ -23,7 +23,7 @@ export const CARD_THEMES: Record<CardThemeId, CardTheme> = {
       radial-gradient(ellipse 80% 60% at 100% 100%, rgba(255,60,0,.45) 0%, transparent 60%),
       linear-gradient(135deg, #ff8a3a 0%, #f26b1a 35%, #c84510 75%, #8a2c08 100%)`,
     ink: '#ffffff',
-    network: 'visa',
+    network: 'mastercard', // the Dextercard program is Mastercard (Branch catch, Jul 24 — board #112)
   },
   obsidian: {
     id: 'obsidian',
@@ -32,7 +32,7 @@ export const CARD_THEMES: Record<CardThemeId, CardTheme> = {
       radial-gradient(ellipse 90% 70% at 92% 92%, rgba(20,24,32,.85) 0%, transparent 65%),
       linear-gradient(135deg, #1a1a1c 0%, #121214 35%, #0a0a0c 70%, #050506 100%)`,
     ink: '#d4b87e',
-    network: 'visa',
+    network: 'mastercard', // the Dextercard program is Mastercard (Branch catch, Jul 24 — board #112)
   },
   moonagents: {
     id: 'moonagents',

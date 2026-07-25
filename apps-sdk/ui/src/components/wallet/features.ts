@@ -10,4 +10,10 @@
  */
 export const WALLET_FEATURES = {
   agents: false,
+  /**
+   * Render the World ID verify invite even for verified wallets — Branch's
+   * preview override (he's already Orb-verified and wants to see what new
+   * users get). OFF in production; flip locally for design review.
+   */
+  personhoodInvitePreview: false,
 } as const;

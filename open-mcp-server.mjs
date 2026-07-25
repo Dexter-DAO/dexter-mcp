@@ -1065,8 +1065,11 @@ async function fetchWalletActivity(sessionId) {
     const userHandle = (await bindRes.json())?.user_handle;
     if (!userHandle) return [];
 
+    // NOTE the mount: /activity lives on the passkey-VAULT-anon router
+    // (app.ts:1407), NOT /api/passkey-anon (the binding router — hitting it
+    // 404'd silently and the widget's activity rendered empty; caught Jul 24).
     const actRes = await fetch(
-      `${API_BASE_FALLBACK}/api/passkey-anon/activity?user_handle=${encodeURIComponent(userHandle)}`,
+      `${API_BASE_FALLBACK}/api/passkey-vault-anon/activity?user_handle=${encodeURIComponent(userHandle)}`,
       { signal: AbortSignal.timeout(3000) },
     );
     if (!actRes.ok) return [];
@@ -1142,6 +1145,25 @@ function mintWidgetCardToken(sessionId) {
 }
 function redeemWidgetCardToken(token) {
   const rec = typeof token === 'string' ? widgetCardTokens.get(token) : null;
+  if (!rec || rec.exp < Date.now()) return null;
+  return rec.sessionId;
+}
+
+// Wallet-refresh tokens: same _meta side-channel pattern as the card token,
+// wallet-scoped. The widget polls /widget/wallet/refresh while visible so a
+// landing deposit moves the headline without a tool re-call (board #95 punch).
+const widgetWalletTokens = new Map();
+const WIDGET_WALLET_TOKEN_TTL_MS = 30 * 60 * 1000;
+function mintWidgetWalletToken(sessionId) {
+  for (const [t, rec] of widgetWalletTokens) {
+    if (rec.exp < Date.now()) widgetWalletTokens.delete(t);
+  }
+  const token = randomBytes(24).toString('base64url');
+  widgetWalletTokens.set(token, { sessionId, exp: Date.now() + WIDGET_WALLET_TOKEN_TTL_MS });
+  return token;
+}
+function redeemWidgetWalletToken(token) {
+  const rec = typeof token === 'string' ? widgetWalletTokens.get(token) : null;
   if (!rec || rec.exp < Date.now()) return null;
   return rec.sessionId;
 }
@@ -1379,6 +1401,10 @@ async function x402Wallet(_args, extra) {
   // by the tool registration — the model never sees it.
   const cardSummary = await readCardSummary(sessionId);
 
+  // Personhood: the vault's on-chain World ID weld. Drives the widget's
+  // verified mark / verify invite (board #95 punch — Branch priority).
+  const personhood = { verified: Boolean(onchain?.isVerified) };
+
   let tip;
   if (usdcAvailable === 0) {
     // NOTE: a missing USDC token account does NOT block deposits — the
@@ -1406,7 +1432,9 @@ async function x402Wallet(_args, extra) {
     user_bound: true,
     activity,
     card: cardSummary,
+    personhood,
     _cardToken: cardSummary.status !== 'none' && sessionId ? mintWidgetCardToken(sessionId) : undefined,
+    _walletToken: sessionId ? mintWidgetWalletToken(sessionId) : undefined,
     // Canonical wallet payload — same field names ChatGPT widgets already
     // consume from the legacy session shape, so the widget keeps rendering
     // without a schema change. EVM is honestly null.
@@ -1831,12 +1859,13 @@ function createOpenMcpServer() {
   }, async (args, extra) => {
     try {
       const result = await x402Wallet(args, extra);
-      const { _sessionToken, _cardToken, ...publicResult } = result;
+      const { _sessionToken, _cardToken, _walletToken, ...publicResult } = result;
       const meta = { ...WALLET_META };
       if (_sessionToken) meta.sessionToken = _sessionToken;
-      // Widget-frame-only card credential (reveal/freeze rail). _meta is
-      // invisible to the model — same side-channel as sessionToken.
+      // Widget-frame-only credentials (card reveal/freeze rail + live-balance
+      // refresh). _meta is invisible to the model — sessionToken side-channel.
       if (_cardToken) meta.dexterCardToken = _cardToken;
+      if (_walletToken) meta.dexterWalletToken = _walletToken;
       return { content: [{ type: 'text', text: JSON.stringify(publicResult, null, 2) }], structuredContent: publicResult, _meta: meta };
     } catch (err) {
       const data = { error: err?.message || String(err) };
@@ -2791,6 +2820,46 @@ const httpServer = http.createServer(async (req, res) => {
         respond(200, { ok: true, status: status === 'frozen' ? 'frozen' : 'active' });
       } catch (err) {
         respond(502, { ok: false, error: err?.message || 'card_operation_failed' });
+      }
+    });
+    req.on('error', () => {
+      try { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ ok: false, error: 'request_error' })); } catch {}
+    });
+    return;
+  }
+
+  // ─── /widget/wallet/refresh — live-balance poll for the visible widget ───
+  // Auth = _meta.dexterWalletToken. Returns just enough for the headline to
+  // move when a deposit lands: cash (atomic) + activation state. Bounded by
+  // fetchVaultStateBySession's own 3s timeout; the widget polls ~10s while
+  // visible and stops on its own cap.
+  if (pathname === '/widget/wallet/refresh') {
+    if (req.method !== 'POST') {
+      res.writeHead(405, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, error: 'method_not_allowed' }));
+      return;
+    }
+    let raw = '';
+    req.on('data', (chunk) => { raw += chunk; if (raw.length > 4 * 1024) req.destroy(); });
+    req.on('end', async () => {
+      const respond = (code, body) => {
+        res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+        res.end(JSON.stringify(body));
+      };
+      try {
+        let body = null;
+        try { body = JSON.parse(raw); } catch { /* keep null */ }
+        const sessionId = redeemWidgetWalletToken(body?.token);
+        if (!sessionId) { respond(401, { ok: false, error: 'bad_token' }); return; }
+        const state = await fetchVaultStateBySession(sessionId);
+        if (!state?.vault) { respond(409, { ok: false, error: 'no_vault' }); return; }
+        respond(200, {
+          ok: true,
+          usdcAtomic: String(state.onchain?.usdcAtomic ?? '0'),
+          isActivated: state.vault.isActivated !== false,
+        });
+      } catch (err) {
+        respond(502, { ok: false, error: err?.message || 'refresh_failed' });
       }
     });
     req.on('error', () => {

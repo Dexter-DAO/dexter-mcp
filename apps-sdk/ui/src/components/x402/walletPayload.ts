@@ -7,10 +7,10 @@ export type WalletChainBalance = {
 export type WalletActivityItem = {
   /** ISO timestamp of the event. */
   at: string;
-  kind: 'payment' | 'earn_start' | 'earn_stop';
-  /** Signed USDC delta from the wallet's perspective (payments are negative). */
+  kind: 'payment' | 'earn_start' | 'earn_stop' | 'deposit' | 'withdrawal';
+  /** Signed USDC delta from the wallet's perspective (payments/withdrawals negative). */
   amountUsd: number;
-  /** Human label — the seller host for a payment, else the earning verb. */
+  /** Human label — the seller host for a payment, else the money verb. */
   label: string;
   /** Solana tx signature, when present. */
   sig?: string;
@@ -32,6 +32,8 @@ export type WalletMoney = {
    * attestation). null = don't show a number — never render a stale rate.
    */
   earnRatePct: number | null;
+  /** Whether a credit line is open at all (cap > 0) — drives the open-a-line invite. */
+  hasCreditLine: boolean;
 };
 
 export type WalletCard = {
@@ -58,6 +60,8 @@ export type CanonicalWalletPayload = {
   money?: WalletMoney;
   /** Dextercard summary (reveal/freeze ride the widget-only token, not tools). */
   card?: WalletCard;
+  /** On-chain World ID weld state — drives the verified mark / verify invite. */
+  personhood?: { verified: boolean };
   /** True when open agent tabs gate withdrawal. */
   withdrawalBlocked?: boolean;
   /** Count of open agent tabs against the wallet. */
@@ -173,8 +177,11 @@ export function normalizeWalletPayload(toolOutput: unknown): CanonicalWalletPayl
   const atWorkUsd = ea ? atomicToUsd(ea.baseAtomic) : 0;
   const earnRatePct = ea && typeof ea.ratePct === 'number' && Number.isFinite(ea.ratePct) ? ea.ratePct : null;
   const money: CanonicalWalletPayload['money'] = (sp || cr || ea)
-    ? { spendableUsd, cashUsd, creditAvailableUsd, atWorkUsd, isEarning, earnRatePct }
+    ? { spendableUsd, cashUsd, creditAvailableUsd, atWorkUsd, isEarning, earnRatePct, hasCreditLine: Boolean(cr) }
     : undefined;
+
+  const ph = raw.personhood && typeof raw.personhood === 'object' ? (raw.personhood as Record<string, unknown>) : null;
+  const personhood: CanonicalWalletPayload['personhood'] = ph ? { verified: Boolean(ph.verified) } : undefined;
 
   // Dextercard summary. Anything malformed reads as "no card" — the widget
   // never renders a card state it can't back with server data.
@@ -193,14 +200,20 @@ export function normalizeWalletPayload(toolOutput: unknown): CanonicalWalletPayl
     ? (raw.activity as Record<string, unknown>[])
         .map((it): WalletActivityItem | null => {
           const at = typeof it.at === 'string' ? it.at : null;
-          const kind = it.kind === 'payment' || it.kind === 'earn_start' || it.kind === 'earn_stop' ? it.kind : null;
+          const kind =
+            it.kind === 'payment' || it.kind === 'earn_start' || it.kind === 'earn_stop' ||
+            it.kind === 'deposit' || it.kind === 'withdrawal'
+              ? it.kind
+              : null;
           if (!at || !kind) return null;
           const amountUsd = atomicToUsd(it.amountAtomic);
           const host = typeof it.host === 'string' ? it.host : null;
           const label =
             kind === 'payment' ? (host ?? 'Paid API call')
             : kind === 'earn_start' ? 'Started earning'
-            : 'Stopped earning';
+            : kind === 'earn_stop' ? 'Stopped earning'
+            : kind === 'deposit' ? 'Deposit received'
+            : 'Withdrawal';
           return { at, kind, amountUsd, label, sig: typeof it.sig === 'string' ? it.sig : undefined };
         })
         .filter((x): x is WalletActivityItem => x !== null)
@@ -230,6 +243,7 @@ export function normalizeWalletPayload(toolOutput: unknown): CanonicalWalletPayl
     },
     money,
     card,
+    personhood,
     withdrawalBlocked: typeof raw.withdrawalBlocked === 'boolean' ? raw.withdrawalBlocked : undefined,
     pendingVoucherCount: typeof raw.pendingVoucherCount === 'number' ? raw.pendingVoucherCount : undefined,
     activated:

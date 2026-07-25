@@ -21,8 +21,9 @@ const SETUP_URL = 'https://dexter.cash/wallet/setup-passkey';
 
 function WalletApp() {
   const toolOutput = useToolOutput();
-  const meta = useToolResponseMetadata<{ dexterCardToken?: string }>();
+  const meta = useToolResponseMetadata<{ dexterCardToken?: string; dexterWalletToken?: string }>();
   const cardToken = typeof meta?.dexterCardToken === 'string' ? meta.dexterCardToken : null;
+  const walletToken = typeof meta?.dexterWalletToken === 'string' ? meta.dexterWalletToken : null;
   const payload = useMemo(() => normalizeWalletPayload(toolOutput), [toolOutput]);
   const containerRef = useIntrinsicHeight<HTMLDivElement>();
   useMaxHeight();
@@ -69,7 +70,7 @@ function WalletApp() {
       />
     );
   } else {
-    view = <WalletHome payload={payload} cardToken={cardToken} onOpenExternal={openExternal} />;
+    view = <WalletHome payload={payload} cardToken={cardToken} walletToken={walletToken} onOpenExternal={openExternal} />;
   }
 
   return <div className="dxw-root" ref={containerRef}>{view}</div>;

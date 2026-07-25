@@ -60,7 +60,9 @@ function normalizeWalletPayload(toolOutput) {
   const isEarning = ea ? Boolean(ea.isEarning) : false;
   const atWorkUsd = ea ? atomicToUsd(ea.baseAtomic) : 0;
   const earnRatePct = ea && typeof ea.ratePct === "number" && Number.isFinite(ea.ratePct) ? ea.ratePct : null;
-  const money = sp || cr || ea ? { spendableUsd, cashUsd, creditAvailableUsd, atWorkUsd, isEarning, earnRatePct } : void 0;
+  const money = sp || cr || ea ? { spendableUsd, cashUsd, creditAvailableUsd, atWorkUsd, isEarning, earnRatePct, hasCreditLine: Boolean(cr) } : void 0;
+  const ph = raw.personhood && typeof raw.personhood === "object" ? raw.personhood : null;
+  const personhood = ph ? { verified: Boolean(ph.verified) } : void 0;
   const cardRaw = raw.card && typeof raw.card === "object" ? raw.card : null;
   const cardStatus = cardRaw?.status === "active" || cardRaw?.status === "frozen" ? cardRaw.status : "none";
   const card = cardRaw ? {
@@ -70,11 +72,11 @@ function normalizeWalletPayload(toolOutput) {
   } : void 0;
   const activity = Array.isArray(raw.activity) ? raw.activity.map((it) => {
     const at = typeof it.at === "string" ? it.at : null;
-    const kind = it.kind === "payment" || it.kind === "earn_start" || it.kind === "earn_stop" ? it.kind : null;
+    const kind = it.kind === "payment" || it.kind === "earn_start" || it.kind === "earn_stop" || it.kind === "deposit" || it.kind === "withdrawal" ? it.kind : null;
     if (!at || !kind) return null;
     const amountUsd = atomicToUsd(it.amountAtomic);
     const host = typeof it.host === "string" ? it.host : null;
-    const label = kind === "payment" ? host ?? "Paid API call" : kind === "earn_start" ? "Started earning" : "Stopped earning";
+    const label = kind === "payment" ? host ?? "Paid API call" : kind === "earn_start" ? "Started earning" : kind === "earn_stop" ? "Stopped earning" : kind === "deposit" ? "Deposit received" : "Withdrawal";
     return { at, kind, amountUsd, label, sig: typeof it.sig === "string" ? it.sig : void 0 };
   }).filter((x) => x !== null) : void 0;
   const address = typeof raw.address === "string" ? raw.address : void 0;
@@ -94,6 +96,7 @@ function normalizeWalletPayload(toolOutput) {
     },
     money,
     card,
+    personhood,
     withdrawalBlocked: typeof raw.withdrawalBlocked === "boolean" ? raw.withdrawalBlocked : void 0,
     pendingVoucherCount: typeof raw.pendingVoucherCount === "number" ? raw.pendingVoucherCount : void 0,
     activated: raw.vault && typeof raw.vault === "object" && typeof raw.vault.isActivated === "boolean" ? raw.vault.isActivated : raw.mode === "vault_ready" ? true : void 0,
@@ -118,6 +121,14 @@ function normalizeWalletPayload(toolOutput) {
     } : void 0
   };
 }
+const WALLET_FEATURES = {
+  /**
+   * Render the World ID verify invite even for verified wallets — Branch's
+   * preview override (he's already Orb-verified and wants to see what new
+   * users get). OFF in production; flip locally for design review.
+   */
+  personhoodInvitePreview: false
+};
 function Lockup({ width = 122 }) {
   return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dxw-lockup", "aria-label": "Dexter Wallet", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("svg", { viewBox: "0 0 662 142", width, height: width * (142 / 662), role: "img", xmlns: "http://www.w3.org/2000/svg", children: [
     /* @__PURE__ */ jsxRuntimeExports.jsxs("g", { transform: "translate(-16.45,-27.42) scale(0.60944)", children: [
@@ -249,7 +260,8 @@ const CARD_THEMES = {
       radial-gradient(ellipse 80% 60% at 100% 100%, rgba(255,60,0,.45) 0%, transparent 60%),
       linear-gradient(135deg, #ff8a3a 0%, #f26b1a 35%, #c84510 75%, #8a2c08 100%)`,
     ink: "#ffffff",
-    network: "visa"
+    network: "mastercard"
+    // the Dextercard program is Mastercard (Branch catch, Jul 24 — board #112)
   },
   obsidian: {
     id: "obsidian",
@@ -258,7 +270,8 @@ const CARD_THEMES = {
       radial-gradient(ellipse 90% 70% at 92% 92%, rgba(20,24,32,.85) 0%, transparent 65%),
       linear-gradient(135deg, #1a1a1c 0%, #121214 35%, #0a0a0c 70%, #050506 100%)`,
     ink: "#d4b87e",
-    network: "visa"
+    network: "mastercard"
+    // the Dextercard program is Mastercard (Branch catch, Jul 24 — board #112)
   },
   moonagents: {
     id: "moonagents",
@@ -321,6 +334,11 @@ const MoonPayMark = () => /* @__PURE__ */ jsxRuntimeExports.jsxs("svg", { width:
 const CoinbaseMark = () => /* @__PURE__ */ jsxRuntimeExports.jsxs("svg", { width: "30", height: "30", viewBox: "0 0 30 30", "aria-hidden": "true", children: [
   /* @__PURE__ */ jsxRuntimeExports.jsx("circle", { cx: "15", cy: "15", r: "15", fill: "#0052FF" }),
   /* @__PURE__ */ jsxRuntimeExports.jsx("path", { d: "M15 7.4a7.6 7.6 0 1 0 7.4 9.5h-4.1a3.7 3.7 0 1 1 0-3.8h4.1A7.6 7.6 0 0 0 15 7.4z", fill: "#fff" })
+] });
+const WorldMark = ({ size = 13 }) => /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { width: size, height: size, viewBox: "0 0 24 24", fill: "none", "aria-hidden": true, children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { fill: "currentColor", d: "M16.5125 4.20334C15.1337 3.40111 13.6295 3 12 3C10.3705 3 8.86629 3.40111 7.48746 4.20334C6.10863 5.00557 5.00557 6.10863 4.20334 7.48746C3.40111 8.86629 3 10.3705 3 12C3 13.6295 3.40111 15.1337 4.20334 16.5125C5.00557 17.8914 6.10863 18.9944 7.48746 19.7967C8.86629 20.5989 10.3705 21 12 21C13.6295 21 15.1337 20.5989 16.5125 19.7967C17.8914 18.9944 18.9944 17.8914 19.7967 16.5125C20.5989 15.1337 21 13.6295 21 12C21 10.3705 20.5989 8.86629 19.7967 7.48746C18.9944 6.10863 17.8914 5.00557 16.5125 4.20334ZM12.5515 15.2591C11.5237 15.2591 10.7214 14.9582 10.0947 14.3816C9.66852 13.9805 9.39276 13.5042 9.26741 12.9276H18.9944C18.8941 13.7549 18.6435 14.532 18.2925 15.2591H12.5766H12.5515ZM9.26741 11.0975C9.39276 10.546 9.66852 10.0446 10.0947 9.64345C10.7214 9.06685 11.5237 8.76602 12.5515 8.76602H18.2925C18.6685 9.49304 18.8941 10.2702 18.9944 11.0975H9.26741ZM5.90808 8.41504C6.53482 7.33705 7.38719 6.45961 8.46518 5.83287C9.54317 5.20613 10.7214 4.88022 12.0251 4.88022C13.3287 4.88022 14.507 5.20613 15.585 5.83287C16.1365 6.15877 16.6128 6.53482 17.0641 6.98607H12.5265C11.4986 6.98607 10.571 7.2117 9.7688 7.63788C8.96657 8.06407 8.33983 8.66574 7.91365 9.41783C7.61281 9.94429 7.41226 10.5209 7.31198 11.1226H5.08078C5.18106 10.1699 5.48189 9.26741 5.95822 8.44011L5.90808 8.41504ZM15.5599 18.1671C14.4819 18.7939 13.3036 19.1198 12 19.1198C10.6964 19.1198 9.51811 18.7939 8.44011 18.1671C7.36212 17.5404 6.50975 16.663 5.88301 15.585C5.40669 14.7577 5.10585 13.8802 5.00557 12.9276H7.23677C7.33705 13.5292 7.5376 14.1058 7.83844 14.6323C8.28969 15.3844 8.91643 15.961 9.69359 16.4123C10.4958 16.8384 11.4234 17.0641 12.4513 17.0641H16.9638C16.5376 17.4902 16.0613 17.8663 15.5348 18.1671H15.5599Z" }) });
+const CreditMark = ({ size = 13 }) => /* @__PURE__ */ jsxRuntimeExports.jsxs("svg", { width: size, height: size, viewBox: "0 0 24 24", fill: "none", "aria-hidden": true, children: [
+  /* @__PURE__ */ jsxRuntimeExports.jsx("circle", { cx: "12", cy: "12", r: "8.5", stroke: "currentColor", strokeWidth: "1.6" }),
+  /* @__PURE__ */ jsxRuntimeExports.jsx("path", { d: "M12 8v8M8.5 12h7", stroke: "currentColor", strokeWidth: "1.6", strokeLinecap: "round" })
 ] });
 const CARD_RAIL = "https://open.dexter.cash/widget/card";
 const CARD_SIGNUP_URL = "https://dexter.cash/dextercard";
@@ -541,22 +559,64 @@ function ActivitySheet({ items, onClose }) {
 }
 const WALLET_URL$1 = "https://dexter.cash/wallet";
 const DEPOSIT_URL = "https://dexter.cash/wallet/deposit";
-function WalletHome({ payload, cardToken, onOpenExternal }) {
+const WALLET_RAIL = "https://open.dexter.cash/widget/wallet";
+const REFRESH_EVERY_MS = 1e4;
+const REFRESH_MAX_MS = 15 * 6e4;
+function WalletHome({ payload, cardToken, walletToken, onOpenExternal }) {
   const [sheet, setSheet] = reactExports.useState(null);
   const [cardTheme, setCardTheme] = reactExports.useState("obsidian");
+  const [liveCashUsd, setLiveCashUsd] = reactExports.useState(null);
+  const startedAt = reactExports.useRef(Date.now());
   const money = payload.money;
-  const own = money ? money.cashUsd : payload.balances.usdc;
+  const payloadCash = money ? money.cashUsd : payload.balances.usdc;
+  const own = liveCashUsd ?? payloadCash;
   const credit = money ? money.creditAvailableUsd : 0;
   const atWork = money ? money.atWorkUsd : 0;
-  const spendable = money ? money.spendableUsd : payload.balances.usdc;
+  const payloadSpendable = money ? money.spendableUsd : payload.balances.usdc;
+  const spendable = payloadSpendable + (own - payloadCash);
   const address = payload.solanaAddress || payload.address;
   const activity = payload.activity ?? [];
   const latest = activity[0];
+  const verified = payload.personhood?.verified === true;
+  reactExports.useEffect(() => {
+    if (!walletToken) return;
+    let stopped = false;
+    const tick = async () => {
+      if (stopped || document.visibilityState !== "visible") return;
+      if (Date.now() - startedAt.current > REFRESH_MAX_MS) return;
+      try {
+        const res = await fetch(`${WALLET_RAIL}/refresh`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token: walletToken })
+        });
+        const body = await res.json();
+        if (!stopped && res.ok && body?.ok && typeof body.usdcAtomic === "string") {
+          const usd = Number(body.usdcAtomic) / 1e6;
+          if (Number.isFinite(usd)) setLiveCashUsd(usd);
+        }
+      } catch {
+      }
+    };
+    const id = setInterval(tick, REFRESH_EVERY_MS);
+    return () => {
+      stopped = true;
+      clearInterval(id);
+    };
+  }, [walletToken]);
   const onAgents = () => onOpenExternal(WALLET_URL$1);
+  const showVerifyInvite = (!verified || WALLET_FEATURES.personhoodInvitePreview) && payload.personhood !== void 0;
+  const showCreditInvite = !showVerifyInvite && Boolean(money && !money.hasCreditLine);
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dxw-widget", children: [
     /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dxw-head", children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx(Lockup, {}),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dxw-custody", children: "Held by your passkey" })
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "dxw-custody", children: [
+        "Held by your passkey",
+        verified ? /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "dxw-verified", title: "World ID verified — one unique human", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(WorldMark, {}),
+          " Verified human"
+        ] }) : null
+      ] })
     ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(SpendHeadline, { value: spendable }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(CompositionBar, { own, credit, atWork, earnPct: money?.earnRatePct ?? null }),
@@ -588,6 +648,21 @@ function WalletHome({ payload, cardToken, onOpenExternal }) {
         " Activity"
       ] })
     ] }),
+    showVerifyInvite ? /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { className: "dxw-invite", onClick: () => onOpenExternal(WALLET_URL$1), type: "button", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dxw-invite-mark", children: /* @__PURE__ */ jsxRuntimeExports.jsx(WorldMark, { size: 15 }) }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "dxw-invite-main", children: "Prove you're one human" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "dxw-invite-sub", children: "Verify with World ID — your wallet's foundation for credit" })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(Chevron, {})
+    ] }) : showCreditInvite ? /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { className: "dxw-invite", onClick: () => onOpenExternal(WALLET_URL$1), type: "button", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dxw-invite-mark", children: /* @__PURE__ */ jsxRuntimeExports.jsx(CreditMark, { size: 15 }) }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "dxw-invite-main", children: "Open your credit line" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "dxw-invite-sub", children: "A $1 line to start — free to open, nothing drawn" })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(Chevron, {})
+    ] }) : null,
     latest ? /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { className: "dxw-last-tx", onClick: () => setSheet("activity"), type: "button", children: [
       /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "dxw-tx-main", children: latest.label }),
@@ -623,6 +698,7 @@ function WalletApp() {
   const toolOutput = useToolOutput();
   const meta = useToolResponseMetadata();
   const cardToken = typeof meta?.dexterCardToken === "string" ? meta.dexterCardToken : null;
+  const walletToken = typeof meta?.dexterWalletToken === "string" ? meta.dexterWalletToken : null;
   const payload = reactExports.useMemo(() => normalizeWalletPayload(toolOutput), [toolOutput]);
   const containerRef = useIntrinsicHeight();
   useMaxHeight();
@@ -664,7 +740,7 @@ function WalletApp() {
       }
     );
   } else {
-    view = /* @__PURE__ */ jsxRuntimeExports.jsx(WalletHome, { payload, cardToken, onOpenExternal: openExternal });
+    view = /* @__PURE__ */ jsxRuntimeExports.jsx(WalletHome, { payload, cardToken, walletToken, onOpenExternal: openExternal });
   }
   return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "dxw-root", ref: containerRef, children: view });
 }

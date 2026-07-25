@@ -140,6 +140,72 @@
   font-style: italic; font-weight: 800; font-size: 16px; letter-spacing: .08em;
 }
 
+/* Verified-human mark: quiet second line under the custody note, right-aligned
+   so it never crowds the lockup. */
+.dxw-custody { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.dxw-verified {
+  display: inline-flex; align-items: center; gap: 4px;
+  color: var(--ink-2);
+}
+.dxw-verified svg { opacity: .85; }
+
+/* The single quiet invite (personhood or credit — never both). */
+.dxw-invite {
+  margin-top: 14px;
+  display: flex; align-items: center; gap: 12px;
+  width: 100%; text-align: left;
+  padding: 11px 12px;
+  border: 1px solid color-mix(in srgb, var(--ink-2) 22%, transparent);
+  border-radius: 10px;
+  background: transparent; cursor: pointer;
+  color: inherit;
+}
+.dxw-invite-mark {
+  display: flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 50%;
+  background: color-mix(in srgb, var(--ink-2) 12%, transparent);
+  color: var(--ink-1, currentColor);
+  flex: none;
+}
+.dxw-invite > span:nth-child(2) { flex: 1; min-width: 0; }
+.dxw-invite-main { font-size: 13px; font-weight: 600; }
+.dxw-invite-sub { font-size: 11.5px; color: var(--ink-2); margin-top: 1px; }
+
+/* ---------- compact fit under host height caps (board #95 punch) ----------
+   Branch's law: compaction = whitespace and rhythm ONLY — nothing is ever
+   removed. Two steps down as the host's clamp tightens. */
+@media (max-height: 720px) {
+  .dxw-card { margin-top: 16px; padding: 14px 18px 13px; }
+  .dxw-chip { margin-top: 14px; }
+  .dxw-pan { margin-top: 12px; }
+  .dxw-comp { margin-top: 14px; }
+  .dxw-actions { margin-top: 14px; }
+  .dxw-invite { margin-top: 11px; padding: 9px 11px; }
+  .dxw-last-tx { margin-top: 11px; }
+}
+@media (max-height: 600px) {
+  .dxw-head { margin-bottom: 2px; }
+  /* Everything stays; geometry shrinks. The card keeps its aspect ratio but
+     narrows (centered), which is where the real height comes back. */
+  .dxw-hero { margin-top: 10px; }
+  .dxw-spend-amount { font-size: 34px; }
+  .dxw-spend-amount .dxw-cur, .dxw-spend-amount .dxw-cents { font-size: 18px; }
+  .dxw-card { margin-top: 11px; padding: 12px 16px 11px; max-width: 76%; margin-inline: auto; border-radius: 11px; }
+  .dxw-chip { margin-top: 6px; }
+  .dxw-chip svg { width: 30px; height: auto; }
+  .dxw-pan { margin-top: 6px; font-size: 12px; gap: 7px; letter-spacing: .04em; }
+  .dxw-pan .dxw-reveal { font-size: 9.5px; gap: 3px; }
+  .dxw-card-brand { font-size: 11px; }
+  .dxw-holder { font-size: 9.5px; }
+  .dxw-exp { font-size: 10px; }
+  .dxw-comp { margin-top: 10px; }
+  .dxw-actions { margin-top: 10px; }
+  .dxw-action { padding-top: 8px; padding-bottom: 8px; }
+  .dxw-invite { margin-top: 9px; padding: 8px 10px; }
+  .dxw-last-tx { margin-top: 9px; padding-top: 8px; padding-bottom: 8px; }
+  .dxw-card-status { margin-top: 8px; }
+}
+
 /* Frozen: the face frosts over; controls stay tappable above the veil. */
 .dxw-card-frozen::after {
   content: '';
