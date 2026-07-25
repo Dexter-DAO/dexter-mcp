@@ -51,6 +51,12 @@ export const NetworkMark = ({ network, color }: { network: 'visa' | 'mastercard'
 export const DepositIcon = () => (
   <svg width="20" height="20" viewBox="0 0 20 20" fill="none" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M10 3v9.2M10 12.2 6.6 8.8M10 12.2l3.4-3.4" /><path d="M3.5 13.8v1.7a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2v-1.7" /></svg>
 );
+export const AssetsIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M3 6.25 10 3l7 3.25-7 3.25L3 6.25Z" />
+    <path d="m3 10.1 7 3.25 7-3.25M3 13.85l7 3.25 7-3.25" />
+  </svg>
+);
 export const CardIcon = () => (
   <svg width="20" height="20" viewBox="0 0 20 20" fill="none" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true"><rect x="2.5" y="4.5" width="15" height="11.5" rx="2" /><path d="M2.5 8.75h15" /></svg>
 );

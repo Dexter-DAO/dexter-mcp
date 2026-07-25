@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { CanonicalWalletPayload } from '../x402';
-import { WALLET_FEATURES } from './features';
+import type { CanonicalWalletPayload } from '../x402/walletPayload';
 import { Lockup } from './Lockup';
 import { SpendHeadline } from './SpendHeadline';
 import { CompositionBar } from './CompositionBar';
@@ -8,12 +7,10 @@ import { CardFace } from './CardFace';
 import { DepositSheet } from './DepositSheet';
 import { ActivitySheet } from './ActivitySheet';
 import { CreditSheet } from './CreditSheet';
+import { AssetsSheet } from './AssetsSheet';
 import { fmtSignedUsd, relativeTime } from './format';
 import type { CardThemeId } from './cardThemes';
-import { ActivityIcon, AgentsIcon, CardIcon, Chevron, CreditMark, DepositIcon, WorldMark } from './icons';
-
-const WALLET_URL = 'https://dexter.cash/wallet';
-const DEPOSIT_URL = 'https://dexter.cash/wallet/deposit';
+import { ActivityIcon, AssetsIcon, Chevron, CreditMark, DepositIcon, WorldMark } from './icons';
 // Widget-frame-only refresh rail (auth = _meta.dexterWalletToken).
 const WALLET_RAIL = 'https://open.dexter.cash/widget/wallet';
 // Poll cadence + cap: enough to catch a deposit landing while the user
@@ -21,7 +18,7 @@ const WALLET_RAIL = 'https://open.dexter.cash/widget/wallet';
 const REFRESH_EVERY_MS = 10_000;
 const REFRESH_MAX_MS = 15 * 60_000;
 
-type OpenSheet = null | 'deposit' | 'activity' | 'credit';
+type OpenSheet = null | 'deposit' | 'assets' | 'activity' | 'credit';
 
 /**
  * The calm home (direction B): spendable headline, composition bar, card face,
@@ -43,6 +40,7 @@ export function WalletHome({ payload, cardToken, walletToken, onOpenExternal }: 
   onOpenExternal: (url: string) => void;
 }) {
   const [sheet, setSheet] = useState<OpenSheet>(null);
+  const [receiveAsset, setReceiveAsset] = useState<string | null>(null);
   const [cardTheme, setCardTheme] = useState<CardThemeId>('obsidian');
   // Live cash (USD) from the refresh rail; null until the first poll lands.
   const [liveCashUsd, setLiveCashUsd] = useState<number | null>(null);
@@ -85,19 +83,10 @@ export function WalletHome({ payload, cardToken, walletToken, onOpenExternal }: 
     return () => { stopped = true; clearInterval(id); };
   }, [walletToken]);
 
-  // Agents ruled out of this renderer for now (features.ts) — the button stays
-  // for the approved layout but routes to the web wallet where agents live.
-  const onAgents = () => onOpenExternal(WALLET_URL);
-
-  // ONE quiet invite at a time (calm-surface law). ORDER MATTERS (Branch
-  // ruling, Jul 25): credit FIRST — the vouched tier opens a line with zero
-  // identity claims, so World ID must never read as a prerequisite for
-  // credit. Verification is how the line GROWS (engine contract), so its
-  // invite shows once a line exists. Verified users with a line see neither.
-  const showCreditInvite = Boolean(money && !money.hasCreditLine);
-  const showVerifyInvite = !showCreditInvite
-    && (!verified || WALLET_FEATURES.personhoodInvitePreview)
-    && payload.personhood !== undefined;
+  // Kept in the signature because the entry's host adapter owns external
+  // navigation. This read-only Money slice intentionally exposes no external
+  // acquisition, credit-opening, card-signup, or movement handoff.
+  void onOpenExternal;
 
   return (
     <div className="dxw-widget">
@@ -126,43 +115,37 @@ export function WalletHome({ payload, cardToken, walletToken, onOpenExternal }: 
         card={payload.card ?? { status: 'none', last4: null, expiry: null }}
         cardToken={cardToken}
         onTheme={setCardTheme}
-        onOpenExternal={onOpenExternal}
       />
 
       <div className="dxw-actions">
-        <button className="dxw-action dxw-primary" onClick={() => setSheet('deposit')} type="button">
-          <DepositIcon /> Deposit
+        <button
+          className="dxw-action dxw-primary"
+          onClick={() => {
+            setReceiveAsset(null);
+            setSheet('deposit');
+          }}
+          type="button"
+        >
+          <DepositIcon /> Receive
         </button>
-        <button className="dxw-action" onClick={() => onOpenExternal(WALLET_URL)} type="button">
-          <CardIcon /> Card
+        <button className="dxw-action" onClick={() => setSheet('assets')} type="button">
+          <AssetsIcon /> Assets
         </button>
-        <button className="dxw-action" onClick={onAgents} type="button">
-          <AgentsIcon /> Agents
+        <button
+          className="dxw-action"
+          onClick={money?.hasCreditLine ? () => setSheet('credit') : undefined}
+          disabled={!money?.hasCreditLine}
+          type="button"
+        >
+          <CreditMark size={20} /> Credit
+          {!money?.hasCreditLine ? (
+            <span className="dxw-action-note">No line reported</span>
+          ) : null}
         </button>
         <button className="dxw-action" onClick={() => setSheet('activity')} type="button">
           <ActivityIcon /> Activity
         </button>
       </div>
-
-      {showCreditInvite ? (
-        <button className="dxw-invite" onClick={() => onOpenExternal(WALLET_URL)} type="button">
-          <span className="dxw-invite-mark"><CreditMark size={15} /></span>
-          <span>
-            <div className="dxw-invite-main">Open your credit line</div>
-            <div className="dxw-invite-sub">A dollar of trust to start</div>
-          </span>
-          <Chevron />
-        </button>
-      ) : showVerifyInvite ? (
-        <button className="dxw-invite" onClick={() => onOpenExternal(WALLET_URL)} type="button">
-          <span className="dxw-invite-mark"><WorldMark size={15} /></span>
-          <span>
-            <div className="dxw-invite-main">Verify with World ID</div>
-            <div className="dxw-invite-sub">Verified humans get bigger lines</div>
-          </span>
-          <Chevron />
-        </button>
-      ) : null}
 
       {latest ? (
         <button className="dxw-last-tx" onClick={() => setSheet('activity')} type="button">
@@ -176,7 +159,22 @@ export function WalletHome({ payload, cardToken, walletToken, onOpenExternal }: 
       ) : null}
 
       {sheet === 'deposit' ? (
-        <DepositSheet address={address} depositUrl={DEPOSIT_URL} onOpenExternal={onOpenExternal} onClose={() => setSheet(null)} />
+        <DepositSheet
+          address={address}
+          assetSymbol={receiveAsset ?? undefined}
+          onClose={() => setSheet(null)}
+        />
+      ) : null}
+      {sheet === 'assets' ? (
+        <AssetsSheet
+          portfolio={payload.portfolio}
+          receiveAvailable={Boolean(address)}
+          onReceive={(holding) => {
+            setReceiveAsset(holding.symbol);
+            setSheet('deposit');
+          }}
+          onClose={() => setSheet(null)}
+        />
       ) : null}
       {sheet === 'activity' ? (
         <ActivitySheet items={activity} onClose={() => setSheet(null)} />
@@ -189,9 +187,6 @@ export function WalletHome({ payload, cardToken, walletToken, onOpenExternal }: 
           onClose={() => setSheet(null)}
         />
       ) : null}
-
-      {/* WALLET_FEATURES.agents is off; when enabled, the AgentsSheet mounts here. */}
-      {WALLET_FEATURES.agents ? null : null}
     </div>
   );
 }

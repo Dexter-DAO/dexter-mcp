@@ -1,3 +1,8 @@
+import {
+  normalizePortfolioRead,
+  type PortfolioReadState,
+} from '../wallet/portfolioModel';
+
 export type WalletChainBalance = {
   available: string;
   name: string;
@@ -74,6 +79,11 @@ export type CanonicalWalletPayload = {
   activated?: boolean;
   /** Recent recorded money events, newest first (real data from /activity). */
   activity?: WalletActivityItem[];
+  /**
+   * Portfolio inventory is independent from cash/credit. It is always present
+   * as an explicit read state, and never participates in spendable arithmetic.
+   */
+  portfolio: PortfolioReadState;
   supportedNetworks?: string[];
   tip?: string;
   error?: string;
@@ -233,6 +243,11 @@ export function normalizeWalletPayload(toolOutput: unknown): CanonicalWalletPayl
     typeof raw.solanaAddress === 'string'
       ? raw.solanaAddress
       : address;
+  const portfolio = normalizePortfolioRead(raw.portfolio, solanaAddress);
+  const vaultRecord =
+    raw.vault && typeof raw.vault === 'object'
+      ? (raw.vault as Record<string, unknown>)
+      : null;
 
   return {
     address,
@@ -253,13 +268,24 @@ export function normalizeWalletPayload(toolOutput: unknown): CanonicalWalletPayl
     money,
     card,
     personhood,
-    withdrawalBlocked: typeof raw.withdrawalBlocked === 'boolean' ? raw.withdrawalBlocked : undefined,
-    pendingVoucherCount: typeof raw.pendingVoucherCount === 'number' ? raw.pendingVoucherCount : undefined,
+    withdrawalBlocked:
+      typeof raw.withdrawalBlocked === 'boolean'
+        ? raw.withdrawalBlocked
+        : typeof vaultRecord?.withdrawalBlocked === 'boolean'
+          ? vaultRecord.withdrawalBlocked
+          : undefined,
+    pendingVoucherCount:
+      typeof raw.pendingVoucherCount === 'number'
+        ? raw.pendingVoucherCount
+        : typeof vaultRecord?.pendingVoucherCount === 'number'
+          ? vaultRecord.pendingVoucherCount
+          : undefined,
     activated:
       raw.vault && typeof raw.vault === 'object' && typeof (raw.vault as Record<string, unknown>).isActivated === 'boolean'
         ? (raw.vault as Record<string, unknown>).isActivated as boolean
         : raw.mode === 'vault_ready' ? true : undefined,
     activity,
+    portfolio,
     supportedNetworks: Array.isArray(raw.supportedNetworks)
       ? raw.supportedNetworks.filter((v): v is string => typeof v === 'string')
       : undefined,

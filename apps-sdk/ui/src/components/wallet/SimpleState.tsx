@@ -8,8 +8,8 @@ import { Lockup } from './Lockup';
 export function SimpleState({ title, body, cta, href, onOpenExternal }: {
   title: string;
   body: string;
-  cta: string;
-  href: string;
+  cta?: string;
+  href?: string;
   onOpenExternal: (url: string) => void;
 }) {
   return (
@@ -21,7 +21,9 @@ export function SimpleState({ title, body, cta, href, onOpenExternal }: {
       <div className="dxw-simple">
         <div className="dxw-simple-title">{title}</div>
         <div className="dxw-simple-body">{body}</div>
-        <button className="dxw-cta" onClick={() => onOpenExternal(href)} type="button">{cta}</button>
+        {cta && href ? (
+          <button className="dxw-cta" onClick={() => onOpenExternal(href)} type="button">{cta}</button>
+        ) : null}
       </div>
     </div>
   );

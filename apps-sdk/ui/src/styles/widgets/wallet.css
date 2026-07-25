@@ -5,17 +5,20 @@
  */
 
 .dxw-root {
-  --page:    #F1EEE8;
-  --paper:   #FFFDF9;
-  --ink:     #1D1710;
-  --ink-2:   #6F6659;
-  --ink-3:   #A39784;
-  --hair:    rgba(61, 50, 39, .10);
-  --hair-2:  rgba(61, 50, 39, .16);
-  --ember:   #F2681A;
+  --page:    var(--color-background-secondary, #F1EEE8);
+  --paper:   var(--color-background-primary, #FFFDF9);
+  --ink:     var(--color-text-primary, #1D1710);
+  --ink-2:   var(--color-text-secondary, #6F6659);
+  /* Meaningful small copy must remain readable even when a host's tertiary
+     token is decorative/low contrast. */
+  --ink-3:   var(--color-text-secondary, #6F6659);
+  --hair:    var(--color-border-tertiary, rgba(61, 50, 39, .10));
+  --hair-2:  var(--color-border-secondary, rgba(61, 50, 39, .16));
+  --ember:   var(--color-ring-primary, #F2681A);
+  --ember-ink: color-mix(in srgb, var(--ember) 52%, var(--ink));
   --gold:    #CBAD72;
   --card-gold: #d4b87e;
-  font-family: "Inter", system-ui, sans-serif;
+  font-family: var(--font-sans, "Inter", system-ui, sans-serif);
   color: var(--ink);
   -webkit-font-smoothing: antialiased;
 }
@@ -25,6 +28,10 @@
 :where(.dxw-root) button {
   font: inherit; background: none; border: none; cursor: pointer;
   color: inherit; text-align: inherit; padding: 0;
+}
+.dxw-root button:focus-visible {
+  outline: 2px solid var(--ember);
+  outline-offset: 2px;
 }
 .dxw-mono { font-family: "JetBrains Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; }
 
@@ -112,6 +119,7 @@
   font-size: 11px; font-weight: 500;
   border: 1px solid rgba(212, 184, 126, .32);
   border-radius: 999px; padding: 5px 11px;
+  cursor: default;
 }
 .dxw-freeze svg { display: block; }
 .dxw-chip { margin-top: 22px; }
@@ -127,7 +135,11 @@
   display: flex; align-items: center; gap: 5px;
   font-family: "Inter", sans-serif; font-size: 10.5px; letter-spacing: .01em;
   white-space: nowrap;
+  min-height: 40px;
+  padding-block: 12px;
+  margin-block: -12px;
 }
+.dxw-pan .dxw-reveal-unavailable { cursor: default; opacity: .72; }
 .dxw-card-bottom {
   margin-top: auto;
   display: flex; align-items: flex-end; justify-content: space-between;
@@ -286,12 +298,16 @@ button.dxw-comp {
   display: flex; align-items: center; justify-content: space-between;
   font-size: 12px; color: var(--ink-2);
 }
-.dxw-swatches { display: flex; align-items: center; gap: 8px; }
-.dxw-swatch { width: 12px; height: 12px; border-radius: 50%; cursor: pointer; border: none; }
-.dxw-swatch-orange { background: linear-gradient(135deg, #ff8a3a, #c84510); }
-.dxw-swatch-obsidian { background: linear-gradient(135deg, #1a1a1c, #050506); }
-.dxw-swatch-moon { background: linear-gradient(135deg, #2a3548, #0a0d18); }
-.dxw-swatch[aria-pressed="true"] { box-shadow: 0 0 0 1.5px var(--paper), 0 0 0 3px var(--ember); }
+.dxw-swatches { display: flex; align-items: center; gap: 0; }
+.dxw-swatch {
+  width: 40px; height: 40px; border-radius: 50%; cursor: pointer; border: none;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.dxw-swatch > span { width: 12px; height: 12px; border-radius: 50%; }
+.dxw-swatch-orange > span { background: linear-gradient(135deg, #ff8a3a, #c84510); }
+.dxw-swatch-obsidian > span { background: linear-gradient(135deg, #1a1a1c, #050506); }
+.dxw-swatch-moon > span { background: linear-gradient(135deg, #2a3548, #0a0d18); }
+.dxw-swatch[aria-pressed="true"] > span { box-shadow: 0 0 0 1.5px var(--paper), 0 0 0 3px var(--ember); }
 
 /* ---------- actions ---------- */
 .dxw-actions {
@@ -302,10 +318,19 @@ button.dxw-comp {
   display: flex; flex-direction: column; align-items: center; gap: 7px;
   padding: 12px 0 13px; border-radius: 12px;
   font-size: 12px; font-weight: 500; color: #3A2E24;
+  min-height: 48px;
 }
 .dxw-action:hover { background: rgba(242, 104, 26, .05); }
+.dxw-action:disabled { opacity: .42; cursor: default; }
+.dxw-action:disabled:hover { background: transparent; }
 .dxw-action svg { display: block; stroke: var(--ink-2); }
 .dxw-action.dxw-primary svg { stroke: var(--ember); }
+.dxw-action-note {
+  margin-top: -4px;
+  color: var(--ink-2);
+  font-size: 9.5px;
+  font-weight: 400;
+}
 
 /* last transaction teaser */
 .dxw-last-tx {
@@ -332,44 +357,28 @@ button.dxw-comp {
   background: var(--paper);
   border-radius: 18px 18px 24px 24px;
   box-shadow: 0 -14px 44px rgba(24, 16, 9, .28);
-  padding: 8px 22px 22px;
+  padding: 20px 22px 22px;
+  max-height: calc(100% - 12px);
+  overflow-y: auto;
   z-index: 6;
   animation: dxw-rise .26s cubic-bezier(.2, .8, .2, 1);
 }
 @keyframes dxw-rise { from { transform: translateY(100%); } to { transform: translateY(0); } }
-.dxw-grabber { width: 36px; height: 4px; border-radius: 999px; background: #E2D9CB; margin: 4px auto 16px; }
 .dxw-sheet h2 {
   font-family: "Inter Display", "Inter", sans-serif;
   font-size: 18px; font-weight: 600; letter-spacing: -.01em; color: var(--ink);
   margin: 0;
 }
 .dxw-sheet-close {
-  position: absolute; top: 14px; right: 16px;
-  width: 28px; height: 28px; border-radius: 50%;
+  position: absolute; top: 10px; right: 16px;
+  width: 40px; height: 40px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  color: var(--ink-3);
+  color: var(--ink-2);
 }
 .dxw-sheet-close:hover { background: rgba(61, 50, 39, .06); color: var(--ink-2); }
 
-/* deposit sheet */
-.dxw-fund-row {
-  display: flex; align-items: center; gap: 13px;
-  padding: 15px 0; width: 100%;
-}
-.dxw-fund-row + .dxw-fund-row { border-top: 1px solid var(--hair); }
-.dxw-fund-row .dxw-mark { flex: none; }
-.dxw-fund-row .dxw-f-main { font-size: 14px; font-weight: 500; color: var(--ink); }
-.dxw-fund-row .dxw-f-sub { font-size: 12px; color: var(--ink-3); margin-top: 2px; }
-.dxw-fund-row .dxw-f-meta { margin-left: auto; font-size: 11.5px; color: var(--ink-3); display: flex; align-items: center; gap: 6px; }
-
-.dxw-or {
-  display: flex; align-items: center; gap: 12px;
-  font-size: 11.5px; color: var(--ink-3);
-  margin: 6px 0 16px;
-}
-.dxw-or::before, .dxw-or::after { content: ""; flex: 1; height: 1px; background: var(--hair); }
-
-.dxw-receive { display: flex; gap: 16px; align-items: flex-start; }
+/* receive sheet */
+.dxw-receive { display: flex; gap: 16px; align-items: flex-start; margin-top: 20px; }
 .dxw-qr-tile {
   flex: none; width: 104px; height: 104px;
   background: #fff; border: 1px solid var(--hair-2); border-radius: 10px;
@@ -383,11 +392,230 @@ button.dxw-comp {
   display: inline-flex; align-items: center; gap: 8px;
   background: #F6F1E9; border-radius: 8px;
   padding: 7px 11px;
+  min-height: 40px;
   font-size: 12px; color: #3A2E24;
 }
 .dxw-addr:hover { background: #F1EAE0; }
+.dxw-addr:disabled { opacity: .5; cursor: default; }
 .dxw-addr svg { display: block; stroke: var(--ink-2); }
 .dxw-footnote { margin-top: 16px; font-size: 11px; color: var(--ink-3); line-height: 1.5; }
+
+/* ---------- unified assets sheet ---------- */
+.dxw-assets-summary {
+  margin-top: 14px;
+  padding: 12px 0 16px;
+  border-bottom: 1px solid var(--hair);
+}
+.dxw-assets-summary-label {
+  color: var(--ink-2);
+  font-size: 11.5px;
+}
+.dxw-assets-summary-value {
+  margin-top: 5px;
+  color: var(--ink);
+  font-size: 28px;
+  line-height: 1.05;
+  letter-spacing: -.025em;
+}
+.dxw-assets-summary-meta,
+.dxw-assets-disclosure {
+  margin-top: 7px;
+  color: var(--ink-3);
+  font-size: 11px;
+  line-height: 1.45;
+}
+.dxw-assets-disclosure {
+  padding-top: 8px;
+  border-top: 1px solid var(--hair);
+  color: var(--ink-2);
+}
+.dxw-assets-unavailable {
+  margin-top: 16px;
+  padding: 10px 0 18px;
+}
+.dxw-assets-unavailable-title {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+.dxw-assets-unavailable p {
+  margin: 6px 0 0;
+  color: var(--ink-2);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.dxw-assets-list {
+  margin: 10px -4px 0;
+}
+.dxw-asset + .dxw-asset { border-top: 1px solid var(--hair); }
+.dxw-asset-row {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto 14px;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  min-height: 64px;
+  padding: 10px 4px;
+  border-radius: 10px;
+}
+.dxw-asset-row:hover { background: color-mix(in srgb, var(--page) 66%, transparent); }
+.dxw-asset-row-blocked { cursor: default; }
+.dxw-asset-row-blocked:hover { background: transparent; }
+.dxw-asset-row[aria-expanded="true"] .dxw-chev { transform: rotate(90deg); }
+.dxw-asset-mark {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #F2E8DC;
+  color: #7A4B2A;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  overflow: hidden;
+}
+.dxw-asset-mark-artwork { background: transparent; }
+.dxw-asset-mark img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.dxw-asset-mark-cash { background: #E8F1EB; color: #315D43; }
+.dxw-asset-mark-yield { background: #EEE9DA; color: #6F5B2F; }
+.dxw-asset-mark-stock { background: #E7EAF1; color: #3E4965; }
+.dxw-asset-identity,
+.dxw-asset-balance {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.dxw-asset-name { font-size: 13px; font-weight: 600; color: var(--ink); }
+.dxw-asset-sub {
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-3);
+  font-size: 10.5px;
+}
+.dxw-asset-balance { align-items: flex-end; }
+.dxw-asset-amount { color: var(--ink); font-size: 12px; }
+.dxw-asset-value { margin-top: 3px; color: var(--ink-3); font-size: 10.5px; }
+.dxw-asset-blocked-copy {
+  margin: -6px 18px 12px 52px;
+  color: var(--ink-2);
+  font-size: 10.5px;
+  line-height: 1.4;
+}
+.dxw-asset-details {
+  margin: 0 4px 14px 48px;
+  padding: 4px 0 2px;
+}
+.dxw-asset-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 14px;
+  margin: 0;
+}
+.dxw-asset-facts div { min-width: 0; }
+.dxw-asset-facts dt {
+  color: var(--ink-3);
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+.dxw-asset-facts dd {
+  margin: 3px 0 0;
+  overflow-wrap: anywhere;
+  color: var(--ink-2);
+  font-size: 11px;
+}
+.dxw-asset-status-approved { color: #315D43 !important; }
+.dxw-asset-status-caution { color: #8A621E !important; }
+.dxw-asset-status-blocked { color: #A33B2D !important; }
+.dxw-asset-actions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 2px 8px;
+  margin-top: 12px;
+}
+.dxw-asset-actions button {
+  min-height: 40px;
+  padding: 7px 4px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  color: var(--ink-2);
+  text-align: center;
+  font-size: 10.5px;
+}
+.dxw-asset-actions button:disabled {
+  color: var(--ink-3);
+  cursor: default;
+  opacity: .76;
+}
+.dxw-asset-actions .dxw-asset-action-live {
+  border-color: color-mix(in srgb, var(--ember) 34%, var(--hair));
+  background: color-mix(in srgb, var(--ember) 6%, transparent);
+  color: var(--ember-ink);
+  font-weight: 600;
+}
+.dxw-asset-reasons {
+  margin-top: 11px;
+  color: var(--ink-2);
+  font-size: 10.5px;
+  line-height: 1.4;
+}
+.dxw-asset-reasons-label {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--ink);
+  font-weight: 600;
+}
+.dxw-asset-reasons ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.dxw-asset-reasons li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 3px 0;
+}
+.dxw-asset-reasons li span:first-child {
+  min-width: 0;
+  color: var(--ink-2);
+}
+.dxw-asset-reasons li span:last-child {
+  flex: none;
+  max-width: 48%;
+  color: var(--ink);
+  text-align: right;
+}
+.dxw-assets-empty,
+.dxw-assets-footnote {
+  margin-top: 14px;
+  color: var(--ink-2);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.dxw-assets-footnote {
+  padding-top: 12px;
+  border-top: 1px solid var(--hair);
+}
+
+@media (max-width: 380px) {
+  .dxw-widget { padding-inline: 17px; }
+  .dxw-sheet { padding-inline: 17px; }
+  .dxw-asset-details { margin-left: 0; }
+  .dxw-asset-blocked-copy { margin-left: 0; }
+  .dxw-asset-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dxw-receive { gap: 12px; }
+  .dxw-qr-tile { width: 92px; height: 92px; }
+}
 
 /* activity sheet */
 .dxw-act-list { margin-top: 4px; }

@@ -4,7 +4,8 @@ import '../styles/widgets/wallet.css';
 import { createRoot } from 'react-dom/client';
 import { useMemo } from 'react';
 import { useToolOutput, useToolResponseMetadata, useMaxHeight, useAdaptiveOpenExternal } from '../sdk';
-import { useIntrinsicHeight, normalizeWalletPayload } from '../components/x402';
+import { useIntrinsicHeight } from '../components/x402/useIntrinsicHeight';
+import { normalizeWalletPayload } from '../components/x402/walletPayload';
 import { WalletHome, SimpleState } from '../components/wallet';
 
 /*
@@ -21,6 +22,7 @@ const SETUP_URL = 'https://dexter.cash/wallet/setup-passkey';
 
 function WalletApp() {
   const toolOutput = useToolOutput();
+  const hasToolOutput = toolOutput !== null && toolOutput !== undefined;
   const meta = useToolResponseMetadata<{ dexterCardToken?: string; dexterWalletToken?: string }>();
   const cardToken = typeof meta?.dexterCardToken === 'string' ? meta.dexterCardToken : null;
   const walletToken = typeof meta?.dexterWalletToken === 'string' ? meta.dexterWalletToken : null;
@@ -33,7 +35,15 @@ function WalletApp() {
   const mode = payload.mode;
 
   let view;
-  if (mode === 'vault_required' || payload.error === 'not_enrolled' || (!hasAddress && (mode === 'not_enrolled' || payload.enrollUrl))) {
+  if (!hasToolOutput) {
+    view = (
+      <SimpleState
+        title="Reading your money"
+        body="Checking spendable cash, assets, earning positions, and credit without moving anything."
+        onOpenExternal={openExternal}
+      />
+    );
+  } else if (mode === 'vault_required' || payload.error === 'not_enrolled' || (!hasAddress && (mode === 'not_enrolled' || payload.enrollUrl))) {
     view = (
       <SimpleState
         title="Set up your wallet"
@@ -64,8 +74,14 @@ function WalletApp() {
       <SimpleState
         title="Couldn't reach your wallet"
         body="A quick hiccup talking to your wallet — your funds are safe. Try again in a moment."
-        cta="Open your wallet"
-        href={WALLET_URL}
+        onOpenExternal={openExternal}
+      />
+    );
+  } else if (!hasAddress) {
+    view = (
+      <SimpleState
+        title="Wallet data unavailable"
+        body="No verified wallet address was returned, so no balance or asset total is shown."
         onOpenExternal={openExternal}
       />
     );
