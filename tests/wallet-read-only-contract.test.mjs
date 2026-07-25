@@ -64,16 +64,30 @@ test('hosted x402_wallet remains read-only with no caller identity input', async
   assert.doesNotMatch(registration, /walletAddress|user_handle|userHandle/);
 });
 
-test('hosted x402_wallet wires portfolio through its transport session and verified receive address', async () => {
-  const server = await source('open-mcp-server.mjs');
+test('hosted x402_wallet keeps verified portfolio display data in widget metadata', async () => {
+  const [server, entry, payload] = await Promise.all([
+    source('open-mcp-server.mjs'),
+    source('apps-sdk/ui/src/entries/x402-wallet.tsx'),
+    source('apps-sdk/ui/src/components/x402/walletPayload.ts'),
+  ]);
   const walletImplementation = server.slice(
     server.indexOf('async function x402Wallet'),
     server.indexOf('// ─── MCP Server Setup', server.indexOf('async function x402Wallet')),
+  );
+  const registration = server.slice(
+    server.indexOf("server.registerTool('x402_wallet'"),
+    server.indexOf("// ─── dexter_passkey_probe", server.indexOf("server.registerTool('x402_wallet'")),
   );
 
   assert.match(walletImplementation, /fetchSessionPortfolio\(\{/);
   assert.match(walletImplementation, /sessionId,/);
   assert.match(walletImplementation, /expectedWalletAddress:\s*receiveAddress/);
   assert.match(walletImplementation, /secret:\s*INTERNAL_HMAC_SECRET/);
-  assert.match(walletImplementation, /portfolio,/);
+  assert.match(walletImplementation, /_portfolio:\s*portfolio/);
+  assert.match(walletImplementation, /portfolioSummary:\s*numericPortfolioSummary\(portfolio\)/);
+  assert.match(registration, /projectWalletResultForModel/);
+  assert.match(entry, /dexterPortfolio\?: unknown/);
+  assert.match(entry, /normalizeWalletPayload\(toolOutput, widgetPortfolio\)/);
+  assert.match(payload, /normalizePortfolioRead\(widgetPortfolio, solanaAddress\)/);
+  assert.doesNotMatch(payload, /normalizePortfolioRead\(raw\.portfolio/);
 });

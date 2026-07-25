@@ -11,6 +11,7 @@ import { createServer } from 'vite';
 import {
   ASSET_IMAGE_SOURCES,
   MISSING_IMAGE_SOURCES,
+  completePortfolio,
   governancePortfolio,
   imageFallbackPortfolio,
   partialEnrichmentPortfolio,
@@ -37,7 +38,7 @@ const TRANSPARENT_PNG = Buffer.from(
   'base64',
 );
 
-function installChatGptHost({ output, mobile }) {
+function installChatGptHost({ output, metadata, mobile }) {
   window.__hostCalls = [];
   window.openai = {
     theme: 'light',
@@ -53,7 +54,7 @@ function installChatGptHost({ output, mobile }) {
     },
     toolInput: {},
     toolOutput: output,
-    toolResponseMetadata: { dexterCardToken: 'fixture-card-token' },
+    toolResponseMetadata: metadata,
     openExternal(args) {
       window.__hostCalls.push({ kind: 'openExternal', args });
     },
@@ -144,12 +145,20 @@ function mcpInitResult(mobile) {
   };
 }
 
-function toolResult(output) {
+function toolResult(output, metadata) {
   return {
     structuredContent: output,
     content: [{ type: 'text', text: 'Read-only wallet fixture.' }],
-    _meta: { dexterCardToken: 'fixture-card-token' },
+    _meta: metadata,
     isError: false,
+  };
+}
+
+function walletMetadata(portfolio) {
+  return {
+    dexterCardToken: 'fixture-card-token',
+    dexterWalletToken: 'fixture-wallet-token',
+    ...(portfolio ? { dexterPortfolio: portfolio } : {}),
   };
 }
 
@@ -537,6 +546,7 @@ test('wallet Money overview renders honest states in ChatGPT and MCP Apps deskto
       host: 'chatgpt',
       mobile: false,
       output: walletOutput(),
+      portfolio: completePortfolio(),
       assertAssets: assertCompleteAssets,
       screenshot: 'chatgpt-desktop-complete.png',
     },
@@ -544,7 +554,8 @@ test('wallet Money overview renders honest states in ChatGPT and MCP Apps deskto
       name: 'ChatGPT mobile partial',
       host: 'chatgpt',
       mobile: true,
-      output: walletOutput(partialUnpricedPortfolio()),
+      output: walletOutput(),
+      portfolio: partialUnpricedPortfolio(),
       assertAssets: assertPartialAssets,
       screenshot: 'chatgpt-mobile-partial.png',
     },
@@ -560,7 +571,8 @@ test('wallet Money overview renders honest states in ChatGPT and MCP Apps deskto
       name: 'MCP Apps desktop governance',
       host: 'mcp-apps',
       mobile: false,
-      output: walletOutput(governancePortfolio()),
+      output: walletOutput(),
+      portfolio: governancePortfolio(),
       assertAssets: assertGovernanceAssets,
       screenshot: 'mcp-apps-desktop-governance.png',
     },
@@ -568,7 +580,8 @@ test('wallet Money overview renders honest states in ChatGPT and MCP Apps deskto
       name: 'MCP Apps desktop partial enrichment',
       host: 'mcp-apps',
       mobile: false,
-      output: walletOutput(partialEnrichmentPortfolio()),
+      output: walletOutput(),
+      portfolio: partialEnrichmentPortfolio(),
       assertAssets: assertPartialEnrichmentAssets,
       screenshot: 'mcp-apps-desktop-partial-enrichment.png',
     },
@@ -576,7 +589,8 @@ test('wallet Money overview renders honest states in ChatGPT and MCP Apps deskto
       name: 'MCP Apps mobile unavailable',
       host: 'mcp-apps',
       mobile: true,
-      output: { ...walletOutput(), portfolio: undefined },
+      output: walletOutput(),
+      portfolio: null,
       assertAssets: assertUnavailableAssets,
       screenshot: 'mcp-apps-mobile-unavailable.png',
     },
@@ -614,6 +628,7 @@ test('wallet Money overview renders honest states in ChatGPT and MCP Apps deskto
       if (scenario.host === 'chatgpt') {
         await page.addInitScript(installChatGptHost, {
           output: scenario.output,
+          metadata: walletMetadata(scenario.portfolio),
           mobile: scenario.mobile,
         });
         await page.goto(widgetUrl);
@@ -627,7 +642,10 @@ test('wallet Money overview renders honest states in ChatGPT and MCP Apps deskto
         );
         await page.evaluate(setupMcpParentHost, {
           initResult: mcpInitResult(scenario.mobile),
-          toolResult: toolResult(scenario.output),
+          toolResult: toolResult(
+            scenario.output,
+            walletMetadata(scenario.portfolio),
+          ),
           widgetUrl,
         });
         surface = page.frameLocator('#widget');

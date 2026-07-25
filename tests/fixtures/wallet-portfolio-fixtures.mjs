@@ -373,7 +373,7 @@ export function governancePortfolio() {
   };
 }
 
-export function walletOutput(portfolio = completePortfolio()) {
+export function walletOutput() {
   return {
     mode: 'vault_ready',
     user_bound: true,
@@ -422,6 +422,5 @@ export function walletOutput(portfolio = completePortfolio()) {
         sig: 'fixture-signature',
       },
     ],
-    portfolio,
   };
 }

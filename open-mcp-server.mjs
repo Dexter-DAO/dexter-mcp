@@ -39,7 +39,11 @@ import { createRemoteCardOperations } from '@dexterai/x402-mcp-tools';
 import { mintVaultPairingRequest, pollVaultPairingResult, fetchVaultStateBySession, fetchVaultStateByUserHandle } from './lib/pairing-mint.mjs';
 import { shouldChallengeSpend } from './lib/spend-challenge.mjs';
 import { applyRailTabOffer } from './lib/rail-tab-offer.mjs';
-import { fetchSessionPortfolio } from './lib/session-portfolio.mjs';
+import {
+  fetchSessionPortfolio,
+  numericPortfolioSummary,
+} from './lib/session-portfolio.mjs';
+import { projectWalletResultForModel } from './lib/wallet-result-visibility.mjs';
 import {
   capabilitySearch as coreCapabilitySearch,
   buildSearchResponse,
@@ -1346,6 +1350,18 @@ async function x402Wallet(_args, extra) {
   const swigAddress = state.vault.swigAddress;
   // receiveAddress is the wallet-address PDA (the ATA owner). Use it for display.
   const receiveAddress = state.vault.receiveAddress ?? swigAddress;
+  // Start optional widget reads as soon as the verified wallet address exists.
+  // They run concurrently with money composition below; portfolio is locally
+  // capped at 2.5s and degrades to unavailable rather than holding the wallet
+  // tool on the API's longer enrichment budgets.
+  const portfolioPromise = fetchSessionPortfolio({
+    apiBase: API_BASE_FALLBACK,
+    sessionId,
+    expectedWalletAddress: receiveAddress,
+    secret: INTERNAL_HMAC_SECRET,
+  });
+  const cardSummaryPromise = readCardSummary(sessionId);
+  const activityPromise = fetchWalletActivity(sessionId);
   const onchain = state.onchain || null;
   const usdcAtomic = String(onchain?.usdcAtomic ?? '0');
   const usdcAvailable = Number(usdcAtomic) / 1e6;
@@ -1393,24 +1409,24 @@ async function x402Wallet(_args, extra) {
         availableAtomic: money.creditAvailableAtomic,
       }
     : null;
-  const earning = money
-    ? { isEarning, baseAtomic: money.earnBaseAtomic, ratePct: await readEarningRatePct() }
-    : null;
+  const earningRatePromise = money
+    ? readEarningRatePct()
+    : Promise.resolve(null);
 
   // Read-only card summary + session-bound asset inventory. Portfolio
   // identity comes only from the MCP transport session and is re-resolved by
   // dexter-api through the live durable binding; no handle or wallet address
   // can be supplied through tool arguments. Exact wallet equality is checked
   // before the snapshot reaches the widget.
-  const [cardSummary, portfolio] = await Promise.all([
-    readCardSummary(sessionId),
-    fetchSessionPortfolio({
-      apiBase: API_BASE_FALLBACK,
-      sessionId,
-      expectedWalletAddress: receiveAddress,
-      secret: INTERNAL_HMAC_SECRET,
-    }),
+  const [cardSummary, portfolio, activity, earningRatePct] = await Promise.all([
+    cardSummaryPromise,
+    portfolioPromise,
+    activityPromise,
+    earningRatePromise,
   ]);
+  const earning = money
+    ? { isEarning, baseAtomic: money.earnBaseAtomic, ratePct: earningRatePct }
+    : null;
 
   // Personhood: the vault's on-chain World ID weld. Drives the widget's
   // verified mark / verify invite (board #95 punch — Branch priority).
@@ -1430,11 +1446,6 @@ async function x402Wallet(_args, extra) {
     tip = `Wallet is funded ($${usdcAvailable.toFixed(2)} USDC available). ${isEarning ? 'Balance is earning.' : ''} Use x402_fetch to call paid APIs.`;
   }
 
-  // Real recent activity (settled payments + earning moves). Best-effort —
-  // fetchWalletActivity swallows failures into [] so a slow read never breaks
-  // the wallet dashboard.
-  const activity = await fetchWalletActivity(sessionId);
-
   return {
     // A missing USDC token account never gates readiness — deposits create it.
     mode: usdcAvailable > 0 ? 'vault_ready' : 'vault_funding_required',
@@ -1443,7 +1454,12 @@ async function x402Wallet(_args, extra) {
     user_bound: true,
     activity,
     card: cardSummary,
-    portfolio,
+    // The full portfolio contains issuer-controlled display metadata. Keep it
+    // widget-only; the registration strips this private field into _meta.
+    _portfolio: portfolio,
+    // The model sees only bounded numeric facts, never names, symbols, URLs,
+    // issuer strings, registry labels, or capability reasons.
+    portfolioSummary: numericPortfolioSummary(portfolio),
     personhood,
     _cardToken: cardSummary.status !== 'none' && sessionId ? mintWidgetCardToken(sessionId) : undefined,
     _walletToken: sessionId ? mintWidgetWalletToken(sessionId) : undefined,
@@ -1871,13 +1887,10 @@ function createOpenMcpServer() {
   }, async (args, extra) => {
     try {
       const result = await x402Wallet(args, extra);
-      const { _sessionToken, _cardToken, _walletToken, ...publicResult } = result;
-      const meta = { ...WALLET_META };
-      if (_sessionToken) meta.sessionToken = _sessionToken;
-      // Widget-frame-only credentials (card reveal/freeze rail + live-balance
-      // refresh). _meta is invisible to the model — sessionToken side-channel.
-      if (_cardToken) meta.dexterCardToken = _cardToken;
-      if (_walletToken) meta.dexterWalletToken = _walletToken;
+      const { publicResult, meta } = projectWalletResultForModel(
+        result,
+        WALLET_META,
+      );
       return { content: [{ type: 'text', text: JSON.stringify(publicResult, null, 2) }], structuredContent: publicResult, _meta: meta };
     } catch (err) {
       const data = { error: err?.message || String(err) };

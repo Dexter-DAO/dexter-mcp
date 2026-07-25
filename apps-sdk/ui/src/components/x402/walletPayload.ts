@@ -154,7 +154,10 @@ function normalizeChainBalances(input: unknown): Record<string, WalletChainBalan
   return normalized;
 }
 
-export function normalizeWalletPayload(toolOutput: unknown): CanonicalWalletPayload {
+export function normalizeWalletPayload(
+  toolOutput: unknown,
+  widgetPortfolio?: unknown,
+): CanonicalWalletPayload {
   const raw = (toolOutput && typeof toolOutput === 'object'
     ? (toolOutput as Record<string, unknown>)
     : {}) as Record<string, unknown>;
@@ -243,7 +246,10 @@ export function normalizeWalletPayload(toolOutput: unknown): CanonicalWalletPayl
     typeof raw.solanaAddress === 'string'
       ? raw.solanaAddress
       : address;
-  const portfolio = normalizePortfolioRead(raw.portfolio, solanaAddress);
+  // Full holdings are intentionally delivered only through tool-response
+  // _meta. Ignore any model-visible `raw.portfolio` field so a producer or
+  // host cannot accidentally re-open the display-data leak.
+  const portfolio = normalizePortfolioRead(widgetPortfolio, solanaAddress);
   const vaultRecord =
     raw.vault && typeof raw.vault === 'object'
       ? (raw.vault as Record<string, unknown>)
