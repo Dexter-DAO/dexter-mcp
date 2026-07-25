@@ -25,22 +25,6 @@ export function hostLabel(url: string): string {
   }
 }
 
-function looksLikeWalletFragment(label: string, payTo?: string | null): boolean {
-  const trimmed = label.trim();
-  if (!trimmed) return true;
-  if (payTo && trimmed === payTo.slice(0, trimmed.length)) return true;
-  if (/^(0x[a-fA-F0-9]{6,}|[1-9A-HJ-NP-Za-km-z]{8,})$/.test(trimmed) && !/\s/.test(trimmed)) return true;
-  return false;
-}
-
-export function providerDisplayName(resource: SearchResource): string {
-  const sellerName = resource.sellerMeta.displayName?.trim() || resource.seller?.trim() || '';
-  if (sellerName && !looksLikeWalletFragment(sellerName, resource.sellerMeta.payTo)) {
-    return sellerName;
-  }
-  return hostLabel(resource.url);
-}
-
 export function resourceIconUrl(resource: SearchResource): string {
   if (resource.iconUrl) return resource.iconUrl;
   try {
@@ -51,9 +35,33 @@ export function resourceIconUrl(resource: SearchResource): string {
   }
 }
 
-export function scoreTone(score: number | null | undefined): 'good' | 'warn' | 'low' | 'none' {
-  if (score == null || score <= 0) return 'none';
-  if (score >= 80) return 'good';
-  if (score >= 65) return 'warn';
-  return 'low';
+export function formatListedPrice(
+  priceLabel: string | null | undefined,
+  priceUsdc: number | null | undefined,
+  fallback = 'Price on check',
+): string {
+  const label = priceLabel?.trim();
+  if (label) return label;
+  if (typeof priceUsdc !== 'number' || !Number.isFinite(priceUsdc)) return fallback;
+  if (priceUsdc === 0) return 'Free';
+
+  return priceUsdc.toLocaleString('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: priceUsdc < 0.01 ? 2 : 0,
+    maximumFractionDigits: priceUsdc < 0.01 ? 6 : 4,
+  });
+}
+
+export function formatAssetLabel(
+  asset: string | null | undefined,
+  assetName?: string | null,
+): string {
+  const identifier = asset?.trim() ?? '';
+  const name = assetName?.trim() ?? '';
+
+  if (name && identifier && name.toLowerCase() !== identifier.toLowerCase()) {
+    return `${name} · ${identifier}`;
+  }
+  return name || identifier || 'Asset not listed';
 }

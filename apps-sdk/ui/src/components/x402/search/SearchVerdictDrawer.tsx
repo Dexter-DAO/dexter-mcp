@@ -6,6 +6,7 @@ import { ProfessorDexterCard } from '../../pricing/ProfessorDexterCard';
 import { DoctorDexterCard } from '../../pricing/DoctorDexterCard';
 import type { HistoryRow } from '../../pricing/types';
 import { addWidgetBreadcrumb, captureWidgetException } from '../../../sdk/init-sentry';
+import { formatAssetLabel, formatListedPrice } from './utils';
 
 const API_ORIGIN = 'https://api.dexter.cash';
 
@@ -48,20 +49,30 @@ interface Props {
   resource: SearchResource;
   onClose: () => Promise<void> | void;
   onCheckPrice: (resource: SearchResource) => Promise<void>;
-  onFetch: (resource: SearchResource) => Promise<void>;
 }
 
-export function SearchVerdictDrawer({ resource, onClose, onCheckPrice, onFetch }: Props) {
+export function SearchVerdictDrawer({ resource, onClose, onCheckPrice }: Props) {
   const [payload, setPayload] = useState<ResourcePayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [checkError, setCheckError] = useState<string | null>(null);
   const [activeRunIndex, setActiveRunIndex] = useState(0);
   const carouselRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') void onClose();
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [onClose]);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
+    setCheckError(null);
     setActiveRunIndex(0);
 
     async function load() {
@@ -91,6 +102,49 @@ export function SearchVerdictDrawer({ resource, onClose, onCheckPrice, onFetch }
   const runs = payload?.history?.recent ?? [];
   const summary = payload?.history?.summary ?? null;
   const accepts = payload?.resource?.accepts ?? [];
+  const whyText = resource.why?.trim() ?? '';
+  const qualityScore =
+    typeof resource.qualityScore === 'number' && Number.isFinite(resource.qualityScore)
+      ? resource.qualityScore
+      : null;
+  const listedRoutes = useMemo(() => {
+    if (resource.chains?.length) {
+      return resource.chains.map((chain) => ({
+        network: chain.network,
+        assetLabel: formatAssetLabel(chain.asset),
+        priceLabel: formatListedPrice(
+          chain.priceLabel,
+          chain.priceUsdc,
+          resource.price === 'free' ? 'Free' : resource.price,
+        ),
+      }));
+    }
+    if (accepts.length) {
+      return accepts.map((accept) => ({
+        network: accept.network,
+        assetLabel: formatAssetLabel(accept.asset, accept.extra?.name),
+        priceLabel: formatChainPrice(accept.amount, accept.extra?.decimals),
+      }));
+    }
+    return [{
+      network: resource.network,
+      assetLabel: formatAssetLabel(resource.priceAsset),
+      priceLabel: resource.price === 'free' ? 'Free' : resource.price,
+    }];
+  }, [accepts, resource.chains, resource.network, resource.price, resource.priceAsset]);
+
+  async function handleCheckPrice(e: React.MouseEvent) {
+    e.stopPropagation();
+    setCheckError(null);
+    setChecking(true);
+    try {
+      await onCheckPrice(resource);
+    } catch {
+      setCheckError('Couldn’t check the current price. Try again.');
+    } finally {
+      setChecking(false);
+    }
+  }
 
   // Track which carousel slide is centered for the dots indicator. Uses
   // IntersectionObserver so we don't have to listen to scroll events.
@@ -147,6 +201,24 @@ export function SearchVerdictDrawer({ resource, onClose, onCheckPrice, onFetch }
       {/* Description */}
       {resource.description && (
         <p className="dx-search-drawer__description">{resource.description}</p>
+      )}
+
+      {(whyText || qualityScore !== null) && (
+        <div className="dx-search-drawer__signals">
+          {qualityScore !== null && (
+            <div className="dx-search-drawer__quality" aria-label={`Quality ${qualityScore} out of 100`}>
+              <span>Quality</span>
+              <strong>{qualityScore}</strong>
+              <span>/100</span>
+            </div>
+          )}
+          {whyText && (
+            <div className="dx-search-drawer__why">
+              <span>Why this matched</span>
+              <p>{whyText}</p>
+            </div>
+          )}
+        </div>
       )}
 
       {/* Loading + error states */}
@@ -215,15 +287,23 @@ export function SearchVerdictDrawer({ resource, onClose, onCheckPrice, onFetch }
       )}
 
       {/* Per-chain payment routes */}
-      {accepts.length > 0 && (
+      {listedRoutes.length > 0 && (
         <div className="dx-search-drawer__chains">
-          <div className="dx-search-drawer__chains-label">Payment routes</div>
+          <div className="dx-search-drawer__chains-label">Listed payment routes</div>
           <ul className="dx-search-drawer__chains-list">
-            {accepts.map((accept, i) => (
-              <li key={i} className="dx-search-drawer__chain-row">
-                <span className="dx-search-drawer__chain-network">{shortenNetwork(accept.network)}</span>
+            {listedRoutes.map((route, i) => (
+              <li
+                key={`${route.network ?? 'x'}-${route.assetLabel}-${route.priceLabel}-${i}`}
+                className="dx-search-drawer__chain-row"
+              >
+                <span className="dx-search-drawer__chain-identity">
+                  <span className="dx-search-drawer__chain-network">{shortenNetwork(route.network)}</span>
+                  <span className="dx-search-drawer__chain-asset" title={route.assetLabel}>
+                    {route.assetLabel}
+                  </span>
+                </span>
                 <span className="dx-search-drawer__chain-price">
-                  {formatChainPrice(accept.amount, accept.extra?.decimals)}
+                  {route.priceLabel}
                 </span>
               </li>
             ))}
@@ -241,25 +321,16 @@ export function SearchVerdictDrawer({ resource, onClose, onCheckPrice, onFetch }
             variant="soft"
             color="secondary"
             size="sm"
-            onClick={(e: React.MouseEvent) => {
-              e.stopPropagation();
-              void onCheckPrice(resource);
-            }}
+            onClick={handleCheckPrice}
+            disabled={checking}
           >
-            Check price
-          </Button>
-          <Button
-            color="primary"
-            size="sm"
-            onClick={(e: React.MouseEvent) => {
-              e.stopPropagation();
-              void onFetch(resource);
-            }}
-          >
-            Fetch · {resource.price === 'free' ? 'Free' : resource.price}
+            {checking ? 'Checking…' : 'Check fresh price'}
           </Button>
         </div>
       </div>
+      {checkError && (
+        <p className="dx-search-drawer__action-error" role="alert">{checkError}</p>
+      )}
     </div>
   );
 }

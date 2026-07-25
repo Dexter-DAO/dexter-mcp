@@ -20,6 +20,7 @@ export function MarketplaceSummaryHeader({
   relatedCount,
   rerankApplied = false,
   isFullscreen,
+  canToggleFullscreen,
   onToggleFullscreen,
 }: {
   resultCount: number;
@@ -27,6 +28,7 @@ export function MarketplaceSummaryHeader({
   relatedCount?: number;
   rerankApplied?: boolean;
   isFullscreen: boolean;
+  canToggleFullscreen: boolean;
   onToggleFullscreen: () => void;
 }) {
   const hasTieredCounts =
@@ -50,13 +52,15 @@ export function MarketplaceSummaryHeader({
             reranked
           </span>
         )}
-        <button
-          type="button"
-          className="dx-search-header__expand"
-          onClick={onToggleFullscreen}
-        >
-          {isFullscreen ? 'minimize' : 'expand'}
-        </button>
+        {canToggleFullscreen && (
+          <button
+            type="button"
+            className="dx-search-header__expand"
+            onClick={onToggleFullscreen}
+          >
+            {isFullscreen ? 'minimize' : 'expand'}
+          </button>
+        )}
       </div>
     </div>
   );

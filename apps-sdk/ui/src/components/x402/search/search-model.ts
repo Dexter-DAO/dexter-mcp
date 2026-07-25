@@ -1,0 +1,129 @@
+import type {
+  SearchIntent,
+  SearchMeta,
+  SearchNoMatchReason,
+  SearchRerankInfo,
+  SearchResource,
+} from './types';
+
+export const SEARCH_WIDGET_BUILD = '2026-07-25.1';
+
+export type SearchPayload = {
+  success?: boolean;
+  count: number;
+  resources?: SearchResource[];
+  strongResults?: SearchResource[];
+  relatedResults?: SearchResource[];
+  strongCount?: number;
+  relatedCount?: number;
+  topSimilarity?: number | null;
+  noMatchReason?: SearchNoMatchReason;
+  rerank?: SearchRerankInfo;
+  intent?: SearchIntent;
+  searchMeta?: SearchMeta;
+  tip?: string;
+  error?: string;
+  errorDetail?: string;
+};
+
+export type SearchSections = {
+  strongResults: SearchResource[];
+  relatedResults: SearchResource[];
+  resources: SearchResource[];
+  hasTieredShape: boolean;
+};
+
+export type SearchErrorCopy = {
+  title: string;
+  description: string;
+};
+
+function normalizeSearchResource(resource: SearchResource): SearchResource {
+  const sellerValue = resource.seller;
+  const sellerMeta = resource.sellerMeta ?? {
+    payTo: null,
+    displayName: null,
+    logoUrl: null,
+    twitterHandle: null,
+  };
+
+  if (sellerValue && typeof sellerValue === 'object') {
+    const sellerObj = sellerValue as Record<string, unknown>;
+    return {
+      ...resource,
+      seller: typeof sellerObj.displayName === 'string' ? sellerObj.displayName : null,
+      sellerMeta: {
+        payTo: typeof sellerObj.payTo === 'string' ? sellerObj.payTo : sellerMeta.payTo ?? null,
+        displayName: typeof sellerObj.displayName === 'string' ? sellerObj.displayName : sellerMeta.displayName ?? null,
+        logoUrl: typeof sellerObj.logoUrl === 'string' ? sellerObj.logoUrl : sellerMeta.logoUrl ?? null,
+        twitterHandle: typeof sellerObj.twitterHandle === 'string' ? sellerObj.twitterHandle : sellerMeta.twitterHandle ?? null,
+      },
+    };
+  }
+
+  return {
+    ...resource,
+    seller: typeof sellerValue === 'string' ? sellerValue : null,
+    sellerMeta,
+  };
+}
+
+export function normalizeSearchPayload(payload: SearchPayload | null): SearchPayload | null {
+  if (!payload) return null;
+  return {
+    ...payload,
+    resources: Array.isArray(payload.resources)
+      ? payload.resources.map(normalizeSearchResource)
+      : [],
+    strongResults: Array.isArray(payload.strongResults)
+      ? payload.strongResults.map(normalizeSearchResource)
+      : undefined,
+    relatedResults: Array.isArray(payload.relatedResults)
+      ? payload.relatedResults.map(normalizeSearchResource)
+      : undefined,
+  };
+}
+
+export function getSearchSections(payload: SearchPayload): SearchSections {
+  const strongResults = payload.strongResults ?? [];
+  const relatedResults = payload.relatedResults ?? [];
+  const hasTieredShape =
+    Array.isArray(payload.strongResults) || Array.isArray(payload.relatedResults);
+
+  return {
+    strongResults,
+    relatedResults,
+    hasTieredShape,
+    resources: hasTieredShape
+      ? [...strongResults, ...relatedResults]
+      : (payload.resources ?? []),
+  };
+}
+
+export function getSearchErrorCopy(payload: SearchPayload): SearchErrorCopy | null {
+  const isBackendError =
+    payload.searchMeta?.mode === 'error'
+    || Boolean(payload.error)
+    || Boolean(payload.errorDetail);
+
+  if (!isBackendError) return null;
+
+  const description =
+    payload.searchMeta?.note?.trim()
+    || payload.tip?.trim()
+    || payload.error?.trim()
+    || 'Dexter could not reach the marketplace. Retry the same search in a moment.';
+
+  return {
+    title: 'Marketplace search unavailable',
+    description,
+  };
+}
+
+export function findSelectedResource(
+  resources: SearchResource[],
+  selectedUrl: string | undefined,
+): SearchResource | null {
+  if (!selectedUrl) return null;
+  return resources.find((resource) => resource.url === selectedUrl) ?? null;
+}

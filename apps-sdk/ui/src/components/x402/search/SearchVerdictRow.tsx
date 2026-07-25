@@ -1,58 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Button } from '@openai/apps-sdk-ui/components/Button';
-import { ChainIcon, UsdcIcon } from '..';
+import { ChainIcon, getChain } from '..';
 import type { SearchResource } from './types';
 import { SearchIdentityIcon } from './SearchIdentityIcon';
-import { ProfessorDexterCard } from '../../pricing/ProfessorDexterCard';
-import { DoctorDexterCard } from '../../pricing/DoctorDexterCard';
-import type { HistoryRow } from '../../pricing/types';
-import { formatCompactNumber, providerDisplayName, hostLabel } from './utils';
-
-/**
- * Bridge: synthesize a HistoryRow from the search row's per-resource verifier
- * fields, so the same Professor + Doctor components the pricing widget uses
- * can render here without modification. Returns null when there's nothing
- * meaningful to grade — Professor stays hidden in that case rather than
- * rendering an empty bubble.
- */
-function synthesizeRunFromResource(resource: SearchResource): HistoryRow | null {
-  const score = resource.qualityScore;
-  const notes = resource.verificationNotes ?? null;
-  const status = resource.verificationStatus ?? null;
-  const verifiedAt = resource.lastVerifiedAt ?? null;
-  // The notes ARE the verdict. A score with no prose is just a number on a
-  // pole — we'd render an empty speech bubble next to a thermometer, which
-  // is the "No notes returned" empty-state Branch flagged. Hard-gate on
-  // notes existing. Score-without-notes is silent until the verifier writes
-  // prose during its next run.
-  const hasNotes = typeof notes === 'string' && notes.trim().length > 0;
-  if (!hasNotes) return null;
-  return {
-    attempted_at: verifiedAt ?? new Date().toISOString(),
-    completed_at: verifiedAt,
-    duration_ms: null,
-    paid: false,
-    payment_network: null,
-    payment_tx_signature: null,
-    probe_status: null,
-    probe_error: null,
-    response_status: null,
-    response_size_bytes: null,
-    response_content_type: null,
-    response_preview: null,
-    response_kind: 'unknown',
-    response_image_format: null,
-    response_image_bytes_persisted: false,
-    ai_model: null,
-    ai_score: typeof score === 'number' ? score : null,
-    ai_status: status,
-    ai_notes: notes,
-    ai_fix_instructions: resource.verificationFixInstructions ?? null,
-    final_status: status ?? 'unknown',
-    skip_reason: null,
-    initiator: 'search',
-  };
-}
+import {
+  formatAssetLabel,
+  formatCompactNumber,
+  formatListedPrice,
+  hostLabel,
+} from './utils';
 
 interface Props {
   resource: SearchResource;
@@ -61,7 +17,6 @@ interface Props {
   selected?: boolean;
   onInspect: (resource: SearchResource) => void;
   onCheckPrice: (resource: SearchResource) => Promise<void>;
-  onFetch: (resource: SearchResource) => Promise<void>;
 }
 
 export function SearchVerdictRow({
@@ -71,57 +26,63 @@ export function SearchVerdictRow({
   selected = false,
   onInspect,
   onCheckPrice,
-  onFetch,
 }: Props) {
   const [visible, setVisible] = useState(false);
   const [checking, setChecking] = useState(false);
-  const [fetching, setFetching] = useState(false);
+  const [checkError, setCheckError] = useState<string | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setVisible(true), 50 + index * 35);
     return () => clearTimeout(t);
   }, [index]);
 
+  useEffect(() => {
+    setCheckError(null);
+  }, [resource.url]);
+
   async function handleCheckPrice(e: React.MouseEvent) {
     e.stopPropagation();
+    setCheckError(null);
     setChecking(true);
-    try { await onCheckPrice(resource); } finally { setChecking(false); }
-  }
-  async function handleFetch(e: React.MouseEvent) {
-    e.stopPropagation();
-    setFetching(true);
-    try { await onFetch(resource); } finally { setFetching(false); }
+    try {
+      await onCheckPrice(resource);
+    } catch {
+      setCheckError('Couldn’t check the current price. Try again.');
+    } finally {
+      setChecking(false);
+    }
   }
 
-  const providerName = providerDisplayName(resource);
   const host = hostLabel(resource.url);
   const chainOptions = resource.chains?.length
     ? resource.chains
-    : [{ network: resource.network ?? null }];
-  const visibleChainOptions = chainOptions.filter((chain, chainIndex, list) => {
-    const key = chain.network ?? 'unknown';
-    return list.findIndex((item) => (item.network ?? 'unknown') === key) === chainIndex;
-  });
-  const fetchPriceLabel = resource.price === 'free'
-    ? 'Free'
-    : resource.price.replace(/^\$/, '');
+    : [{
+        network: resource.network ?? null,
+        priceUsdc: resource.priceUsdc,
+        priceLabel: resource.price === 'free' ? 'Free' : resource.price,
+      }];
 
   const tier = resource.tier;
+  const whyText = resource.why?.trim() ?? '';
+  const qualityScore =
+    typeof resource.qualityScore === 'number' && Number.isFinite(resource.qualityScore)
+      ? resource.qualityScore
+      : null;
   const gamingSuspicious = resource.gamingSuspicious === true;
-  const synthRun = synthesizeRunFromResource(resource);
-  const hasFix = synthRun?.ai_fix_instructions
-    && synthRun.ai_status !== 'pass'
-    && (synthRun.ai_score == null || synthRun.ai_score < 75);
 
   return (
-    <div
+    <article
       className={`dx-search-cell ${visible ? 'dx-search-cell--visible' : ''} ${selected ? 'dx-search-cell--selected' : ''} ${featured ? 'dx-search-cell--featured' : ''}`}
-      onClick={() => onInspect(resource)}
-      role="button"
-      tabIndex={0}
+      data-featured={featured ? 'true' : 'false'}
+      data-selected={selected ? 'true' : 'false'}
     >
-      {/* Identity row — favicon + name + meta inline. No URL strip, no
-          separate provider line. Tap card anywhere to open the drawer. */}
+      <button
+        type="button"
+        className="dx-search-cell__inspect"
+        onClick={() => onInspect(resource)}
+        aria-label={`Inspect ${resource.name}`}
+        aria-current={selected ? 'true' : undefined}
+      />
       <div className="dx-search-cell__identity">
         <SearchIdentityIcon resource={resource} size={44} />
         <div className="dx-search-cell__identity-text">
@@ -141,6 +102,16 @@ export function SearchVerdictRow({
             {tier === 'strong' && (
               <span className="dx-search-cell__tier">strong</span>
             )}
+            {featured && (
+              <span className="dx-search-cell__badge dx-search-cell__badge--featured">
+                top match
+              </span>
+            )}
+            {selected && (
+              <span className="dx-search-cell__badge dx-search-cell__badge--selected">
+                selected
+              </span>
+            )}
             {resource.totalCalls > 0 && (
               <span className="dx-search-cell__usage">{formatCompactNumber(resource.totalCalls)} calls</span>
             )}
@@ -148,36 +119,51 @@ export function SearchVerdictRow({
         </div>
       </div>
 
-      {/* Description — single line, truncated. Full copy in the drawer. */}
       {resource.description && (
         <p className="dx-search-cell__description">{resource.description}</p>
       )}
 
-      {/* Professor — full strength, only when there's something to grade.
-          DoctorDexterCard rendered immediately after when there's a fix. */}
-      {synthRun && (
-        <ProfessorDexterCard
-          run={synthRun}
-          passesOfRecent={null}
-          animate={false}
-        />
-      )}
-      {hasFix && synthRun?.ai_fix_instructions && (
-        <DoctorDexterCard
-          fixText={synthRun.ai_fix_instructions}
-          animate={false}
-        />
+      {(whyText || qualityScore !== null) && (
+        <div className="dx-search-cell__signals">
+          {qualityScore !== null && (
+            <div className="dx-search-cell__quality" aria-label={`Quality ${qualityScore} out of 100`}>
+              <span>Quality</span>
+              <strong>{qualityScore}</strong>
+              <span>/100</span>
+            </div>
+          )}
+          {whyText && (
+            <div className="dx-search-cell__why">
+              <span className="dx-search-cell__why-label">Why this matched</span>
+              <p>{whyText}</p>
+            </div>
+          )}
+        </div>
       )}
 
-      {/* Footer — chain icons + two-button action row. Inspect is the
-          card-tap; Check Price (secondary) + Fetch (primary). */}
       <div className="dx-search-cell__footer">
         <div className="dx-search-cell__chains">
-          {visibleChainOptions.map((chain, i) => (
-            <span key={`${chain.network ?? 'x'}-${i}`} className="dx-search-cell__chain">
-              <ChainIcon network={chain.network} size={16} />
-            </span>
-          ))}
+          {chainOptions.map((chain, i) => {
+            const networkName = getChain(chain.network).name || 'Unknown network';
+            const assetLabel = formatAssetLabel(chain.asset);
+            const priceLabel = formatListedPrice(
+              chain.priceLabel,
+              chain.priceUsdc,
+              resource.price === 'free' ? 'Free' : resource.price,
+            );
+            return (
+              <span
+                key={`${chain.network ?? 'x'}-${chain.asset ?? 'asset'}-${priceLabel}-${i}`}
+                className="dx-search-cell__chain"
+                title={`${networkName} · ${assetLabel} · listed price ${priceLabel}`}
+                aria-label={`${networkName}, ${assetLabel}, listed price ${priceLabel}`}
+              >
+                <ChainIcon network={chain.network} size={16} />
+                <span className="dx-search-cell__chain-asset">{assetLabel}</span>
+                <span className="dx-search-cell__chain-price">{priceLabel}</span>
+              </span>
+            );
+          })}
           {resource.authRequired && (
             <span
               className="dx-search-cell__auth"
@@ -195,31 +181,14 @@ export function SearchVerdictRow({
             onClick={handleCheckPrice}
             disabled={checking}
           >
-            {checking ? 'Checking…' : 'Check price'}
-          </Button>
-          <Button
-            color="primary"
-            size="sm"
-            onClick={handleFetch}
-            disabled={fetching}
-            className="dx-search-cell__fetch"
-          >
-            <span className="dx-search-cell__fetch-content">
-              <span>{fetching ? 'Fetching…' : 'Fetch'}</span>
-              {!fetching && resource.price !== 'free' && (
-                <>
-                  <UsdcIcon size={14} />
-                  <span className="dx-search-cell__fetch-price">{fetchPriceLabel}</span>
-                </>
-              )}
-              {!fetching && resource.price === 'free' && (
-                <span className="dx-search-cell__fetch-price">{fetchPriceLabel}</span>
-              )}
-            </span>
+            {checking ? 'Checking…' : 'Check fresh price'}
           </Button>
         </div>
       </div>
-    </div>
+      {checkError && (
+        <p className="dx-search-cell__action-error" role="alert">{checkError}</p>
+      )}
+    </article>
   );
 }
 
