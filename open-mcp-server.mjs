@@ -39,6 +39,7 @@ import { createRemoteCardOperations } from '@dexterai/x402-mcp-tools';
 import { mintVaultPairingRequest, pollVaultPairingResult, fetchVaultStateBySession, fetchVaultStateByUserHandle } from './lib/pairing-mint.mjs';
 import { shouldChallengeSpend } from './lib/spend-challenge.mjs';
 import { applyRailTabOffer } from './lib/rail-tab-offer.mjs';
+import { fetchSessionPortfolio } from './lib/session-portfolio.mjs';
 import {
   capabilitySearch as coreCapabilitySearch,
   buildSearchResponse,
@@ -1396,10 +1397,20 @@ async function x402Wallet(_args, extra) {
     ? { isEarning, baseAtomic: money.earnBaseAtomic, ratePct: await readEarningRatePct() }
     : null;
 
-  // Read-only card summary + (when a card exists) the widget-only token that
-  // arms the in-frame reveal/freeze rail. `_cardToken` is stripped into _meta
-  // by the tool registration — the model never sees it.
-  const cardSummary = await readCardSummary(sessionId);
+  // Read-only card summary + session-bound asset inventory. Portfolio
+  // identity comes only from the MCP transport session and is re-resolved by
+  // dexter-api through the live durable binding; no handle or wallet address
+  // can be supplied through tool arguments. Exact wallet equality is checked
+  // before the snapshot reaches the widget.
+  const [cardSummary, portfolio] = await Promise.all([
+    readCardSummary(sessionId),
+    fetchSessionPortfolio({
+      apiBase: API_BASE_FALLBACK,
+      sessionId,
+      expectedWalletAddress: receiveAddress,
+      secret: INTERNAL_HMAC_SECRET,
+    }),
+  ]);
 
   // Personhood: the vault's on-chain World ID weld. Drives the widget's
   // verified mark / verify invite (board #95 punch — Branch priority).
@@ -1432,6 +1443,7 @@ async function x402Wallet(_args, extra) {
     user_bound: true,
     activity,
     card: cardSummary,
+    portfolio,
     personhood,
     _cardToken: cardSummary.status !== 'none' && sessionId ? mintWidgetCardToken(sessionId) : undefined,
     _walletToken: sessionId ? mintWidgetWalletToken(sessionId) : undefined,

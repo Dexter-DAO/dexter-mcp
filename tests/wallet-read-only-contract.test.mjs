@@ -63,3 +63,17 @@ test('hosted x402_wallet remains read-only with no caller identity input', async
   assert.match(registration, /readOnlyHint:\s*true/);
   assert.doesNotMatch(registration, /walletAddress|user_handle|userHandle/);
 });
+
+test('hosted x402_wallet wires portfolio through its transport session and verified receive address', async () => {
+  const server = await source('open-mcp-server.mjs');
+  const walletImplementation = server.slice(
+    server.indexOf('async function x402Wallet'),
+    server.indexOf('// ─── MCP Server Setup', server.indexOf('async function x402Wallet')),
+  );
+
+  assert.match(walletImplementation, /fetchSessionPortfolio\(\{/);
+  assert.match(walletImplementation, /sessionId,/);
+  assert.match(walletImplementation, /expectedWalletAddress:\s*receiveAddress/);
+  assert.match(walletImplementation, /secret:\s*INTERNAL_HMAC_SECRET/);
+  assert.match(walletImplementation, /portfolio,/);
+});
