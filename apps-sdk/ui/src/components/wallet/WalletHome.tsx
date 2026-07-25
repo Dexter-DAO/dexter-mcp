@@ -142,7 +142,7 @@ export function WalletHome({ payload, cardToken, walletToken, onOpenExternal }: 
           <span className="dxw-invite-mark"><CreditMark size={15} /></span>
           <span>
             <div className="dxw-invite-main">Open your credit line</div>
-            <div className="dxw-invite-sub">A $1 line to start — free to open, nothing drawn, no ID needed</div>
+            <div className="dxw-invite-sub">A dollar of trust to start</div>
           </span>
           <Chevron />
         </button>
@@ -151,7 +151,7 @@ export function WalletHome({ payload, cardToken, walletToken, onOpenExternal }: 
           <span className="dxw-invite-mark"><WorldMark size={15} /></span>
           <span>
             <div className="dxw-invite-main">Prove you're one human</div>
-            <div className="dxw-invite-sub">Verify with World ID — verified humans get the bigger lines</div>
+            <div className="dxw-invite-sub">Verified humans get bigger lines</div>
           </span>
           <Chevron />
         </button>

@@ -652,14 +652,14 @@ function WalletHome({ payload, cardToken, walletToken, onOpenExternal }) {
       /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dxw-invite-mark", children: /* @__PURE__ */ jsxRuntimeExports.jsx(CreditMark, { size: 15 }) }),
       /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "dxw-invite-main", children: "Open your credit line" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "dxw-invite-sub", children: "A $1 line to start — free to open, nothing drawn, no ID needed" })
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "dxw-invite-sub", children: "A dollar of trust to start" })
       ] }),
       /* @__PURE__ */ jsxRuntimeExports.jsx(Chevron, {})
     ] }) : showVerifyInvite ? /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { className: "dxw-invite", onClick: () => onOpenExternal(WALLET_URL$1), type: "button", children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dxw-invite-mark", children: /* @__PURE__ */ jsxRuntimeExports.jsx(WorldMark, { size: 15 }) }),
       /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "dxw-invite-main", children: "Prove you're one human" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "dxw-invite-sub", children: "Verify with World ID — verified humans get the bigger lines" })
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "dxw-invite-sub", children: "Verified humans get bigger lines" })
       ] }),
       /* @__PURE__ */ jsxRuntimeExports.jsx(Chevron, {})
     ] }) : null,
