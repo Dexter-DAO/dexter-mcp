@@ -658,7 +658,7 @@ function WalletHome({ payload, cardToken, walletToken, onOpenExternal }) {
     ] }) : showVerifyInvite ? /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { className: "dxw-invite", onClick: () => onOpenExternal(WALLET_URL$1), type: "button", children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dxw-invite-mark", children: /* @__PURE__ */ jsxRuntimeExports.jsx(WorldMark, { size: 15 }) }),
       /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "dxw-invite-main", children: "Prove you're one human" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "dxw-invite-main", children: "Verify with World ID" }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "dxw-invite-sub", children: "Verified humans get bigger lines" })
       ] }),
       /* @__PURE__ */ jsxRuntimeExports.jsx(Chevron, {})

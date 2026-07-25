@@ -150,7 +150,7 @@ export function WalletHome({ payload, cardToken, walletToken, onOpenExternal }: 
         <button className="dxw-invite" onClick={() => onOpenExternal(WALLET_URL)} type="button">
           <span className="dxw-invite-mark"><WorldMark size={15} /></span>
           <span>
-            <div className="dxw-invite-main">Prove you're one human</div>
+            <div className="dxw-invite-main">Verify with World ID</div>
             <div className="dxw-invite-sub">Verified humans get bigger lines</div>
           </span>
           <Chevron />
