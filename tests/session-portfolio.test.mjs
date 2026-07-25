@@ -13,6 +13,7 @@ import {
 import {
   WALLET_ADDRESS,
   completePortfolio,
+  governancePortfolio,
 } from './fixtures/wallet-portfolio-fixtures.mjs';
 
 const SESSION_ID = '019f97fb-9684-7571-9c0c-9ba39bd54570';
@@ -91,6 +92,69 @@ test('rejects extra fields, malformed holdings, and returned-wallet mismatches',
     fetchImpl: async () => responseFor({ portfolio: mismatched }),
   });
   assert.equal(result, null);
+});
+
+test('accepts a valid blocked holding without exporting it as priced value', () => {
+  const portfolio = validateAndBoundPortfolioSnapshotV1(governancePortfolio());
+
+  assert.ok(portfolio);
+  assert.equal(portfolio.holdings[2].approval.status, 'blocked');
+  assert.equal(portfolio.holdings[2].valueUsd, null);
+  assert.equal(portfolio.holdings[2].price, null);
+  assert.equal(
+    portfolio.holdings[2].capabilities.every(
+      (capability) => capability.available === false,
+    ),
+    true,
+  );
+  assert.deepEqual(numericPortfolioSummary(portfolio), {
+    holdings: 3,
+    pricedHoldings: 1,
+    unpricedHoldings: 2,
+    holdingsComplete: true,
+    pricedValueUsd: '12.5',
+    portfolioValueUsd: null,
+  });
+});
+
+test('rejects a crafted blocked holding with valuation before summary export', () => {
+  const snapshot = governancePortfolio();
+  snapshot.holdings[2] = {
+    ...snapshot.holdings[2],
+    valueUsd: '1',
+    price: {
+      usd: '1',
+      source: 'fixture',
+      observedAt: snapshot.observedAt,
+      blockId: snapshot.contextSlot,
+      change24hPercent: null,
+    },
+  };
+  snapshot.pricedHoldings = 2;
+  snapshot.unpricedHoldings = 1;
+  snapshot.pricedValueUsd = '13.5';
+
+  assert.equal(validateAndBoundPortfolioSnapshotV1(snapshot), null);
+});
+
+test('rejects available view or receive capabilities on a blocked holding', () => {
+  for (const action of ['view', 'receive']) {
+    const snapshot = governancePortfolio();
+    snapshot.holdings[2] = {
+      ...snapshot.holdings[2],
+      capabilities: snapshot.holdings[2].capabilities.map((capability) =>
+        capability.action === action
+          ? { ...capability, available: true, reason: null }
+          : capability,
+      ),
+    };
+
+    assert.equal(
+      validateAndBoundPortfolioSnapshotV1(snapshot),
+      null,
+      `${action} must remain unavailable for blocked holdings`,
+    );
+  }
 });
 
 test('enforces holding-count and serialized-byte bounds before widget delivery', async () => {
