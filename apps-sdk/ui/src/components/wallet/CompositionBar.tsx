@@ -5,15 +5,20 @@ import { fmtUsd } from './format';
  * plus a legend. Segments and legend rows appear only when their value is > 0,
  * so a cash-only wallet reads clean instead of showing empty categories.
  */
-export function CompositionBar({ own, credit, atWork, earnPct }: {
+export function CompositionBar({ own, credit, atWork, earnPct, onOpen }: {
   own: number;
   credit: number;
   atWork: number;
   /** Live attested rate in percent; null = no fresh number, show no rate. */
   earnPct: number | null;
+  /** When set, the bar is tappable (opens the credit chit sheet) — the
+   *  hatched segment is the learned word for credit, so the bar itself is
+   *  the affordance; no fifth action button (calm-surface law). */
+  onOpen?: () => void;
 }) {
+  const Root: any = onOpen ? 'button' : 'div';
   return (
-    <div className="dxw-comp">
+    <Root className={`dxw-comp${onOpen ? ' dxw-comp-tap' : ''}`} {...(onOpen ? { onClick: onOpen, type: 'button' } : {})}>
       <div className="dxw-comp-bar">
         <div className="dxw-seg dxw-seg-own" style={{ flex: `${Math.max(own, 0.001)} 1 0` }} />
         {credit > 0 ? <div className="dxw-seg dxw-seg-credit" style={{ flex: `${credit} 1 0` }} /> : null}
@@ -37,6 +42,6 @@ export function CompositionBar({ own, credit, atWork, earnPct }: {
           </div>
         ) : null}
       </div>
-    </div>
+    </Root>
   );
 }

@@ -7,6 +7,7 @@ import { CompositionBar } from './CompositionBar';
 import { CardFace } from './CardFace';
 import { DepositSheet } from './DepositSheet';
 import { ActivitySheet } from './ActivitySheet';
+import { CreditSheet } from './CreditSheet';
 import { fmtSignedUsd, relativeTime } from './format';
 import type { CardThemeId } from './cardThemes';
 import { ActivityIcon, AgentsIcon, CardIcon, Chevron, CreditMark, DepositIcon, WorldMark } from './icons';
@@ -20,7 +21,7 @@ const WALLET_RAIL = 'https://open.dexter.cash/widget/wallet';
 const REFRESH_EVERY_MS = 10_000;
 const REFRESH_MAX_MS = 15 * 60_000;
 
-type OpenSheet = null | 'deposit' | 'activity';
+type OpenSheet = null | 'deposit' | 'activity' | 'credit';
 
 /**
  * The calm home (direction B): spendable headline, composition bar, card face,
@@ -113,7 +114,13 @@ export function WalletHome({ payload, cardToken, walletToken, onOpenExternal }: 
       </div>
 
       <SpendHeadline value={spendable} />
-      <CompositionBar own={own} credit={credit} atWork={atWork} earnPct={money?.earnRatePct ?? null} />
+      <CompositionBar
+        own={own}
+        credit={credit}
+        atWork={atWork}
+        earnPct={money?.earnRatePct ?? null}
+        onOpen={money?.hasCreditLine ? () => setSheet('credit') : undefined}
+      />
       <CardFace
         theme={cardTheme}
         card={payload.card ?? { status: 'none', last4: null, expiry: null }}
@@ -173,6 +180,14 @@ export function WalletHome({ payload, cardToken, walletToken, onOpenExternal }: 
       ) : null}
       {sheet === 'activity' ? (
         <ActivitySheet items={activity} onClose={() => setSheet(null)} />
+      ) : null}
+      {sheet === 'credit' && money ? (
+        <CreditSheet
+          lineUsd={money.creditCapUsd}
+          drawnUsd={money.creditDrawnUsd}
+          cashUsd={own}
+          onClose={() => setSheet(null)}
+        />
       ) : null}
 
       {/* WALLET_FEATURES.agents is off; when enabled, the AgentsSheet mounts here. */}

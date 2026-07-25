@@ -60,7 +60,17 @@ function normalizeWalletPayload(toolOutput) {
   const isEarning = ea ? Boolean(ea.isEarning) : false;
   const atWorkUsd = ea ? atomicToUsd(ea.baseAtomic) : 0;
   const earnRatePct = ea && typeof ea.ratePct === "number" && Number.isFinite(ea.ratePct) ? ea.ratePct : null;
-  const money = sp || cr || ea ? { spendableUsd, cashUsd, creditAvailableUsd, atWorkUsd, isEarning, earnRatePct, hasCreditLine: Boolean(cr) } : void 0;
+  const money = sp || cr || ea ? {
+    spendableUsd,
+    cashUsd,
+    creditAvailableUsd,
+    atWorkUsd,
+    isEarning,
+    earnRatePct,
+    hasCreditLine: Boolean(cr),
+    creditCapUsd: cr ? atomicToUsd(cr.capAtomic) : 0,
+    creditDrawnUsd: cr ? atomicToUsd(cr.borrowedAtomic) : 0
+  } : void 0;
   const ph = raw.personhood && typeof raw.personhood === "object" ? raw.personhood : null;
   const personhood = ph ? { verified: Boolean(ph.verified) } : void 0;
   const cardRaw = raw.card && typeof raw.card === "object" ? raw.card : null;
@@ -222,8 +232,9 @@ function SpendHeadline({ value }) {
     ] })
   ] });
 }
-function CompositionBar({ own, credit, atWork, earnPct }) {
-  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dxw-comp", children: [
+function CompositionBar({ own, credit, atWork, earnPct, onOpen }) {
+  const Root = onOpen ? "button" : "div";
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs(Root, { className: `dxw-comp${onOpen ? " dxw-comp-tap" : ""}`, ...onOpen ? { onClick: onOpen, type: "button" } : {}, children: [
     /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dxw-comp-bar", children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "dxw-seg dxw-seg-own", style: { flex: `${Math.max(own, 1e-3)} 1 0` } }),
       credit > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "dxw-seg dxw-seg-credit", style: { flex: `${credit} 1 0` } }) : null,
@@ -557,6 +568,52 @@ function ActivityRow({ item }) {
 function ActivitySheet({ items, onClose }) {
   return /* @__PURE__ */ jsxRuntimeExports.jsx(Sheet, { title: "Activity", onClose, children: items.length === 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "dxw-empty", children: "No activity yet. Payments and earning moves show up here." }) : /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "dxw-act-list", children: items.map((item, i) => /* @__PURE__ */ jsxRuntimeExports.jsx(ActivityRow, { item }, `${item.at}-${i}`)) }) });
 }
+function CreditSheet({ lineUsd, drawnUsd, cashUsd, onClose }) {
+  const openUsd = Math.max(0, lineUsd - drawnUsd);
+  const drawnPct = lineUsd > 0 ? Math.min(100, drawnUsd / lineUsd * 100) : 0;
+  const netUsd = cashUsd - drawnUsd;
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs(Sheet, { title: "Credit", onClose, children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dxw-chit-head", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dxw-chit-line dxw-mono", children: fmtUsd(lineUsd) }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dxw-chit-line-label", children: "line" })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dxw-chit-bar", children: [
+      drawnUsd > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "dxw-chit-drawn", style: { width: `${drawnPct}%` } }) : null,
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "dxw-chit-open" })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dxw-chit-legend", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { children: [
+        "drawn ",
+        /* @__PURE__ */ jsxRuntimeExports.jsx("b", { className: "dxw-mono", children: fmtUsd(drawnUsd) })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { children: [
+        "open ",
+        /* @__PURE__ */ jsxRuntimeExports.jsx("b", { className: "dxw-mono", children: fmtUsd(openUsd) })
+      ] })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "dxw-chit-body", children: "When your balance runs short, purchases can use this — and money that arrives later pays it back first." }),
+    drawnUsd > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { className: "dxw-chit-owed", children: [
+      "You owe ",
+      /* @__PURE__ */ jsxRuntimeExports.jsx("b", { className: "dxw-mono", children: fmtUsd(drawnUsd) }),
+      " — money arriving repays it first."
+    ] }) : null,
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dxw-chit-net", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { children: [
+        "balance ",
+        /* @__PURE__ */ jsxRuntimeExports.jsx("b", { className: "dxw-mono", children: fmtUsd(cashUsd) })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: drawnUsd > 0 ? "dxw-chit-neg" : "", children: [
+        "owed ",
+        /* @__PURE__ */ jsxRuntimeExports.jsx("b", { className: "dxw-mono", children: fmtUsd(drawnUsd) })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: netUsd < 0 ? "dxw-chit-neg" : "", children: [
+        "net ",
+        /* @__PURE__ */ jsxRuntimeExports.jsx("b", { className: "dxw-mono", children: netUsd < 0 ? `−${fmtUsd(-netUsd)}` : `+${fmtUsd(netUsd)}` })
+      ] })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "dxw-chit-meta", children: drawnUsd > 0 ? "Money arriving repays first" : "Nothing owed" })
+  ] });
+}
 const WALLET_URL$1 = "https://dexter.cash/wallet";
 const DEPOSIT_URL = "https://dexter.cash/wallet/deposit";
 const WALLET_RAIL = "https://open.dexter.cash/widget/wallet";
@@ -619,7 +676,16 @@ function WalletHome({ payload, cardToken, walletToken, onOpenExternal }) {
       ] })
     ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(SpendHeadline, { value: spendable }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(CompositionBar, { own, credit, atWork, earnPct: money?.earnRatePct ?? null }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(
+      CompositionBar,
+      {
+        own,
+        credit,
+        atWork,
+        earnPct: money?.earnRatePct ?? null,
+        onOpen: money?.hasCreditLine ? () => setSheet("credit") : void 0
+      }
+    ),
     /* @__PURE__ */ jsxRuntimeExports.jsx(
       CardFace,
       {
@@ -676,6 +742,15 @@ function WalletHome({ payload, cardToken, walletToken, onOpenExternal }) {
     ] }) : null,
     sheet === "deposit" ? /* @__PURE__ */ jsxRuntimeExports.jsx(DepositSheet, { address, depositUrl: DEPOSIT_URL, onOpenExternal, onClose: () => setSheet(null) }) : null,
     sheet === "activity" ? /* @__PURE__ */ jsxRuntimeExports.jsx(ActivitySheet, { items: activity, onClose: () => setSheet(null) }) : null,
+    sheet === "credit" && money ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+      CreditSheet,
+      {
+        lineUsd: money.creditCapUsd,
+        drawnUsd: money.creditDrawnUsd,
+        cashUsd: own,
+        onClose: () => setSheet(null)
+      }
+    ) : null,
     null
   ] });
 }

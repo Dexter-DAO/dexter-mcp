@@ -34,6 +34,10 @@ export type WalletMoney = {
   earnRatePct: number | null;
   /** Whether a credit line is open at all (cap > 0) — drives the open-a-line invite. */
   hasCreditLine: boolean;
+  /** The line's total size in USD (0 when no line). */
+  creditCapUsd: number;
+  /** Currently drawn (owed) against the line, in USD. */
+  creditDrawnUsd: number;
 };
 
 export type WalletCard = {
@@ -177,7 +181,12 @@ export function normalizeWalletPayload(toolOutput: unknown): CanonicalWalletPayl
   const atWorkUsd = ea ? atomicToUsd(ea.baseAtomic) : 0;
   const earnRatePct = ea && typeof ea.ratePct === 'number' && Number.isFinite(ea.ratePct) ? ea.ratePct : null;
   const money: CanonicalWalletPayload['money'] = (sp || cr || ea)
-    ? { spendableUsd, cashUsd, creditAvailableUsd, atWorkUsd, isEarning, earnRatePct, hasCreditLine: Boolean(cr) }
+    ? {
+        spendableUsd, cashUsd, creditAvailableUsd, atWorkUsd, isEarning, earnRatePct,
+        hasCreditLine: Boolean(cr),
+        creditCapUsd: cr ? atomicToUsd(cr.capAtomic) : 0,
+        creditDrawnUsd: cr ? atomicToUsd(cr.borrowedAtomic) : 0,
+      }
     : undefined;
 
   const ph = raw.personhood && typeof raw.personhood === 'object' ? (raw.personhood as Record<string, unknown>) : null;
