@@ -1,6 +1,7 @@
 import './init-sentry';
 
 export * from './types';
+export * from './call-tool-result';
 export * from './use-openai-global';
 export * from './use-widget-props';
 export * from './use-display-mode';
@@ -16,5 +17,19 @@ export * from './use-tool-input';
 export * from './use-open-external';
 export * from './use-user-agent';
 // Dual-runtime adapter (ChatGPT + MCP Apps)
-export { useToolOutput, useToolResponseMetadata, useAdaptiveTheme, useAdaptiveCallToolFn, useAdaptiveOpenExternal, useHostRuntime } from './adapter';
+export {
+  useToolOutput,
+  useToolResponseMetadata,
+  useAdaptiveTheme,
+  useAdaptiveHostContext,
+  useAdaptiveHostCapabilities,
+  useAdaptiveDisplayMode,
+  useAdaptiveMaxHeight,
+  useAdaptiveRequestDisplayMode,
+  useAdaptiveUpdateModelContext,
+  useAdaptiveSendFollowUp,
+  useAdaptiveCallToolFn,
+  useAdaptiveOpenExternal,
+  useHostRuntime,
+} from './adapter';
 export { isMcpAppsHost } from './mcp-apps-bridge';

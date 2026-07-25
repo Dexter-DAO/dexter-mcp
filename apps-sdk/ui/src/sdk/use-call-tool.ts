@@ -1,9 +1,5 @@
 import { useCallback, useState } from 'react';
-
-type CallToolResult = {
-  result?: string;
-  [key: string]: unknown;
-};
+import type { CallToolResult } from './types';
 
 type UseCallToolReturn = {
   callTool: (name: string, args: Record<string, unknown>) => Promise<CallToolResult | null>;

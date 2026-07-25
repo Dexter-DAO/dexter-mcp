@@ -21,6 +21,46 @@ export type SafeArea = {
   insets: SafeAreaInsets;
 };
 
+export type HostStyleContext = {
+  variables?: Record<string, string>;
+  css?: {
+    fonts?: string;
+  };
+};
+
+export type HostContainerDimensions = {
+  width?: number;
+  maxWidth?: number;
+  height?: number;
+  maxHeight?: number;
+};
+
+export type AdaptiveHostContext = {
+  theme: Theme;
+  displayMode: DisplayMode;
+  availableDisplayModes: DisplayMode[];
+  containerDimensions?: HostContainerDimensions;
+  locale?: string;
+  timeZone?: string;
+  platform?: 'web' | 'desktop' | 'mobile';
+  deviceCapabilities?: {
+    touch?: boolean;
+    hover?: boolean;
+  };
+  safeAreaInsets: SafeAreaInsets;
+  styles?: HostStyleContext;
+};
+
+export type AdaptiveHostCapabilities = {
+  callTool: boolean;
+  openExternal: boolean;
+  requestDisplayMode: boolean;
+  updateModelContext: boolean;
+  sendFollowUpMessage: boolean;
+  downloadFile: boolean;
+  widgetState: boolean;
+};
+
 export type DeviceType = 'mobile' | 'tablet' | 'desktop' | 'unknown';
 
 export type UserAgent = {
@@ -31,7 +71,32 @@ export type UserAgent = {
   };
 };
 
-export type CallTool = (name: string, args: Record<string, unknown>) => Promise<{ result: string }>;
+export type ToolResultContent = {
+  type: string;
+  text?: string;
+  [key: string]: unknown;
+};
+
+export type CallToolResult<
+  StructuredContent = unknown,
+  Meta = UnknownObject,
+> = {
+  /**
+   * Backward-compatible text projection. New consumers should prefer
+   * structuredContent and inspect isError.
+   */
+  result: string;
+  structuredContent?: StructuredContent;
+  content?: ToolResultContent[];
+  _meta?: Meta;
+  isError?: boolean;
+  [key: string]: unknown;
+};
+
+export type CallTool = (
+  name: string,
+  args: Record<string, unknown>,
+) => Promise<CallToolResult>;
 
 export type OpenAIGlobals<
   ToolInput = UnknownObject,
@@ -54,6 +119,13 @@ export type OpenAIGlobals<
   sendFollowUpMessage: (args: { prompt: string; scrollToBottom?: boolean }) => Promise<void>;
   openExternal: (payload: { href: string }) => void;
   requestDisplayMode: RequestDisplayMode;
+  updateModelContext?: (args: {
+    content?: ToolResultContent[];
+    structuredContent?: UnknownObject;
+  }) => Promise<void>;
+  downloadFile?: (args: {
+    contents: UnknownObject[];
+  }) => Promise<{ isError?: boolean } | void>;
   apps?: {
     registerComponent?: (name: string, renderer: (props: unknown) => string | HTMLElement) => void;
   };

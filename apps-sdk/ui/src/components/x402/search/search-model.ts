@@ -6,7 +6,7 @@ import type {
   SearchResource,
 } from './types';
 
-export const SEARCH_WIDGET_BUILD = '2026-07-25.1';
+export const SEARCH_WIDGET_BUILD = '2026-07-25.3';
 
 export type SearchPayload = {
   success?: boolean;
@@ -21,10 +21,23 @@ export type SearchPayload = {
   rerank?: SearchRerankInfo;
   intent?: SearchIntent;
   searchMeta?: SearchMeta;
+  triangulate?: {
+    alternateResourceIds?: string[];
+  };
   tip?: string;
   error?: string;
   errorDetail?: string;
 };
+
+export function getSearchGuidance(payload: SearchPayload): string | null {
+  if ((payload.triangulate?.alternateResourceIds?.length ?? 0) > 0) {
+    return 'The leading match has limited structured evidence. Compare a profile-backed alternative before choosing.';
+  }
+  if (payload.searchMeta?.mode === 'related_only') {
+    return 'These are the closest related services. Review the fit before continuing.';
+  }
+  return null;
+}
 
 export type SearchSections = {
   strongResults: SearchResource[];
@@ -38,7 +51,10 @@ export type SearchErrorCopy = {
   description: string;
 };
 
-function normalizeSearchResource(resource: SearchResource): SearchResource {
+function normalizeSearchResource(
+  resource: SearchResource,
+  fallbackTier?: SearchResource['tier'],
+): SearchResource {
   const sellerValue = resource.seller;
   const sellerMeta = resource.sellerMeta ?? {
     payTo: null,
@@ -51,6 +67,7 @@ function normalizeSearchResource(resource: SearchResource): SearchResource {
     const sellerObj = sellerValue as Record<string, unknown>;
     return {
       ...resource,
+      tier: resource.tier ?? fallbackTier,
       seller: typeof sellerObj.displayName === 'string' ? sellerObj.displayName : null,
       sellerMeta: {
         payTo: typeof sellerObj.payTo === 'string' ? sellerObj.payTo : sellerMeta.payTo ?? null,
@@ -63,6 +80,7 @@ function normalizeSearchResource(resource: SearchResource): SearchResource {
 
   return {
     ...resource,
+    tier: resource.tier ?? fallbackTier,
     seller: typeof sellerValue === 'string' ? sellerValue : null,
     sellerMeta,
   };
@@ -73,20 +91,24 @@ export function normalizeSearchPayload(payload: SearchPayload | null): SearchPay
   return {
     ...payload,
     resources: Array.isArray(payload.resources)
-      ? payload.resources.map(normalizeSearchResource)
+      ? payload.resources.map((resource) => normalizeSearchResource(resource))
       : [],
     strongResults: Array.isArray(payload.strongResults)
-      ? payload.strongResults.map(normalizeSearchResource)
+      ? payload.strongResults.map((resource) =>
+          normalizeSearchResource(resource, 'strong'))
       : undefined,
     relatedResults: Array.isArray(payload.relatedResults)
-      ? payload.relatedResults.map(normalizeSearchResource)
+      ? payload.relatedResults.map((resource) =>
+          normalizeSearchResource(resource, 'related'))
       : undefined,
   };
 }
 
 export function getSearchSections(payload: SearchPayload): SearchSections {
-  const strongResults = payload.strongResults ?? [];
-  const relatedResults = payload.relatedResults ?? [];
+  const strongResults = (payload.strongResults ?? []).map((resource) =>
+    resource.tier ? resource : { ...resource, tier: 'strong' as const });
+  const relatedResults = (payload.relatedResults ?? []).map((resource) =>
+    resource.tier ? resource : { ...resource, tier: 'related' as const });
   const hasTieredShape =
     Array.isArray(payload.strongResults) || Array.isArray(payload.relatedResults);
 

@@ -43,15 +43,16 @@ function buildTip(result: CapabilitySearchResult): string {
   if (result.triangulate) {
     return (
       'Top match has no structured input semantics — the ranking is based on its description alone. ' +
-      `Before paying, call one of the profile-backed alternates (resourceId: ${result.triangulate.alternateResourceIds[0]}) ` +
-      "and confirm the answer agrees. If the query is unambiguous (e.g. you passed an exact contract address, not a name), you can skip this step."
+      `Before choosing it, compare one of the profile-backed alternates (resourceId: ${result.triangulate.alternateResourceIds[0]}) ` +
+      'and confirm the answer agrees. For any paid call, run x402_check on the chosen endpoint and do not pay until the user explicitly approves the checked terms. ' +
+      'If the query is unambiguous (e.g. you passed an exact contract address, not a name), you can skip the comparison.'
     );
   }
   if (result.strongCount > 0) {
-    return 'Use x402_fetch to call any of these endpoints. Strong matches are high-confidence; related matches are adjacent capabilities.';
+    return 'Choose a service, then run x402_check to confirm its current access and price. Do not pay until the user explicitly approves the checked terms.';
   }
   if (result.relatedCount > 0) {
-    return 'No exact match. These are the closest related services — confirm with the user before calling.';
+    return 'No exact match. Confirm the closest service with the user, then run x402_check before any payment.';
   }
   return 'Nothing in the index matches this query yet. Try a broader phrasing.';
 }

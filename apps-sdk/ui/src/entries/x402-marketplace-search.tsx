@@ -11,30 +11,42 @@ import '../styles/components/x402gle-lockup.css';
 import '../styles/widgets/x402-search.css';
 
 import { createRoot } from 'react-dom/client';
-import { useState, useCallback, useEffect, useMemo } from 'react';
-import { Button } from '@openai/apps-sdk-ui/components/Button';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { EmptyMessage } from '@openai/apps-sdk-ui/components/EmptyMessage';
 import { Search, Warning } from '@openai/apps-sdk-ui/components/Icon';
 import {
   useToolOutput,
   useAdaptiveTheme,
+  useAdaptiveHostContext,
+  useAdaptiveHostCapabilities,
   useAdaptiveCallToolFn,
-  useHostRuntime,
-  useDisplayMode,
-  useMaxHeight,
-  useRequestDisplayMode,
+  useAdaptiveDisplayMode,
+  useAdaptiveMaxHeight,
+  useAdaptiveRequestDisplayMode,
+  useAdaptiveSendFollowUp,
+  useAdaptiveUpdateModelContext,
 } from '../sdk';
 import { useToolInput as useAdaptiveToolInput } from '../sdk/adapter';
-import { DebugPanel } from '../components/x402';
 import { MarketplaceSummaryHeader } from '../components/x402/search/MarketplaceSummaryHeader';
-import { SearchVerdictRow } from '../components/x402/search/SearchVerdictRow';
 import { MarketBoardLoading } from '../components/x402/search/MarketBoardLoading';
 import { SearchVerdictDrawer } from '../components/x402/search/SearchVerdictDrawer';
+import {
+  SearchDecisionBrief,
+  type SearchDecisionBriefCheckState,
+} from '../components/x402/search/SearchDecisionBrief';
+import { SearchComparisonPanel } from '../components/x402/search/SearchComparisonPanel';
+import { SearchQuotePanel } from '../components/x402/search/SearchQuotePanel';
 import type { SearchResource } from '../components/x402/search/types';
+import { isSearchCheckRequestBound } from '../components/x402/search/utils';
+import {
+  normalizeX402CheckResult,
+  type X402CheckState,
+} from '../components/x402/check-result-model';
 import {
   SEARCH_WIDGET_BUILD,
   findSelectedResource,
   getSearchErrorCopy,
+  getSearchGuidance,
   getSearchSections,
   normalizeSearchPayload,
 } from '../components/x402/search/search-model';
@@ -44,6 +56,36 @@ import { addWidgetBreadcrumb, captureWidgetException } from '../sdk/init-sentry'
 type SearchToolInput = {
   query?: string;
 };
+
+type SearchCheckFlow =
+  | { status: 'idle' }
+  | { status: 'checking'; resourceUrl: string }
+  | {
+      status: 'checked';
+      resourceUrl: string;
+      quote: X402CheckState;
+      checkedAt: Date;
+    }
+  | { status: 'error'; resourceUrl: string; message: string };
+
+type QuoteContinuation =
+  | { status: 'idle'; message?: null }
+  | { status: 'sending'; message?: null }
+  | { status: 'sent'; message?: null }
+  | { status: 'error'; message: string };
+
+function toolResultPayload(result: {
+  structuredContent?: unknown;
+  result?: string;
+}): unknown {
+  if (result.structuredContent !== undefined) return result.structuredContent;
+  if (!result.result) return null;
+  try {
+    return JSON.parse(result.result);
+  } catch {
+    return { error: true, message: result.result };
+  }
+}
 
 function useCompactViewport() {
   const [isCompact, setIsCompact] = useState(false);
@@ -64,16 +106,22 @@ function MarketplaceSearch() {
   const toolOutput = useToolOutput<SearchPayload>();
   const toolInput = useAdaptiveToolInput<SearchToolInput>();
   const theme = useAdaptiveTheme();
-  const hostRuntime = useHostRuntime();
-  const maxHeight = useMaxHeight();
-  const displayMode = useDisplayMode();
-  const requestDisplayMode = useRequestDisplayMode();
+  const hostContext = useAdaptiveHostContext();
+  const hostCapabilities = useAdaptiveHostCapabilities();
+  const maxHeight = useAdaptiveMaxHeight();
+  const displayMode = useAdaptiveDisplayMode();
+  const requestDisplayMode = useAdaptiveRequestDisplayMode();
+  const updateModelContext = useAdaptiveUpdateModelContext();
+  const sendFollowUp = useAdaptiveSendFollowUp();
   const isMobile = useCompactViewport();
   const callTool = useAdaptiveCallToolFn();
-  const isChatGpt = hostRuntime === 'chatgpt';
-  const isFullscreen = isChatGpt && displayMode === 'fullscreen';
-  const canToggleFullscreen = isChatGpt && typeof requestDisplayMode === 'function';
-  const constrainedMaxHeight = isChatGpt ? maxHeight : null;
+  const isFullscreen = displayMode === 'fullscreen';
+  const canToggleFullscreen = Boolean(
+    requestDisplayMode
+    && hostCapabilities.requestDisplayMode
+    && hostContext.availableDisplayModes.includes('fullscreen'),
+  );
+  const constrainedMaxHeight = maxHeight;
   const activeOutput = useMemo(
     () => normalizeSearchPayload(toolOutput),
     [toolOutput],
@@ -81,8 +129,24 @@ function MarketplaceSearch() {
   const externalQuery = toolInput?.query ?? '';
   const [selectedUrl, setSelectedUrl] = useState<string | undefined>(undefined);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [comparisonOpen, setComparisonOpen] = useState(false);
+  const [checkFlow, setCheckFlow] = useState<SearchCheckFlow>({ status: 'idle' });
+  const [quoteContinuation, setQuoteContinuation] =
+    useState<QuoteContinuation>({ status: 'idle' });
+  const checkRequestId = useRef(0);
+  const continuationRequestId = useRef(0);
 
   useEffect(() => { document.documentElement.setAttribute('data-theme', theme); }, [theme]);
+
+  useEffect(() => {
+    checkRequestId.current += 1;
+    continuationRequestId.current += 1;
+    setSelectedUrl(undefined);
+    setDetailOpen(false);
+    setComparisonOpen(false);
+    setCheckFlow({ status: 'idle' });
+    setQuoteContinuation({ status: 'idle' });
+  }, [activeOutput, externalQuery]);
 
   useEffect(() => {
     if (!activeOutput) return;
@@ -95,21 +159,15 @@ function MarketplaceSearch() {
     () => activeOutput ? getSearchSections(activeOutput) : null,
     [activeOutput],
   );
-  const strongResults = searchSections?.strongResults ?? [];
-  const relatedResults = searchSections?.relatedResults ?? [];
   const resources = searchSections?.resources ?? [];
-  const hasTieredShape = searchSections?.hasTieredShape ?? false;
-  const strongCount = activeOutput?.strongCount ?? strongResults.length;
-  const relatedCount = activeOutput?.relatedCount ?? relatedResults.length;
   const rerankApplied = activeOutput?.rerank?.applied === true;
   const noMatchReason = activeOutput?.noMatchReason ?? null;
-  const searchMode = activeOutput?.searchMeta?.mode ?? 'none';
-  const searchNote = activeOutput?.searchMeta?.note ?? '';
   const selectedResource = useMemo(
     () => findSelectedResource(resources, selectedUrl),
     [resources, selectedUrl],
   );
   const searchError = activeOutput ? getSearchErrorCopy(activeOutput) : null;
+  const searchGuidance = activeOutput ? getSearchGuidance(activeOutput) : null;
 
   useEffect(() => {
     if (!selectedUrl || selectedResource) return;
@@ -117,19 +175,121 @@ function MarketplaceSearch() {
     setDetailOpen(false);
   }, [selectedResource, selectedUrl]);
 
-  const runCheckPrice = useCallback(async (resource: SearchResource) => {
-    addWidgetBreadcrumb('check_price_clicked', { url: resource.url, method: resource.method });
+  const confirmCurrentTerms = useCallback(async (resource: SearchResource) => {
+    if (!hostCapabilities.callTool) {
+      setCheckFlow({
+        status: 'error',
+        resourceUrl: resource.url,
+        message: 'This host can’t check current terms from the widget.',
+      });
+      return;
+    }
+    const requestId = ++checkRequestId.current;
+    continuationRequestId.current += 1;
+    addWidgetBreadcrumb('current_terms_requested', { url: resource.url, method: resource.method });
+    setSelectedUrl(resource.url);
+    setCheckFlow({ status: 'checking', resourceUrl: resource.url });
+    setQuoteContinuation({ status: 'idle' });
     try {
-      await callTool('x402_check', { url: resource.url, method: resource.method || 'GET' });
+      const result = await callTool('x402_check', {
+        url: resource.url,
+        method: resource.method || 'GET',
+      });
+      if (checkRequestId.current !== requestId) return;
+      const payload = toolResultPayload(result);
+      const quote = normalizeX402CheckResult(
+        result.isError
+          ? {
+              ...(payload && typeof payload === 'object' ? payload : {}),
+              error: true,
+              authMode: 'unknown',
+            }
+          : payload,
+      );
+      if (updateModelContext) {
+        void updateModelContext({
+          text: isSearchCheckRequestBound(resource.method)
+            ? `Checked the current access and pricing for ${resource.name}. No payment was made.`
+            : `Checked an indicative price for ${resource.name}. The exact request still needs pricing before approval. No payment was made.`,
+          structuredContent: {
+            checkedResource: {
+              name: resource.name,
+              url: resource.url,
+              method: resource.method || 'GET',
+              classification: quote.classification,
+              requestBound: isSearchCheckRequestBound(resource.method),
+              paymentOptions: quote.routes.map((route) => ({
+                network: route.network,
+                asset: route.asset,
+                scheme: route.scheme,
+                price: route.price,
+                priceFormatted: route.priceFormatted,
+              })),
+            },
+          },
+        }).catch((error) => {
+          captureWidgetException(error, {
+            phase: 'update_checked_model_context',
+            url: resource.url,
+          });
+        });
+      }
+      setCheckFlow({
+        status: 'checked',
+        resourceUrl: resource.url,
+        quote,
+        checkedAt: new Date(),
+      });
     } catch (error) {
-      captureWidgetException(error, { phase: 'check_price', url: resource.url });
+      if (checkRequestId.current !== requestId) return;
+      captureWidgetException(error, { phase: 'confirm_current_terms', url: resource.url });
+      setCheckFlow({
+        status: 'error',
+        resourceUrl: resource.url,
+        message: error instanceof Error
+          ? error.message
+          : 'Couldn’t verify the current terms.',
+      });
       throw error;
     }
-  }, [callTool]);
+  }, [callTool, hostCapabilities.callTool, updateModelContext]);
+
+  const handleSelectResource = useCallback((resource: SearchResource) => {
+    checkRequestId.current += 1;
+    continuationRequestId.current += 1;
+    addWidgetBreadcrumb('search_resource_selected', {
+      url: resource.url,
+      resourceId: resource.resourceId,
+    });
+    setSelectedUrl(resource.url);
+    setCheckFlow({ status: 'idle' });
+    setQuoteContinuation({ status: 'idle' });
+    if (updateModelContext) {
+      void updateModelContext({
+        text: `Selected ${resource.name} for comparison in the x402 marketplace.`,
+        structuredContent: {
+          selectedResource: {
+            name: resource.name,
+            url: resource.url,
+            method: resource.method || 'GET',
+          },
+        },
+      }).catch((error) => {
+        captureWidgetException(error, {
+          phase: 'update_model_context',
+          url: resource.url,
+        });
+      });
+    }
+  }, [updateModelContext]);
 
   const handleInspectResource = useCallback((resource: SearchResource) => {
+    checkRequestId.current += 1;
+    continuationRequestId.current += 1;
     addWidgetBreadcrumb('inspect_opened', { url: resource.url, resourceId: resource.resourceId });
     setSelectedUrl(resource.url);
+    setCheckFlow({ status: 'idle' });
+    setQuoteContinuation({ status: 'idle' });
     setDetailOpen(true);
   }, []);
 
@@ -143,13 +303,117 @@ function MarketplaceSearch() {
     try {
       void Promise.resolve(
         requestDisplayMode({ mode: isFullscreen ? 'inline' : 'fullscreen' }),
-      ).catch((error) => {
-        captureWidgetException(error, { phase: 'request_display_mode' });
-      });
+      )
+        .then(() => setComparisonOpen(!isFullscreen))
+        .catch((error) => {
+          captureWidgetException(error, { phase: 'request_display_mode' });
+          if (!isFullscreen) setComparisonOpen(true);
+        });
     } catch (error) {
       captureWidgetException(error, { phase: 'request_display_mode' });
+      if (!isFullscreen) setComparisonOpen(true);
     }
   }, [canToggleFullscreen, isFullscreen, requestDisplayMode]);
+
+  const handleCompareAll = useCallback(() => {
+    if (isFullscreen) {
+      setComparisonOpen(true);
+      return;
+    }
+    if (!canToggleFullscreen || !requestDisplayMode) return;
+    try {
+      void Promise.resolve(requestDisplayMode({ mode: 'fullscreen' }))
+        .then(() => setComparisonOpen(true))
+        .catch((error) => {
+          captureWidgetException(error, { phase: 'request_compare_fullscreen' });
+          setComparisonOpen(true);
+        });
+    } catch (error) {
+      captureWidgetException(error, { phase: 'request_compare_fullscreen' });
+      setComparisonOpen(true);
+    }
+  }, [canToggleFullscreen, isFullscreen, requestDisplayMode]);
+
+  const activeResource = selectedResource ?? resources[0] ?? null;
+  const activeQuote =
+    checkFlow.status === 'checked'
+    && activeResource
+    && checkFlow.resourceUrl === activeResource.url
+      ? checkFlow
+      : null;
+  const decisionCheckState: SearchDecisionBriefCheckState =
+    checkFlow.status === 'checking'
+      ? {
+          status: 'checking',
+          resourceUrl: checkFlow.resourceUrl,
+          message: 'Confirming the service’s current terms…',
+        }
+      : checkFlow.status === 'checked'
+        ? {
+            status: 'checked',
+            resourceUrl: checkFlow.resourceUrl,
+            message: 'A fresh price estimate is ready below.',
+          }
+        : checkFlow.status === 'error'
+          ? {
+              status: 'error',
+              resourceUrl: checkFlow.resourceUrl,
+              message: checkFlow.message,
+            }
+          : { status: 'idle' };
+
+  const continueFromQuote = useCallback(async () => {
+    if (
+      !sendFollowUp
+      || !activeResource
+      || !activeQuote
+      || quoteContinuation.status === 'sending'
+      || quoteContinuation.status === 'sent'
+    ) {
+      return;
+    }
+    const requestId = ++continuationRequestId.current;
+    const { classification } = activeQuote.quote;
+    const requestBound = isSearchCheckRequestBound(activeResource.method);
+    const prompt =
+      classification === 'free'
+        ? `Use ${activeResource.name} at ${activeResource.url} for my request.`
+        : classification === 'siwx'
+          ? `Help me sign in to ${activeResource.name} with my wallet. Do not make a payment.`
+          : classification === 'apiKey'
+            ? `Help me connect the provider access required for ${activeResource.name}.`
+            : classification === 'paid' || classification === 'hybrid'
+              ? requestBound
+                ? `Show me the current payment options for ${activeResource.name} at ${activeResource.url}. Do not pay until I explicitly approve.`
+                : `Prepare the exact request for ${activeResource.name} at ${activeResource.url} and confirm its current payment options. Do not pay until I explicitly approve.`
+              : `Retry the current terms check for ${activeResource.name}.`;
+    setQuoteContinuation({ status: 'sending' });
+    try {
+      await sendFollowUp(prompt);
+      if (continuationRequestId.current !== requestId) return;
+      setQuoteContinuation({ status: 'sent' });
+    } catch (error) {
+      if (continuationRequestId.current !== requestId) return;
+      captureWidgetException(error, {
+        phase: 'quote_follow_up',
+        url: activeResource.url,
+      });
+      setQuoteContinuation({
+        status: 'error',
+        message: 'Couldn’t open the review in chat. Try again.',
+      });
+    }
+  }, [
+    activeQuote,
+    activeResource,
+    quoteContinuation.status,
+    sendFollowUp,
+  ]);
+
+  const checkFromDetail = useCallback(async (resource: SearchResource) => {
+    setDetailOpen(false);
+    await confirmCurrentTerms(resource);
+  }, [confirmCurrentTerms]);
 
   if (!activeOutput) {
     return (
@@ -197,14 +461,15 @@ function MarketplaceSearch() {
   return (
     <div
       data-theme={theme}
-      className={`dxs-root flex flex-col overflow-y-auto ${isFullscreen ? 'p-5 sm:p-6' : 'p-0'}`}
-      style={{ maxHeight: isFullscreen ? undefined : (constrainedMaxHeight ?? undefined) }}
+      className={`dxs-root dx-search-shell ${isFullscreen ? 'dx-search-shell--fullscreen' : ''}`}
+      style={{
+        maxHeight: isFullscreen ? undefined : (constrainedMaxHeight ?? undefined),
+        paddingBottom: hostContext.safeAreaInsets.bottom || undefined,
+      }}
     >
-      <div className="px-4 pt-4">
+      <div className="dx-search-shell__header">
         <MarketplaceSummaryHeader
           resultCount={activeOutput.count}
-          strongCount={hasTieredShape ? strongCount : undefined}
-          relatedCount={hasTieredShape ? relatedCount : undefined}
           rerankApplied={rerankApplied}
           isFullscreen={isFullscreen}
           canToggleFullscreen={canToggleFullscreen}
@@ -212,111 +477,77 @@ function MarketplaceSearch() {
         />
       </div>
 
-      {!isMobile && !isFullscreen && detailOpen && selectedResource && (
-        <div className="px-4 pt-4">
-          <SearchVerdictDrawer
-            resource={selectedResource}
-            onClose={handleCloseDetail}
-            onCheckPrice={runCheckPrice}
+      <main
+        className={`dx-search-experience ${
+          isFullscreen ? 'dx-search-experience--fullscreen' : ''
+        }`}
+      >
+        <div
+          className={`dx-search-experience__decision ${
+            activeQuote ? 'dx-search-experience__decision--confirmed' : ''
+          }`}
+        >
+          <SearchDecisionBrief
+            resources={resources}
+            selectedUrl={selectedUrl}
+            checkState={decisionCheckState}
+            onSelect={handleSelectResource}
+            onUseService={(resource) => {
+              void confirmCurrentTerms(resource).catch(() => {});
+            }}
+            onCompareAll={handleCompareAll}
+            canCheckCurrentTerms={hostCapabilities.callTool}
+            canCompare={canToggleFullscreen || isFullscreen}
+            heading={externalQuery ? 'Recommended for this request' : 'Best match'}
+            alternativeLimit={isFullscreen ? 0 : 2}
           />
-        </div>
-      )}
 
-      <div className={`px-4 py-4 ${isFullscreen ? 'grid gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]' : ''}`}>
-        <div className="flex flex-col gap-5">
-          {hasTieredShape ? (
-            <>
-              {strongResults.length > 0 && (
-                <section>
-                  <div className="dx-search-section-heading">
-                    <span className="dx-search-section-title dx-search-section-title--strong">
-                      Strong matches
-                    </span>
-                    <span className="dx-search-section-count">{strongResults.length}</span>
-                    <span className="dx-search-section-rule dx-search-section-rule--strong" />
-                  </div>
-                  <div className={`grid gap-3 ${isFullscreen ? 'xl:grid-cols-2' : 'grid-cols-1'}`}>
-                    {strongResults.map((resource, index) => (
-                      <SearchVerdictRow
-                        key={`strong-${resource.url}-${index}`}
-                        resource={resource}
-                        index={index}
-                        featured={index === 0}
-                        selected={selectedUrl === resource.url}
-                        onInspect={handleInspectResource}
-                        onCheckPrice={runCheckPrice}
-                      />
-                    ))}
-                  </div>
-                </section>
-              )}
-              {relatedResults.length > 0 && (
-                <section>
-                  <div className="dx-search-section-heading">
-                    <span className="dx-search-section-title">
-                      Related services
-                    </span>
-                    <span className="dx-search-section-count">{relatedResults.length}</span>
-                    <span className="dx-search-section-rule" />
-                  </div>
-                  <div className={`grid gap-3 ${isFullscreen ? 'xl:grid-cols-2' : 'grid-cols-1'}`}>
-                    {relatedResults.map((resource, index) => (
-                      <SearchVerdictRow
-                        key={`related-${resource.url}-${index}`}
-                        resource={resource}
-                        index={index}
-                        featured={false}
-                        selected={selectedUrl === resource.url}
-                        onInspect={handleInspectResource}
-                        onCheckPrice={runCheckPrice}
-                      />
-                    ))}
-                  </div>
-                </section>
-              )}
-            </>
-          ) : (
-            <div className={`grid gap-3 ${isFullscreen ? 'xl:grid-cols-2' : 'grid-cols-1'}`}>
-              {resources.map((resource, index) => (
-                <SearchVerdictRow
-                  key={`${resource.url}-${index}`}
-                  resource={resource}
-                  index={index}
-                  featured={index === 0}
-                  selected={selectedUrl === resource.url}
-                  onInspect={handleInspectResource}
-                  onCheckPrice={runCheckPrice}
-                />
-              ))}
-            </div>
+          {activeQuote && activeResource && (
+            <SearchQuotePanel
+              resource={activeResource}
+              quote={activeQuote.quote}
+              checkedAt={activeQuote.checkedAt}
+              locale={hostContext.locale}
+              timeZone={hostContext.timeZone}
+              onRetry={() => {
+                void confirmCurrentTerms(activeResource).catch(() => {});
+              }}
+              onContinue={sendFollowUp
+                ? () => {
+                    void continueFromQuote();
+                  }
+                : undefined}
+              continueStatus={quoteContinuation.status}
+              continueError={
+                quoteContinuation.status === 'error'
+                  ? quoteContinuation.message
+                  : null
+              }
+            />
           )}
         </div>
 
-        {isFullscreen && !isMobile && (
-          <div className="min-w-0">
-            {detailOpen && selectedResource ? (
-              <SearchVerdictDrawer
-                resource={selectedResource}
-                onClose={handleCloseDetail}
-                onCheckPrice={runCheckPrice}
-              />
-            ) : (
-              <div className="sticky top-4 rounded-[22px] border border-dashed border-subtle bg-surface px-4 py-6 transition-all duration-200">
-                <div className="text-[10px] uppercase tracking-[0.22em] text-tertiary">Inspection Deck</div>
-                <h3 className="mt-2 text-lg font-semibold text-primary">Select a result to inspect</h3>
-                <p className="mt-2 text-sm leading-6 text-secondary">
-                  Choose a candidate to review its listed routes and verifier history. A fresh price check always comes before any payment step.
-                </p>
-                {selectedResource && (
-                  <Button className="mt-4" variant="soft" color="secondary" size="sm" onClick={() => handleInspectResource(selectedResource)}>
-                    Open {selectedResource.name}
-                  </Button>
-                )}
-              </div>
-            )}
-          </div>
+        {(comparisonOpen || isFullscreen) && (
+          <SearchComparisonPanel
+            resources={resources}
+            selectedUrl={selectedUrl}
+            onSelect={handleSelectResource}
+            onInspect={handleInspectResource}
+          />
         )}
-      </div>
+
+        {!isMobile && detailOpen && selectedResource && (
+          <aside className="dx-search-experience__detail">
+            <SearchVerdictDrawer
+              resource={selectedResource}
+              onClose={handleCloseDetail}
+              onCheckPrice={
+                hostCapabilities.callTool ? checkFromDetail : undefined
+              }
+            />
+          </aside>
+        )}
+      </main>
 
       {isMobile && detailOpen && selectedResource && (
         <div className="dx-search-mobile-backdrop fixed inset-0 z-20 flex items-end px-3 py-3 backdrop-blur-sm">
@@ -330,37 +561,17 @@ function MarketplaceSearch() {
             <SearchVerdictDrawer
               resource={selectedResource}
               onClose={handleCloseDetail}
-              onCheckPrice={runCheckPrice}
+              onCheckPrice={
+                hostCapabilities.callTool ? checkFromDetail : undefined
+              }
             />
           </div>
         </div>
       )}
 
-      {activeOutput.tip && (
-        <p className="text-xs text-tertiary px-4 pb-3">{activeOutput.tip}</p>
+      {searchGuidance && (
+        <p className="dx-search-shell__tip">{searchGuidance}</p>
       )}
-      <DebugPanel
-        widgetName="x402-marketplace-search"
-        extraInfo={{
-          externalQuery,
-          activeResultCount: activeOutput?.count ?? 0,
-          strongCount,
-          relatedCount,
-          topSimilarity: activeOutput?.topSimilarity ?? null,
-          noMatchReason: noMatchReason ?? '',
-          rerankApplied,
-          rerankReason: activeOutput?.rerank?.reason ?? '',
-          intentCapabilityText: activeOutput?.intent?.capabilityText ?? '',
-          searchMode,
-          searchNote,
-          selectedUrl: selectedUrl ?? '',
-          detailOpen,
-          hostRuntime,
-          canToggleFullscreen,
-          isMobile,
-          isFullscreen,
-        }}
-      />
     </div>
   );
 }

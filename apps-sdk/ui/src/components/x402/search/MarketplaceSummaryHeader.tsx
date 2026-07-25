@@ -11,31 +11,24 @@ import { X402gleLockup } from '../../brand/X402gleLockup';
  *
  * The on-widget search input was removed: agents communicate via chat,
  * nobody types into the widget input, and on mobile it ate ~140px of
- * vertical space above the actual results. The toolbar still keeps
- * the result-count line, the reranked tag, and the expand affordance.
+ * vertical space above the actual results. The toolbar keeps one calm
+ * reviewed-count label and the expand affordance.
  */
 export function MarketplaceSummaryHeader({
   resultCount,
-  strongCount,
-  relatedCount,
   rerankApplied = false,
   isFullscreen,
   canToggleFullscreen,
   onToggleFullscreen,
 }: {
   resultCount: number;
-  strongCount?: number;
-  relatedCount?: number;
   rerankApplied?: boolean;
   isFullscreen: boolean;
   canToggleFullscreen: boolean;
   onToggleFullscreen: () => void;
 }) {
-  const hasTieredCounts =
-    typeof strongCount === 'number' && typeof relatedCount === 'number';
-  const tierLabel = hasTieredCounts
-    ? `${strongCount} strong · ${relatedCount} related`
-    : `${resultCount.toLocaleString()} result${resultCount !== 1 ? 's' : ''}`;
+  const tierLabel =
+    `${resultCount.toLocaleString()} service${resultCount !== 1 ? 's' : ''} reviewed`;
   return (
     <div className="dx-search-header">
       <div className="dx-search-header__brand">
@@ -46,10 +39,9 @@ export function MarketplaceSummaryHeader({
         <span className="dx-search-header__count">{tierLabel}</span>
         {rerankApplied && (
           <span
-            className="dx-search-header__reranked"
-            title="Top results reordered by an LLM cross-encoder pass"
+            className="sr-only"
           >
-            reranked
+            Ranking refined for this request
           </span>
         )}
         {canToggleFullscreen && (
@@ -58,7 +50,7 @@ export function MarketplaceSummaryHeader({
             className="dx-search-header__expand"
             onClick={onToggleFullscreen}
           >
-            {isFullscreen ? 'minimize' : 'expand'}
+            {isFullscreen ? 'Close comparison' : 'Compare'}
           </button>
         )}
       </div>

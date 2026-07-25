@@ -19,7 +19,13 @@ export function SearchIdentityIcon({ resource, size = 44 }: { resource: SearchRe
     return list;
   }, [resource]);
 
-  const [attempt, setAttempt] = useState(0);
+  const sourceKey = sources.join('\n');
+  const [loadState, setLoadState] = useState({
+    sourceKey: '',
+    attempt: 0,
+  });
+  const attempt =
+    loadState.sourceKey === sourceKey ? loadState.attempt : 0;
   const currentSrc = sources[attempt];
   const allFailed = attempt >= sources.length;
 
@@ -35,7 +41,15 @@ export function SearchIdentityIcon({ resource, size = 44 }: { resource: SearchRe
       height={size}
       className="dx-search-identity__img"
       style={{ width: size, height: size }}
-      onError={() => setAttempt((a) => a + 1)}
+      onError={() => {
+        setLoadState((current) => ({
+          sourceKey,
+          attempt:
+            current.sourceKey === sourceKey
+              ? current.attempt + 1
+              : 1,
+        }));
+      }}
       aria-hidden="true"
     />
   );

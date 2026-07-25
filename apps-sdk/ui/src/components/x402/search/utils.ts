@@ -65,3 +65,14 @@ export function formatAssetLabel(
   }
   return name || identifier || 'Asset not listed';
 }
+
+/**
+ * Search results provide only a catalog URL and method. They do not prove that
+ * a future body or query string is identical to the probe, so a search-level
+ * check is always indicative until an exact request is prepared and repriced.
+ */
+export function isSearchCheckRequestBound(
+  _method: string | null | undefined,
+): boolean {
+  return false;
+}

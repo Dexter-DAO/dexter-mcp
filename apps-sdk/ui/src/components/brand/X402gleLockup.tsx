@@ -4,9 +4,9 @@
  * widget header — search is an x402gle product, not a bare-Dexter one.
  *
  * Rendered as live-styled text with the canonical x402gle multi-color
- * palette (Google's red/yellow/blue/green) plus a small "by [dexter
- * mark + wordmark]" tagline beneath. No external assets except the
- * Dexter glyph and wordmark fetched from dexter.cash.
+ * palette (Google's red/yellow/blue/green) plus a small "by Dexter"
+ * tagline beneath. The lockup is deliberately asset-free so sandboxed
+ * hosts never render a broken remote logo.
  *
  * Same color mapping is preserved exactly:
  *   x(blue) 4(red) 0(yellow) 2(blue) g(green) l(red) e(yellow)
@@ -28,9 +28,6 @@ const X402GLE_COLORS: string[] = [
   GOOGLE_COLORS.red,     // l
   GOOGLE_COLORS.yellow,  // e
 ];
-
-const DEXTER_GLYPH_URL = 'https://dexter.cash/assets/pokedexter/dexter-logo.svg';
-const DEXTER_WORDMARK_URL = 'https://dexter.cash/wordmarks/dexter-wordmark.svg';
 
 interface Props {
   /** Wordmark size — 'sm' fits in a header, 'md' is the dashboard pile-up. */
@@ -59,17 +56,10 @@ export function X402gleLockup({ size = 'sm', showBeta = false }: Props) {
           rel="noopener noreferrer"
           className="dx-x402gle-lockup__by-link"
         >
-          <img
-            src={DEXTER_GLYPH_URL}
-            alt=""
-            className="dx-x402gle-lockup__dexter-glyph"
-            aria-hidden
-          />
-          <img
-            src={DEXTER_WORDMARK_URL}
-            alt="Dexter"
-            className="dx-x402gle-lockup__dexter-wordmark"
-          />
+          <span className="dx-x402gle-lockup__dexter-mark" aria-hidden>
+            ◇
+          </span>
+          <span className="dx-x402gle-lockup__dexter-name">Dexter</span>
         </a>
       </div>
     </div>

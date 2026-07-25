@@ -4,12 +4,14 @@ import assert from 'node:assert/strict';
 import {
   findSelectedResource,
   getSearchErrorCopy,
+  getSearchGuidance,
   getSearchSections,
   normalizeSearchPayload,
 } from '../apps-sdk/ui/src/components/x402/search/search-model.ts';
 import {
   formatAssetLabel,
   formatListedPrice,
+  isSearchCheckRequestBound,
 } from '../apps-sdk/ui/src/components/x402/search/utils.ts';
 
 const resource = {
@@ -55,6 +57,32 @@ test('backend errors stay distinct from genuine empty search results', () => {
   assert.equal(getSearchErrorCopy(genuineEmpty), null);
 });
 
+test('reader guidance is reserved for decisions that need extra care', () => {
+  assert.equal(
+    getSearchGuidance({
+      count: 2,
+      searchMeta: { mode: 'direct' },
+      tip: 'Choose a service, then run x402_check.',
+    }),
+    null,
+  );
+  assert.equal(
+    getSearchGuidance({
+      count: 2,
+      searchMeta: { mode: 'related_only' },
+    }),
+    'These are the closest related services. Review the fit before continuing.',
+  );
+  assert.equal(
+    getSearchGuidance({
+      count: 2,
+      searchMeta: { mode: 'direct' },
+      triangulate: { alternateResourceIds: ['profile-backed-service'] },
+    }),
+    'The leading match has limited structured evidence. Compare a profile-backed alternative before choosing.',
+  );
+});
+
 test('tiered resources stay ordered without creating an implicit selection', () => {
   const related = { ...resource, resourceId: 'resource-2', url: 'https://example.com/related' };
   const sections = getSearchSections({
@@ -65,8 +93,9 @@ test('tiered resources stay ordered without creating an implicit selection', () 
 
   assert.equal(sections.hasTieredShape, true);
   assert.deepEqual(sections.resources.map((item) => item.resourceId), ['resource-1', 'resource-2']);
+  assert.deepEqual(sections.resources.map((item) => item.tier), ['strong', 'related']);
   assert.equal(findSelectedResource(sections.resources, undefined), null);
-  assert.equal(findSelectedResource(sections.resources, related.url), related);
+  assert.equal(findSelectedResource(sections.resources, related.url)?.resourceId, related.resourceId);
   assert.equal(findSelectedResource(sections.resources, 'https://stale.example'), null);
 });
 
@@ -106,4 +135,11 @@ test('same-network routes stay distinguishable by asset', () => {
     'Base · PYUSD · $0.01',
   ]);
   assert.equal(new Set(routeSummaries).size, 2);
+});
+
+test('search checks stay indicative until an exact request is prepared', () => {
+  assert.equal(isSearchCheckRequestBound('GET'), false);
+  assert.equal(isSearchCheckRequestBound('get'), false);
+  assert.equal(isSearchCheckRequestBound('HEAD'), false);
+  assert.equal(isSearchCheckRequestBound('POST'), false);
 });

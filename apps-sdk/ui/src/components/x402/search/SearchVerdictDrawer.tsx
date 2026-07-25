@@ -48,7 +48,7 @@ type ResourcePayload = {
 interface Props {
   resource: SearchResource;
   onClose: () => Promise<void> | void;
-  onCheckPrice: (resource: SearchResource) => Promise<void>;
+  onCheckPrice?: (resource: SearchResource) => Promise<void>;
 }
 
 export function SearchVerdictDrawer({ resource, onClose, onCheckPrice }: Props) {
@@ -135,12 +135,13 @@ export function SearchVerdictDrawer({ resource, onClose, onCheckPrice }: Props) 
 
   async function handleCheckPrice(e: React.MouseEvent) {
     e.stopPropagation();
+    if (!onCheckPrice) return;
     setCheckError(null);
     setChecking(true);
     try {
       await onCheckPrice(resource);
     } catch {
-      setCheckError('Couldn’t check the current price. Try again.');
+      setCheckError('Couldn’t confirm the current terms. Try again.');
     } finally {
       setChecking(false);
     }
@@ -322,9 +323,13 @@ export function SearchVerdictDrawer({ resource, onClose, onCheckPrice }: Props) 
             color="secondary"
             size="sm"
             onClick={handleCheckPrice}
-            disabled={checking}
+            disabled={checking || !onCheckPrice}
           >
-            {checking ? 'Checking…' : 'Check fresh price'}
+            {!onCheckPrice
+              ? 'Unavailable in this host'
+              : checking
+                ? 'Confirming…'
+                : 'Use this service'}
           </Button>
         </div>
       </div>

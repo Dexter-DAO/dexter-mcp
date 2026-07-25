@@ -66,13 +66,21 @@
   opacity: 0.8;
 }
 
-.dx-x402gle-lockup__dexter-glyph {
-  width: 16px;
-  height: 16px;
+.dx-x402gle-lockup__dexter-mark {
+  display: grid;
+  width: 15px;
+  height: 15px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--dx-accent) 48%, transparent);
+  border-radius: 5px;
+  color: var(--dx-accent);
+  font-size: 10px;
+  line-height: 1;
 }
 
-.dx-x402gle-lockup__dexter-wordmark {
-  height: 14px;
-  width: auto;
-  opacity: 0.95;
+.dx-x402gle-lockup__dexter-name {
+  color: var(--dx-fg);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: -0.015em;
 }

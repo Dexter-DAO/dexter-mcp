@@ -11,6 +11,23 @@
 /* Required for Tailwind to find class references in Apps SDK UI components */
 @source "../../../../node_modules/@openai/apps-sdk-ui";
 
+/*
+ * Vite may emit Apps SDK component CSS before this shared Tailwind bundle.
+ * In that order, Tailwind's form reset outranks the library's component
+ * layer and strips Button text color, padding, typography, and radius.
+ * Re-apply the component's own computed variables outside a cascade layer
+ * so every widget gets the intended host-token-driven control treatment.
+ */
+button[data-color][data-variant][data-size] {
+  height: var(--button-size);
+  padding: 0 var(--button-gutter);
+  border-radius: var(--button-radius);
+  color: var(--button-text-color);
+  font-size: var(--button-font-size);
+  font-weight: var(--button-font-weight);
+  line-height: 1;
+}
+
 /* Body reset (kept; base.css also defines one — last-write-wins is fine here) */
 body {
   margin: 0;
