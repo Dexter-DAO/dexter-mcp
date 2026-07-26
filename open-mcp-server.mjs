@@ -83,6 +83,11 @@ import {
   installOpenToolContracts,
 } from './lib/open-tool-contracts.mjs';
 import {
+  fetchInternalApi,
+  normalizeInternalApiOrigin,
+  resolveInternalApiOrigin,
+} from './lib/internal-api-fetch.mjs';
+import {
   OPEN_MCP_VERSION,
   buildOpenMcpManifest,
 } from './lib/open-mcp-manifest.mjs';
@@ -99,8 +104,9 @@ import {
   isAnyIdentityBound,
   isVaultBound,
   markAccountBound,
-  markVaultAuthMode,
   markVaultBound,
+  oauthVaultIdentityStatus,
+  pinOAuthVaultIdentity,
   touchOpenSessionMeta,
 } from './lib/open-session-auth-state.mjs';
 import {
@@ -125,8 +131,10 @@ const PORT = parseInt(process.env.OPEN_MCP_PORT || '3931', 10);
 // the server (e.g. "Dexter x402 Gateway" → "OpenDexter", 2026-06) is a
 // one-line change here instead of hunting literals across the file.
 const SERVER_NAME = 'OpenDexter';
-const DEXTER_API = (process.env.X402_API_URL || 'https://x402.dexter.cash').replace(/\/+$/, '');
-const API_BASE_FALLBACK = (process.env.API_BASE_URL || 'http://127.0.0.1:3030').replace(/\/+$/, '');
+const DEXTER_API = normalizeInternalApiOrigin(
+  process.env.X402_API_URL || 'https://x402.dexter.cash',
+);
+const API_BASE_FALLBACK = resolveInternalApiOrigin(process.env);
 const LOG_CORRELATION_KEY =
   String(process.env.OPEN_MCP_LOG_REDACTION_KEY || '').trim() || randomUUID();
 const logRef = createLogRef(LOG_CORRELATION_KEY);
@@ -136,7 +144,9 @@ const WEBAUTHN_PROBE_TELEMETRY_ENABLED =
 // at dexter-api (where the internal persist endpoint lives); the shared
 // secret authenticates this server as the trusted caller. The token must
 // match DEXTER_INTERNAL_TOKEN on dexter-api.
-const DEXTER_API_ORIGIN = (process.env.DEXTER_API_ORIGIN || 'https://api.dexter.cash').replace(/\/+$/, '');
+const DEXTER_API_ORIGIN = normalizeInternalApiOrigin(
+  process.env.DEXTER_API_ORIGIN || 'https://api.dexter.cash',
+);
 const DEXTER_INTERNAL_TOKEN = process.env.DEXTER_INTERNAL_TOKEN || '';
 if (!DEXTER_INTERNAL_TOKEN) {
   console.warn('[open-mcp] WARN: DEXTER_INTERNAL_TOKEN unset — x402_compose_skill publish path and promote_skill will fail. Non-publish path still works.');
@@ -517,8 +527,8 @@ async function readMultipartFiles(files) {
 async function checkSessionVaultBinding(sessionId) {
   if (!sessionId) return { ok: true, bound: false };
   try {
-    const res = await fetch(
-      `${API_BASE_FALLBACK}/api/passkey-anon/mcp-binding/${encodeURIComponent(sessionId)}`,
+    const res = await fetchInternalApi(
+      `/api/passkey-anon/mcp-binding/${encodeURIComponent(sessionId)}`,
       { headers: signedInternalHeaders(sessionId), signal: AbortSignal.timeout(2000) },
     );
     if (res.status === 404) return { ok: true, bound: false };
@@ -773,8 +783,8 @@ async function x402Fetch(
   let bindingLookupFailed = false;
   if (sessionIdForAnon) {
     try {
-      const bindRes = await fetch(
-        `${API_BASE_FALLBACK}/api/passkey-anon/mcp-binding/${encodeURIComponent(sessionIdForAnon)}`,
+      const bindRes = await fetchInternalApi(
+        `/api/passkey-anon/mcp-binding/${encodeURIComponent(sessionIdForAnon)}`,
         {
           headers: signedInternalHeaders(sessionIdForAnon),
           signal: AbortSignal.timeout(2000),
@@ -906,7 +916,7 @@ async function x402Fetch(
         for (const f of loadedFiles) {
           fd.append(f.fieldName, new Blob([new Uint8Array(f.data)], { type: f.mimeType }), f.filename);
         }
-        const anonRes = await fetch(`${API_BASE_FALLBACK}/v2/pay/anon/x402/fetch/multipart`, {
+        const anonRes = await fetchInternalApi('/v2/pay/anon/x402/fetch/multipart', {
           method: 'POST',
           body: fd,
           signal: AbortSignal.timeout(120000),
@@ -937,7 +947,7 @@ async function x402Fetch(
       }
 
       // JSON branch — original /v2/pay/anon/x402/fetch.
-      const anonRes = await fetch(`${API_BASE_FALLBACK}/v2/pay/anon/x402/fetch`, {
+      const anonRes = await fetchInternalApi('/v2/pay/anon/x402/fetch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1091,6 +1101,7 @@ async function x402Access({ url, method, body, sessionToken, sessionKey, network
             body: fetchOpts.body ?? null,
             network: network || undefined,
           }),
+          redirect: 'error',
           signal: AbortSignal.timeout(30000),
         });
         const parsed = await attempt.json().catch(() => null);
@@ -1183,8 +1194,8 @@ const SOLANA_MAINNET_CAIP2 = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
 async function fetchWalletActivity(sessionId) {
   if (!sessionId) return [];
   try {
-    const bindRes = await fetch(
-      `${API_BASE_FALLBACK}/api/passkey-anon/mcp-binding/${encodeURIComponent(sessionId)}`,
+    const bindRes = await fetchInternalApi(
+      `/api/passkey-anon/mcp-binding/${encodeURIComponent(sessionId)}`,
       { headers: signedInternalHeaders(sessionId), signal: AbortSignal.timeout(2000) },
     );
     if (!bindRes.ok) return [];
@@ -1194,8 +1205,8 @@ async function fetchWalletActivity(sessionId) {
     // NOTE the mount: /activity lives on the passkey-VAULT-anon router
     // (app.ts:1407), NOT /api/passkey-anon (the binding router — hitting it
     // 404'd silently and the widget's activity rendered empty; caught Jul 24).
-    const actRes = await fetch(
-      `${API_BASE_FALLBACK}/api/passkey-vault-anon/activity?user_handle=${encodeURIComponent(userHandle)}`,
+    const actRes = await fetchInternalApi(
+      `/api/passkey-vault-anon/activity?user_handle=${encodeURIComponent(userHandle)}`,
       { signal: AbortSignal.timeout(3000) },
     );
     if (!actRes.ok) return [];
@@ -1218,8 +1229,18 @@ async function fetchWalletActivity(sessionId) {
 // ride widget-frame-only HTTP endpoints authed by a short-TTL token delivered
 // via _meta (the sessionToken side-channel pattern — the model never sees it).
 // No card tools involved.
-const CARD_API_BASE = (process.env.DEXTER_API_URL || 'http://127.0.0.1:3030').replace(/\/+$/, '');
+const CARD_API_BASE = API_BASE_FALLBACK;
 const CARD_HMAC_SECRET = (process.env.INTERNAL_DEXTERCARD_HMAC_SECRET || '').trim();
+
+function fetchCardInternal(url, options) {
+  const parsed = new URL(url);
+  if (parsed.origin !== CARD_API_BASE) {
+    throw new TypeError('card_internal_origin_mismatch');
+  }
+  return fetchInternalApi(`${parsed.pathname}${parsed.search}`, options, {
+    origin: CARD_API_BASE,
+  });
+}
 
 // Card operations for a session's dextercard-scope binding, or null. Unlike
 // the card tools' adapter this NEVER mints a pairing — an unbound session
@@ -1232,6 +1253,7 @@ function cardOpsForSession(sessionId) {
     baseUrl: CARD_API_BASE,
     userId: binding.userId,
     hmacSecret: CARD_HMAC_SECRET,
+    fetchImpl: fetchCardInternal,
   });
 }
 
@@ -1319,7 +1341,10 @@ let yieldRateCache = { readAt: 0, bps: null, attestedAt: null };
 async function readEarningRatePct() {
   try {
     if (Date.now() - yieldRateCache.readAt > YIELD_RATE_CACHE_MS) {
-      const res = await fetch(`${CARD_API_BASE}/api/yield/rate`, { signal: AbortSignal.timeout(2500) });
+      const res = await fetchInternalApi(
+        '/api/yield/rate',
+        { signal: AbortSignal.timeout(2500) },
+      );
       const body = res.ok ? await res.json() : null;
       yieldRateCache = {
         readAt: Date.now(),
@@ -1734,10 +1759,10 @@ async function resolvePrincipalForSession(extra) {
   const binding = sessionId ? getUserBinding(sessionId) : null;
 
   if (binding?.userId && binding.supabaseAccessToken) {
-    const meRes = await fetch(`${DEXTER_API_ORIGIN}/api/principals/me`, {
+    const meRes = await fetchInternalApi('/api/principals/me', {
       headers: { Authorization: `Bearer ${binding.supabaseAccessToken}` },
       signal: AbortSignal.timeout(3000),
-    });
+    }, { origin: DEXTER_API_ORIGIN });
     if (!meRes.ok) {
       return { error: { code: 'principal_lookup_failed', extras: { status: meRes.status } } };
     }
@@ -1767,12 +1792,13 @@ async function resolvePrincipalForSession(extra) {
   if (sessionId) {
     let userHandle = null;
     try {
-      const bindRes = await fetch(
-        `${DEXTER_API_ORIGIN}/api/passkey-anon/mcp-binding/${encodeURIComponent(sessionId)}`,
+      const bindRes = await fetchInternalApi(
+        `/api/passkey-anon/mcp-binding/${encodeURIComponent(sessionId)}`,
         {
           headers: signedInternalHeaders(sessionId),
           signal: AbortSignal.timeout(2000),
         },
+        { origin: DEXTER_API_ORIGIN },
       );
       if (bindRes.ok) {
         const bindBody = await bindRes.json();
@@ -1787,9 +1813,10 @@ async function resolvePrincipalForSession(extra) {
 
     if (userHandle) {
       markSessionVaultBound(sessionId);
-      const meRes = await fetch(
-        `${DEXTER_API_ORIGIN}/api/principals/me?user_handle=${encodeURIComponent(userHandle)}`,
+      const meRes = await fetchInternalApi(
+        `/api/principals/me?user_handle=${encodeURIComponent(userHandle)}`,
         { signal: AbortSignal.timeout(3000) },
+        { origin: DEXTER_API_ORIGIN },
       );
       if (!meRes.ok) {
         return { error: { code: 'principal_lookup_failed', extras: { status: meRes.status } } };
@@ -2249,8 +2276,8 @@ function createOpenMcpServer() {
       // Persister: thin pass-through to the internal endpoint. The
       // dexter-api side does ownership + handle-match enforcement.
       const persister = async (input) => {
-        const response = await fetch(
-          `${DEXTER_API_ORIGIN}/api/internal/composed-skills/persist`,
+        const response = await fetchInternalApi(
+          '/api/internal/composed-skills/persist',
           {
             method: 'POST',
             headers: {
@@ -2260,6 +2287,7 @@ function createOpenMcpServer() {
             body: JSON.stringify({ identity, payload: input }),
             signal: AbortSignal.timeout(60000),
           },
+          { origin: DEXTER_API_ORIGIN },
         );
         if (!response.ok) {
           const errBody = await response.json().catch(() => ({ error: 'unknown' }));
@@ -2345,8 +2373,8 @@ function createOpenMcpServer() {
         });
       }
 
-      const response = await fetch(
-        `${DEXTER_API_ORIGIN}/api/internal/composed-skills/promote`,
+      const response = await fetchInternalApi(
+        '/api/internal/composed-skills/promote',
         {
           method: 'POST',
           headers: {
@@ -2360,6 +2388,7 @@ function createOpenMcpServer() {
           }),
           signal: AbortSignal.timeout(10000),
         },
+        { origin: DEXTER_API_ORIGIN },
       );
 
       if (!response.ok) {
@@ -2509,14 +2538,17 @@ function markSessionAccountBound(sessionId) {
   sessionMeta.set(sessionId, markAccountBound(sessionMeta.get(sessionId)));
 }
 
-function markSessionVaultAuthMode(sessionId, authMode) {
-  if (!sessionId) return;
-  sessionMeta.set(sessionId, markVaultAuthMode(sessionMeta.get(sessionId), authMode));
-}
-
 function markSessionVaultBound(sessionId, authMode = null) {
   if (!sessionId) return;
   sessionMeta.set(sessionId, markVaultBound(sessionMeta.get(sessionId), authMode));
+}
+
+function pinSessionOAuthIdentity(sessionId, identity) {
+  if (!sessionId) return;
+  sessionMeta.set(
+    sessionId,
+    pinOAuthVaultIdentity(sessionMeta.get(sessionId), identity),
+  );
 }
 
 function clearSessionVaultBinding(sessionId) {
@@ -2548,7 +2580,7 @@ const INTERNAL_HMAC_SECRET = (process.env.INTERNAL_DEXTERCARD_HMAC_SECRET || '')
 // are untouched and explicit durable-link sessions retain their own auth rail.
 const DEXTER_JWKS = createRemoteJWKSet(new URL('https://dexter.cash/.well-known/jwks.json'));
 
-async function seedOAuthVaultBinding(token, payload, sessionId) {
+async function seedOAuthVaultBinding(token, payload, identity, sessionId) {
   if (!INTERNAL_HMAC_SECRET || !sessionId || !token || !payload?.dexter_surface) {
     return false;
   }
@@ -2557,7 +2589,7 @@ async function seedOAuthVaultBinding(token, payload, sessionId) {
     const sig = createHmac('sha256', INTERNAL_HMAC_SECRET)
       .update(`${ts}.${token}.${sessionId}`)
       .digest('hex');
-    const res = await fetch(`${API_BASE_FALLBACK}/api/passkey-vault/pair/oauth-seed`, {
+    const res = await fetchInternalApi('/api/passkey-vault/pair/oauth-seed', {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -2568,6 +2600,15 @@ async function seedOAuthVaultBinding(token, payload, sessionId) {
       signal: AbortSignal.timeout(2500),
     });
     if (res.ok) {
+      // The seed response may only make the already-pinned OAuth identity
+      // routable. It must never replace the session's identity.
+      if (
+        oauthVaultIdentityStatus(sessionMeta.get(sessionId), identity)
+        !== 'match'
+      ) {
+        clearSessionVaultBinding(sessionId);
+        return false;
+      }
       markSessionVaultBound(sessionId, VAULT_AUTH_MODE_OAUTH);
       console.log(
         `[open-mcp] oauth vault binding seeded sessionRef=${logRef(sessionId)} `
@@ -2608,8 +2649,8 @@ async function seedOAuthVaultBinding(token, payload, sessionId) {
 // OAuth-wall an already-paying user after every pm2 restart.
 async function lookupDurableVaultBinding(sessionId) {
   try {
-    const bindRes = await fetch(
-      `${API_BASE_FALLBACK}/api/passkey-anon/mcp-binding/${encodeURIComponent(sessionId)}`,
+    const bindRes = await fetchInternalApi(
+      `/api/passkey-anon/mcp-binding/${encodeURIComponent(sessionId)}`,
       {
         headers: signedInternalHeaders(sessionId),
         signal: AbortSignal.timeout(2000),
@@ -2686,7 +2727,7 @@ async function bindLinkTokenToSession(linkToken, sessionId) {
     const sig = createHmac('sha256', INTERNAL_HMAC_SECRET)
       .update(`${ts}.${linkToken}.${sessionId}`)
       .digest('hex');
-    const resp = await fetch(`${API_BASE_FALLBACK}/api/passkey-vault/pair/link-token/bind`, {
+    const resp = await fetchInternalApi('/api/passkey-vault/pair/link-token/bind', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -3174,10 +3215,34 @@ const httpServer = http.createServer(async (req, res) => {
           return;
         }
 
+        const identityStatus = oauthVaultIdentityStatus(
+          sessionMeta.get(sessionId),
+          verification.identity,
+        );
+        if (identityStatus === 'mismatch') {
+          clearSessionVaultBinding(sessionId);
+          console.warn(
+            `[open-mcp] rejected vault Bearer identity switch for `
+            + `${protectedCall?.name || 'protected tool'} sessionRef=${logRef(sessionId)}`,
+          );
+          writeVaultChallenge(res, {
+            error: 'invalid_token',
+            errorDescription:
+              'This OpenDexter authorization belongs to a different session identity; connect again',
+          });
+          return;
+        }
+        if (identityStatus === 'unpinned') {
+          pinSessionOAuthIdentity(sessionId, verification.identity);
+        }
         hasValidVaultBearer = true;
-        markSessionVaultAuthMode(sessionId, VAULT_AUTH_MODE_OAUTH);
         if (!isVaultBound(sessionMeta.get(sessionId))) {
-          await seedOAuthVaultBinding(bearer, verification.payload, sessionId);
+          await seedOAuthVaultBinding(
+            bearer,
+            verification.payload,
+            verification.identity,
+            sessionId,
+          );
         }
       }
 

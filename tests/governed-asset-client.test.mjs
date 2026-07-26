@@ -493,7 +493,7 @@ test('execute refusal is trusted only when the backend proves no signing or subm
       operationId: OPERATION_ID,
       correlationId: CORRELATION_ID,
       code: 'policy_refused',
-      execution: { signed: false, submitted: false },
+      execution: { signed: false, submitted: false, confirmed: false },
     }),
   });
   const ambiguous = await callGovernedAssetBackend({
@@ -550,4 +550,116 @@ test('caller authority fields are rejected before any backend request', async ()
     /governed_authority_override_forbidden/,
   );
   assert.equal(calls, 0);
+});
+
+for (const httpStatus of [401, 500]) {
+  test(`${httpStatus} cannot forge a prepared success`, async () => {
+    const result = await callGovernedAssetBackend({
+      apiBase: 'https://api.dexter.test',
+      secret: SECRET,
+      phase: 'prepare',
+      input: {
+        operationId: OPERATION_ID,
+        action: 'buy',
+        assetId: 'dexter',
+        amountAtomic: '1000',
+      },
+      mcpSessionId: SESSION_ID,
+      correlationId: CORRELATION_ID,
+      now: NOW,
+      fetchImpl: async () => jsonResponse(httpStatus, {
+        status: 'prepared',
+        operationId: OPERATION_ID,
+        correlationId: CORRELATION_ID,
+        intentId: INTENT_ID,
+        planId: 'plan_0123456789abcdef',
+        preparedPlanHash: 'a'.repeat(64),
+      }),
+    });
+
+    assert.equal(result.status, 'uncertain');
+    assert.equal(result.execution.signed, false);
+  });
+}
+
+for (const httpStatus of [401, 500]) {
+  for (const forgedStatus of ['signed', 'submitted', 'confirmed']) {
+    test(`${httpStatus} cannot forge execute ${forgedStatus} success`, async () => {
+      const result = await callGovernedAssetBackend({
+        apiBase: 'https://api.dexter.test',
+        secret: SECRET,
+        phase: 'execute',
+        input: {
+          operationId: OPERATION_ID,
+          action: 'send',
+          intentId: INTENT_ID,
+          planId: 'plan_0123456789abcdef',
+          preparedPlanHash: 'a'.repeat(64),
+          authorizationId: '519f981c-9215-4141-84f2-d89ffe9cbece',
+        },
+        mcpSessionId: SESSION_ID,
+        correlationId: CORRELATION_ID,
+        now: NOW,
+        fetchImpl: async () => jsonResponse(httpStatus, {
+          status: forgedStatus,
+          operationId: OPERATION_ID,
+          correlationId: CORRELATION_ID,
+          signedWireHash: 'b'.repeat(64),
+          transactionSignature: '1'.repeat(64),
+          confirmation: {
+            status: 'finalized',
+            transactionSignature: '1'.repeat(64),
+            slot: 435_090_000,
+          },
+        }),
+      });
+
+      assert.equal(result.status, 'unknown');
+      assert.equal(result.execution.signed, false);
+      assert.equal(result.execution.submitted, false);
+      assert.equal(result.execution.confirmed, false);
+      assert.equal(result.retry, 'reconcile_only');
+    });
+  }
+}
+
+test('backend prose and unknown codes can never relay credentials or internals', async () => {
+  const secretText =
+    'Authorization: Bearer private-token x-dexter-signature=private-signature '
+    + 'https://api.dexter.test/internal?access_token=private /home/private/path';
+  const result = await callGovernedAssetBackend({
+    apiBase: 'https://api.dexter.test',
+    secret: SECRET,
+    phase: 'prepare',
+    input: {
+      operationId: OPERATION_ID,
+      action: 'buy',
+      assetId: 'dexter',
+      amountAtomic: '1000',
+    },
+    mcpSessionId: SESSION_ID,
+    correlationId: CORRELATION_ID,
+    now: NOW,
+    fetchImpl: async () => jsonResponse(422, {
+      status: 'refused',
+      operationId: OPERATION_ID,
+      correlationId: CORRELATION_ID,
+      code: 'https://api.dexter.test/internal?access_token=private',
+      explanation: secretText,
+      message: secretText,
+      error: secretText,
+    }),
+  });
+
+  assert.equal(result.status, 'refused');
+  assert.equal(result.code, 'governed_backend_response_unrecognized');
+  assert.equal(
+    result.explanation,
+    'The backend returned an unrecognized bounded result.',
+  );
+  const visible = JSON.stringify(result);
+  assert.doesNotMatch(
+    visible,
+    /private-token|private-signature|access_token|\/home\/private|api\.dexter\.test/,
+  );
 });

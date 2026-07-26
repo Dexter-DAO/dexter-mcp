@@ -7,6 +7,11 @@ import {
   oauthChallengeForVerification,
   verifyOpenVaultBearer,
 } from '../lib/open-vault-oauth.mjs';
+import {
+  createOpenSessionMeta,
+  oauthVaultIdentityStatus,
+  pinOAuthVaultIdentity,
+} from '../lib/open-session-auth-state.mjs';
 
 const AUDIENCE = 'https://open.dexter.cash/mcp';
 const SUBJECT = 'dGVzdC11c2VyLWhhbmRsZQ';
@@ -51,10 +56,35 @@ test('accepts a current ES256 token with issuer, audience, vault scope, subject,
   assert.equal(result.payload.sub, SUBJECT);
   assert.equal(result.payload.scope, 'vault');
   assert.equal(result.payload.dexter_surface, SURFACE);
+  assert.deepEqual(result.identity, {
+    subject: SUBJECT,
+    surface: SURFACE,
+    issuer: VAULT_OAUTH_ISSUER,
+    audience: AUDIENCE,
+  });
 });
 
 test('accepts vault among multiple space-delimited scopes', async () => {
   assert.equal((await verify(await token({ scope: 'openid vault profile' }))).ok, true);
+});
+
+test('token refresh keeps one session identity while other valid Bearers mismatch', async () => {
+  const first = await verify(await token());
+  const meta = pinOAuthVaultIdentity(
+    createOpenSessionMeta(1),
+    first.identity,
+  );
+
+  const refreshed = await verify(await token());
+  assert.equal(refreshed.ok, true);
+  assert.equal(oauthVaultIdentityStatus(meta, refreshed.identity), 'match');
+
+  const otherSubject = await verify(await token({ subject: 'another-valid-user' }));
+  const otherSurface = await verify(await token({ surface: 'b'.repeat(64) }));
+  assert.equal(otherSubject.ok, true);
+  assert.equal(otherSurface.ok, true);
+  assert.equal(oauthVaultIdentityStatus(meta, otherSubject.identity), 'mismatch');
+  assert.equal(oauthVaultIdentityStatus(meta, otherSurface.identity), 'mismatch');
 });
 
 for (const [label, options, reason] of [

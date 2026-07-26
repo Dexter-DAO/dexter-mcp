@@ -15,8 +15,18 @@ import {
   markAccountBound,
   markVaultAuthMode,
   markVaultBound,
+  oauthVaultIdentityOf,
+  oauthVaultIdentityStatus,
+  pinOAuthVaultIdentity,
   vaultAuthModeOf,
 } from '../lib/open-session-auth-state.mjs';
+
+const OAUTH_IDENTITY = Object.freeze({
+  subject: 'dGVzdC11c2VyLWhhbmRsZQ',
+  surface: 'a'.repeat(64),
+  issuer: 'https://dexter.cash',
+  audience: 'https://open.dexter.cash/mcp',
+});
 
 test('account authentication remains separate from vault authorization', () => {
   const meta = markAccountBound(createOpenSessionMeta(1));
@@ -28,18 +38,59 @@ test('account authentication remains separate from vault authorization', () => {
 });
 
 test('OAuth mode survives binding loss so a session cannot downgrade', () => {
-  const meta = markVaultBound(
+  const meta = markVaultBound(pinOAuthVaultIdentity(
     markAccountBound(createOpenSessionMeta(1)),
+    OAUTH_IDENTITY,
+  ),
     VAULT_AUTH_MODE_OAUTH,
   );
 
   assert.equal(isOAuthVaultSession(meta), true);
+  assert.deepEqual(oauthVaultIdentityOf(meta), OAUTH_IDENTITY);
   clearVaultBound(meta);
 
   assert.equal(isAccountBound(meta), true);
   assert.equal(isVaultBound(meta), false);
   assert.equal(isOAuthVaultSession(meta), true);
   assert.equal(isLegacyVaultSession(meta), false);
+  assert.deepEqual(oauthVaultIdentityOf(meta), OAUTH_IDENTITY);
+});
+
+test('same subject and surface survive token refresh in one OAuth session', () => {
+  const meta = pinOAuthVaultIdentity(createOpenSessionMeta(1), OAUTH_IDENTITY);
+
+  assert.equal(oauthVaultIdentityStatus(meta, { ...OAUTH_IDENTITY }), 'match');
+  assert.doesNotThrow(() =>
+    pinOAuthVaultIdentity(meta, { ...OAUTH_IDENTITY }),
+  );
+});
+
+test('a different valid subject or surface cannot inherit a bound session', () => {
+  const meta = markVaultBound(
+    pinOAuthVaultIdentity(createOpenSessionMeta(1), OAUTH_IDENTITY),
+    VAULT_AUTH_MODE_OAUTH,
+  );
+  for (const changed of [
+    { ...OAUTH_IDENTITY, subject: 'another-user-handle' },
+    { ...OAUTH_IDENTITY, surface: 'b'.repeat(64) },
+    { ...OAUTH_IDENTITY, issuer: 'https://other.example' },
+    { ...OAUTH_IDENTITY, audience: 'https://other.example/mcp' },
+  ]) {
+    assert.equal(oauthVaultIdentityStatus(meta, changed), 'mismatch');
+    assert.throws(
+      () => pinOAuthVaultIdentity(meta, changed),
+      /oauth_vault_identity_mismatch/,
+    );
+  }
+  assert.equal(isVaultBound(meta), true);
+  assert.deepEqual(oauthVaultIdentityOf(meta), OAUTH_IDENTITY);
+});
+
+test('a verified OAuth identity is unpinned before the first seed', () => {
+  assert.equal(
+    oauthVaultIdentityStatus(createOpenSessionMeta(1), OAUTH_IDENTITY),
+    'unpinned',
+  );
 });
 
 test('explicit durable-link sessions are distinguishable from OAuth sessions', () => {

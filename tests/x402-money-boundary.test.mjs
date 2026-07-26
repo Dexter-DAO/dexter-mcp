@@ -28,7 +28,7 @@ test('approved ceiling survives aliases, backend payloads, and auth retries', ()
   assert.match(serverSource, /fd\.append\('maxAmountAtomic', maxAmountAtomic\)/);
   assert.match(
     serverSource,
-    /\/v2\/pay\/anon\/x402\/fetch`,[\s\S]*?JSON\.stringify\(\{[\s\S]*?maxAmountAtomic,/,
+    /fetchInternalApi\('\/v2\/pay\/anon\/x402\/fetch',[\s\S]*?JSON\.stringify\(\{[\s\S]*?maxAmountAtomic,/,
   );
   assert.match(
     serverSource,
@@ -55,7 +55,7 @@ test('prepared purchase identity survives aliases, backend payloads, and auth re
   );
   assert.match(
     serverSource,
-    /\/v2\/pay\/anon\/x402\/fetch`,[\s\S]*?JSON\.stringify\(\{[\s\S]*?purchase,[\s\S]*?\}\)/,
+    /fetchInternalApi\('\/v2\/pay\/anon\/x402\/fetch',[\s\S]*?JSON\.stringify\(\{[\s\S]*?purchase,[\s\S]*?\}\)/,
   );
   assert.match(
     serverSource,
@@ -86,17 +86,17 @@ test('public URL and upload boundaries are wired at every caller-controlled sink
 test('the 2 MiB public probe cap does not truncate bound paid merchant payloads', () => {
   assert.match(
     serverSource,
-    /await fetch\(`\$\{API_BASE_FALLBACK\}\/v2\/pay\/anon\/x402\/fetch`,/,
+    /await fetchInternalApi\('\/v2\/pay\/anon\/x402\/fetch',/,
     'bound JSON payments receive the already-vetted response from dexter-api',
   );
   assert.match(
     serverSource,
-    /await fetch\(`\$\{API_BASE_FALLBACK\}\/v2\/pay\/anon\/x402\/fetch\/multipart`,/,
+    /await fetchInternalApi\('\/v2\/pay\/anon\/x402\/fetch\/multipart',/,
     'bound multipart payments receive the already-vetted response from dexter-api',
   );
   assert.doesNotMatch(
     serverSource,
-    /fetchPublicExternalUrl\(\s*`\$\{API_BASE_FALLBACK\}\/v2\/pay\/anon/,
+    /fetchPublicExternalUrl\(\s*['"`]\/v2\/pay\/anon/,
     'the external preflight transport is not wrapped around paid backend payloads',
   );
 });

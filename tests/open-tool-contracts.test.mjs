@@ -31,7 +31,11 @@ test('contract preserves the original ten and adds only model-safe portfolio', (
   assert.deepEqual(OPEN_TOOL_NAMES, EXPECTED_TOOLS);
   assert.doesNotMatch(OPEN_TOOL_NAMES.join(','), /card_/);
   for (const [name, toolContract] of Object.entries(OPEN_TOOL_CONTRACTS)) {
-    assert.equal(toolContract.outputSchema?._def?.unknownKeys, 'passthrough', name);
+    assert.equal(
+      toolContract.outputSchema?._def?.unknownKeys,
+      name === 'dexter_portfolio' ? 'strict' : 'passthrough',
+      name,
+    );
     assert.deepEqual(
       Object.keys(toolContract.annotations).sort(),
       ['destructiveHint', 'idempotentHint', 'openWorldHint', 'readOnlyHint'].sort(),
@@ -43,6 +47,39 @@ test('contract preserves the original ten and adds only model-safe portfolio', (
       `${name} derives auth from the native OAuth policy`,
     );
   }
+});
+
+test('portfolio top-level output refuses undeclared fields', () => {
+  assert.equal(
+    OPEN_TOOL_CONTRACTS.dexter_portfolio.outputSchema.safeParse({
+      portfolio_status: 'read_error',
+      mode: 'portfolio_read_error',
+      user_bound: true,
+      retryable: true,
+      error: 'portfolio_state_read_failed',
+      message: 'Safe bounded message.',
+      unexpected: 'must not pass',
+    }).success,
+    false,
+  );
+});
+
+test('finalizer refuses any SDK-registered tool outside authoritative contracts', () => {
+  const server = new McpServer({ name: 'extra-tool-test', version: '0.2.0' });
+  installOpenToolContracts(server);
+  for (const name of EXPECTED_TOOLS) {
+    server.registerTool(name, { inputSchema: {} }, async () => ({
+      content: [{ type: 'text', text: '{}' }],
+      structuredContent: {},
+    }));
+  }
+  server.registerTool('uncontracted_tool', { inputSchema: {} }, async () => ({
+    content: [{ type: 'text', text: '{}' }],
+  }));
+  assert.throws(
+    () => finalizeOpenToolContracts(server),
+    /extra: uncontracted_tool/,
+  );
 });
 
 test('behavior annotations reflect mutating probes and conditional publishing', () => {
@@ -179,7 +216,10 @@ test('real SDK tools/list exposes executable schemas, OAuth, annotations, and me
     const toolContract = OPEN_TOOL_CONTRACTS[listed.name];
     assert.equal(listed.title, toolContract.title);
     assert.equal(listed.outputSchema.type, 'object');
-    assert.equal(listed.outputSchema.additionalProperties, true);
+    assert.equal(
+      listed.outputSchema.additionalProperties,
+      listed.name === 'dexter_portfolio' ? false : true,
+    );
     assert.deepEqual(listed.annotations, toolContract.annotations);
     assert.deepEqual(listed.securitySchemes, toolContract.securitySchemes);
     assert.deepEqual(listed._meta.securitySchemes, toolContract.securitySchemes);
