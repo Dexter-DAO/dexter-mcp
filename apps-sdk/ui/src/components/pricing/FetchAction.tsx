@@ -8,7 +8,7 @@ interface Props {
 export function FetchAction({ selectedPrice, onFetch }: Props) {
   return (
     <Button color="primary" block onClick={onFetch}>
-      Fetch &amp; pay{selectedPrice ? ` ${selectedPrice}` : ''}
+      Continue in chat{selectedPrice ? ` · ${selectedPrice}` : ''}
     </Button>
   );
 }

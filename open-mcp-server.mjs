@@ -69,6 +69,20 @@ import {
   vaultAuthenticationResult,
 } from './lib/open-tool-auth.mjs';
 import {
+  OPEN_TOOL_NAMES,
+  finalizeOpenToolContracts,
+  installOpenToolContracts,
+} from './lib/open-tool-contracts.mjs';
+import {
+  OPEN_MCP_VERSION,
+  buildOpenMcpManifest,
+} from './lib/open-mcp-manifest.mjs';
+import { buildOpenServerInstructions } from './lib/open-server-instructions.mjs';
+import {
+  buildPasskeyReadyData,
+  getVaultReceiveAddress,
+} from './lib/passkey-wallet-result.mjs';
+import {
   VAULT_AUTH_MODE_LINK_TOKEN,
   VAULT_AUTH_MODE_OAUTH,
   clearVaultBound,
@@ -94,7 +108,7 @@ import {
   fetchPublicExternalUrl,
 } from '@dexterai/x402-core';
 import { composeSkill } from '@dexterai/x402-skills';
-import { buildServerInstructions, HOSTED_CAPS, assertInstructionRosterParity } from '@dexterai/mcp-instructions';
+import { assertInstructionRosterParity } from '@dexterai/mcp-instructions';
 
 const PORT = parseInt(process.env.OPEN_MCP_PORT || '3931', 10);
 // Agent-facing server name. Single source of truth — referenced by the MCP
@@ -129,25 +143,31 @@ if (!DEXTER_INTERNAL_TOKEN) {
  */
 const CAPABILITY_PATH = '/api/x402gle/capability';
 const WIDGET_DOMAIN = 'https://dexter.cash';
-// ONE CSP for both the tool-level widgetMeta (here) and the resource-level
-// registration (apps-sdk/register.mjs) — the same builder, so they can never
-// drift again (they had; board #94). Lazy + memoized because module body
-// order puts the widgetMeta calls before the env fallbacks below; the asset
-// base literal here matches that fallback exactly.
-let cachedWidgetCsp = null;
-function getWidgetCsp() {
-  if (!cachedWidgetCsp) {
+// Tool and resource metadata share the same per-widget CSP builder. Cache by
+// exact template URI; one broad global allowlist would grant every widget the
+// union of every other widget's network capabilities.
+const widgetCspByTemplate = new Map();
+function getWidgetCsp(templateUri) {
+  if (!widgetCspByTemplate.has(templateUri)) {
     const assetBase = String(
       process.env.TOKEN_AI_APPS_SDK_ASSET_BASE || 'https://dexter.cash/mcp/app-assets/assets',
     ).trim();
-    cachedWidgetCsp = buildWidgetCsp(assetBase);
+    widgetCspByTemplate.set(templateUri, buildWidgetCsp(assetBase, templateUri));
   }
-  return cachedWidgetCsp;
+  return widgetCspByTemplate.get(templateUri);
 }
 
 function widgetMeta(templateUri, invoking, invoked, description) {
+  const csp = getWidgetCsp(templateUri);
+  const standardCsp = buildStandardWidgetCsp(csp, WIDGET_DOMAIN);
   return {
-    ui: { resourceUri: templateUri, visibility: ['model', 'app'] },
+    ui: {
+      resourceUri: templateUri,
+      visibility: ['model', 'app'],
+      csp: standardCsp,
+      domain: WIDGET_DOMAIN,
+      prefersBorder: true,
+    },
     // Deprecated flat key alongside the nested `ui.resourceUri` — the official
     // ext-apps registerAppTool emits BOTH for backward compat. Older MCP Apps
     // hosts (e.g. some Claude Code versions) look for the flat key; newer ones
@@ -158,7 +178,7 @@ function widgetMeta(templateUri, invoking, invoked, description) {
     'openai/widgetAccessible': true,
     'openai/widgetDomain': WIDGET_DOMAIN,
     'openai/widgetPrefersBorder': true,
-    'openai/widgetCSP': getWidgetCsp(),
+    'openai/widgetCSP': csp,
     'openai/toolInvocation/invoking': invoking,
     'openai/toolInvocation/invoked': invoked,
     'openai/widgetDescription': description,
@@ -176,7 +196,7 @@ const PASSKEY_ONBOARD_META = widgetMeta(PASSKEY_WIDGET_URIS.onboard, 'Checking w
 
 // Card tools removed Jul 24 (owner ruling; card-removal runbook) — the card
 // lives in the wallet widget now. 10 tools.
-const ALL_TOOLS = ['x402_search', 'x402_pay', 'x402_fetch', 'x402_check', 'x402_access', 'x402_wallet', 'x402_compose_skill', 'promote_skill', 'dexter_passkey_probe', 'dexter_passkey'];
+const ALL_TOOLS = OPEN_TOOL_NAMES;
 const OPEN_SESSION_HINT_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 // Set env vars required by registerAppsSdkResources before importing it
@@ -184,7 +204,11 @@ if (!process.env.TOKEN_AI_MCP_PUBLIC_URL) process.env.TOKEN_AI_MCP_PUBLIC_URL = 
 if (!process.env.TOKEN_AI_WIDGET_DOMAIN) process.env.TOKEN_AI_WIDGET_DOMAIN = 'https://dexter.cash';
 if (!process.env.TOKEN_AI_APPS_SDK_ASSET_BASE) process.env.TOKEN_AI_APPS_SDK_ASSET_BASE = 'https://dexter.cash/mcp/app-assets/assets';
 
-import { registerAppsSdkResources, buildWidgetCsp } from './apps-sdk/register.mjs';
+import {
+  buildStandardWidgetCsp,
+  buildWidgetCsp,
+  registerAppsSdkResources,
+} from './apps-sdk/register.mjs';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -1247,7 +1271,7 @@ async function x402Wallet(_args, extra) {
     // NEVER fall back to swigAddress (the Swig CONFIG PDA — it cannot own a USDC
     // ATA, so funds sent there strand). dexter-api emits null for an undeployed
     // swig by design; honor that fail-safe rather than show a fund-losing address.
-    const receiveAddress = state.vault.receiveAddress ?? null;
+    const receiveAddress = getVaultReceiveAddress(state.vault);
     const onchainPending = state.onchain || null;
     const pendingUsdcAtomic = String(onchainPending?.usdcAtomic ?? '0');
     const pendingUsdc = Number(pendingUsdcAtomic) / 1e6;
@@ -1305,8 +1329,9 @@ async function x402Wallet(_args, extra) {
 
   // Vault is ready + activated. Build the read-only dashboard.
   const swigAddress = state.vault.swigAddress;
-  // receiveAddress is the wallet-address PDA (the ATA owner). Use it for display.
-  const receiveAddress = state.vault.receiveAddress ?? swigAddress;
+  // The receive address is the ATA owner and the only valid public deposit
+  // target. Never substitute the Swig config PDA when it is absent.
+  const receiveAddress = getVaultReceiveAddress(state.vault);
   // Start optional widget reads as soon as the verified wallet address exists.
   // They run concurrently with money composition below; portfolio is locally
   // capped at 2.5s and degrades to unavailable rather than holding the wallet
@@ -1393,8 +1418,11 @@ async function x402Wallet(_args, extra) {
   if (usdcAvailable === 0) {
     // NOTE: a missing USDC token account does NOT block deposits — the
     // sender's transfer creates it (census-verified Jul 24, board #97).
-    // Zero balance gets the same honest answer either way: send USDC.
-    tip = `Send USDC on Solana to ${receiveAddress} to fund your wallet. Then I can pay for x402 APIs.`;
+    // Only give deposit instructions when the actual receive address is
+    // present; state/config addresses are never fallbacks.
+    tip = receiveAddress
+      ? `Send USDC on Solana to ${receiveAddress} to fund your wallet. Then I can pay for x402 APIs.`
+      : 'Your wallet is ready, but the Solana receive address could not be read. Do not send funds to a vault or Swig state address; try again in a moment.';
   } else if (withdrawalBlocked) {
     tip = `Wallet is funded ($${usdcAvailable.toFixed(2)} USDC available). ${pendingVoucherCount} open tab(s); withdrawal is gated until they settle.`;
   } else if (lineOpen) {
@@ -1455,13 +1483,13 @@ async function x402Wallet(_args, extra) {
 
 // ─── Server instructions + skill resources ──────────────────────────────────
 
-// The opendexter-ide repo lives alongside dexter-mcp under ~/websites/.
-// If the repo is there, expose skill files as readable resources.
-// If not, degrade gracefully — instructions still work, resources return an error.
+// Keep the hosted skill contract self-contained in this release. A sibling
+// product/plugin checkout may advertise a different roster or onboarding flow
+// and therefore cannot be a runtime source of truth for this MCP server.
 const SKILLS_ROOT = (() => {
   try {
     const candidate = join(dirname(fileURLToPath(import.meta.url)),
-      '..', 'opendexter-ide', 'opendexter-plugin', 'skills');
+      'skills');
     readFileSync(join(candidate, 'opendexter', 'SKILL.md'), 'utf-8');
     return candidate;
   } catch {
@@ -1469,17 +1497,10 @@ const SKILLS_ROOT = (() => {
   }
 })();
 
-// The shared instruction package still describes the retired out-of-band
-// passkey/pairing funnel. Suppress that section locally and publish the
-// host-native contract explicitly until the shared package catches up.
-const OPEN_HOSTED_CAPS = { ...HOSTED_CAPS, hasPasskeyTools: false };
-const SERVER_INSTRUCTIONS = [
-  buildServerInstructions(OPEN_HOSTED_CAPS),
-  '# Hosted wallet authorization',
-  'x402_wallet reads the passkey wallet bound to the current MCP session. Wallet and payment tools use the host-native OpenDexter connection with scope=vault.',
-  'If a tool returns authentication_required, let the host show its Connect action. After authorization completes, retry the same tool call.',
-  'Never ask the user to replace the stable OpenDexter MCP URL or copy a personalized connector URL.',
-].join('\n\n');
+// Upstream routing remains useful, but its hosted failure recipe still
+// advertises the retired enroll-link relay. Build through a fail-closed local
+// sanitizer and append the authoritative native-OAuth/spend boundary.
+const SERVER_INSTRUCTIONS = buildOpenServerInstructions();
 
 /**
  * Resolve the caller's principal from an MCP `extra` context.
@@ -1613,12 +1634,13 @@ function createOpenMcpServer() {
   assertOpenToolAuthPolicyCoverage(ALL_TOOLS);
   const server = new McpServer({
     name: SERVER_NAME,
-    version: '1.0.0',
+    version: OPEN_MCP_VERSION,
   }, {
     instructions: SERVER_INSTRUCTIONS,
   });
+  installOpenToolContracts(server);
 
-  // ─── Skill-file resources (read from opendexter-ide repo on disk) ──────────
+  // ─── Self-contained hosted skill-file resources ────────────────────────────
 
   const SKILL_RESOURCES = [
     { name: 'workflow', uri: 'docs://opendexter/workflow', file: 'opendexter/SKILL.md', description: 'OpenDexter tool reference — search → check → fetch workflow, parameter tables, quality scores, tips' },
@@ -2134,14 +2156,7 @@ function createOpenMcpServer() {
       const state = await fetchVaultStateBySession(sessionId);
       if (state?.status === 'ready' && state.vault) {
         markSessionVaultBound(sessionId);
-        const data = {
-          vault_status: 'ready',
-          vault_address: state.vault.vaultPda,
-          swig_address: state.vault.swigAddress,
-          user_bound: true,
-          welcome_name: null,
-          error: null,
-        };
+        const data = buildPasskeyReadyData(state.vault);
         return {
           content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
           structuredContent: data,
@@ -2202,6 +2217,7 @@ function createOpenMcpServer() {
   // Physics, not vigilance: if the served instructions ever name a tool this
   // connector doesn't register, refuse to boot (drift register R1).
   assertInstructionRosterParity(SERVER_INSTRUCTIONS, ALL_TOOLS);
+  finalizeOpenToolContracts(server);
 
   return server;
 }
@@ -2754,27 +2770,7 @@ const httpServer = http.createServer(async (req, res) => {
   // MCP manifest
   if (url.pathname === '/.well-known/mcp.json') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({
-      name: SERVER_NAME,
-      url: 'https://open.dexter.cash/mcp',
-      description:
-        'Public x402 gateway. Search, pay, and call any x402 resource with canonical settlement. ' +
-        'Browse and pricing tools are anonymous; wallet and payment tools use the native ' +
-        'OpenDexter OAuth connection (scope=vault).',
-      version: '1.3.0',
-      tools: [
-        { name: 'x402_search', description: 'Semantic capability search over the x402 marketplace. Returns tiered results (strong + related) with cross-encoder LLM rerank.' },
-        { name: 'x402_pay', description: 'Alias for x402_fetch. Pays and calls an x402 endpoint.' },
-        { name: 'x402_fetch', description: 'Call any x402 API — auto-selects the best funded chain for payment.' },
-        { name: 'x402_check', description: 'Preview endpoint pricing and payment options per chain without paying.' },
-        { name: 'x402_access', description: 'Use wallet proof to access identity-gated endpoints that advertise Sign-In-With-X.' },
-        { name: 'x402_wallet', description: 'The user\'s non-custodial Dexter wallet: Solana address, USDC balance, spending power, card summary, recent activity. Read-only.' },
-        { name: 'x402_compose_skill', description: 'Compose a Claude Code skill bundle from an x402gle host; optionally publish it to the x402gle skills marketplace.' },
-        { name: 'promote_skill', description: 'Change the visibility (public / unlisted / archived) of a composed skill you own.' },
-        { name: 'dexter_passkey_probe', description: 'Diagnostic: test whether WebAuthn ceremonies can run inside the chat client\'s widget iframe.' },
-        { name: 'dexter_passkey', description: 'Compatibility status view for the passkey wallet. Prefer x402_wallet; authorization uses the host-native OAuth connection.' },
-      ],
-    }));
+    res.end(JSON.stringify(buildOpenMcpManifest()));
     return;
   }
 

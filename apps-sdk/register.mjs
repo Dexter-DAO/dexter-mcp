@@ -20,7 +20,7 @@ const APPS_SDK_DIR = path.resolve(new URL('.', import.meta.url).pathname, '../pu
  * Must be a valid HTTPS origin per OpenAI Apps SDK requirements.
  * @see https://developers.openai.com/apps-sdk/reference
  */
-function resolveWidgetDomain() {
+export function resolveWidgetDomain() {
   // Explicit override takes precedence
   const explicit = process.env.TOKEN_AI_WIDGET_DOMAIN;
   if (explicit) return explicit;
@@ -73,91 +73,103 @@ function fileExistsSync(filePath) {
  * This tells ChatGPT's sandbox which domains the widget may contact.
  * @see https://developers.openai.com/apps-sdk/reference#component-resource-_meta-fields
  *
- * EXPORTED and shared with open-mcp-server.mjs's tool-level widgetMeta so the
- * tool-side and resource-side CSPs can never drift again (they had: resources
- * carried Sentry + *.oaistatic.com, tools carried open.dexter.cash — board
- * #94). The CSP freezes at the OpenAI submission scan, so ONE builder is the
- * final word.
+ * Shared with open-mcp-server.mjs's tool-level metadata so each template has
+ * the same least-privilege profile at both descriptor and resource layers.
  *
  * @param {string} assetBase - Base URL for widget assets
- * @returns {{ connect_domains: string[], resource_domains: string[] }}
+ * @param {string} templateUri - Exact widget template being described
+ * @param {{ webauthnProbeTelemetryEnabled?: boolean }} options
+ * @returns {{ connect_domains: string[], resource_domains: string[], redirect_domains: string[] }}
  */
-export function buildWidgetCsp(assetBase) {
-  const resourceDomains = [];
+const EXPLORER_ORIGINS = Object.freeze([
+  'https://solscan.io',
+  'https://basescan.org',
+  'https://etherscan.io',
+  'https://polygonscan.com',
+  'https://arbiscan.io',
+  'https://optimistic.etherscan.io',
+  'https://snowtrace.io',
+  'https://skale-base-explorer.skalenodes.com',
+  'https://robinhoodchain.blockscout.com',
+  'https://worldscan.org',
+  'https://monadvision.com',
+  'https://bscscan.com',
+]);
+
+export function buildWidgetCsp(
+  assetBase,
+  templateUri,
+  {
+    webauthnProbeTelemetryEnabled = isWebauthnProbeTelemetryEnabled(process.env),
+  } = {},
+) {
+  const resourceDomains = ['https://dexter.cash'];
   const connectDomains = [];
+  const redirectDomains = [];
 
-  // The hosted MCP origin: widget-frame fetches (webauthn probe log sink, the
-  // Dextercard reveal/freeze rail) and the single-use card reveal IMAGE both
-  // ride open.dexter.cash — connect for the fetches, resource for the image.
-  connectDomains.push('https://open.dexter.cash');
-  resourceDomains.push('https://open.dexter.cash');
-  // The wallet/site origin (ui/open-link targets, shared assets).
-  connectDomains.push('https://dexter.cash');
-
-  // Allow fetching assets from the asset base origin
   try {
     const origin = new URL(assetBase).origin;
-    if (origin) {
-      resourceDomains.push(origin);
-    }
+    if (origin) resourceDomains.push(origin);
   } catch {}
-
-  // Allow connecting to the Dexter API for tool calls from widget
-  const apiBase = process.env.DEXTER_API_BASE_URL;
-  if (apiBase) {
-    try {
-      const apiOrigin = new URL(apiBase).origin;
-      if (apiOrigin && apiOrigin.startsWith('https://')) {
-        connectDomains.push(apiOrigin);
-      }
-    } catch {}
-  }
-
-  // Production API fallback - ensure both domains are allowed for CSP
-  if (!connectDomains.some(d => d.includes('api.dexter.cash'))) {
-    connectDomains.push('https://api.dexter.cash');
-  }
-  if (!connectDomains.some(d => d.includes('x402.dexter.cash'))) {
-    connectDomains.push('https://x402.dexter.cash');
-  }
 
   const sentryDsn = resolveWidgetSentryDsn();
   if (sentryDsn) {
     try {
       const sentryOrigin = new URL(sentryDsn).origin;
-      if (!connectDomains.includes(sentryOrigin)) {
-        connectDomains.push(sentryOrigin);
-      }
+      if (sentryOrigin) connectDomains.push(sentryOrigin);
     } catch {}
   }
 
-  // OpenAI's CDN for static assets (fonts, etc.)
-  resourceDomains.push('https://*.oaistatic.com');
-  // External assets used by x402 widgets (chain logos + QR images)
-  resourceDomains.push('https://cdn.jsdelivr.net');
-  resourceDomains.push('https://cdn.dexscreener.com');
-  resourceDomains.push('https://raw.githubusercontent.com');
-  resourceDomains.push('https://metadata.jup.ag');
-  resourceDomains.push('https://api.qrserver.com');
-  // Image proxy on api.dexter.cash — all third-party images route through this
-  resourceDomains.push('https://api.dexter.cash');
-  // Common CDNs used by third-party x402 endpoints for media (fallback if proxy isn't used)
-  resourceDomains.push('https://*.digitaloceanspaces.com');
-  resourceDomains.push('https://*.cloudfront.net');
-  resourceDomains.push('https://*.amazonaws.com');
-  resourceDomains.push('https://*.cloudflare.com');
-  resourceDomains.push('https://*.r2.dev');
-  resourceDomains.push('https://*.blob.core.windows.net');
-  resourceDomains.push('https://*.supabase.co');
-  resourceDomains.push('https://*.imgix.net');
-  resourceDomains.push('https://*.vercel.app');
-  resourceDomains.push('https://*.replicate.delivery');
-  resourceDomains.push('https://*.openai.com');
-  resourceDomains.push('https://images.unsplash.com');
+  if (templateUri === X402_WIDGET_URIS.search) {
+    connectDomains.push('https://api.dexter.cash');
+    resourceDomains.push('https://api.dexter.cash', 'https://x402gle.com');
+    redirectDomains.push('https://dexter.cash');
+  } else if (templateUri === X402_WIDGET_URIS.fetch) {
+    resourceDomains.push('https://api.dexter.cash', 'https://api.qrserver.com');
+    redirectDomains.push(...EXPLORER_ORIGINS);
+  } else if (templateUri === X402_WIDGET_URIS.pricing) {
+    resourceDomains.push('https://api.dexter.cash');
+    redirectDomains.push(...EXPLORER_ORIGINS);
+  } else if (templateUri === X402_WIDGET_URIS.wallet) {
+    // The visible wallet uses short-lived _meta capabilities for refresh and
+    // the same-origin card-summary frame rail. No card tool is exposed.
+    connectDomains.push('https://open.dexter.cash');
+    resourceDomains.push(
+      'https://open.dexter.cash',
+      'https://api.dexter.cash',
+      'https://api.qrserver.com',
+    );
+    redirectDomains.push('https://dexter.cash', 'https://solscan.io');
+  } else if (templateUri === DIAGNOSTIC_WIDGET_URIS.passkeyProbe) {
+    if (webauthnProbeTelemetryEnabled) {
+      connectDomains.push('https://open.dexter.cash');
+    }
+    redirectDomains.push('https://dexter.cash');
+  } else if (templateUri === PASSKEY_WIDGET_URIS.onboard) {
+    redirectDomains.push('https://dexter.cash', 'https://solscan.io');
+  }
 
   return {
-    connect_domains: connectDomains,
-    resource_domains: resourceDomains,
+    connect_domains: Array.from(new Set(connectDomains)),
+    resource_domains: Array.from(new Set(resourceDomains)),
+    redirect_domains: Array.from(new Set(redirectDomains)),
+  };
+}
+
+export function buildStandardWidgetCsp(widgetCsp, widgetDomain) {
+  return {
+    resourceDomains: Array.from(new Set([
+      widgetDomain,
+      ...((widgetCsp?.resource_domains || []).filter(Boolean)),
+    ])),
+    connectDomains: Array.from(new Set([
+      widgetDomain,
+      ...((widgetCsp?.connect_domains || []).filter(Boolean)),
+    ])),
+    redirectDomains: Array.from(new Set([
+      widgetDomain,
+      ...((widgetCsp?.redirect_domains || []).filter(Boolean)),
+    ])),
   };
 }
 
@@ -224,7 +236,6 @@ export function registerAppsSdkResources(server, options = {}) {
   }
 
   const widgetDomain = resolveWidgetDomain();
-  const widgetCSP = buildWidgetCsp(assetBase);
 
   console.log(`[apps-sdk] Registering widgets domain=${safeUrlOrigin(widgetDomain)}`);
 
@@ -675,15 +686,12 @@ export function registerAppsSdkResources(server, options = {}) {
       continue;
     }
 
-    const cspConfig = {
-      resourceDomains: Array.from(new Set([
-        widgetDomain,
-        ...((widgetCSP.resource_domains || []).filter(Boolean)),
-      ])),
-      connectDomains: Array.from(new Set([
-        widgetDomain,
-        ...((widgetCSP.connect_domains || []).filter(Boolean)),
-      ])),
+    const widgetCSP = buildWidgetCsp(assetBase, entry.templateUri);
+    const cspConfig = buildStandardWidgetCsp(widgetCSP, widgetDomain);
+    const standardUiMeta = {
+      csp: cspConfig,
+      domain: widgetDomain,
+      prefersBorder: true,
     };
 
     registerAppResource(
@@ -693,7 +701,7 @@ export function registerAppsSdkResources(server, options = {}) {
       {
         description: entry.description,
         _meta: {
-          ui: { csp: cspConfig },
+          ui: standardUiMeta,
           'openai/widgetDomain': widgetDomain,
           'openai/widgetCSP': widgetCSP,
           'openai/widgetDescription': entry.widgetDescription || entry.description,
@@ -712,7 +720,7 @@ export function registerAppsSdkResources(server, options = {}) {
               mimeType: SKYBRIDGE_MIME,
               text: html,
               _meta: {
-                ui: { csp: cspConfig },
+                ui: standardUiMeta,
                 'openai/widgetDomain': widgetDomain,
                 'openai/widgetCSP': widgetCSP,
                 'openai/widgetDescription': entry.widgetDescription || entry.description,

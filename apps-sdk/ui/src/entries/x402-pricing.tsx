@@ -8,10 +8,9 @@ import { Badge } from '@openai/apps-sdk-ui/components/Badge';
 import { Alert } from '@openai/apps-sdk-ui/components/Alert';
 import {
   useToolOutput,
-  useAdaptiveCallToolFn,
   useMaxHeight,
   useAdaptiveTheme,
-  useSendFollowUp,
+  useAdaptiveSendFollowUp,
 } from '../sdk';
 import { useToolInput as useAdaptiveToolInput } from '../sdk/adapter';
 import { useIntrinsicHeight, DebugPanel } from '../components/x402';
@@ -127,8 +126,7 @@ function Wordmark() {
 function PricingCheck() {
   const toolOutput = useToolOutput<PricingPayload>();
   const toolInput = useAdaptiveToolInput<PricingInput>();
-  const callTool = useAdaptiveCallToolFn();
-  const sendFollowUp = useSendFollowUp();
+  const sendFollowUp = useAdaptiveSendFollowUp();
   const theme = useAdaptiveTheme();
   const maxHeight = useMaxHeight();
   const containerRef = useIntrinsicHeight();
@@ -261,16 +259,13 @@ function PricingCheck() {
       }
     : null;
 
-  const handleFetch = async () => {
-    if (!toolInput?.url) return;
-    await sendFollowUp({
-      prompt: `Paying ${selectedPrice || 'the listed price'} to call ${toolInput.url}`,
-      scrollToBottom: false,
-    });
-    await callTool('x402_fetch', {
-      url: toolInput.url,
-      method: toolInput.method || 'GET',
-    });
+  const handleContinue = async () => {
+    if (!toolInput?.url || !sendFollowUp) return;
+    await sendFollowUp(
+      `I want to call ${toolInput.url} with ${toolInput.method || 'GET'}. ` +
+      `The displayed price is ${selectedPrice || 'not yet confirmed'}. ` +
+      'Show me the exact request body and maximum USDC charge, then ask for my confirmation before paying.',
+    );
   };
 
   return (
@@ -296,7 +291,9 @@ function PricingCheck() {
         sizeBytes={enrichment?.resource?.response_size_bytes ?? null}
       />
 
-      {toolInput?.url ? <FetchAction selectedPrice={selectedPrice} onFetch={handleFetch} /> : null}
+      {toolInput?.url && sendFollowUp ? (
+        <FetchAction selectedPrice={selectedPrice} onFetch={handleContinue} />
+      ) : null}
 
       <DebugPanel widgetName="x402-pricing" />
     </StateFrame>

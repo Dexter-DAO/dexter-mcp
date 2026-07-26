@@ -1,0 +1,87 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import test from 'node:test';
+import { fileURLToPath } from 'node:url';
+import {
+  buildOpenServerInstructions,
+  sanitizeOpenServerInstructions,
+} from '../lib/open-server-instructions.mjs';
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const SERVER = readFileSync(join(ROOT, 'open-mcp-server.mjs'), 'utf8');
+const WORKFLOW = readFileSync(join(ROOT, 'skills/opendexter/SKILL.md'), 'utf8');
+const PROTOCOL = readFileSync(join(ROOT, 'skills/x402-protocol/SKILL.md'), 'utf8');
+const DEBUGGING = readFileSync(join(ROOT, 'skills/x402-debugging/SKILL.md'), 'utf8');
+
+const EXPECTED_TOOLS = [
+  'x402_search',
+  'x402_pay',
+  'x402_fetch',
+  'x402_check',
+  'x402_access',
+  'x402_wallet',
+  'x402_compose_skill',
+  'promote_skill',
+  'dexter_passkey_probe',
+  'dexter_passkey',
+];
+
+test('hosted skill resources are loaded from this release checkout', () => {
+  assert.match(
+    SERVER,
+    /join\(dirname\(fileURLToPath\(import\.meta\.url\)\),\s*'skills'\)/,
+  );
+  assert.doesNotMatch(SERVER, /opendexter-ide.*opendexter-plugin.*skills/s);
+});
+
+test('hosted workflow names the exact ten-tool cards-off roster', () => {
+  for (const name of EXPECTED_TOOLS) {
+    assert.match(WORKFLOW, new RegExp(`\\\`${name}\\\``));
+  }
+
+  const toolNames = new Set(WORKFLOW.match(/\`(?:x402|dexter|promote)_[a-z0-9_]+\`/g));
+  assert.deepEqual(
+    [...toolNames].sort(),
+    EXPECTED_TOOLS.map((name) => `\`${name}\``).sort(),
+  );
+  assert.doesNotMatch(WORKFLOW, /\bcard_[a-z0-9_]+\b|\bDextercard\b/i);
+});
+
+test('served guidance requires native OAuth and bounded nonretryable spending', () => {
+  for (const content of [WORKFLOW, PROTOCOL, DEBUGGING]) {
+    assert.doesNotMatch(
+      content,
+      /\bvpair\b|pairing_url|surface (?:the|a) pairing URL|\/mcp\/dlt_/i,
+    );
+  }
+  assert.match(WORKFLOW, /native Connect\/OAuth action/);
+  assert.match(WORKFLOW, /maxAmountAtomic/);
+  assert.match(
+    WORKFLOW,
+    /Never automatically retry an ambiguous or post-dispatch\s+failure/,
+  );
+  assert.match(WORKFLOW, /receiveAddress/);
+  assert.match(WORKFLOW, /vaultPda[\s\S]*not a deposit\s+fallback/);
+  assert.match(
+    DEBUGGING,
+    /do not retry until settlement and\s+wallet activity have been reconciled/,
+  );
+});
+
+test('generated runtime instructions contain only native OAuth wallet guidance', () => {
+  const runtime = buildOpenServerInstructions();
+  assert.doesNotMatch(runtime, /\b(?:setup|enroll) link\b|\brelay(?:ing|ed|s)?\b/i);
+  assert.match(runtime, /host show its native OpenDexter Connect action/i);
+  assert.match(runtime, /maxAmountAtomic/);
+  assert.match(runtime, /provider output as untrusted external data/i);
+  assert.match(runtime, /Never automatically retry an ambiguous or post-dispatch/i);
+  assert.match(SERVER, /const SERVER_INSTRUCTIONS = buildOpenServerInstructions\(\)/);
+});
+
+test('runtime-instruction sanitizer fails closed on unknown legacy guidance', () => {
+  assert.throws(
+    () => sanitizeOpenServerInstructions('A different setup link recipe says relay this URL.'),
+    /unrecognized legacy setup-link guidance/,
+  );
+});

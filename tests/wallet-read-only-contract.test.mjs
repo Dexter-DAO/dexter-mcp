@@ -86,6 +86,15 @@ test('hosted x402_wallet keeps verified portfolio display data in widget metadat
   assert.match(walletImplementation, /fetchSessionPortfolio\(\{/);
   assert.match(walletImplementation, /sessionId,/);
   assert.match(walletImplementation, /expectedWalletAddress:\s*receiveAddress/);
+  assert.match(walletImplementation, /getVaultReceiveAddress\(state\.vault\)/);
+  assert.doesNotMatch(
+    walletImplementation,
+    /receiveAddress\s*\?\?\s*swigAddress|receiveAddress\s*\|\|\s*swigAddress/,
+  );
+  assert.match(
+    walletImplementation,
+    /tip = receiveAddress[\s\S]*Do not send funds to a vault or Swig state address/,
+  );
   assert.match(walletImplementation, /secret:\s*INTERNAL_HMAC_SECRET/);
   assert.match(walletImplementation, /_portfolio:\s*portfolio/);
   assert.match(walletImplementation, /portfolioSummary:\s*numericPortfolioSummary\(portfolio\)/);

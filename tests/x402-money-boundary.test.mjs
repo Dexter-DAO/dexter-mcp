@@ -50,3 +50,21 @@ test('public URL and upload boundaries are wired at every caller-controlled sink
   assert.match(serverSource, /loadSafeUploadFiles\(files,/);
   assert.match(serverSource, /'maxAmountAtomic',[\s\S]*?\]\);/);
 });
+
+test('the 2 MiB public probe cap does not truncate bound paid merchant payloads', () => {
+  assert.match(
+    serverSource,
+    /await fetch\(`\$\{API_BASE_FALLBACK\}\/v2\/pay\/anon\/x402\/fetch`,/,
+    'bound JSON payments receive the already-vetted response from dexter-api',
+  );
+  assert.match(
+    serverSource,
+    /await fetch\(`\$\{API_BASE_FALLBACK\}\/v2\/pay\/anon\/x402\/fetch\/multipart`,/,
+    'bound multipart payments receive the already-vetted response from dexter-api',
+  );
+  assert.doesNotMatch(
+    serverSource,
+    /fetchPublicExternalUrl\(\s*`\$\{API_BASE_FALLBACK\}\/v2\/pay\/anon/,
+    'the external preflight transport is not wrapped around paid backend payloads',
+  );
+});

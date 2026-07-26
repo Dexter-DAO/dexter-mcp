@@ -13,15 +13,14 @@
  *   - QR (when Solana Pay URL available)
  *   - Funding action buttons (open page / Solana Pay)
  *   - Expiry countdown
- *   - "I've funded — try again" button: reruns the original
- *     x402_fetch call. User-initiated only — no polling, no timers.
- *     Disabled while in flight; surfaces error inline if the retry
- *     itself fails.
+ *   - "I've funded — continue in chat" sends a follow-up that asks the model
+ *     to re-check pricing and obtain fresh approval. The widget cannot invoke a
+ *     money tool directly.
  */
 
 import { useEffect, useState } from 'react';
 import { CopyButton } from '@openai/apps-sdk-ui/components/Button';
-import { useCallToolFn } from '../../sdk/use-call-tool';
+import { useAdaptiveSendFollowUp } from '../../sdk';
 import { logWidgetEvent } from './widgetLog';
 
 interface SessionFundingShape {
@@ -78,7 +77,7 @@ export function SessionFunding({
   retryCall,
   onOpenExternal,
 }: Props) {
-  const callTool = useCallToolFn();
+  const sendFollowUp = useAdaptiveSendFollowUp();
   const walletAddress = funding?.walletAddress || funding?.payTo;
   const qrUrl = funding?.solanaPayUrl
     ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(funding.solanaPayUrl)}`
@@ -104,31 +103,26 @@ export function SessionFunding({
   const targetUsdc = funding?.amountUsdc;
   const amountStr = typeof targetUsdc === 'number' ? `$${targetUsdc.toFixed(2)} USDC` : '';
 
-  const canRetry = Boolean(retryCall?.url);
-  const [retrying, setRetrying] = useState(false);
-  const [retryError, setRetryError] = useState<string | null>(null);
+  const canRetry = Boolean(retryCall?.url && sendFollowUp);
+  const [continuing, setContinuing] = useState(false);
+  const [continueError, setContinueError] = useState<string | null>(null);
 
-  const handleRetry = async () => {
-    if (!retryCall?.url || retrying) return;
-    setRetrying(true);
-    setRetryError(null);
-    logWidgetEvent('info', 'retry.tap', { url: retryCall.url, method: retryCall.method || 'GET' });
+  const handleContinue = async () => {
+    if (!retryCall?.url || !sendFollowUp || continuing) return;
+    setContinuing(true);
+    setContinueError(null);
+    logWidgetEvent('info', 'continue.tap', { url: retryCall.url, method: retryCall.method || 'GET' });
     try {
-      const result = await callTool('x402_fetch', {
-        url: retryCall.url,
-        method: retryCall.method || 'GET',
-      });
-      logWidgetEvent('info', 'retry.callTool.resolved', {
-        hasResult: result != null,
-      });
-      // Result will replace this widget's tool output via the host's
-      // refresh — no further work needed here. If it stays as
-      // session_required, this same widget re-renders with fresh data.
+      await sendFollowUp(
+        `I funded the wallet. Re-check ${retryCall.url} with ${retryCall.method || 'GET'}, ` +
+        'show me the current price and exact request, and ask for fresh approval before any payment.',
+      );
+      logWidgetEvent('info', 'continue.followUp.sent');
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Retry failed.';
-      logWidgetEvent('error', 'retry.callTool.threw', err);
-      setRetryError(msg);
-      setRetrying(false);
+      const msg = err instanceof Error ? err.message : 'Could not continue in chat.';
+      logWidgetEvent('error', 'continue.followUp.threw', err);
+      setContinueError(msg);
+      setContinuing(false);
     }
   };
 
@@ -209,14 +203,14 @@ export function SessionFunding({
           <button
             type="button"
             className="dx-receipt-funding__retry-btn"
-            onClick={handleRetry}
-            disabled={retrying}
-            aria-busy={retrying}
+            onClick={handleContinue}
+            disabled={continuing}
+            aria-busy={continuing}
           >
-            {retrying ? 'Trying again…' : "I've funded it — try again"}
+            {continuing ? 'Opening chat…' : "I've funded it — continue in chat"}
           </button>
-          {retryError && (
-            <p className="dx-receipt-funding__retry-error" role="alert">{retryError}</p>
+          {continueError && (
+            <p className="dx-receipt-funding__retry-error" role="alert">{continueError}</p>
           )}
         </div>
       )}

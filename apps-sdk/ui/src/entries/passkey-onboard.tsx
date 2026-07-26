@@ -28,7 +28,10 @@ type VaultStatus =
 type PasskeyPayload = {
   vault_status: VaultStatus;
   vault_address?: string | null;
+  receive_address?: string | null;
+  vault_pda?: string | null;
   swig_address?: string | null;
+  swig_state_address?: string | null;
   user_bound?: boolean;
   welcome_name?: string | null;
   error?: string | null;
@@ -126,8 +129,7 @@ function PasskeyOnboard() {
 
   // ─── State: ready ──────────────────────────────────────────────────────
   if (status === 'ready') {
-    const vault = toolOutput.vault_address || '';
-    const swig = toolOutput.swig_address || '';
+    const receiveAddress = toolOutput.receive_address || toolOutput.vault_address || '';
     const welcome = toolOutput.welcome_name?.trim() || null;
     return (
       <div className="dx-passkey">
@@ -140,12 +142,12 @@ function PasskeyOnboard() {
           <h2 className="dx-passkey__stage-heading">
             {welcome ? `Welcome, ${welcome} — your wallet's ready` : "Your wallet's ready"}
           </h2>
-          {swig && (
+          {receiveAddress && (
             <div className="dx-passkey__address">
-              <span className="dx-passkey__address-label">Your wallet address</span>
+              <span className="dx-passkey__address-label">Receive address</span>
               <div className="dx-passkey__address-row">
-                <code className="dx-passkey__address-val">{swig}</code>
-                <CopyButton value={swig} />
+                <code className="dx-passkey__address-val">{receiveAddress}</code>
+                <CopyButton value={receiveAddress} />
               </div>
               <div className="dx-passkey__address-links">
                 <button
@@ -158,7 +160,7 @@ function PasskeyOnboard() {
                 <button
                   type="button"
                   className="dx-passkey__address-link"
-                  onClick={() => openLink(`https://solscan.io/account/${swig}`)}
+                  onClick={() => openLink(`https://solscan.io/account/${receiveAddress}`)}
                 >
                   View on Solscan
                 </button>
