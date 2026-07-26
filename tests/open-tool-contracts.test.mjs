@@ -82,6 +82,63 @@ test('finalizer refuses any SDK-registered tool outside authoritative contracts'
   );
 });
 
+test('legacy server.tool cannot bypass the authoritative executable roster', () => {
+  const server = new McpServer({ name: 'legacy-tool-test', version: '0.2.0' });
+  const capturedLegacyTool = server.tool.bind(server);
+  installOpenToolContracts(server);
+  for (const name of EXPECTED_TOOLS) {
+    server.registerTool(name, { inputSchema: {} }, async () => ({
+      content: [{ type: 'text', text: '{}' }],
+      structuredContent: {},
+    }));
+  }
+  capturedLegacyTool('rogue_deprecated', async () => ({
+    content: [{ type: 'text', text: '{"executed":true}' }],
+  }));
+
+  assert.throws(
+    () => finalizeOpenToolContracts(server),
+    /extra: rogue_deprecated/,
+  );
+});
+
+test('both supported registration APIs close after finalization', () => {
+  const server = new McpServer({ name: 'closed-roster-test', version: '0.2.0' });
+  const capturedRegisterTool = server.registerTool.bind(server);
+  const capturedLegacyTool = server.tool.bind(server);
+  installOpenToolContracts(server);
+  for (const name of EXPECTED_TOOLS) {
+    server.registerTool(name, { inputSchema: {} }, async () => ({
+      content: [{ type: 'text', text: '{}' }],
+      structuredContent: {},
+    }));
+  }
+  finalizeOpenToolContracts(server);
+
+  assert.throws(
+    () => server.registerTool('late_register', {}, async () => ({
+      content: [{ type: 'text', text: '{}' }],
+    })),
+    /already finalized/,
+  );
+  assert.throws(
+    () => server.tool('late_legacy', async () => ({
+      content: [{ type: 'text', text: '{}' }],
+    })),
+    /already finalized/,
+  );
+  assert.throws(
+    () => capturedRegisterTool('captured_register', {}, async () => ({
+      content: [{ type: 'text', text: '{}' }],
+    })),
+  );
+  assert.throws(
+    () => capturedLegacyTool('captured_legacy', async () => ({
+      content: [{ type: 'text', text: '{}' }],
+    })),
+  );
+});
+
 test('behavior annotations reflect mutating probes and conditional publishing', () => {
   assert.equal(OPEN_TOOL_CONTRACTS.x402_search.annotations.readOnlyHint, true);
   assert.equal(OPEN_TOOL_CONTRACTS.x402_wallet.annotations.readOnlyHint, false);

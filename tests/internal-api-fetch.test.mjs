@@ -3,6 +3,7 @@ import { createServer } from 'node:http';
 import test from 'node:test';
 
 import {
+  INTERNAL_API_ORIGIN_ENV_PRECEDENCE,
   fetchInternalApi,
   normalizeInternalApiOrigin,
   resolveInternalApiOrigin,
@@ -33,14 +34,6 @@ test('internal API origin is exact HTTPS or loopback HTTP', () => {
     normalizeInternalApiOrigin('http://127.0.0.1:3030'),
     'http://127.0.0.1:3030',
   );
-  assert.equal(
-    resolveInternalApiOrigin({
-      API_BASE_URL: 'https://api.dexter.cash',
-      DEXTER_API_URL: 'https://ignored.example',
-    }),
-    'https://api.dexter.cash',
-  );
-
   for (const hostile of [
     'https://user:password@api.dexter.cash',
     'https://api.dexter.cash/internal',
@@ -57,6 +50,34 @@ test('internal API origin is exact HTTPS or loopback HTTP', () => {
       hostile,
     );
   }
+});
+
+test('dedicated DEXTER_API_URL explicitly precedes legacy API_BASE_URL', () => {
+  assert.deepEqual(
+    INTERNAL_API_ORIGIN_ENV_PRECEDENCE,
+    ['DEXTER_API_URL', 'API_BASE_URL'],
+  );
+  assert.equal(
+    resolveInternalApiOrigin({
+      API_BASE_URL: 'https://generic.example',
+      DEXTER_API_URL: 'https://api.dexter.cash',
+    }),
+    'https://api.dexter.cash',
+  );
+  assert.equal(
+    resolveInternalApiOrigin({
+      API_BASE_URL: 'https://legacy.dexter.cash',
+    }),
+    'https://legacy.dexter.cash',
+  );
+  assert.throws(
+    () => resolveInternalApiOrigin({
+      DEXTER_API_URL: 'https://api.dexter.cash/internal',
+      API_BASE_URL: 'https://legacy.dexter.cash',
+    }),
+    /invalid_internal_api_origin/,
+    'an invalid dedicated override must fail closed instead of falling back',
+  );
 });
 
 for (const status of [307, 308]) {

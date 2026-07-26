@@ -8,6 +8,9 @@ import {
   normalizeGovernedBackendOrigin,
   verifyGovernedBackendRequestAuth,
 } from '../lib/governed-asset-client.mjs';
+import {
+  buildGovernedAssetToolResult,
+} from '../lib/governed-asset-result.mjs';
 
 const SECRET = 'test-only-governed-secret-at-least-thirty-two-bytes';
 const OPERATION_ID = '019f981c-9215-7141-84f2-d89ffe9cbece';
@@ -399,7 +402,7 @@ test('merchant 2xx or paid=true never substitutes for definitive chain confirmat
   });
 
   assert.equal(result.status, 'unknown');
-  assert.equal(result.execution.confirmed, false);
+  assert.equal(result.execution.confirmed, null);
   assert.equal(result.retry, 'reconcile_only');
 });
 
@@ -525,6 +528,107 @@ test('execute refusal is trusted only when the backend proves no signing or subm
   assert.equal(mismatched.retry, 'reconcile_only');
 });
 
+test('execute approval-required needs exact proof that execution never started', async () => {
+  const common = {
+    apiBase: 'https://api.dexter.test',
+    secret: SECRET,
+    phase: 'execute',
+    input: {
+      operationId: OPERATION_ID,
+      action: 'buy',
+      intentId: INTENT_ID,
+      planId: 'plan_0123456789abcdef',
+      preparedPlanHash: 'a'.repeat(64),
+      authorizationId: '519f981c-9215-4141-84f2-d89ffe9cbece',
+    },
+    mcpSessionId: SESSION_ID,
+    correlationId: CORRELATION_ID,
+    now: NOW,
+  };
+  const baseResponse = {
+    status: 'approval_required',
+    operationId: OPERATION_ID,
+    correlationId: CORRELATION_ID,
+    code: 'approval_required',
+  };
+  const proven = await callGovernedAssetBackend({
+    ...common,
+    fetchImpl: async () => jsonResponse(409, {
+      ...baseResponse,
+      executed: false,
+      execution: { signed: false, submitted: false, confirmed: false },
+    }),
+  });
+
+  assert.equal(proven.status, 'approval_required');
+  assert.equal(proven.retry, 'same_operation_only');
+  assert.deepEqual(
+    {
+      signed: proven.execution.signed,
+      submitted: proven.execution.submitted,
+      confirmed: proven.execution.confirmed,
+    },
+    { signed: false, submitted: false, confirmed: false },
+  );
+
+  const forgedEvidence = [
+    {},
+    {
+      executed: false,
+    },
+    {
+      executed: false,
+      execution: { signed: false, submitted: false },
+    },
+    {
+      executed: false,
+      execution: { signed: true, submitted: false, confirmed: false },
+    },
+    {
+      executed: false,
+      execution: { signed: false, submitted: true, confirmed: false },
+    },
+    {
+      executed: false,
+      execution: { signed: false, submitted: false, confirmed: true },
+    },
+    {
+      executed: 'false',
+      execution: { signed: false, submitted: false, confirmed: false },
+    },
+    {
+      executed: false,
+      execution: { signed: false, submitted: false, confirmed: 'false' },
+    },
+  ];
+
+  for (const evidence of forgedEvidence) {
+    const result = await callGovernedAssetBackend({
+      ...common,
+      fetchImpl: async () => jsonResponse(409, {
+        ...baseResponse,
+        ...evidence,
+      }),
+    });
+    const toolResult = buildGovernedAssetToolResult(result);
+
+    assert.equal(result.status, 'unknown', JSON.stringify(evidence));
+    assert.equal(result.retry, 'reconcile_only', JSON.stringify(evidence));
+    assert.notEqual(result.retry, 'same_operation_only', JSON.stringify(evidence));
+    assert.deepEqual(
+      {
+        signed: result.execution.signed,
+        submitted: result.execution.submitted,
+        confirmed: result.execution.confirmed,
+      },
+      { signed: null, submitted: null, confirmed: null },
+      JSON.stringify(evidence),
+    );
+    assert.equal(toolResult.isError, true, JSON.stringify(evidence));
+    assert.match(result.explanation, /outcome is unknown/i);
+  }
+});
+
 test('caller authority fields are rejected before any backend request', async () => {
   let calls = 0;
   await assert.rejects(
@@ -615,9 +719,9 @@ for (const httpStatus of [401, 500]) {
       });
 
       assert.equal(result.status, 'unknown');
-      assert.equal(result.execution.signed, false);
-      assert.equal(result.execution.submitted, false);
-      assert.equal(result.execution.confirmed, false);
+      assert.equal(result.execution.signed, null);
+      assert.equal(result.execution.submitted, null);
+      assert.equal(result.execution.confirmed, null);
       assert.equal(result.retry, 'reconcile_only');
     });
   }
