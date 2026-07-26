@@ -524,6 +524,41 @@
   color: var(--ink);
   word-break: break-word;
 }
+.dx-receipt-error__code {
+  margin: -2px 0 0;
+  font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: var(--ink-quiet);
+  overflow-wrap: anywhere;
+}
+.dx-receipt-error__references {
+  display: grid;
+  gap: 5px;
+  margin: 2px 0 0;
+  padding-top: 9px;
+  border-top: 1px solid color-mix(in srgb, var(--stamp) 18%, transparent);
+}
+.dx-receipt-error__references > div {
+  display: grid;
+  grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.3fr);
+  gap: 10px;
+}
+.dx-receipt-error__references dt,
+.dx-receipt-error__references dd {
+  margin: 0;
+  font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 9.5px;
+  line-height: 1.45;
+}
+.dx-receipt-error__references dt {
+  color: var(--ink-quiet);
+}
+.dx-receipt-error__references dd {
+  color: var(--ink);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
 
 /* ---------- Session funding ----------------------------------- */
 

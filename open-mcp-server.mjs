@@ -5,9 +5,9 @@ import './instrument.open-mcp.mjs';
  * Dexter Open MCP Server — x402 Gateway
  *
  * Public x402 gateway (see ALL_TOOLS for the full roster). Browse/search
- * tools are anonymous; spend-class tools (x402_pay, x402_fetch,
- * dexter_passkey) 401-challenge unbound Bearer-less sessions into the vault
- * OAuth rail (RFC 9728 PRM at /.well-known/oauth-protected-resource[/mcp]).
+ * tools are anonymous; wallet/payment tools declare scope=vault and challenge
+ * unbound sessions into the native OAuth rail (RFC 9728 PRM at
+ * /.well-known/oauth-protected-resource[/mcp]).
  *
  * Completely separate from the authenticated MCP server (http-server-oauth.mjs).
  * Shares no state, no sessions.
@@ -32,11 +32,10 @@ dotenv.config();
 dotenv.config({ path: '.env.local' });
 import { createOpenSessionResolver } from './lib/open-session-resolution.mjs';
 import { X402_WIDGET_URIS, DIAGNOSTIC_WIDGET_URIS, PASSKEY_WIDGET_URIS } from './apps-sdk/widget-uris.mjs';
-import { userScopedDexterFetch } from './lib/user-scoped-fetch.mjs';
 // Card TOOLS are gone (runbook Jul 23); createRemoteCardOperations remains the
 // HMAC client for the wallet widget's read-only card summary + frame-only rail.
 import { createRemoteCardOperations } from '@dexterai/x402-mcp-tools';
-import { mintVaultPairingRequest, pollVaultPairingResult, fetchVaultStateBySession, fetchVaultStateByUserHandle } from './lib/pairing-mint.mjs';
+import { fetchVaultStateBySession, fetchVaultStateByUserHandle } from './lib/pairing-mint.mjs';
 import { shouldChallengeSpend } from './lib/spend-challenge.mjs';
 import { applyRailTabOffer } from './lib/rail-tab-offer.mjs';
 import {
@@ -44,6 +43,32 @@ import {
   numericPortfolioSummary,
 } from './lib/session-portfolio.mjs';
 import { projectWalletResultForModel } from './lib/wallet-result-visibility.mjs';
+import {
+  buildAnonVaultToolResult,
+  normalizeAnonVaultFetchResponse,
+} from './lib/anon-vault-response.mjs';
+import {
+  OPEN_MCP_PRM,
+  OPEN_MCP_VAULT_AUDIENCE,
+  VAULT_WWW_AUTHENTICATE,
+  assertOpenToolAuthPolicyCoverage,
+  buildVaultAuthenticationRequired,
+  installCanonicalSecuritySchemeProjection,
+  isOpenMcpProtectedResourceMetadataPath,
+  isVaultAuthenticationRequired,
+  registerOpenTool,
+  vaultAuthenticationResult,
+} from './lib/open-tool-auth.mjs';
+import {
+  clearVaultBound,
+  createOpenSessionMeta,
+  isAnyIdentityBound,
+  isVaultBound,
+  markAccountBound,
+  markVaultBound,
+  shouldSeedVaultOAuth,
+  touchOpenSessionMeta,
+} from './lib/open-session-auth-state.mjs';
 import {
   capabilitySearch as coreCapabilitySearch,
   buildSearchResponse,
@@ -97,27 +122,6 @@ function getWidgetCsp() {
   return cachedWidgetCsp;
 }
 
-// Friendly first-name guess from an email local part. Used by the
-// dexter_passkey ready-state welcome line. We deliberately avoid a real
-// profile lookup — extra round-trip, and the email-local-part guess is
-// usually accurate enough ("nrsander@gmail.com" → "Nrsander", which the
-// widget can render as "Welcome, Nrsander"). Falls back to null when
-// the input isn't a usable email.
-function deriveWelcomeName(email) {
-  if (typeof email !== 'string') return null;
-  const local = email.split('@')[0];
-  if (!local) return null;
-  // Strip trailing digits ("branch42" → "branch") so the welcome line
-  // doesn't read like a username.
-  const cleaned = local.replace(/[._-]/g, ' ').replace(/\d+$/, '').trim();
-  if (!cleaned) return null;
-  // Title-case the first word only — "branch manager" → "Branch", which
-  // reads more naturally than "Branch Manager" for a one-word welcome.
-  const first = cleaned.split(/\s+/)[0];
-  if (!first) return null;
-  return first.charAt(0).toUpperCase() + first.slice(1);
-}
-
 function widgetMeta(templateUri, invoking, invoked, description) {
   return {
     ui: { resourceUri: templateUri, visibility: ['model', 'app'] },
@@ -145,7 +149,7 @@ const ACCESS_META = widgetMeta(X402_WIDGET_URIS.fetch, 'Signing access proof…'
 const CHECK_META = widgetMeta(X402_WIDGET_URIS.pricing, 'Checking pricing…', 'Pricing loaded', 'Shows endpoint pricing per blockchain with payment amounts and a pay button.');
 const WALLET_META = widgetMeta(X402_WIDGET_URIS.wallet, 'Loading wallet…', 'Wallet loaded', 'Shows wallet addresses with copy button, USDC balances across chains, and deposit QR code.');
 const PASSKEY_PROBE_META = widgetMeta(DIAGNOSTIC_WIDGET_URIS.passkeyProbe, 'Loading probe…', 'Probe ready', 'One-button WebAuthn iframe-sandbox capability test. Renders a button that calls navigator.credentials.create() and .get() against rp.id=dexter.cash and reports the outcome.');
-const PASSKEY_ONBOARD_META = widgetMeta(PASSKEY_WIDGET_URIS.onboard, 'Checking wallet…', 'Wallet status loaded', 'Dexter passkey-secured Solana wallet onboarding. Renders three states (not enrolled / provisioning / ready) with a CTA that opens dexter.cash/wallet/setup-passkey via ui/open-link; polls dexter-api while the user runs the ceremony at top-level.');
+const PASSKEY_ONBOARD_META = widgetMeta(PASSKEY_WIDGET_URIS.onboard, 'Checking wallet…', 'Wallet status loaded', 'Compatibility status view for the passkey wallet. Native host authorization performs the passkey ceremony; this widget shows the Connect handoff or the bound wallet.');
 
 // Card tools removed Jul 24 (owner ruling; card-removal runbook) — the card
 // lives in the wallet widget now. 10 tools.
@@ -230,33 +234,6 @@ function buildMerchantSettlement(requirements) {
     amountAtomic: String(entry?.maxAmountRequired ?? entry?.amount ?? ''),
     payTo: entry?.payTo || null,
   }));
-}
-
-/**
- * Build the widget-facing payment.details object from a raw x402 settlement
- * payload + the open-mcp roundtrip timing.
- *
- * Surfaces TWO timing fields:
- *   - settlementMs:       full open-mcp ↔ dexter-api ↔ seller roundtrip
- *                         (includes seller endpoint response delay).
- *   - settleDurationMs:   pure facilitator settle work, lifted out of
- *                         settlement.extensions['dexter-timing']. This is
- *                         the clean "Dexter speed" number — no hops, no
- *                         seller delay. Falls through as undefined when
- *                         the facilitator hasn't shipped the timing
- *                         extension yet, so widget display degrades
- *                         gracefully.
- */
-function buildPaymentDetails(settlement, roundtripMs) {
-  if (!settlement) return null;
-  const timingExt = settlement?.extensions?.['dexter-timing'];
-  const settleDurationMs =
-    typeof timingExt?.settleDurationMs === 'number' ? timingExt.settleDurationMs : undefined;
-  return {
-    ...settlement,
-    settlementMs: roundtripMs,
-    ...(settleDurationMs !== undefined ? { settleDurationMs } : {}),
-  };
 }
 
 function logX402SearchDebug(stage, details = {}) {
@@ -469,78 +446,6 @@ async function readMultipartFiles(files) {
 }
 
 /**
- * Ensure a durable vault-pairing for this MCP session, reusing the cached one
- * if it's still fresh. This is the SAME pairing cache `dexter_passkey` uses, so
- * an agent that hits the payment wall here and then calls `dexter_passkey`
- * (or vice-versa) sees ONE funnel — one request_id, one enroll URL, one bound
- * vault. Returns { requestId, loginUrl } or null if the mint failed.
- *
- * The remote MCP URL is NON-CUSTODIAL: it has no wallet of its own. When a
- * session isn't bound to a passkey vault, the only correct move is to send the
- * user to enroll one — never to pay from a Dexter-held key.
- */
-async function ensureVaultPairing(sessionId) {
-  if (!sessionId) return null;
-  // Ask durable state first. Only a genuinely not-enrolled session needs a
-  // fresh pairing link; an in-flight (awaiting_ceremony) or ready session must
-  // NOT mint again (that re-mint loop was the forever-poll bug).
-  try {
-    const state = await fetchVaultStateBySession(sessionId);
-    if (state.status === 'ready' || state.status === 'provisioning') return null;
-  } catch (err) {
-    console.warn(`[x402_fetch] /state check failed, proceeding to mint: ${err?.message || err}`);
-  }
-  try {
-    const minted = await mintVaultPairingRequest(sessionId);
-    return { requestId: minted.requestId, loginUrl: minted.loginUrl };
-  } catch (err) {
-    console.warn(`[x402_fetch] vault pairing mint failed: ${err?.message || err}`);
-    return null;
-  }
-}
-
-/**
- * Build the `vault_required` response an agent gets when it tries to pay but
- * has no passkey vault bound. This is an INSTRUCTION the model can act on, not
- * a dead error:
- *   - next_action tells it to call `dexter_passkey`;
- *   - enroll_url is the durable setup link to surface to the human;
- *   - retry preserves the exact call so the agent can resume after enrollment;
- *   - the copy is written to be relayed verbatim to a human.
- * `requirements`/`merchantSettlement` are echoed so nothing about the intended
- * purchase is lost across the enrollment detour.
- */
-function buildVaultRequired({ pairing, url, method, body, requirements, merchantSettlement, reason }) {
-  const enrollUrl = pairing?.loginUrl ?? 'https://dexter.cash/wallet/setup-passkey';
-  return {
-    status: 402,
-    mode: 'vault_required',
-    paySource: 'anon_vault',
-    // What the MODEL should do next — one funnel with dexter_passkey.
-    next_action: 'call_dexter_passkey',
-    next_tool: 'dexter_passkey',
-    vault_status: 'not_enrolled',
-    user_bound: false,
-    enroll_url: enrollUrl,
-    pairing_url: enrollUrl,
-    pairing_ttl_seconds: pairing ? Math.floor(VAULT_PAIRING_MAX_AGE_MS / 1000) : null,
-    // Preserve the original intent so the agent can retry the SAME call once bound.
-    retry: { tool: 'x402_fetch', url, method: method || 'GET', body: body ?? null },
-    // Human-relayable copy. Dexter holds no keys — the wallet is the user's passkey.
-    message:
-      'To pay for this, you need a Dexter wallet. It lives on your passkey, so only you can ever spend from it. ' +
-      'Setup takes about 20 seconds: open the link below, approve with your face or fingerprint, ' +
-      'and I\'ll complete the purchase automatically.',
-    instructions:
-      'Show the user enroll_url and ask them to set up their passkey wallet. Then call dexter_passkey to ' +
-      'check progress; once vault_status is "ready", re-run this exact x402_fetch (see retry) to complete payment.',
-    reason: reason || 'no_vault_bound',
-    requirements: requirements ?? null,
-    merchantSettlement: merchantSettlement ?? null,
-  };
-}
-
-/**
  * Ask the durable binding table whether an MCP session resolves to a vault.
  * Same HMAC-gated lookup x402Fetch uses to find who's paying. Returns:
  *   { ok: true,  bound: true  } — session resolves to a vault user_handle
@@ -566,27 +471,55 @@ async function checkSessionVaultBinding(sessionId) {
 }
 
 /**
- * Response for a session that IS bound to a vault but whose /state read failed.
- * This is the honest answer to a transient read error: the user has a wallet
- * and funds, we just couldn't read them this instant. Never the enroll funnel,
- * never a "$0 / needs funding" card — those tell a real wallet it doesn't exist.
+ * Response when vault state cannot be read. `user_bound` is true only when the
+ * durable binding was independently proven; otherwise it stays null. Either
+ * way this is never converted into enrollment or a fabricated zero balance.
  */
-function buildVaultReadError() {
+function buildVaultReadError({ userBound = null } = {}) {
+  const bindingProven = userBound === true;
   return {
     status: 503,
     mode: 'vault_read_error',
     paySource: 'anon_vault',
-    user_bound: true,
+    user_bound: userBound,
     vault_status: 'read_error',
     retryable: true,
-    // Human-relayable copy. The user already has a wallet; this is our outage.
-    message:
-      'I could not reach your Dexter wallet just now. Your wallet and funds are safe; this is a temporary problem on our side. Try again in a moment.',
-    instructions:
-      'Do NOT tell the user to set up or fund a wallet. They already have one — this is a transient read failure on our side. ' +
-      'Ask them to retry x402_wallet (or the payment) in a few seconds.',
-    tip: 'Could not read your wallet right now. Your funds are safe. Try again in a moment.',
+    error: 'vault_state_read_failed',
+    message: bindingProven
+      ? 'I could not reach your Dexter wallet just now. Your wallet and funds are safe; this is a temporary problem on our side. Try again in a moment.'
+      : 'I could not verify the wallet connection or read its state just now. This is a temporary problem on our side.',
+    instructions: bindingProven
+      ? 'Do NOT tell the user to set up or fund a wallet. Their binding is proven; this is a transient read failure. Ask them to retry in a few seconds.'
+      : 'Do not claim that a wallet is present, absent, empty, or disconnected. Binding truth is unavailable; report the read error and retry only after the service recovers.',
+    tip: bindingProven
+      ? 'Could not read your wallet right now. Your funds are safe. Try again in a moment.'
+      : 'Wallet state is temporarily unavailable. No balance or connection state was inferred.',
     reason: 'vault_state_read_failed',
+  };
+}
+
+function buildVaultPaymentTransportError(requestId = null) {
+  return {
+    status: 503,
+    mode: 'vault_payment_unconfirmed',
+    phase: 'transport',
+    paySource: 'anon_vault',
+    user_bound: true,
+    vault_status: 'ready',
+    retryable: false,
+    error: 'payment_transport_unconfirmed',
+    payment: { dispatched: 'unknown', settled: 'unknown' },
+    message:
+      'The wallet service stopped responding during the payment attempt. The payment may have settled. Do not retry automatically; check the wallet or merchant first.',
+    instructions:
+      'Do NOT retry this payment automatically. Check the wallet balance or merchant result before starting a new payment.',
+    reason: 'payment_transport_unconfirmed',
+    ...(requestId
+      ? {
+          requestId,
+          correlation: { requestId },
+        }
+      : {}),
   };
 }
 
@@ -627,14 +560,15 @@ async function x402Fetch({ url, method, body, multipart, sessionToken, sessionKe
   // The old `x-dexter-user-handle` header path (dexter-phone) is RETIRED — a
   // raw handle is a lookup key, never a bearer credential. Phone re-onboards
   // via durable link tokens (x-dexter-link-token) when it exits Twilio limbo.
-  // If no binding resolves, we return `vault_required` with an enroll funnel —
-  // there is no Dexter-held key to fall back to, by design. No session
-  // funding, no Supabase, no custodial keys, ever.
+  // If no binding resolves, we return the host-native OAuth challenge. There
+  // is no Dexter-held key to fall back to, by design. No session funding, no
+  // caller-supplied wallet identity, no custodial keys, ever.
   const sessionIdForAnon = extra ? extractMcpSessionId(extra) : null;
   // Sent on pay calls only when clean — dexter-api 400s a malformed id.
   const paySessionId =
     sessionIdForAnon && PAY_SESSION_ID_RE.test(sessionIdForAnon) ? sessionIdForAnon : null;
   let user_handle = null;
+  let bindingLookupFailed = false;
   if (sessionIdForAnon) {
     try {
       const bindRes = await fetch(
@@ -647,15 +581,19 @@ async function x402Fetch({ url, method, body, multipart, sessionToken, sessionKe
       if (bindRes.ok) {
         const binding = await bindRes.json();
         user_handle = binding?.user_handle || null;
+        if (!user_handle) clearSessionVaultBinding(sessionIdForAnon);
+      } else if (bindRes.status !== 404) {
+        bindingLookupFailed = true;
+      } else {
+        clearSessionVaultBinding(sessionIdForAnon);
       }
     } catch (err) {
       console.warn(`[x402Fetch] bind lookup failed: ${err?.message || err}`);
-      // fall through to no-handle path so the caller gets vault_required
-      // (matches the pre-2026-05-30 behavior on transient binding outages)
+      bindingLookupFailed = true;
     }
   }
   if (user_handle) {
-    if (sessionIdForAnon) markSessionBound(sessionIdForAnon);
+    if (sessionIdForAnon) markSessionVaultBound(sessionIdForAnon);
     console.log(`[x402Fetch] resolved user_handle via mcp-binding: ${String(user_handle).slice(0, 8)}...`);
 
     // Check vault activation state before attempting payment. A vault in
@@ -707,190 +645,138 @@ async function x402Fetch({ url, method, body, multipart, sessionToken, sessionKe
       console.warn(`[x402Fetch] vault activation check failed (proceeding): ${activationCheckErr?.message || activationCheckErr}`);
     }
 
+    const requestId = randomUUID();
     try {
       const anonStart = Date.now();
 
-        // Multipart branch — POST a multipart/form-data body to
-        // /v2/pay/anon/x402/fetch/multipart. The vault swig session role pays;
-        // the facilitator co-signs. No custody.
-        if (multipart && typeof multipart === 'object') {
-          const requestedMethod = (method || 'POST').toUpperCase();
-          if (requestedMethod !== 'POST' && requestedMethod !== 'PUT') {
-            return {
-              status: 400,
-              mode: 'vault_error',
+      // Multipart branch — POST a multipart/form-data body to
+      // /v2/pay/anon/x402/fetch/multipart. The vault swig session role pays;
+      // the facilitator co-signs. No custody.
+      if (multipart && typeof multipart === 'object') {
+        const requestedMethod = (method || 'POST').toUpperCase();
+        if (requestedMethod !== 'POST' && requestedMethod !== 'PUT') {
+          return normalizeAnonVaultFetchResponse({
+            body: {
               error: 'method_not_supported_for_multipart',
               message: 'Multipart x402 endpoints only accept POST or PUT.',
-              paySource: 'anon_vault',
-            };
-          }
-          let loadedFiles;
-          try {
-            loadedFiles = await readMultipartFiles(multipart.files || []);
-          } catch (err) {
-            return {
-              status: 400,
-              mode: 'vault_error',
+            },
+            httpStatus: 400,
+            requestId,
+          }).response;
+        }
+        let loadedFiles;
+        try {
+          loadedFiles = await readMultipartFiles(multipart.files || []);
+        } catch (err) {
+          return normalizeAnonVaultFetchResponse({
+            body: {
               error: 'multipart_files_invalid',
               message: err?.message || 'Unable to read multipart files.',
-              paySource: 'anon_vault',
-            };
-          }
-          const fd = new FormData();
-          // Session mode (money-path part 3): dexter-api authenticates spend
-          // against this session's LIVE binding; the handle rides along as the
-          // cross-check (mismatch → 403 binding_handle_mismatch).
-          if (paySessionId) fd.append('mcp_session_id', paySessionId);
-          fd.append('user_handle', user_handle);
-          fd.append('url', url);
-          fd.append('method', requestedMethod);
-          fd.append('requestId', randomUUID());
-          const extraFields = (multipart.fields && typeof multipart.fields === 'object') ? multipart.fields : {};
-          for (const [k, v] of Object.entries(extraFields)) {
-            if (MCP_MULTIPART_CONTROL_KEYS.has(k)) continue; // never let body fields shadow control fields
-            fd.append(k, typeof v === 'string' ? v : JSON.stringify(v));
-          }
-          for (const f of loadedFiles) {
-            fd.append(f.fieldName, new Blob([new Uint8Array(f.data)], { type: f.mimeType }), f.filename);
-          }
-          const anonRes = await fetch(`${API_BASE_FALLBACK}/v2/pay/anon/x402/fetch/multipart`, {
-            method: 'POST',
-            body: fd,
-            signal: AbortSignal.timeout(120000), // multipart uploads + paid retry can be slow
-          });
-          const anonBody = await anonRes.json().catch(() => null);
-          const anonRoundtripMs = Date.now() - anonStart;
-          if (anonBody?.ok) {
-            // Ambiguous settlement: x402 'exact' settles INLINE, so the USDC may
-            // already have moved. The agent must NOT retry (a retry re-authorizes
-            // and double-spends). Return a TERMINAL, non-retryable state. dexter-api
-            // sends paymentUnconfirmed on a post-dispatch error, reason
-            // 'settlement_unconfirmed' on a merchant 5xx.
-            if (anonBody.paymentUnconfirmed === true || anonBody.reason === 'settlement_unconfirmed') {
-              return {
-                status: anonBody.status ?? 200,
-                mode: 'vault_payment_unconfirmed',
-                retryable: false,
-                reason: anonBody.reason || 'payment_unconfirmed',
-                data: anonBody.data ?? null,
-                payment: { settled: 'unknown', details: anonBody.payment ?? null },
-                vault: anonBody.vault,
-                paySource: 'anon_vault',
-                message: anonBody.message
-                  || 'The payment was dispatched and may have settled. Do NOT retry — re-running could pay twice. Check the vault balance or the merchant before re-attempting.',
-              };
-            }
-            const legacySuccess = {
-              status: anonBody.status ?? 200,
-              mode: anonBody.paid ? 'vault_ready' : 'vault_no_payment_required',
-              data: anonBody.data,
-              payment: anonBody.payment?.settlement
-                ? { settled: true, details: buildPaymentDetails(anonBody.payment.settlement, anonRoundtripMs) }
-                : { settled: Boolean(anonBody.paid) },
-              vault: anonBody.vault,
-              paySource: 'anon_vault',
-            };
-            return applyRailTabOffer({ legacy: legacySuccess, anonBody, tabEnabled, succeeded: true, call: offerCall });
-          }
-          const legacyError = {
-            status: anonRes.status || 500,
-            mode: 'vault_error',
-            error: anonBody?.error || 'anon_multipart_fetch_failed',
-            message: anonBody?.message,
-            requirements: anonBody?.requirements ?? null,
-            paySource: 'anon_vault',
-          };
-          return applyRailTabOffer({ legacy: legacyError, anonBody, tabEnabled, succeeded: false, call: offerCall });
+            },
+            httpStatus: 400,
+            requestId,
+          }).response;
         }
-
-        // JSON branch — original /v2/pay/anon/x402/fetch.
-        const anonRes = await fetch(`${API_BASE_FALLBACK}/v2/pay/anon/x402/fetch`, {
+        const fd = new FormData();
+        // Session mode (money-path part 3): spend authenticates against this
+        // session's live binding; the handle is only a cross-check.
+        if (paySessionId) fd.append('mcp_session_id', paySessionId);
+        fd.append('user_handle', user_handle);
+        fd.append('url', url);
+        fd.append('method', requestedMethod);
+        fd.append('requestId', requestId);
+        const extraFields = (multipart.fields && typeof multipart.fields === 'object') ? multipart.fields : {};
+        for (const [k, v] of Object.entries(extraFields)) {
+          if (MCP_MULTIPART_CONTROL_KEYS.has(k)) continue;
+          fd.append(k, typeof v === 'string' ? v : JSON.stringify(v));
+        }
+        for (const f of loadedFiles) {
+          fd.append(f.fieldName, new Blob([new Uint8Array(f.data)], { type: f.mimeType }), f.filename);
+        }
+        const anonRes = await fetch(`${API_BASE_FALLBACK}/v2/pay/anon/x402/fetch/multipart`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            // Session mode (money-path part 3): spend authenticates against
-            // this session's live binding; handle becomes the cross-check.
-            ...(paySessionId ? { mcp_session_id: paySessionId } : {}),
-            user_handle,
-            url,
-            method: method || 'GET',
-            body: body ?? null,
-            requestId: randomUUID(),
-          }),
-          // Must exceed dexter-api's 60s paid-retry window: a shorter client
-          // timeout abandons mid-settlement and the retry double-spends.
-          signal: AbortSignal.timeout(70000),
+          body: fd,
+          signal: AbortSignal.timeout(120000),
         });
         const anonBody = await anonRes.json().catch(() => null);
         const anonRoundtripMs = Date.now() - anonStart;
-        if (anonBody?.ok) {
-          // Ambiguous settlement: x402 'exact' settles INLINE, so the USDC may
-          // already have moved. The agent must NOT retry (a retry re-authorizes
-          // and double-spends). Return a TERMINAL, non-retryable state. dexter-api
-          // sends paymentUnconfirmed on a post-dispatch error, reason
-          // 'settlement_unconfirmed' on a merchant 5xx.
-          if (anonBody.paymentUnconfirmed === true || anonBody.reason === 'settlement_unconfirmed') {
-            return {
-              status: anonBody.status ?? 200,
-              mode: 'vault_payment_unconfirmed',
-              retryable: false,
-              reason: anonBody.reason || 'payment_unconfirmed',
-              data: anonBody.data ?? null,
-              payment: { settled: 'unknown', details: anonBody.payment ?? null },
-              vault: anonBody.vault,
-              paySource: 'anon_vault',
-              message: anonBody.message
-                || 'The payment was dispatched and may have settled. Do NOT retry — re-running could pay twice. Check the vault balance or the merchant before re-attempting.',
-            };
-          }
-          const legacySuccess = {
-            status: anonBody.status ?? 200,
-            mode: anonBody.paid ? 'vault_ready' : 'vault_no_payment_required',
-            data: anonBody.data,
-            payment: anonBody.payment?.settlement
-              ? { settled: true, details: buildPaymentDetails(anonBody.payment.settlement, anonRoundtripMs) }
-              : { settled: Boolean(anonBody.paid) },
-            vault: anonBody.vault,
-            paySource: 'anon_vault',
-          };
-          return applyRailTabOffer({ legacy: legacySuccess, anonBody, tabEnabled, succeeded: true, call: offerCall });
+        const normalized = normalizeAnonVaultFetchResponse({
+          body: anonBody,
+          httpStatus: anonRes.status,
+          roundtripMs: anonRoundtripMs,
+          requestId,
+        });
+        // A rejected or uncertain dispatched payment must never be transformed
+        // into a retry-bearing tab offer.
+        if (normalized.dispatched && !normalized.succeeded) {
+          return normalized.response;
         }
-        // Surface the dexter-api error directly so the agent can route
-        // (e.g. no_solana_accept) instead of silently doing anything else —
-        // unless it carries a renderable railTabOffer, in which case the
-        // offer becomes the response (bare tab_consent_required relays as-is
-        // only when the offer object is absent/unknown).
-        const legacyError = {
-          status: anonRes.status || 500,
-          mode: 'vault_error',
-          error: anonBody?.error || 'anon_fetch_failed',
-          message: anonBody?.message,
-          requirements: anonBody?.requirements ?? null,
-          paySource: 'anon_vault',
-        };
-        return applyRailTabOffer({ legacy: legacyError, anonBody, tabEnabled, succeeded: false, call: offerCall });
+        return applyRailTabOffer({
+          legacy: normalized.response,
+          anonBody,
+          tabEnabled,
+          succeeded: normalized.succeeded,
+          call: offerCall,
+        });
+      }
+
+      // JSON branch — original /v2/pay/anon/x402/fetch.
+      const anonRes = await fetch(`${API_BASE_FALLBACK}/v2/pay/anon/x402/fetch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          // Session mode: spend authenticates against this session's live
+          // binding; the handle is only a cross-check.
+          ...(paySessionId ? { mcp_session_id: paySessionId } : {}),
+          user_handle,
+          url,
+          method: method || 'GET',
+          body: body ?? null,
+          requestId,
+        }),
+        // Must exceed dexter-api's 60s paid-retry window: a shorter client
+        // timeout abandons mid-settlement and the retry double-spends.
+        signal: AbortSignal.timeout(70000),
+      });
+      const anonBody = await anonRes.json().catch(() => null);
+      const anonRoundtripMs = Date.now() - anonStart;
+      const normalized = normalizeAnonVaultFetchResponse({
+        body: anonBody,
+        httpStatus: anonRes.status,
+        roundtripMs: anonRoundtripMs,
+        requestId,
+      });
+      if (normalized.dispatched && !normalized.succeeded) {
+        return normalized.response;
+      }
+      return applyRailTabOffer({
+        legacy: normalized.response,
+        anonBody,
+        tabEnabled,
+        succeeded: normalized.succeeded,
+        call: offerCall,
+      });
     } catch (err) {
       console.warn(`[x402_fetch] anon paid call failed: ${err?.message || err}`);
       // Network/timeout talking to the vault path. FAIL CLOSED — never leak
-      // into a custodial charge on a transient blip. Tell the agent to retry;
-      // if it persists, the enroll funnel still applies.
-      const pairing = sessionIdForAnon ? await ensureVaultPairing(sessionIdForAnon) : null;
-      return buildVaultRequired({
-        pairing,
-        url,
-        method,
-        body,
-        reason: 'binding_lookup_unavailable',
-      });
+      // into a custodial charge or pretend the known wallet needs reconnecting.
+      // The payment may be ambiguous, so the response exposes no automatic
+      // retry instruction.
+      return buildVaultPaymentTransportError(requestId);
     }
   }
-  // No handle resolved — this session has no passkey vault bound. The remote
-  // MCP URL is non-custodial: there is NO Dexter-held key to fall back to. Mint (or
-  // reuse) a durable enroll pairing and return vault_required so the agent
-  // sends the user to set up their passkey wallet, then retries.
+  if (bindingLookupFailed) {
+    return buildVaultReadError();
+  }
+  // No handle resolved — this session has no passkey vault bound. Route the
+  // caller through the host-native OAuth connection. Do not mint a vpair or
+  // ask the user to replace the stable MCP URL with a personalized one.
   if (sessionIdForAnon) {
-    const pairing = await ensureVaultPairing(sessionIdForAnon);
-    return buildVaultRequired({ pairing, url, method, body, reason: 'no_vault_bound' });
+    return buildVaultAuthenticationRequired({
+      tool: 'x402_fetch',
+      reason: 'no_vault_bound',
+      retry: { tool: 'x402_fetch', url, method: method || 'GET', body: body ?? null },
+    });
   }
 
   const fetchOpts = { method: method || 'GET', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(15000) };
@@ -916,22 +802,14 @@ async function x402Fetch({ url, method, body, multipart, sessionToken, sessionKe
     ? { accepts, x402Version: body402.x402Version ?? 2, resource: body402.resource }
     : null;
 
-  // This is a 402 (payment required) and we reached here without a bound vault
-  // — which means we couldn't extract an MCP session id to resolve a binding
-  // (the bound case returns above from the vault path). The remote MCP URL is
-  // NON-CUSTODIAL: there is no Dexter-held key to pay with. Send the user to
-  // enroll a passkey vault. (No sessionId means we can't mint a durable
-  // pairing, so the enroll link is the generic one.)
-  const sessionIdForPair = extra ? extractMcpSessionId(extra) : null;
-  const pairing = await ensureVaultPairing(sessionIdForPair);
-  return buildVaultRequired({
-    pairing,
-    url,
-    method,
-    body,
+  // This is a 402 reached without a bound vault. Preserve the checked price
+  // and original call, then ask the host to run the native vault OAuth flow.
+  return buildVaultAuthenticationRequired({
+    tool: 'x402_fetch',
+    retry: { tool: 'x402_fetch', url, method: method || 'GET', body: body ?? null },
     requirements,
     merchantSettlement: buildMerchantSettlement(requirements),
-    reason: pairing ? 'no_vault_bound' : 'no_session_for_pairing',
+    reason: 'no_vault_bound',
   });
 }
 
@@ -1040,8 +918,9 @@ const SOLANA_MAINNET_CAIP2 = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
  *
  * Now: read-only vault status. If the MCP session is bound to a passkey vault,
  * return the swig address + USDC balance + chain breakdown. If not, return the
- * same `vault_required` enroll funnel `x402_fetch` uses, so an agent that hits
- * either tool funnels the user through the same one-time setup.
+ * host-native OAuth challenge used by wallet and payment tools. The passkey
+ * ceremony is part of that authorization transaction; this tool never mints a
+ * legacy pairing URL.
  *
  * EVM goes honestly null. The vault is Solana-only today; surfacing a
  * Dexter-held EVM address would be exactly the custodial pattern we're
@@ -1239,16 +1118,16 @@ async function x402Wallet(_args, extra) {
       console.warn(`[x402_wallet] /state read failed: ${err?.message || err}`);
     }
   }
-  if (state && sessionId) markSessionBound(sessionId);
+  if (state?.status === 'ready' && state.vault && sessionId) {
+    markSessionVaultBound(sessionId);
+  } else if (state && sessionId) {
+    clearSessionVaultBinding(sessionId);
+  }
 
   // No identity at all — no session id to resolve a binding from.
   if (!state && !sessionId) {
-    const pairing = await ensureVaultPairing(null);
-    return buildVaultRequired({
-      pairing,
-      url: null,
-      method: null,
-      body: null,
+    return buildVaultAuthenticationRequired({
+      tool: 'x402_wallet',
       reason: 'no_mcp_session',
     });
   }
@@ -1256,28 +1135,28 @@ async function x402Wallet(_args, extra) {
   // The /state read errored. Before assuming "no wallet", ask the durable
   // binding table whether this session is bound to a vault. A bound user whose
   // state we merely couldn't read HAS a wallet (and funds) — routing them to
-  // the enroll funnel or showing a $0 card is the exact incident we're killing.
+  // an auth/setup funnel or showing a $0 card is the exact incident we're killing.
   // Only a session the binding table confirms is NOT bound falls through to the
-  // enroll funnel below; an unproven binding (its lookup also failed) is treated
-  // as bound so a real wallet is never told it doesn't exist.
+  // host challenge below. If that second lookup also fails, binding truth stays
+  // unknown and we return a read error rather than inventing either state.
   if (stateReadFailed && sessionId) {
     const binding = await checkSessionVaultBinding(sessionId);
-    if (binding.bound || !binding.ok) {
-      markSessionBound(sessionId);
+    if (binding.bound) {
+      markSessionVaultBound(sessionId);
+      return buildVaultReadError({ userBound: true });
+    }
+    if (!binding.ok) {
       return buildVaultReadError();
     }
+    clearSessionVaultBinding(sessionId);
   }
 
   // Vault not ready (not enrolled, awaiting ceremony, or provisioning) →
-  // surface the same enroll funnel x402_fetch uses, so both tools route the
-  // user through one setup.
+  // authorize through the host. Do not create another vpair: a new pending
+  // pairing can shadow the completed binding and strand the active chat.
   if (!state || state.status !== 'ready' || !state.vault) {
-    const pairing = await ensureVaultPairing(sessionId);
-    return buildVaultRequired({
-      pairing,
-      url: null,
-      method: null,
-      body: null,
+    return buildVaultAuthenticationRequired({
+      tool: 'x402_wallet',
       reason: stateReadFailed ? 'vault_lookup_failed' : (state?.status || 'not_enrolled'),
     });
   }
@@ -1512,13 +1391,17 @@ const SKILLS_ROOT = (() => {
   }
 })();
 
-// Instructions live in @dexterai/mcp-instructions, rendered per-surface:
-// HOSTED_CAPS describes THIS connector's roster/behavior (no x402_settings,
-// no card tools, passkey+skill tools present, Solana-only funding).
-// Update the text there, publish, bump the dependency here — and the boot
-// parity assertion below (before `return server`) refuses to serve any
-// rendering that names a tool this roster lacks.
-const SERVER_INSTRUCTIONS = buildServerInstructions(HOSTED_CAPS);
+// The shared instruction package still describes the retired out-of-band
+// passkey/pairing funnel. Suppress that section locally and publish the
+// host-native contract explicitly until the shared package catches up.
+const OPEN_HOSTED_CAPS = { ...HOSTED_CAPS, hasPasskeyTools: false };
+const SERVER_INSTRUCTIONS = [
+  buildServerInstructions(OPEN_HOSTED_CAPS),
+  '# Hosted wallet authorization',
+  'x402_wallet reads the passkey wallet bound to the current MCP session. Wallet and payment tools use the host-native OpenDexter connection with scope=vault.',
+  'If a tool returns authentication_required, let the host show its Connect action. After authorization completes, retry the same tool call.',
+  'Never ask the user to replace the stable OpenDexter MCP URL or copy a personalized connector URL.',
+].join('\n\n');
 
 /**
  * Resolve the caller's principal from an MCP `extra` context.
@@ -1587,12 +1470,16 @@ async function resolvePrincipalForSession(extra) {
       if (bindRes.ok) {
         const bindBody = await bindRes.json();
         userHandle = bindBody?.user_handle || null;
+        if (!userHandle) clearSessionVaultBinding(sessionId);
+      } else if (bindRes.status === 404) {
+        clearSessionVaultBinding(sessionId);
       }
     } catch {
       // network blip — fall through to auth_required_to_publish below
     }
 
     if (userHandle) {
+      markSessionVaultBound(sessionId);
       const meRes = await fetch(
         `${DEXTER_API_ORIGIN}/api/principals/me?user_handle=${encodeURIComponent(userHandle)}`,
         { signal: AbortSignal.timeout(3000) },
@@ -1625,7 +1512,7 @@ async function resolvePrincipalForSession(extra) {
       code: 'auth_required_to_publish',
       extras: {
         hint: sessionId
-          ? `Set up a wallet at dexter.cash/wallet/setup-passkey?mcp=${sessionId} and then claim a handle.`
+          ? 'Connect OpenDexter from the host, then claim a handle at dexter.cash/wallet/claim-handle.'
           : 'MCP session id missing — cannot resolve user.',
       },
     },
@@ -1645,6 +1532,7 @@ function composedSkillsErrorResponse(code, extras = {}) {
 }
 
 function createOpenMcpServer() {
+  assertOpenToolAuthPolicyCoverage(ALL_TOOLS);
   const server = new McpServer({
     name: SERVER_NAME,
     version: '1.0.0',
@@ -1674,7 +1562,7 @@ function createOpenMcpServer() {
     });
   }
 
-  server.registerTool('x402_search', {
+  registerOpenTool(server, 'x402_search', {
     title: 'x402 Search',
     description: 'Semantic capability search over the x402 marketplace across Solana and EVM chains. Pass a natural-language query and get back two tiers: strongResults (high-confidence capability hits) and relatedResults (adjacent services that cleared the similarity floor). The ranker handles synonym expansion and alternate phrasings internally — do NOT pre-filter by chain or category. The top strong results are reordered by a cross-encoder LLM rerank unless rerank:false is passed. Use the searchMeta.mode field to distinguish a direct hit (strong matches present) from related_only (only adjacencies) or empty (nothing in the index). Multi-chain resources expose every payment option they accept via each result\'s chains[] field.',
     inputSchema: {
@@ -1697,9 +1585,9 @@ function createOpenMcpServer() {
     }
   });
 
-  server.registerTool('x402_pay', {
+  registerOpenTool(server, 'x402_pay', {
     title: 'x402 Pay',
-    description: "Alias for x402_fetch. Prefer x402_fetch for all paid API calls. Payment comes from the user's own Dexter wallet, the non-custodial passkey vault bound to this session. There is no server session to create or fund first. If no wallet is bound yet, the call returns a short one-time setup link to relay to the user; once they finish, retry the same call and it pays.",
+    description: "Alias for x402_fetch. Prefer x402_fetch for all paid API calls. Payment comes from the user's own Dexter wallet, the non-custodial passkey vault bound to this session. A missing or stale vault authorization triggers the host's native OpenDexter connection flow; after the user approves with their passkey, retry the same call.",
     // Schema is byte-identical to x402_fetch's (drift register Q3): the
     // instructions promise "x402_pay, identical" — so it must accept the
     // same body typing and multipart uploads, not a divergent subset.
@@ -1726,12 +1614,15 @@ function createOpenMcpServer() {
       result.url = args.url;
       result.method = (args.method || 'GET').toUpperCase();
       const meta = { ...PAY_META };
+      if (isVaultAuthenticationRequired(result)) {
+        return vaultAuthenticationResult(result, meta);
+      }
       if (result.session?.sessionToken) {
         meta.sessionToken = result.session.sessionToken;
         const { sessionToken: _drop, ...cleanSession } = result.session;
         result.session = cleanSession;
       }
-      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }], structuredContent: result, _meta: meta };
+      return buildAnonVaultToolResult(result, meta);
     } catch (err) {
       const msg = err?.cause?.code === 'ENOTFOUND' ? `Could not reach ${args.url}` : err?.message || String(err);
       const data = { status: 500, error: msg, url: args.url, method: (args.method || 'GET').toUpperCase() };
@@ -1739,9 +1630,9 @@ function createOpenMcpServer() {
     }
   });
 
-  server.registerTool('x402_fetch', {
+  registerOpenTool(server, 'x402_fetch', {
     title: 'x402 Fetch',
-    description: "Call any x402-protected API and pay automatically from the user's own Dexter wallet, the non-custodial passkey vault bound to this session. There is no session to set up first. If no wallet is bound yet, the call returns a short one-time setup link to relay to the user; once they finish, retry the same call and it pays. The vault settles in USDC on Solana.",
+    description: "Call an x402-protected API and pay from the user's own Dexter wallet, the non-custodial passkey vault bound to this session. A missing or stale vault authorization triggers the host's native OpenDexter connection flow; after the user approves with their passkey, retry the same call. The vault settles in USDC on Solana.",
     inputSchema: {
       url: z.string().url().describe('The x402 resource URL to call'),
       method: z.enum(['GET', 'POST', 'PUT', 'DELETE']).default('GET').describe('HTTP method'),
@@ -1769,12 +1660,15 @@ function createOpenMcpServer() {
       result.method = (args.method || 'GET').toUpperCase();
       // Strip sessionToken from session object so model never sees it
       const meta = { ...FETCH_META };
+      if (isVaultAuthenticationRequired(result)) {
+        return vaultAuthenticationResult(result, meta);
+      }
       if (result.session?.sessionToken) {
         meta.sessionToken = result.session.sessionToken;
         const { sessionToken: _drop, ...cleanSession } = result.session;
         result.session = cleanSession;
       }
-      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }], structuredContent: result, _meta: meta };
+      return buildAnonVaultToolResult(result, meta);
     } catch (err) {
       const msg = err.cause?.code === 'ENOTFOUND' ? `Could not reach ${args.url}` : err.message || String(err);
       const data = { status: 500, error: msg, url: args.url, method: (args.method || 'GET').toUpperCase() };
@@ -1782,7 +1676,7 @@ function createOpenMcpServer() {
     }
   });
 
-  server.registerTool('x402_check', {
+  registerOpenTool(server, 'x402_check', {
     title: 'x402 Check',
     description: 'Probe an endpoint for x402 payment requirements without paying. Returns pricing options per chain (Solana, Base, and others if supported), input/output schema, and the payTo address for each chain. When the endpoint is in the Dexter catalog, also returns enrichment data: quality score, AI verifier verdict + notes, recent verification history (3 most recent runs), display name, description, hit count, and response shape — so the caller can present a "should I pay $0.05 to call this?" decision rather than a bare price list. Use this to preview costs before calling x402_fetch. For input-dependent pricing (price varies by request — e.g. 10 vs 1000 results, 5s vs 30s of compute), pass sampleInputBody to get pricing for that exact request rather than the endpoint\'s default/advisory price.',
     inputSchema: {
@@ -1850,7 +1744,7 @@ function createOpenMcpServer() {
     }
   });
 
-  server.registerTool('x402_access', {
+  registerOpenTool(server, 'x402_access', {
     title: 'x402 Access',
     description: 'Access an identity-gated endpoint using wallet proof instead of immediate payment. Use this when an endpoint requires Sign-In-With-X or wallet-based authentication rather than a direct paid call.',
     inputSchema: {
@@ -1878,9 +1772,9 @@ function createOpenMcpServer() {
     }
   });
 
-  server.registerTool('x402_wallet', {
+  registerOpenTool(server, 'x402_wallet', {
     title: 'x402 Wallet',
-    description: "Read-only view of the user's Dexter wallet, the non-custodial passkey vault bound to this session. Returns the wallet's Solana address and USDC balance when a vault is bound. When none is bound, returns a short one-time setup link to relay to the user instead of a balance. Dexter holds no keys and runs no server-side session wallet, so there is nothing here to create or fund on the server.",
+    description: "Read-only view of the user's Dexter wallet, the non-custodial passkey vault bound to this session. Returns the wallet's Solana address and USDC balance after native OpenDexter authorization. A missing or stale authorization triggers the host's Connect flow; it never creates a separate connector URL. Dexter holds no keys and runs no server-side session wallet.",
     inputSchema: {},
     annotations: { readOnlyHint: true },
     _meta: WALLET_META,
@@ -1891,7 +1785,10 @@ function createOpenMcpServer() {
         result,
         WALLET_META,
       );
-      return { content: [{ type: 'text', text: JSON.stringify(publicResult, null, 2) }], structuredContent: publicResult, _meta: meta };
+      if (isVaultAuthenticationRequired(publicResult)) {
+        return vaultAuthenticationResult(publicResult, meta);
+      }
+      return buildAnonVaultToolResult(publicResult, meta);
     } catch (err) {
       const data = { error: err?.message || String(err) };
       return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }], structuredContent: data, isError: true, _meta: WALLET_META };
@@ -1914,7 +1811,7 @@ function createOpenMcpServer() {
   //
   // Not a stub. The OS biometric prompt should fire. The credential is
   // discarded — this is a capability check, not enrollment.
-  server.registerTool('dexter_passkey_probe', {
+  registerOpenTool(server, 'dexter_passkey_probe', {
     title: 'Passkey iframe probe',
     description: 'Diagnostic: tests whether navigator.credentials.create() and .get() can run inside the chat client\'s widget iframe against rp.id=dexter.cash. Renders a button that triggers a real WebAuthn ceremony; the OS biometric prompt should fire. The outcome (success / blocked / other) is rendered inline AND POSTed to a server-side log at /tmp/webauthn-probe.log so the operator can read it without copy-paste. Use this to decide whether the production wallet flow ships inline or via popout fallback.',
     inputSchema: {},
@@ -1934,7 +1831,7 @@ function createOpenMcpServer() {
     };
   });
 
-  server.registerTool('x402_compose_skill', {
+  registerOpenTool(server, 'x402_compose_skill', {
     title: 'x402 Compose Skill',
     description: 'Compose a Claude Code skill bundle from an x402gle host. v1 modes: (default) returns the bundle inline for the user to install ad-hoc; (publish: true) persists the composition as a permanent installable skill at https://x402gle.com/skills/<your-handle>/<slug>, committed to the Dexter-DAO/composed-skills GitHub monorepo and listed in the aggregate x402gle marketplace. Publishing requires a claimed handle (one-time setup at dexter.cash/wallet/claim-handle). Use compose when the user wants to ADOPT a host as a reusable skill — not when they want to call it directly (use x402_fetch for that).',
     inputSchema: {
@@ -1962,6 +1859,14 @@ function createOpenMcpServer() {
       // ── Publish path: resolve identity → look up principal → persist ─
       const resolution = await resolvePrincipalForSession(extra);
       if (resolution.error) {
+        if (resolution.error.code === 'auth_required_to_publish') {
+          return vaultAuthenticationResult(
+            buildVaultAuthenticationRequired({
+              tool: 'x402_compose_skill',
+              reason: 'auth_required_to_publish',
+            }),
+          );
+        }
         return composedSkillsErrorResponse(resolution.error.code, resolution.error.extras);
       }
       const { identity, principal } = resolution;
@@ -2042,7 +1947,7 @@ function createOpenMcpServer() {
   // from the bound MCP identity and updates only rows where
   // owner_handle = principal.handle. The MCP schema deliberately omits
   // owner_handle — a misbehaving client can't promote someone else's skill.
-  server.registerTool('promote_skill', {
+  registerOpenTool(server, 'promote_skill', {
     title: 'Promote Composed Skill',
     description: 'Change the visibility of a composed skill you own. "public" lists it on x402gle.com/skills (the public marketplace). "unlisted" hides it from discovery — anyone with the direct URL can still install. "archived" hides it from both discovery and direct install. Only the skill\'s owner can promote it. Requires a claimed handle.',
     inputSchema: {
@@ -2054,6 +1959,14 @@ function createOpenMcpServer() {
     try {
       const resolution = await resolvePrincipalForSession(extra);
       if (resolution.error) {
+        if (resolution.error.code === 'auth_required_to_publish') {
+          return vaultAuthenticationResult(
+            buildVaultAuthenticationRequired({
+              tool: 'promote_skill',
+              reason: 'auth_required_to_publish',
+            }),
+          );
+        }
         return composedSkillsErrorResponse(resolution.error.code, resolution.error.extras);
       }
       const { identity } = resolution;
@@ -2113,128 +2026,38 @@ function createOpenMcpServer() {
 
   // ─── dexter_passkey ───────────────────────────────────────────────────────
   //
-  // Phase C of the passkey/vault flow. Reads the user's vault state from
-  // dexter-api's /api/passkey-vault/status and returns three signals the
-  // widget routes on:
-  //
-  //   not_enrolled    — user has neither passkey nor vault. Widget renders
-  //                     a CTA that opens dexter.cash/wallet/setup-passkey
-  //                     via ui/open-link (the iframe sandbox blocks direct
-  //                     WebAuthn — verified by dexter_passkey_probe).
-  //   provisioning    — passkey enrolled, vault not finished. Widget renders
-  //                     a "resume" CTA pointing at the same URL (the page
-  //                     is idempotent + resumable per Phase A).
-  //   ready           — vault provisioned. Widget renders the vault address
-  //                     plus Solscan link.
-  //   user_not_paired — MCP session not yet bound to a Supabase user.
-  //                     Widget renders a "link your Dexter account" CTA
-  //                     pointing at the connector OAuth pairing URL.
-  //   error           — dexter-api couldn't be reached or returned non-2xx.
-  //
-  // Mutation routes (vault init, swig create, etc.) are NEVER called from
-  // here. The user mutates state at dexter.cash with their own Supabase
-  // Bearer; this tool only reads. Token refresh is transparent via
-  // userScopedDexterFetch (lib/user-scoped-fetch.mjs).
-  server.registerTool('dexter_passkey', {
+  // Deprecated compatibility/status alias. New hosts use x402_wallet and the
+  // same native scope=vault OAuth transaction. Keeping this read-only alias
+  // avoids breaking older prompts while removing its contradictory vpair /
+  // permanent-connector onboarding path.
+  registerOpenTool(server, 'dexter_passkey', {
     title: 'Dexter passkey wallet',
-    description: 'Set up or check the user\'s Dexter passkey-secured Solana wallet. Renders a widget with three states (not enrolled / provisioning / ready). When the user has no wallet, the widget opens dexter.cash/wallet/setup-passkey?mcp=<sessionId> in a new tab so the user can run the WebAuthn ceremony at top-level (the chat-client iframe sandbox blocks WebAuthn). The popout binds the MCP session to an anonymous vault on completion; this tool then surfaces the vault address + Solscan link. Polls vault status while the popout is open. Read-only — never mutates vault state from the MCP side.',
+    description: 'Compatibility status view for the passkey wallet. Prefer x402_wallet. If the current MCP session is not authorized, this triggers the host-native OpenDexter connection flow; it never creates or returns a personalized MCP URL.',
     inputSchema: {},
     annotations: { readOnlyHint: true },
     _meta: PASSKEY_ONBOARD_META,
   }, async (_args, extra) => {
     const sessionId = extra ? extractMcpSessionId(extra) : null;
-    const binding = sessionId ? getUserBinding(sessionId) : null;
+    if (!sessionId) {
+      return vaultAuthenticationResult(
+        buildVaultAuthenticationRequired({
+          tool: 'dexter_passkey',
+          reason: 'no_mcp_session',
+        }),
+        PASSKEY_ONBOARD_META,
+      );
+    }
 
-    // ── BRANCH 1 — Legacy Supabase-paired session ─────────
-    // Existing OAuth-paired users continue to hit /api/passkey-vault/status.
-    // userScopedDexterFetch handles transparent 401 refresh.
-    if (binding) {
-      try {
-        const res = await userScopedDexterFetch({
-          binding,
-          path: '/api/passkey-vault/status',
-          onRefreshed: (newAccess, newRefresh) => {
-            binding.supabaseAccessToken = newAccess;
-            if (newRefresh) binding.supabaseRefreshToken = newRefresh;
-          },
-        });
-
-        if (res.status === 401) {
-          // Refresh failed — drop the binding so the session can re-enroll
-          // through the anonymous flow on next poll.
-          if (sessionId) userBindings.delete(sessionId);
-          const enrollUrl = sessionId
-            ? `https://dexter.cash/wallet/setup-passkey?mcp=${encodeURIComponent(sessionId)}`
-            : 'https://dexter.cash/wallet/setup-passkey';
-          const data = {
-            vault_status: 'not_enrolled',
-            vault_address: null,
-            swig_address: null,
-            enroll_url: enrollUrl,
-            user_bound: false,
-            pairing_url: null,
-            pairing_minted_at: null,
-            pairing_ttl_seconds: null,
-            welcome_name: null,
-            error: 'session expired — please re-enroll',
-          };
-          return {
-            content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
-            structuredContent: data,
-            _meta: PASSKEY_ONBOARD_META,
-          };
-        }
-
-        if (!res.ok) {
-          const text = await res.text().catch(() => '');
-          const enrollUrl = sessionId
-            ? `https://dexter.cash/wallet/setup-passkey?mcp=${encodeURIComponent(sessionId)}`
-            : 'https://dexter.cash/wallet/setup-passkey';
-          const data = {
-            vault_status: 'error',
-            vault_address: null,
-            swig_address: null,
-            enroll_url: enrollUrl,
-            user_bound: true,
-            pairing_url: null,
-            pairing_minted_at: null,
-            pairing_ttl_seconds: null,
-            welcome_name: deriveWelcomeName(binding.email),
-            error: `dexter-api ${res.status}: ${text.slice(0, 160) || 'no body'}`,
-          };
-          return {
-            content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
-            structuredContent: data,
-            isError: true,
-            _meta: PASSKEY_ONBOARD_META,
-          };
-        }
-
-        const status = await res.json().catch(() => ({}));
-        const enrolled = Boolean(status?.enrolled);
-        const hasVault = Boolean(status?.hasVault);
-        const vault = status?.vault || null;
-        const vaultAddress = vault?.vaultPda || vault?.vault_pda || null;
-        const swigAddress = vault?.swigAddress || vault?.swig_address || null;
-
-        // Three-state map per the contract doc.
-        let vault_status = 'not_enrolled';
-        if (hasVault) vault_status = 'ready';
-        else if (enrolled) vault_status = 'provisioning';
-
-        const enrollUrl = sessionId
-          ? `https://dexter.cash/wallet/setup-passkey?mcp=${encodeURIComponent(sessionId)}`
-          : 'https://dexter.cash/wallet/setup-passkey';
+    try {
+      const state = await fetchVaultStateBySession(sessionId);
+      if (state?.status === 'ready' && state.vault) {
+        markSessionVaultBound(sessionId);
         const data = {
-          vault_status,
-          vault_address: vaultAddress,
-          swig_address: swigAddress,
-          enroll_url: enrollUrl,
+          vault_status: 'ready',
+          vault_address: state.vault.vaultPda,
+          swig_address: state.vault.swigAddress,
           user_bound: true,
-          pairing_url: null,
-          pairing_minted_at: null,
-          pairing_ttl_seconds: null,
-          welcome_name: deriveWelcomeName(binding.email),
+          welcome_name: null,
           error: null,
         };
         return {
@@ -2242,117 +2065,31 @@ function createOpenMcpServer() {
           structuredContent: data,
           _meta: PASSKEY_ONBOARD_META,
         };
-      } catch (err) {
-        const enrollUrl = sessionId
-          ? `https://dexter.cash/wallet/setup-passkey?mcp=${encodeURIComponent(sessionId)}`
-          : 'https://dexter.cash/wallet/setup-passkey';
-        const data = {
-          vault_status: 'error',
-          vault_address: null,
-          swig_address: null,
-          enroll_url: enrollUrl,
-          user_bound: true,
-          pairing_url: null,
-          pairing_minted_at: null,
-          pairing_ttl_seconds: null,
-          welcome_name: deriveWelcomeName(binding?.email),
-          error: err?.message || String(err),
-        };
-        return {
-          content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
-          structuredContent: data,
-          isError: true,
-          _meta: PASSKEY_ONBOARD_META,
-        };
       }
+
+      clearSessionVaultBinding(sessionId);
+      return vaultAuthenticationResult(
+        buildVaultAuthenticationRequired({
+          tool: 'dexter_passkey',
+          reason: state?.status || 'not_enrolled',
+        }),
+        PASSKEY_ONBOARD_META,
+      );
+    } catch (err) {
+      console.warn(`[dexter_passkey] /state read failed: ${err?.message || err}`);
+      const data = {
+        vault_status: 'error',
+        vault_address: null,
+        swig_address: null,
+        error: 'Could not read the authorized wallet state. Try again in a moment.',
+      };
+      return {
+        content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
+        structuredContent: data,
+        isError: true,
+        _meta: PASSKEY_ONBOARD_META,
+      };
     }
-
-    // ── BRANCH 2 — DURABLE vault pairing (reads /state, no in-memory Map) ───
-    // Resolves vault state from the DB. Restart-proof. Only mints a new
-    // pairing when genuinely not_enrolled — re-minting for awaiting_ceremony
-    // was the forever-poll bug.
-    //
-    // Identity = the mcp_session_id binding lookup. The old PHONE path
-    // (x-dexter-user-handle header) is RETIRED per the money-path ruling —
-    // dexter-phone re-onboards via durable link tokens, whose sessions
-    // resolve here through the same binding lookup as everyone else.
-    if (sessionId) {
-      try {
-        const state = await fetchVaultStateBySession(sessionId);
-        if (!state) throw new Error('no_identity');
-
-        if (state.status === 'ready' && state.vault) {
-          const data = {
-            vault_status: 'ready',
-            vault_address: state.vault.vaultPda,
-            swig_address: state.vault.swigAddress,
-            enroll_url: null, user_bound: true,
-            pairing_url: null, pairing_minted_at: null, pairing_ttl_seconds: null,
-            welcome_name: null, error: null,
-          };
-          return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }], structuredContent: data, _meta: PASSKEY_ONBOARD_META };
-        }
-
-        if (state.status === 'provisioning') {
-          const data = {
-            vault_status: 'provisioning',
-            vault_address: null, swig_address: null,
-            enroll_url: null, user_bound: true,
-            pairing_url: null, pairing_minted_at: null, pairing_ttl_seconds: null,
-            welcome_name: null, error: null,
-          };
-          return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }], structuredContent: data, _meta: PASSKEY_ONBOARD_META };
-        }
-
-        // not_enrolled OR awaiting_ceremony → surface a link to finish.
-        // Mint a durable pairing ONLY if genuinely not enrolled (awaiting_ceremony
-        // means a pairing already exists — re-minting is what caused the forever-poll).
-        let minted = null;
-        if (state.status === 'not_enrolled') {
-          try { minted = await mintVaultPairingRequest(sessionId); }
-          catch (err) { console.warn(`[dexter_passkey] vault pair mint failed: ${err?.message || err}`); }
-        }
-        const data = {
-          vault_status: 'not_enrolled',
-          vault_address: null, swig_address: null,
-          enroll_url: minted?.loginUrl || null,
-          user_bound: false,
-          pairing_url: minted?.loginUrl || null,
-          pairing_minted_at: minted ? Date.now() : null,
-          pairing_ttl_seconds: minted ? Math.floor(VAULT_PAIRING_MAX_AGE_MS / 1000) : null,
-          awaiting_ceremony: state.status === 'awaiting_ceremony',
-          welcome_name: null, error: null,
-        };
-        return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }], structuredContent: data, _meta: PASSKEY_ONBOARD_META };
-      } catch (err) {
-        console.warn(`[dexter_passkey] /state read failed: ${err?.message || err}`);
-        // fall through to legacy not_enrolled below
-      }
-    }
-
-    // ── BRANCH 3 — Not enrolled (default fallback) ────────
-    // Only reached if vault pairing mint failed AND no session id. Falls back
-    // to the legacy ?mcp= link.
-    const enrollUrl = sessionId
-      ? `https://dexter.cash/wallet/setup-passkey?mcp=${encodeURIComponent(sessionId)}`
-      : 'https://dexter.cash/wallet/setup-passkey';
-    const data = {
-      vault_status: 'not_enrolled',
-      vault_address: null,
-      swig_address: null,
-      enroll_url: enrollUrl,
-      user_bound: false,
-      pairing_url: null,
-      pairing_minted_at: null,
-      pairing_ttl_seconds: null,
-      welcome_name: null,
-      error: null,
-    };
-    return {
-      content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
-      structuredContent: data,
-      _meta: PASSKEY_ONBOARD_META,
-    };
   });
 
   // ─── Dextercard tools: REMOVED (owner ruling Jul 23; card-removal runbook,
@@ -2395,23 +2132,29 @@ const transports = new Map();
 // touched on every request for the session (the thing the old reaper's
 // phantom `transport._lastActivity` pretended to be — that property was
 // never set anywhere, so the reaper swept nothing while 9k+ dead sessions
-// accumulated 2.6GB). `bound` marks sessions that carry a user JWT or have
-// resolved a vault binding; they earn the long TTL so paired humans are
-// never reaped out of a working setup.
-const sessionMeta = new Map(); // sessionId -> { lastActivity: number, bound: boolean }
+// accumulated 2.6GB). Account authentication and vault authorization are
+// separate flags: either earns the long TTL, but only vaultBound may suppress
+// a wallet/payment challenge or skip OAuth seeding.
+const sessionMeta = new Map();
 
 function touchSession(sessionId) {
   if (!sessionId) return;
-  const meta = sessionMeta.get(sessionId);
-  if (meta) meta.lastActivity = Date.now();
-  else sessionMeta.set(sessionId, { lastActivity: Date.now(), bound: false });
+  sessionMeta.set(sessionId, touchOpenSessionMeta(sessionMeta.get(sessionId)));
 }
 
-function markSessionBound(sessionId) {
+function markSessionAccountBound(sessionId) {
   if (!sessionId) return;
-  const meta = sessionMeta.get(sessionId);
-  if (meta) meta.bound = true;
-  else sessionMeta.set(sessionId, { lastActivity: Date.now(), bound: true });
+  sessionMeta.set(sessionId, markAccountBound(sessionMeta.get(sessionId)));
+}
+
+function markSessionVaultBound(sessionId) {
+  if (!sessionId) return;
+  sessionMeta.set(sessionId, markVaultBound(sessionMeta.get(sessionId)));
+}
+
+function clearSessionVaultBinding(sessionId) {
+  if (!sessionId) return;
+  sessionMeta.set(sessionId, clearVaultBound(sessionMeta.get(sessionId)));
 }
 
 // ── Durable link tokens (Phase 0.5) ─────────────────────────────────────
@@ -2435,7 +2178,6 @@ const INTERNAL_HMAC_SECRET = (process.env.INTERNAL_DEXTERCARD_HMAC_SECRET || '')
 // revoke bites the next tool call). After that the existing x402Fetch →
 // /mcp-binding → session-mode spend path works unchanged. Anonymous/HS256 calls
 // are untouched: verify just throws and we skip.
-const OPEN_MCP_VAULT_AUDIENCE = 'https://open.dexter.cash/mcp';
 const DEXTER_JWKS = createRemoteJWKSet(new URL('https://dexter.cash/.well-known/jwks.json'));
 
 async function seedOAuthVaultBinding(req, sessionId) {
@@ -2469,7 +2211,7 @@ async function seedOAuthVaultBinding(req, sessionId) {
       signal: AbortSignal.timeout(2500),
     });
     if (res.ok) {
-      markSessionBound(sessionId);
+      markSessionVaultBound(sessionId);
       console.log(`[open-mcp] oauth vault binding seeded: ${sessionId} handle=${String(payload.sub).slice(0, 6)}...`);
     } else {
       console.warn(`[open-mcp] oauth-seed refused (${res.status}) for ${sessionId}`);
@@ -2487,22 +2229,12 @@ async function seedOAuthVaultBinding(req, sessionId) {
 // authorize request: `vault` (exact single token) is what routes dexter-api's
 // authorize to the Face-ID passkey page instead of the legacy email connector.
 //
-// authorization_servers carries the AS ISSUER IDENTIFIER (RFC 9728), and the
-// ROOT form (no /mcp path) is deliberate: every RFC 8414 resolution strategy
-// against a path-less issuer lands on
-//   https://mcp.dexter.cash/.well-known/oauth-authorization-server
-// which serves the real AS JSON (live-verified 200; and the step-0 probe
-// proved claude.ai completes discovery→DCR→authorize with exactly this
-// value). The /mcp-suffixed issuer would invite path-APPENDED resolution —
-//   https://mcp.dexter.cash/mcp/.well-known/oauth-authorization-server
-// — which 302s to Supabase OIDC (live-verified): the email rail this
-// advertisement exists to kill.
-const OPEN_MCP_PRM_URL = 'https://open.dexter.cash/.well-known/oauth-protected-resource/mcp';
-const OPEN_MCP_PRM = Object.freeze({
-  resource: OPEN_MCP_VAULT_AUDIENCE,
-  authorization_servers: ['https://mcp.dexter.cash'],
-  scopes_supported: ['vault'],
-});
+// authorization_servers carries the exact AS issuer identifier (RFC 9728).
+// Live verification on 2026-07-26 found that both AS discovery documents
+// declare https://mcp.dexter.cash/mcp. Its RFC 8414 path-inserted metadata is:
+//   https://mcp.dexter.cash/.well-known/oauth-authorization-server/mcp
+// The path-appended /mcp/.well-known/... URL is a different legacy rail and
+// must not be substituted for that valid discovery document.
 
 // ── Spend-tool 401 challenge (impure inputs for lib/spend-challenge.mjs) ────
 // The decision itself is pure and lives in lib/spend-challenge.mjs.
@@ -2526,7 +2258,7 @@ async function lookupDurableVaultBinding(sessionId) {
     if (bindRes.status === 404) return false; // definitively unbound
     // 401/403/5xx is NOT evidence of "unbound" (HMAC secret drift, api
     // trouble). Fail OPEN — treat as bound so we never wall a paying user;
-    // the in-band vault_required funnel downstream still gates real spend.
+    // the in-band OAuth challenge downstream still gates real spend.
     console.warn(`[open-mcp] mcp-binding lookup returned ${bindRes.status} for ${sessionId} — fail-open, no challenge`);
     return true;
   } catch (err) {
@@ -2567,7 +2299,7 @@ function writeSpendChallenge(res) {
   res.writeHead(401, {
     'Content-Type': 'application/json',
     'Cache-Control': 'no-store',
-    'WWW-Authenticate': `Bearer resource_metadata="${OPEN_MCP_PRM_URL}", scope="vault"`,
+    'WWW-Authenticate': VAULT_WWW_AUTHENTICATE,
   });
   res.end(JSON.stringify({
     jsonrpc: '2.0',
@@ -2594,7 +2326,7 @@ async function bindLinkTokenToSession(linkToken, sessionId) {
       signal: AbortSignal.timeout(3000),
     });
     if (resp.ok) {
-      markSessionBound(sessionId);
+      markSessionVaultBound(sessionId);
       console.log(`[open-mcp] link-token bound session ${sessionId} (active: ${transports.size})`);
       return true;
     }
@@ -2612,15 +2344,6 @@ async function bindLinkTokenToSession(linkToken, sessionId) {
 // a real user (Dextercard issuance, etc.) read from this map via the
 // session id stamped on the MCP request context. Anonymous tools ignore it.
 const userBindings = new Map(); // sessionId -> { userId, email, scope, exp }
-
-// Per-session pairing state. When a card tool fires for an unbound MCP
-// session, we mint a connector OAuth request_id via dexter-api and stash
-// it here so subsequent calls within the same session reuse the same
-// pairing URL (and check for completion) instead of minting a fresh one
-// every call. Cleared on session close / reaper / successful binding.
-const pendingPairings = new Map(); // sessionId -> { requestId, loginUrl, mintedAt }
-const PAIRING_MAX_AGE_MS = 10 * 60 * 1000; // 10 min — same as connector_oauth_requests TTL
-const VAULT_PAIRING_MAX_AGE_MS = 15 * 60 * 1000; // matches PAIRING_TTL_SECONDS on the API
 
 const MCP_JWT_SECRET = (process.env.MCP_JWT_SECRET || '').trim();
 
@@ -2749,13 +2472,13 @@ const httpServer = http.createServer(async (req, res) => {
       ok: true,
       name: SERVER_NAME,
       tools: ALL_TOOLS,
-      // Honest auth claim: browse/search is anonymous; spend-class tools
-      // (x402_pay / x402_fetch / dexter_passkey) 401-challenge unbound
-      // Bearer-less sessions into the vault OAuth rail.
+      // Honest auth claim: public tools are noauth; wallet/payment tools
+      // publish scope=vault and challenge unbound sessions into native OAuth.
       auth: 'optional',
-      spendToolsAuth: 'vault',
+      toolAuth: 'mixed',
+      walletAndPaymentScope: 'vault',
       sessions: transports.size,
-      boundSessions: [...sessionMeta.values()].filter((m) => m.bound).length,
+      boundSessions: [...sessionMeta.values()].filter(isAnyIdentityBound).length,
       rssMb: Math.round(process.memoryUsage().rss / 1048576),
       timestamp: new Date().toISOString(),
     }));
@@ -2928,9 +2651,9 @@ const httpServer = http.createServer(async (req, res) => {
       url: 'https://open.dexter.cash/mcp',
       description:
         'Public x402 gateway. Search, pay, and call any x402 resource with canonical settlement. ' +
-        'Browse and pricing tools are anonymous; spend tools (x402_pay, x402_fetch, dexter_passkey) ' +
-        'require a Dexter vault binding via OAuth (scope=vault) or passkey pairing.',
-      version: '1.2.0',
+        'Browse and pricing tools are anonymous; wallet and payment tools use the native ' +
+        'OpenDexter OAuth connection (scope=vault).',
+      version: '1.3.0',
       tools: [
         { name: 'x402_search', description: 'Semantic capability search over the x402 marketplace. Returns tiered results (strong + related) with cross-encoder LLM rerank.' },
         { name: 'x402_pay', description: 'Alias for x402_fetch. Pays and calls an x402 endpoint.' },
@@ -2941,7 +2664,7 @@ const httpServer = http.createServer(async (req, res) => {
         { name: 'x402_compose_skill', description: 'Compose a Claude Code skill bundle from an x402gle host; optionally publish it to the x402gle skills marketplace.' },
         { name: 'promote_skill', description: 'Change the visibility (public / unlisted / archived) of a composed skill you own.' },
         { name: 'dexter_passkey_probe', description: 'Diagnostic: test whether WebAuthn ceremonies can run inside the chat client\'s widget iframe.' },
-        { name: 'dexter_passkey', description: 'Set up or check the user\'s Dexter passkey-secured Solana wallet (non-custodial vault). Read-only from the MCP side.' },
+        { name: 'dexter_passkey', description: 'Compatibility status view for the passkey wallet. Prefer x402_wallet; authorization uses the host-native OAuth connection.' },
       ],
     }));
     return;
@@ -2951,10 +2674,7 @@ const httpServer = http.createServer(async (req, res) => {
   // Served at both the path-inserted /mcp form and the root form (claude.ai
   // probes exactly those, in that order, when it has no resource_metadata
   // pointer in hand). Shape + rationale at OPEN_MCP_PRM's definition.
-  if (
-    url.pathname === '/.well-known/oauth-protected-resource'
-    || url.pathname === '/.well-known/oauth-protected-resource/mcp'
-  ) {
+  if (isOpenMcpProtectedResourceMetadataPath(url.pathname)) {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
     res.end(JSON.stringify(OPEN_MCP_PRM));
     return;
@@ -3003,10 +2723,11 @@ const httpServer = http.createServer(async (req, res) => {
     // and revocation propagate without forcing a session restart.
     const incomingBinding = tryBindUserFromRequest(req);
 
-    // OAuth-native vault Bearer → seed the durable token-scoped binding once per
-    // session (await so it exists before the tool call resolves it). Idempotent;
-    // gated on not-yet-bound to keep it off the hot path. No-op for anon/HS256.
-    if (sessionId && !sessionMeta.get(sessionId)?.bound) {
+    // OAuth-native vault Bearer → seed the durable token-scoped binding once the
+    // vault rail is not yet bound (await so it exists before the tool call
+    // resolves it). Account authentication is an independent flag and must not
+    // suppress this upgrade. No-op for anonymous/HS256 account tokens.
+    if (sessionId && shouldSeedVaultOAuth(sessionMeta.get(sessionId))) {
       await seedOAuthVaultBinding(req, sessionId);
     }
 
@@ -3015,7 +2736,7 @@ const httpServer = http.createServer(async (req, res) => {
       if (incomingBinding) {
         const prior = userBindings.get(sessionId);
         userBindings.set(sessionId, incomingBinding);
-        markSessionBound(sessionId);
+        markSessionAccountBound(sessionId);
         if (!prior || prior.userId !== incomingBinding.userId) {
           console.log(`[open-mcp] bound session ${sessionId} to user ${incomingBinding.userId}${incomingBinding.email ? ` (${incomingBinding.email})` : ''}`);
         }
@@ -3023,7 +2744,7 @@ const httpServer = http.createServer(async (req, res) => {
       // Token present but session not yet vault-bound (bind failed at init,
       // or the client added the token mid-session): retry without blocking
       // the in-flight request.
-      if (linkToken && !sessionMeta.get(sessionId)?.bound) {
+      if (linkToken && !isVaultBound(sessionMeta.get(sessionId))) {
         void bindLinkTokenToSession(linkToken, sessionId);
       }
 
@@ -3061,7 +2782,7 @@ const httpServer = http.createServer(async (req, res) => {
       }
 
       const hasBearer = Boolean(extractBearer(req));
-      const boundInMemory = Boolean(sessionMeta.get(sessionId)?.bound);
+      const boundInMemory = isVaultBound(sessionMeta.get(sessionId));
       // Cheap inputs first; the durable lookup (an HTTP round trip to
       // dexter-api) runs only when they alone would challenge. Never
       // challenge on the in-memory flag alone — it dies on restart while
@@ -3097,27 +2818,28 @@ const httpServer = http.createServer(async (req, res) => {
       return;
     }
 
-    const transport = new StreamableHTTPServerTransport({
+    const transport = installCanonicalSecuritySchemeProjection(
+      new StreamableHTTPServerTransport({
       sessionIdGenerator: () => randomUUID(),
       onsessioninitialized: (sid) => {
         transports.set(sid, transport);
         touchSession(sid);
         if (incomingBinding) {
           userBindings.set(sid, incomingBinding);
-          markSessionBound(sid);
+          markSessionAccountBound(sid);
           console.log(`[open-mcp] session created: ${sid} (active: ${transports.size}) bound user=${incomingBinding.userId}${incomingBinding.email ? ` (${incomingBinding.email})` : ''}`);
         } else {
           console.log(`[open-mcp] session created: ${sid} (active: ${transports.size})`);
         }
       },
-    });
+      }),
+    );
 
     transport.onclose = () => {
       const sid = transport.sessionId;
       if (sid) {
         transports.delete(sid);
         userBindings.delete(sid);
-        pendingPairings.delete(sid);
         sessionMeta.delete(sid);
         console.log(`[open-mcp] session closed: ${sid} (active: ${transports.size})`);
       }
@@ -3143,7 +2865,6 @@ const httpServer = http.createServer(async (req, res) => {
       await transport.handleRequest(req, res);
       transports.delete(sessionId);
       userBindings.delete(sessionId);
-      pendingPairings.delete(sessionId);
       sessionMeta.delete(sessionId);
     } else {
       res.writeHead(404, { 'Content-Type': 'application/json' });
@@ -3171,14 +2892,13 @@ setInterval(() => {
   for (const [sid, transport] of transports) {
     const meta = sessionMeta.get(sid);
     const idleMs = now - (meta?.lastActivity ?? 0);
-    const ttlMs = meta?.bound ? BOUND_SESSION_IDLE_MS : SESSION_IDLE_MS;
+    const ttlMs = isAnyIdentityBound(meta) ? BOUND_SESSION_IDLE_MS : SESSION_IDLE_MS;
     if (idleMs > ttlMs) {
       try {
         transport.close();
       } catch { /* best-effort; maps are cleaned below regardless */ }
       transports.delete(sid);
       userBindings.delete(sid);
-      pendingPairings.delete(sid);
       sessionMeta.delete(sid);
       reaped += 1;
     }
@@ -3191,6 +2911,6 @@ setInterval(() => {
 httpServer.listen(PORT, () => {
   console.log(`[open-mcp] ${SERVER_NAME} listening on :${PORT}`);
   console.log(`[open-mcp] Tools: ${ALL_TOOLS.join(', ')}`);
-  console.log(`[open-mcp] Auth: optional — anonymous browse; spend tools 401-challenge for a vault binding`);
+  console.log('[open-mcp] Auth: mixed — anonymous discovery; wallet/payment tools use scope=vault');
   console.log(`[open-mcp] Capability search: ${DEXTER_API}${CAPABILITY_PATH}`);
 });

@@ -54,9 +54,11 @@ test('asset execution controls are disabled unless the read-only gate supplies a
 
 test('hosted x402_wallet remains read-only with no caller identity input', async () => {
   const server = await source('open-mcp-server.mjs');
+  const registrationStart = server.indexOf("registerOpenTool(server, 'x402_wallet'");
+  assert.notEqual(registrationStart, -1, 'x402_wallet registration must exist');
   const registration = server.slice(
-    server.indexOf("server.registerTool('x402_wallet'"),
-    server.indexOf("// ─── dexter_passkey_probe", server.indexOf("server.registerTool('x402_wallet'")),
+    registrationStart,
+    server.indexOf("// ─── dexter_passkey_probe", registrationStart),
   );
 
   assert.match(registration, /inputSchema:\s*\{\}/);
@@ -74,9 +76,11 @@ test('hosted x402_wallet keeps verified portfolio display data in widget metadat
     server.indexOf('async function x402Wallet'),
     server.indexOf('// ─── MCP Server Setup', server.indexOf('async function x402Wallet')),
   );
+  const registrationStart = server.indexOf("registerOpenTool(server, 'x402_wallet'");
+  assert.notEqual(registrationStart, -1, 'x402_wallet registration must exist');
   const registration = server.slice(
-    server.indexOf("server.registerTool('x402_wallet'"),
-    server.indexOf("// ─── dexter_passkey_probe", server.indexOf("server.registerTool('x402_wallet'")),
+    registrationStart,
+    server.indexOf("// ─── dexter_passkey_probe", registrationStart),
   );
 
   assert.match(walletImplementation, /fetchSessionPortfolio\(\{/);

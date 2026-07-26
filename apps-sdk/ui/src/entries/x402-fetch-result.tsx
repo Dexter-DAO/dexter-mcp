@@ -57,7 +57,8 @@ type FetchPayload = {
     signedAddress?: string;
   } | null;
   payment?: {
-    settled: boolean;
+    settled: boolean | 'unknown';
+    dispatched?: boolean | 'unknown' | 'prior_attempt';
     details?: {
       success?: boolean;
       transaction?: string;
@@ -76,8 +77,12 @@ type FetchPayload = {
     };
   };
   error?: string;
+  reason?: string;
   mode?: string;
+  phase?: string;
   message?: string;
+  requestId?: string;
+  merchantCorrelationId?: string;
   session?: {
     sessionId?: string;
     sessionToken?: string;
@@ -90,6 +95,19 @@ type FetchPayload = {
   recommendations?: ReceiptRecommendation[];
   _recommendations_hint?: string;
 };
+
+const FAILURE_MODES = new Set([
+  'vault_discovery_error',
+  'vault_error',
+  'vault_identity_error',
+  'vault_payment_build_error',
+  'vault_payment_rejected',
+  'vault_payment_unconfirmed',
+  'vault_policy_error',
+  'vault_read_error',
+  'vault_request_error',
+  'vault_resource_error',
+]);
 
 function shortenAddress(addr?: string): string {
   if (!addr) return '';
@@ -117,11 +135,40 @@ function deriveResourceLabel(payload: FetchPayload): string {
   }
 }
 
-function ReceiptError({ message }: { message: string }) {
+function ReceiptError({
+  message,
+  code,
+  requestId,
+  merchantCorrelationId,
+}: {
+  message: string;
+  code?: string;
+  requestId?: string;
+  merchantCorrelationId?: string;
+}) {
+  const references: Array<[string, string]> = [];
+  if (requestId) references.push(['OpenDexter request', requestId]);
+  if (merchantCorrelationId) {
+    references.push(['Endpoint reference', merchantCorrelationId]);
+  }
+
   return (
     <div className="dx-receipt-error" role="alert">
-      <span className="dx-receipt-error__eyebrow">Error</span>
+      <span className="dx-receipt-error__eyebrow">Couldn’t complete</span>
       <p className="dx-receipt-error__message">{message}</p>
+      {code && code !== message ? (
+        <p className="dx-receipt-error__code">{code}</p>
+      ) : null}
+      {references.length > 0 ? (
+        <dl className="dx-receipt-error__references">
+          {references.map(([label, value]) => (
+            <div key={label}>
+              <dt>{label}</dt>
+              <dd>{value}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
     </div>
   );
 }
@@ -168,7 +215,10 @@ function FetchResult() {
   }
 
   const isSession = toolOutput.mode === 'session_required';
-  const isError = !!toolOutput.error && !isSession;
+  const isError = !isSession && (
+    Boolean(toolOutput.error)
+    || (typeof toolOutput.mode === 'string' && FAILURE_MODES.has(toolOutput.mode))
+  );
   const payment = toolOutput.payment;
   const auth = toolOutput.auth;
   const details = payment?.details;
@@ -176,7 +226,7 @@ function FetchResult() {
   // Stamp data — only built when we actually settled. We deliberately
   // keep the txHash off-screen; it lives on the explorerUrl `href`.
   const stamp: ReceiptStampData | null = (() => {
-    if (!payment?.settled || !details?.transaction) return null;
+    if (payment?.settled !== true || !details?.transaction) return null;
     const networkName = details.network ? getChain(details.network).name : '';
     const priceLabel = details.requirements?.amount
       ? formatUsdc(details.requirements.amount, details.requirements.extra?.decimals ?? 6)
@@ -232,7 +282,12 @@ function FetchResult() {
           />
 
           {isError ? (
-            <ReceiptError message={toolOutput.error || 'Unknown error.'} />
+            <ReceiptError
+              message={toolOutput.message || toolOutput.error || 'OpenDexter could not complete this request.'}
+              code={toolOutput.error || toolOutput.reason}
+              requestId={toolOutput.requestId}
+              merchantCorrelationId={toolOutput.merchantCorrelationId}
+            />
           ) : (
             <>
               <ReceiptBody data={toolOutput.data} />
@@ -261,7 +316,7 @@ function FetchResult() {
 
 const root = document.getElementById('x402-fetch-result-root');
 if (root) {
-  root.setAttribute('data-widget-build', '2026-05-06.receipt-redesign');
+  root.setAttribute('data-widget-build', '2026-07-26.auth-response-truth');
   createRoot(root).render(<FetchResult />);
 }
 

@@ -3,57 +3,35 @@ import '../styles/components/dexter-loading.css';
 import '../styles/widgets/passkey-onboard.css';
 
 import { createRoot } from 'react-dom/client';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 // Side-effect import: triggers initMcpAppsOnce() so the iframe runs the
 // MCP Apps handshake (ui/initialize + size-changed notifications) and the
 // host actually grows the iframe. Without this the widget mounts at
 // height 0 and never becomes visible. Same gotcha as passkey-probe.
 import '../sdk';
-import { useToolOutput, useCallToolFn } from '../sdk';
+import { useToolOutput } from '../sdk';
 import { openLink } from '../sdk/mcp-apps-bridge';
 import { DexterLoading } from '../components/loading/DexterLoading';
 
 const WORDMARK_URL = 'https://dexter.cash/wordmarks/dexter-wordmark.svg';
-// Tighter than the original 3s — visible state-flips after the user comes
-// back from the popout should feel instant, not "almost done." 1500ms is
-// fast enough to feel snappy on stage and slow enough that a slow phone
-// doesn't drown in re-renders.
-const POLL_INTERVAL_MS = 1500;
-const ENROLL_URL = 'https://dexter.cash/wallet/setup-passkey';
-// Pairing URLs from connector OAuth expire 10 minutes after mint. The
-// widget renders a countdown next to the Sign-in CTA so the user knows
-// the window is real and bounded.
-const PAIRING_TTL_SECONDS = 10 * 60;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Tool output shape — matches what dexter_passkey returns in structuredContent.
-// Mirrors the contract in docs/phase-c-contract.md.
+// Compatibility tool output. The native host connection owns enrollment;
+// this renderer has no out-of-band setup, pairing, or polling path.
 // ─────────────────────────────────────────────────────────────────────────────
 
 type VaultStatus =
-  | 'not_enrolled'
-  | 'provisioning'
+  | 'authentication_required'
   | 'ready'
-  | 'user_not_paired'
   | 'error';
 
 type PasskeyPayload = {
   vault_status: VaultStatus;
   vault_address?: string | null;
   swig_address?: string | null;
-  enroll_url?: string;
   user_bound?: boolean;
-  pairing_url?: string | null;
-  /** Epoch ms when the pairing URL was minted server-side. The widget
-   *  computes a real expires-in countdown against this — not a phone-side
-   *  guess that drifts when the screen sleeps. */
-  pairing_minted_at?: number | null;
-  /** Seconds the pairing URL stays valid (matches PAIRING_MAX_AGE_MS). */
-  pairing_ttl_seconds?: number | null;
-  /** Friendly first-name guess from the binding email (best-effort). */
   welcome_name?: string | null;
   error?: string | null;
-  awaiting_ceremony?: boolean;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -61,18 +39,7 @@ type PasskeyPayload = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function PasskeyOnboard() {
-  const hostToolOutput = useToolOutput<PasskeyPayload>();
-  const callTool = useCallToolFn();
-  // Result of the widget's OWN poll. The host only fires a tool-result
-  // notification (which updates useToolOutput) for USER-initiated calls — a
-  // widget-initiated callTool returns the fresh payload to US but does NOT
-  // refresh useToolOutput. So we capture the poll's return value here and let
-  // it override the (frozen) host output. Without this the widget polls
-  // forever even though every poll already received vault_status:'ready'.
-  const [polledOutput, setPolledOutput] = useState<PasskeyPayload | null>(null);
-  const toolOutput = polledOutput ?? hostToolOutput;
-  const [polling, setPolling] = useState(false);
-  const [openedAt, setOpenedAt] = useState<number | null>(null);
+  const toolOutput = useToolOutput<PasskeyPayload>();
   // One-shot confetti — fires the first time we observe ready state in
   // this widget mount, never again. A user resuming an already-provisioned
   // session opens the widget already in ready, which we still want to
@@ -80,83 +47,15 @@ function PasskeyOnboard() {
   const [confettiArmed, setConfettiArmed] = useState(false);
   const firedConfettiRef = useRef(false);
 
-  // Refs so the polling effect doesn't restart on every state change.
-  const pollingRef = useRef(false);
-  const callToolRef = useRef(callTool);
-  callToolRef.current = callTool;
-
-  // Auto-stop polling when the user has a vault, and arm confetti once.
-  // Also auto-start polling when the tool reports awaiting_ceremony so the
-  // widget flips to ready without requiring the user to re-ask.
+  // Arm the completion treatment once when the authorized wallet arrives.
   useEffect(() => {
     if (toolOutput?.vault_status === 'ready') {
-      if (pollingRef.current) {
-        pollingRef.current = false;
-        setPolling(false);
-      }
       if (!firedConfettiRef.current) {
         firedConfettiRef.current = true;
         setConfettiArmed(true);
       }
-      return;
     }
-    if (toolOutput?.awaiting_ceremony && !pollingRef.current) {
-      pollingRef.current = true;
-      setPolling(true);
-    }
-  }, [toolOutput?.vault_status, toolOutput?.awaiting_ceremony]);
-
-  // Polling loop: re-invoke dexter_passkey every POLL_INTERVAL_MS while
-  // polling is on, and CONSUME the return value. callTool returns
-  // { result: <JSON text> } — the fresh tool payload. We parse it and push it
-  // into polledOutput so the widget re-renders off the live state. (Relying on
-  // the host's tool-result notification does NOT work for widget-initiated
-  // calls — that was the forever-poll bug.)
-  useEffect(() => {
-    if (!polling) return;
-    pollingRef.current = true;
-    let cancelled = false;
-    const tick = async () => {
-      if (cancelled || !pollingRef.current) return;
-      try {
-        const res = await callToolRef.current('dexter_passkey', {});
-        const raw = (res as { result?: string } | undefined)?.result;
-        if (raw && !cancelled) {
-          try {
-            const parsed = JSON.parse(raw) as PasskeyPayload;
-            if (parsed && typeof parsed.vault_status === 'string') {
-              setPolledOutput(parsed);
-            }
-          } catch {
-            /* non-JSON result — ignore this tick */
-          }
-        }
-      } catch {
-        /* swallow — next tick will retry */
-      }
-    };
-    const id = setInterval(tick, POLL_INTERVAL_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
-  }, [polling]);
-
-  const onTapEnroll = useCallback(() => {
-    const url = toolOutput?.enroll_url || ENROLL_URL;
-    openLink(url);
-    setOpenedAt(Date.now());
-    setPolling(true);
-    pollingRef.current = true;
-  }, [toolOutput?.enroll_url]);
-
-  const onTapPair = useCallback(() => {
-    const url = toolOutput?.pairing_url;
-    if (url) openLink(url);
-    setOpenedAt(Date.now());
-    setPolling(true);
-    pollingRef.current = true;
-  }, [toolOutput?.pairing_url]);
+  }, [toolOutput?.vault_status]);
 
   // Initial render before tool returns its first payload — same Dexter
   // loading visual the search widget uses (rotating logo, pulsing rings,
@@ -190,13 +89,7 @@ function PasskeyOnboard() {
 
   const status = toolOutput.vault_status;
 
-  // ─── State: user_not_paired ────────────────────────────────────────────
-  // Legacy Supabase-paired path. The anon flow (audience demo) returns
-  // vault_status === 'not_enrolled' with user_bound === false; that case
-  // must fall through to the not_enrolled branch below, NOT here. Only
-  // route here when the tool explicitly returns user_not_paired.
-  if (status === 'user_not_paired') {
-    const pairingUrl = toolOutput.pairing_url;
+  if (status === 'authentication_required') {
     return (
       <div className="dx-passkey">
         <Header />
@@ -204,23 +97,10 @@ function PasskeyOnboard() {
           <div className="dx-passkey__disc">
             <LinkGlyph />
           </div>
-          <h2 className="dx-passkey__stage-heading">Link your Dexter account first</h2>
+          <h2 className="dx-passkey__stage-heading">Connect OpenDexter</h2>
           <p className="dx-passkey__stage-supporting">
-            Your Dexter wallet is tied to your Dexter account. Sign in to dexter.cash and the wallet will follow.
+            Use the host’s Connect control to authorize your wallet with its passkey.
           </p>
-          {pairingUrl ? (
-            <>
-              <button type="button" className="dx-passkey__cta" onClick={onTapPair}>
-                Sign in on dexter.cash
-              </button>
-              <PairingCountdown
-                mintedAt={toolOutput.pairing_minted_at}
-                ttlSeconds={toolOutput.pairing_ttl_seconds}
-              />
-            </>
-          ) : (
-            <p className="dx-passkey__error">Couldn't mint a sign-in link. Refresh the chat and try again.</p>
-          )}
         </div>
       </div>
     );
@@ -239,13 +119,6 @@ function PasskeyOnboard() {
           <p className="dx-passkey__error">
             {toolOutput.error || 'Unexpected error reading vault status.'}
           </p>
-          <button
-            type="button"
-            className="dx-passkey__cta dx-passkey__cta--secondary"
-            onClick={() => void callTool('dexter_passkey', {})}
-          >
-            Try again
-          </button>
         </div>
       </div>
     );
@@ -306,55 +179,19 @@ function PasskeyOnboard() {
     );
   }
 
-  // ─── State: provisioning ───────────────────────────────────────────────
-  if (status === 'provisioning') {
-    return (
-      <div className="dx-passkey">
-        <Header />
-        <div className="dx-passkey__stage dx-passkey__stage--provisioning">
-          <div className="dx-passkey__disc">
-            <KeyGlyph />
-            <div className="dx-passkey__spinner" aria-hidden>
-              <span className="dx-passkey__spinner-dot" />
-            </div>
-          </div>
-          <h2 className="dx-passkey__stage-heading">Setting up your wallet</h2>
-          <p className="dx-passkey__stage-supporting">
-            This takes a few seconds.
-          </p>
-          <button
-            type="button"
-            className="dx-passkey__cta dx-passkey__cta--secondary"
-            onClick={onTapEnroll}
-          >
-            Resume on dexter.cash
-          </button>
-          <PollStatus polling={polling} openedAt={openedAt} />
-        </div>
-      </div>
-    );
-  }
-
-  // ─── State: not_enrolled (default) ─────────────────────────────────────
-  const awaiting = Boolean(toolOutput.awaiting_ceremony);
+  // Fail closed if a stale server emits a state this compatibility renderer
+  // no longer supports. It must not revive the legacy out-of-band setup CTA.
   return (
     <div className="dx-passkey">
       <Header />
-      <div className="dx-passkey__stage dx-passkey__stage--not-enrolled">
+      <div className="dx-passkey__stage">
         <div className="dx-passkey__disc">
-          <KeyGlyph />
-          <span className="dx-passkey__pulse" aria-hidden />
+          <ErrorGlyph />
         </div>
-        <h2 className="dx-passkey__stage-heading">{awaiting ? 'Finish in the other tab' : 'Set up your wallet'}</h2>
+        <h2 className="dx-passkey__stage-heading">Wallet status unavailable</h2>
         <p className="dx-passkey__stage-supporting">
-          {awaiting ? 'Complete the passkey step in the tab that opened. This updates when you’re done.' : 'Open dexter.cash to create it with your passkey.'}
+          Reconnect OpenDexter from the host, then ask to view your wallet again.
         </p>
-        {!awaiting && (
-          <button type="button" className="dx-passkey__cta" onClick={onTapEnroll}>
-            Set up wallet on dexter.cash
-          </button>
-        )}
-        <PollStatus polling={polling || awaiting} openedAt={openedAt} />
       </div>
     </div>
   );
@@ -395,55 +232,6 @@ function CopyButton({ value }: { value: string }) {
     <button type="button" className="dx-passkey__copy" onClick={onCopy} aria-label="Copy wallet address">
       {copied ? 'Copied' : 'Copy'}
     </button>
-  );
-}
-
-function PollStatus({ polling, openedAt }: { polling: boolean; openedAt: number | null }) {
-  const [, force] = useState(0);
-  useEffect(() => {
-    if (!polling) return;
-    const id = setInterval(() => force((n) => n + 1), 1000);
-    return () => clearInterval(id);
-  }, [polling]);
-
-  if (!polling) return null;
-  const elapsed = openedAt ? Math.max(0, Math.floor((Date.now() - openedAt) / 1000)) : 0;
-  return (
-    <div className="dx-passkey__status">
-      <span className="dx-passkey__status-dot dx-passkey__status-dot--polling" />
-      <span>watching for completion · {elapsed}s</span>
-    </div>
-  );
-}
-
-function PairingCountdown({
-  mintedAt,
-  ttlSeconds,
-}: {
-  mintedAt?: number | null;
-  ttlSeconds?: number | null;
-}) {
-  const [, force] = useState(0);
-  useEffect(() => {
-    if (!mintedAt || !ttlSeconds) return;
-    const id = setInterval(() => force((n) => n + 1), 1000);
-    return () => clearInterval(id);
-  }, [mintedAt, ttlSeconds]);
-
-  if (!mintedAt || !ttlSeconds) return null;
-  const remainingSec = Math.max(0, Math.ceil((mintedAt + ttlSeconds * 1000 - Date.now()) / 1000));
-  const mins = Math.floor(remainingSec / 60);
-  const secs = remainingSec % 60;
-  const expired = remainingSec <= 0;
-  return (
-    <div className={`dx-passkey__countdown ${expired ? 'dx-passkey__countdown--expired' : ''}`}>
-      <span className="dx-passkey__countdown-label">{expired ? 'expired' : 'expires in'}</span>
-      {!expired && (
-        <span className="dx-passkey__countdown-value">
-          {mins}:{String(secs).padStart(2, '0')}
-        </span>
-      )}
-    </div>
   );
 }
 
@@ -499,17 +287,6 @@ function ConfettiBurst() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Glyphs — quiet inline SVGs, no external assets
 // ─────────────────────────────────────────────────────────────────────────────
-
-function KeyGlyph() {
-  return (
-    <svg viewBox="0 0 48 48" className="dx-passkey__disc-glyph" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="17" cy="24" r="7" />
-      <path d="M24 24 L40 24" />
-      <path d="M36 24 L36 30" />
-      <path d="M40 24 L40 28" />
-    </svg>
-  );
-}
 
 function CheckGlyph() {
   return (

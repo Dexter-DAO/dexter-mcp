@@ -51,6 +51,13 @@ function WalletApp() {
         onOpenExternal={openExternal}
       />
     );
+  } else if (mode === 'authentication_required') {
+    view = (
+      <SimpleState
+        title="Connect OpenDexter"
+        body="Use the host’s Connect control to authorize this wallet with your passkey. Your wallet will appear here when the connection returns."
+      />
+    );
   } else if (mode === 'vault_required' || payload.error === 'not_enrolled' || (!hasAddress && (mode === 'not_enrolled' || payload.enrollUrl))) {
     view = (
       <SimpleState

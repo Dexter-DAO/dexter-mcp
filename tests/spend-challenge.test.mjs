@@ -25,19 +25,19 @@ const rpc = (method, id = 1) => ({ jsonrpc: '2.0', id, method, params: {} });
 
 const UNBOUND = { hasBearer: false, boundInMemory: false, boundDurable: false };
 
-test('spend-class set is exactly the locked trio', () => {
-  assert.deepEqual([...SPEND_TOOL_NAMES].sort(), ['dexter_passkey', 'x402_fetch', 'x402_pay']);
+test('raw HTTP challenge set is exactly the two money-execution tools', () => {
+  assert.deepEqual([...SPEND_TOOL_NAMES].sort(), ['x402_fetch', 'x402_pay']);
 });
 
-// ── Challenge fires: unbound, Bearer-less, spend-class tools/call ───────────
+// ── Challenge fires: unbound, Bearer-less money-execution tools/call ────────
 
-for (const name of ['x402_pay', 'x402_fetch', 'dexter_passkey']) {
+for (const name of ['x402_pay', 'x402_fetch']) {
   test(`challenges ${name} when unbound with no Bearer`, () => {
     assert.equal(shouldChallengeSpend({ messages: call(name), ...UNBOUND }), true);
   });
 }
 
-test('challenges when ANY message in a batch is a spend-class tools/call', () => {
+test('challenges when ANY message in a batch is a money-execution tools/call', () => {
   const batch = [rpc('tools/list'), call('x402_fetch'), rpc('resources/list', 3)];
   assert.equal(shouldChallengeSpend({ messages: batch, ...UNBOUND }), true);
 });
@@ -48,14 +48,14 @@ test('challenges a batch whose only spend call is last', () => {
 });
 
 test('tolerates junk entries in a batch alongside a spend call', () => {
-  const batch = [null, 42, 'nonsense', call('dexter_passkey')];
+  const batch = [null, 42, 'nonsense', call('x402_fetch')];
   assert.equal(shouldChallengeSpend({ messages: batch, ...UNBOUND }), true);
 });
 
 // ── Anonymous stays anonymous: browse-class never challenges ────────────────
 
 for (const name of [
-  'x402_search', 'x402_check', 'x402_access', 'x402_wallet',
+  'x402_search', 'x402_check', 'x402_access', 'x402_wallet', 'dexter_passkey',
   'x402_compose_skill', 'promote_skill', 'card_status', 'dexter_passkey_probe',
 ]) {
   test(`never challenges tools/call ${name}`, () => {
@@ -92,7 +92,7 @@ test('in-memory bound suppresses the challenge', () => {
 
 test('durable binding suppresses the challenge (restart survivor)', () => {
   assert.equal(
-    shouldChallengeSpend({ messages: call('dexter_passkey'), hasBearer: false, boundInMemory: false, boundDurable: true }),
+    shouldChallengeSpend({ messages: call('x402_pay'), hasBearer: false, boundInMemory: false, boundDurable: true }),
     false,
   );
 });
