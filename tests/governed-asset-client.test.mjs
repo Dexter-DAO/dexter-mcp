@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
+import { createServer } from 'node:http';
 import test from 'node:test';
 import {
   GOVERNED_BACKEND_AUTH_PURPOSE,
   buildGovernedBackendRequestAuth,
   callGovernedAssetBackend,
+  normalizeGovernedBackendOrigin,
   verifyGovernedBackendRequestAuth,
 } from '../lib/governed-asset-client.mjs';
 
@@ -22,6 +24,22 @@ function jsonResponse(status, body) {
     status,
     text: async () => JSON.stringify(body),
   };
+}
+
+function listenLocal(server) {
+  return new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      server.off('error', reject);
+      resolve(server.address());
+    });
+  });
+}
+
+function closeServer(server) {
+  return new Promise((resolve, reject) => {
+    server.close((error) => (error ? reject(error) : resolve()));
+  });
 }
 
 test('purpose-separated request auth binds method, path, body, operation, and correlation', () => {
@@ -138,7 +156,7 @@ test('client derives trusted session context, signs exact bytes, and calls once'
   });
 });
 
-test('same operation can replay, and a new UUID remains a distinct new order', async () => {
+test('same operation can replay, while a new UUID is only a distinct request identity', async () => {
   const bodies = [];
   const fetchImpl = async (_url, options) => {
     bodies.push(options.body);
@@ -183,6 +201,149 @@ test('same operation can replay, and a new UUID remains a distinct new order', a
   assert.equal(bodies[0], bodies[1]);
   assert.notEqual(bodies[1], bodies[2]);
   assert.equal(JSON.parse(bodies[2]).operationId, NEW_OPERATION_ID);
+});
+
+test('backend origin is an exact bounded origin with insecure transport limited to loopback', () => {
+  assert.equal(
+    normalizeGovernedBackendOrigin('https://api.dexter.test/'),
+    'https://api.dexter.test',
+  );
+  assert.equal(
+    normalizeGovernedBackendOrigin('http://127.0.0.1:3030'),
+    'http://127.0.0.1:3030',
+  );
+  assert.equal(
+    normalizeGovernedBackendOrigin('http://localhost:3030/'),
+    'http://localhost:3030',
+  );
+
+  for (const hostile of [
+    'https://user:password@api.dexter.test',
+    'https://api.dexter.test?target=https://attacker.test',
+    'https://api.dexter.test#fragment',
+    'https://api.dexter.test/internal',
+    'https://api.dexter.test/%2e%2e/',
+    'http://api.dexter.test',
+    ' https://api.dexter.test',
+    `https://api.dexter.test/${'a'.repeat(513)}`,
+    'file:///tmp/socket',
+    'not-an-origin',
+  ]) {
+    assert.throws(
+      () => normalizeGovernedBackendOrigin(hostile),
+      /invalid_governed_backend_origin/,
+      hostile,
+    );
+  }
+});
+
+test('purpose-signed request refuses redirects and cannot leak HMAC headers', async () => {
+  let calls = 0;
+  const result = await callGovernedAssetBackend({
+    apiBase: 'https://api.dexter.test',
+    secret: SECRET,
+    phase: 'prepare',
+    input: {
+      operationId: OPERATION_ID,
+      action: 'buy',
+      assetId: 'dexter',
+      amountAtomic: '1000',
+    },
+    mcpSessionId: SESSION_ID,
+    correlationId: CORRELATION_ID,
+    now: NOW,
+    fetchImpl: async (_url, options) => {
+      calls += 1;
+      assert.equal(options.redirect, 'error');
+      assert.match(options.headers['x-dexter-signature'], /^[a-f0-9]{64}$/);
+      throw new Error('redirect mode prevented forwarding');
+    },
+  });
+
+  assert.equal(calls, 1);
+  assert.equal(result.status, 'uncertain');
+  assert.equal(result.retry, 'same_operation_only');
+});
+
+test('built-in fetch never forwards signed headers to a hostile redirect target', async (t) => {
+  let redirectedRequests = 0;
+  let redirectedSignature = null;
+  const redirectTarget = createServer((req, res) => {
+    redirectedRequests += 1;
+    redirectedSignature = req.headers['x-dexter-signature'] ?? null;
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end('{}');
+  });
+  const targetAddress = await listenLocal(redirectTarget);
+  t.after(() => closeServer(redirectTarget));
+
+  let originRequests = 0;
+  const signedOrigin = createServer((req, res) => {
+    originRequests += 1;
+    assert.match(
+      String(req.headers['x-dexter-signature'] || ''),
+      /^[a-f0-9]{64}$/,
+    );
+    res.writeHead(307, {
+      location: `http://127.0.0.1:${targetAddress.port}/steal`,
+    });
+    res.end();
+  });
+  const originAddress = await listenLocal(signedOrigin);
+  t.after(() => closeServer(signedOrigin));
+
+  const result = await callGovernedAssetBackend({
+    apiBase: `http://127.0.0.1:${originAddress.port}`,
+    secret: SECRET,
+    phase: 'prepare',
+    input: {
+      operationId: OPERATION_ID,
+      action: 'buy',
+      assetId: 'dexter',
+      amountAtomic: '1000',
+    },
+    mcpSessionId: SESSION_ID,
+    correlationId: CORRELATION_ID,
+    now: NOW,
+  });
+
+  assert.equal(result.status, 'uncertain');
+  assert.equal(result.retry, 'same_operation_only');
+  assert.equal(originRequests, 1);
+  assert.equal(redirectedRequests, 0);
+  assert.equal(redirectedSignature, null);
+});
+
+test('hostile backend origins fail before constructing or sending a request', async () => {
+  let calls = 0;
+  for (const apiBase of [
+    'https://attacker@api.dexter.test',
+    'https://api.dexter.test/governed',
+    'https://api.dexter.test?redirect=https://attacker.test',
+  ]) {
+    await assert.rejects(
+      callGovernedAssetBackend({
+        apiBase,
+        secret: SECRET,
+        phase: 'prepare',
+        input: {
+          operationId: OPERATION_ID,
+          action: 'buy',
+          assetId: 'dexter',
+          amountAtomic: '1000',
+        },
+        mcpSessionId: SESSION_ID,
+        correlationId: CORRELATION_ID,
+        now: NOW,
+        fetchImpl: async () => {
+          calls += 1;
+          return jsonResponse(200, {});
+        },
+      }),
+      /invalid_governed_backend_origin/,
+    );
+  }
+  assert.equal(calls, 0);
 });
 
 test('network failure is never retried and execution becomes reconciliation-only unknown', async () => {

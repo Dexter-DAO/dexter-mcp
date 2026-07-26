@@ -136,11 +136,24 @@ test('authority override guard rejects nested aliases before transport', () => {
   }
 });
 
-test('operation identity means exact replay, while a new UUID is a new order', () => {
+test('operation identity is idempotency only and never substitutes for authority', () => {
   assert.deepEqual(GOVERNED_OPERATION_SEMANTICS, {
-    sameOperationId: 'replay_exact_request',
-    differentOperationId: 'new_order_even_when_request_matches',
+    operationIdRole: 'request_idempotency_identity_only',
+    sameOperationId: 'replay_exact_phase_and_request_only',
+    differentOperationId: 'distinct_requested_operation_not_authority',
+    authoritySource: 'independently_proven_owner_or_delegated_grant',
+    backendAcceptanceRequired: true,
     automaticRetry: false,
     ambiguousExecution: 'reconcile_only',
   });
+  const description =
+    GOVERNED_ASSET_TOOL_CONTRACTS.dexter_prepare_asset_action.description;
+  assert.match(description, /request and idempotency identity/);
+  assert.match(description, /exact same phase and request/);
+  assert.match(description, /authorizes nothing/);
+  assert.match(
+    description,
+    /independently proven owner or delegated-grant authority and backend acceptance/,
+  );
+  assert.doesNotMatch(description, /owner-authorized|new order/i);
 });
