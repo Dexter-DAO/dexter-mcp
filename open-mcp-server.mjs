@@ -26,7 +26,7 @@ import { fileURLToPath } from 'node:url';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { z } from 'zod';
-import { jwtVerify, createRemoteJWKSet } from 'jose';
+import { createRemoteJWKSet } from 'jose';
 import dotenv from 'dotenv';
 dotenv.config();
 dotenv.config({ path: '.env.local' });
@@ -50,9 +50,10 @@ import {
 import {
   OPEN_MCP_PRM,
   OPEN_MCP_VAULT_AUDIENCE,
-  VAULT_WWW_AUTHENTICATE,
   assertOpenToolAuthPolicyCoverage,
   buildVaultAuthenticationRequired,
+  buildVaultWwwAuthenticate,
+  findVaultProtectedToolCall,
   installCanonicalSecuritySchemeProjection,
   isOpenMcpProtectedResourceMetadataPath,
   isVaultAuthenticationRequired,
@@ -60,15 +61,22 @@ import {
   vaultAuthenticationResult,
 } from './lib/open-tool-auth.mjs';
 import {
+  VAULT_AUTH_MODE_LINK_TOKEN,
+  VAULT_AUTH_MODE_OAUTH,
   clearVaultBound,
   createOpenSessionMeta,
   isAnyIdentityBound,
   isVaultBound,
   markAccountBound,
+  markVaultAuthMode,
   markVaultBound,
-  shouldSeedVaultOAuth,
   touchOpenSessionMeta,
 } from './lib/open-session-auth-state.mjs';
+import {
+  oauthChallengeForVerification,
+  verifyOpenVaultBearer,
+} from './lib/open-vault-oauth.mjs';
+import { shouldVerifyVaultBearer } from './lib/open-vault-request-auth.mjs';
 import {
   capabilitySearch as coreCapabilitySearch,
   buildSearchResponse,
@@ -2147,9 +2155,14 @@ function markSessionAccountBound(sessionId) {
   sessionMeta.set(sessionId, markAccountBound(sessionMeta.get(sessionId)));
 }
 
-function markSessionVaultBound(sessionId) {
+function markSessionVaultAuthMode(sessionId, authMode) {
   if (!sessionId) return;
-  sessionMeta.set(sessionId, markVaultBound(sessionMeta.get(sessionId)));
+  sessionMeta.set(sessionId, markVaultAuthMode(sessionMeta.get(sessionId), authMode));
+}
+
+function markSessionVaultBound(sessionId, authMode = null) {
+  if (!sessionId) return;
+  sessionMeta.set(sessionId, markVaultBound(sessionMeta.get(sessionId), authMode));
 }
 
 function clearSessionVaultBinding(sessionId) {
@@ -2170,31 +2183,21 @@ const LINK_TOKEN_RE = /^dlt_[0-9a-f]{48}$/;
 const INTERNAL_HMAC_SECRET = (process.env.INTERNAL_DEXTERCARD_HMAC_SECRET || '').trim();
 
 // ── OAuth-native connect: seed a durable token-scoped vault binding ──────────
-// When claude.ai completes the OAuth ceremony it presents a Dexter-signed ES256
+// When an OAuth host completes the ceremony it presents a Dexter-signed ES256
 // vault Bearer (iss=dexter.cash, aud=open.dexter.cash/mcp) on tool calls. We
-// verify it against dexter.cash's JWKS and hand the token to dexter-api's
+// verify it on EVERY protected invocation against dexter.cash's JWKS. On the
+// first valid invocation we also hand the token to dexter-api's
 // /oauth-seed, which re-verifies it and writes mcp_vault_bindings with
 // link_token_hash = the token's dexter_surface (token-scoped, so per-surface
 // revoke bites the next tool call). After that the existing x402Fetch →
 // /mcp-binding → session-mode spend path works unchanged. Anonymous/HS256 calls
-// are untouched: verify just throws and we skip.
+// are untouched and explicit durable-link sessions retain their own auth rail.
 const DEXTER_JWKS = createRemoteJWKSet(new URL('https://dexter.cash/.well-known/jwks.json'));
 
-async function seedOAuthVaultBinding(req, sessionId) {
-  if (!INTERNAL_HMAC_SECRET || !sessionId) return;
-  const token = extractBearer(req);
-  if (!token || token.split('.').length !== 3) return;
-  let payload;
-  try {
-    ({ payload } = await jwtVerify(token, DEXTER_JWKS, {
-      issuer: 'https://dexter.cash',
-      audience: OPEN_MCP_VAULT_AUDIENCE,
-      algorithms: ['ES256'],
-    }));
-  } catch {
-    return; // not a vault Bearer (anon / HS256 account token) — leave as-is
+async function seedOAuthVaultBinding(token, payload, sessionId) {
+  if (!INTERNAL_HMAC_SECRET || !sessionId || !token || !payload?.dexter_surface) {
+    return false;
   }
-  if (!payload?.dexter_surface) return;
   try {
     const ts = String(Date.now());
     const sig = createHmac('sha256', INTERNAL_HMAC_SECRET)
@@ -2211,14 +2214,16 @@ async function seedOAuthVaultBinding(req, sessionId) {
       signal: AbortSignal.timeout(2500),
     });
     if (res.ok) {
-      markSessionVaultBound(sessionId);
-      console.log(`[open-mcp] oauth vault binding seeded: ${sessionId} handle=${String(payload.sub).slice(0, 6)}...`);
+      markSessionVaultBound(sessionId, VAULT_AUTH_MODE_OAUTH);
+      console.log(`[open-mcp] oauth vault binding seeded: ${String(sessionId).slice(0, 8)}... handle=${String(payload.sub).slice(0, 6)}...`);
+      return true;
     } else {
-      console.warn(`[open-mcp] oauth-seed refused (${res.status}) for ${sessionId}`);
+      console.warn(`[open-mcp] oauth-seed refused (${res.status}) for ${String(sessionId).slice(0, 8)}...`);
     }
   } catch (err) {
     console.warn(`[open-mcp] oauth-seed failed: ${err?.message || err}`);
   }
+  return false;
 }
 
 // ── RFC 9728 Protected Resource Metadata (the OAuth advertisement) ──────────
@@ -2295,11 +2300,12 @@ function readRequestBody(req) {
 // pointer plus scope="vault" (the token claude.ai copies into its authorize
 // request — the Face-ID router). Touches NO session state: the client
 // retries on the same mcp-session-id after completing OAuth.
-function writeSpendChallenge(res) {
+function writeVaultChallenge(res, challenge = {}) {
+  const wwwAuthenticate = buildVaultWwwAuthenticate(challenge);
   res.writeHead(401, {
     'Content-Type': 'application/json',
     'Cache-Control': 'no-store',
-    'WWW-Authenticate': VAULT_WWW_AUTHENTICATE,
+    'WWW-Authenticate': wwwAuthenticate,
   });
   res.end(JSON.stringify({
     jsonrpc: '2.0',
@@ -2326,7 +2332,7 @@ async function bindLinkTokenToSession(linkToken, sessionId) {
       signal: AbortSignal.timeout(3000),
     });
     if (resp.ok) {
-      markSessionVaultBound(sessionId);
+      markSessionVaultBound(sessionId, VAULT_AUTH_MODE_LINK_TOKEN);
       console.log(`[open-mcp] link-token bound session ${sessionId} (active: ${transports.size})`);
       return true;
     }
@@ -2723,14 +2729,6 @@ const httpServer = http.createServer(async (req, res) => {
     // and revocation propagate without forcing a session restart.
     const incomingBinding = tryBindUserFromRequest(req);
 
-    // OAuth-native vault Bearer → seed the durable token-scoped binding once the
-    // vault rail is not yet bound (await so it exists before the tool call
-    // resolves it). Account authentication is an independent flag and must not
-    // suppress this upgrade. No-op for anonymous/HS256 account tokens.
-    if (sessionId && shouldSeedVaultOAuth(sessionMeta.get(sessionId))) {
-      await seedOAuthVaultBinding(req, sessionId);
-    }
-
     if (sessionId && transports.has(sessionId)) {
       touchSession(sessionId);
       if (incomingBinding) {
@@ -2781,17 +2779,63 @@ const httpServer = http.createServer(async (req, res) => {
         return;
       }
 
-      const hasBearer = Boolean(extractBearer(req));
+      // Enforce the OAuth resource boundary before SDK dispatch. A successful
+      // session seed is routing state, not authorization: OAuth-mode sessions
+      // must send a currently valid ES256 Bearer with issuer, audience,
+      // lifetime, scope=vault, subject, and revocable surface on EVERY
+      // protected invocation. Explicit personal-link sessions retain their
+      // separate legacy rail, and a valid account JWT remains sufficient only
+      // for the two account-owned skill actions.
+      const protectedCall = findVaultProtectedToolCall(parsedBody);
+      const bearer = extractBearer(req);
+      let hasValidVaultBearer = false;
+      if (shouldVerifyVaultBearer({
+        protectedCall,
+        sessionMeta: sessionMeta.get(sessionId),
+        bearerPresent: Boolean(bearer),
+        hasValidAccountBinding: Boolean(incomingBinding),
+      })) {
+        const verification = await verifyOpenVaultBearer(bearer, {
+          verificationKey: DEXTER_JWKS,
+          audience: OPEN_MCP_VAULT_AUDIENCE,
+        });
+        if (!verification.ok) {
+          const challenge = oauthChallengeForVerification(verification);
+          console.warn(
+            `[open-mcp] rejected vault Bearer (${verification.reason}) for `
+            + `${protectedCall?.name || 'protected tool'} session ${String(sessionId).slice(0, 8)}...`,
+          );
+          writeVaultChallenge(res, challenge);
+          return;
+        }
+
+        hasValidVaultBearer = true;
+        markSessionVaultAuthMode(sessionId, VAULT_AUTH_MODE_OAUTH);
+        if (!isVaultBound(sessionMeta.get(sessionId))) {
+          await seedOAuthVaultBinding(bearer, verification.payload, sessionId);
+        }
+      }
+
       const boundInMemory = isVaultBound(sessionMeta.get(sessionId));
       // Cheap inputs first; the durable lookup (an HTTP round trip to
       // dexter-api) runs only when they alone would challenge. Never
       // challenge on the in-memory flag alone — it dies on restart while
       // mcp_vault_bindings rows survive.
-      if (shouldChallengeSpend({ messages: parsedBody, hasBearer, boundInMemory, boundDurable: false })) {
+      if (shouldChallengeSpend({
+        messages: parsedBody,
+        hasValidVaultBearer,
+        boundInMemory,
+        boundDurable: false,
+      })) {
         const boundDurable = await lookupDurableVaultBinding(sessionId);
-        if (shouldChallengeSpend({ messages: parsedBody, hasBearer, boundInMemory, boundDurable })) {
+        if (shouldChallengeSpend({
+          messages: parsedBody,
+          hasValidVaultBearer,
+          boundInMemory,
+          boundDurable,
+        })) {
           console.log(`[open-mcp] spend challenge (401 → vault OAuth) for session ${sessionId}`);
-          writeSpendChallenge(res);
+          writeVaultChallenge(res);
           return; // session state untouched — the client retries on the same id
         }
       }

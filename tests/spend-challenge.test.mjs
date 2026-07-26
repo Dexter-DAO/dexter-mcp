@@ -23,7 +23,11 @@ const call = (name, id = 1) => ({
 });
 const rpc = (method, id = 1) => ({ jsonrpc: '2.0', id, method, params: {} });
 
-const UNBOUND = { hasBearer: false, boundInMemory: false, boundDurable: false };
+const UNBOUND = {
+  hasValidVaultBearer: false,
+  boundInMemory: false,
+  boundDurable: false,
+};
 
 test('raw HTTP challenge set is exactly the two money-execution tools', () => {
   assert.deepEqual([...SPEND_TOOL_NAMES].sort(), ['x402_fetch', 'x402_pay']);
@@ -74,25 +78,40 @@ test('never challenges an all-anonymous batch', () => {
   assert.equal(shouldChallengeSpend({ messages: batch, ...UNBOUND }), false);
 });
 
-// ── Suppression inputs: Bearer presence / in-memory bound / durable bound ───
+// ── Suppression inputs: verified Bearer / in-memory bound / durable bound ───
 
-test('Bearer PRESENCE alone suppresses the challenge (verify decides downstream)', () => {
+test('a verified vault Bearer suppresses the raw challenge', () => {
   assert.equal(
-    shouldChallengeSpend({ messages: call('x402_pay'), hasBearer: true, boundInMemory: false, boundDurable: false }),
+    shouldChallengeSpend({
+      messages: call('x402_pay'),
+      hasValidVaultBearer: true,
+      boundInMemory: false,
+      boundDurable: false,
+    }),
     false,
   );
 });
 
 test('in-memory bound suppresses the challenge', () => {
   assert.equal(
-    shouldChallengeSpend({ messages: call('x402_fetch'), hasBearer: false, boundInMemory: true, boundDurable: false }),
+    shouldChallengeSpend({
+      messages: call('x402_fetch'),
+      hasValidVaultBearer: false,
+      boundInMemory: true,
+      boundDurable: false,
+    }),
     false,
   );
 });
 
 test('durable binding suppresses the challenge (restart survivor)', () => {
   assert.equal(
-    shouldChallengeSpend({ messages: call('x402_pay'), hasBearer: false, boundInMemory: false, boundDurable: true }),
+    shouldChallengeSpend({
+      messages: call('x402_pay'),
+      hasValidVaultBearer: false,
+      boundInMemory: false,
+      boundDurable: true,
+    }),
     false,
   );
 });

@@ -12,12 +12,15 @@ import {
   VAULT_WWW_AUTHENTICATE,
   assertOpenToolAuthPolicyCoverage,
   buildVaultAuthenticationRequired,
+  buildVaultWwwAuthenticate,
+  findVaultProtectedToolCall,
   installCanonicalSecuritySchemeProjection,
   isOpenMcpProtectedResourceMetadataPath,
   isVaultAuthenticationRequired,
   projectCanonicalSecuritySchemes,
   projectCanonicalSecuritySchemesOnMessage,
   registerOpenTool,
+  supportsLegacyAccountAuthorization,
   vaultAuthenticationResult,
   withOpenToolAuth,
 } from '../lib/open-tool-auth.mjs';
@@ -58,6 +61,40 @@ test('public, wallet, payment, and optionally linked tools have exact schemes', 
     OPEN_TOOL_SECURITY_SCHEMES.x402_compose_skill,
     [{ type: 'noauth' }, { type: 'oauth2', scopes: ['vault'] }],
   );
+});
+
+test('protected-call classification follows the per-tool auth declaration', () => {
+  const call = (name, args = {}) => ({
+    jsonrpc: '2.0',
+    id: 1,
+    method: 'tools/call',
+    params: { name, arguments: args },
+  });
+  assert.deepEqual(findVaultProtectedToolCall(call('x402_wallet')), {
+    name: 'x402_wallet',
+    id: 1,
+  });
+  assert.deepEqual(findVaultProtectedToolCall([
+    call('x402_search'),
+    { ...call('x402_pay'), id: 2 },
+  ]), { name: 'x402_pay', id: 2 });
+  assert.deepEqual(findVaultProtectedToolCall([
+    call('x402_compose_skill', { publish: true }),
+    { ...call('x402_pay'), id: 2 },
+  ]), { name: 'x402_pay', id: 2 });
+  assert.equal(findVaultProtectedToolCall(call('x402_search')), null);
+  assert.equal(findVaultProtectedToolCall(call('x402_compose_skill')), null);
+  assert.deepEqual(
+    findVaultProtectedToolCall(call('x402_compose_skill', { publish: true })),
+    { name: 'x402_compose_skill', id: 1 },
+  );
+});
+
+test('legacy account authorization is deliberately narrow', () => {
+  assert.equal(supportsLegacyAccountAuthorization('x402_compose_skill'), true);
+  assert.equal(supportsLegacyAccountAuthorization('promote_skill'), true);
+  assert.equal(supportsLegacyAccountAuthorization('x402_wallet'), false);
+  assert.equal(supportsLegacyAccountAuthorization('x402_pay'), false);
 });
 
 test('registration config carries canonical and mirrored schemes', () => {
@@ -189,4 +226,19 @@ test('runtime challenge is host-native and contains no legacy pairing path', () 
   assert.match(VAULT_WWW_AUTHENTICATE, /scope="vault"/);
   assert.match(VAULT_WWW_AUTHENTICATE, /error="insufficient_scope"/);
   assert.match(VAULT_WWW_AUTHENTICATE, /error_description="[^"]+"/);
+});
+
+test('runtime challenges preserve precise OAuth errors and escape header input', () => {
+  const challenge = buildVaultWwwAuthenticate({
+    error: 'invalid_token',
+    errorDescription: 'stale "token"\\retry\r\nnow',
+  });
+  assert.match(challenge, /error="invalid_token"/);
+  assert.match(challenge, /error_description="stale \\"token\\"\\\\retry  now"/);
+  assert.equal(challenge.includes('\r'), false);
+  assert.equal(challenge.includes('\n'), false);
+
+  const data = buildVaultAuthenticationRequired({ tool: 'x402_wallet' });
+  const result = vaultAuthenticationResult(data, {}, challenge);
+  assert.deepEqual(result._meta['mcp/www_authenticate'], [challenge]);
 });
