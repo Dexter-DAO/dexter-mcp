@@ -167,6 +167,122 @@ const CHECK_TOOL_RESULT = {
   isError: false,
 };
 
+const PREPARED_AT = '2026-07-25T12:34:00.000Z';
+const PREPARED_EXPIRES_AT = '2026-07-25T12:39:00.000Z';
+const EMPTY_PAYLOAD_SHA256 =
+  'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+
+function purchaseOption({
+  mode,
+  scheme,
+  state,
+  reason = null,
+}) {
+  const suffix = mode.replaceAll('_', '-');
+  return {
+    mode,
+    availability: { state, reason },
+    display: {
+      price: 0.008,
+      priceFormatted: '$0.008',
+    },
+    preparedPurchase: {
+      contractVersion: 'opendexter.purchase.v1',
+      preparedId: `prepared-atlas-${suffix}`,
+      state: 'prepared',
+      preparedAt: PREPARED_AT,
+      expiresAt: PREPARED_EXPIRES_AT,
+      mode,
+      route: {
+        routeId: `route-atlas-${scheme}`,
+        resourceUrl: 'https://fixture.example/atlas',
+        resolvedUrl: 'https://fixture.example/atlas',
+        method: 'GET',
+        payloadSha256: EMPTY_PAYLOAD_SHA256,
+        sellerOffer: {
+          offerId: `offer-atlas-${scheme}`,
+          x402Version: 2,
+          scheme,
+          network: 'solana:mainnet',
+          asset: 'USDC',
+          amountAtomic: '8000',
+          payTo: '0xatlas',
+          facilitator: 'https://fixture.example/facilitator',
+          expiresAt: PREPARED_EXPIRES_AT,
+          rawAcceptSha256:
+            scheme === 'tab' ? 'b'.repeat(64) : 'a'.repeat(64),
+        },
+      },
+    },
+  };
+}
+
+const PURCHASE_READY_OPTIONS = [
+  purchaseOption({
+    mode: 'direct_exact',
+    scheme: 'exact',
+    state: 'ready',
+  }),
+  purchaseOption({
+    mode: 'native_tab',
+    scheme: 'tab',
+    state: 'ready',
+  }),
+  purchaseOption({
+    mode: 'gateway_cash',
+    scheme: 'exact',
+    state: 'integration_required',
+    reason: 'gateway_cash_adapter_required',
+  }),
+  purchaseOption({
+    mode: 'gateway_credit',
+    scheme: 'exact',
+    state: 'integration_required',
+    reason: 'gateway_credit_adapter_required',
+  }),
+];
+
+// Renderer-only contract fixture for the future state after A3 supplies the
+// durable hosted execution adapters. The current server correctly returns
+// integration_required for every hosted mode.
+const FUTURE_PURCHASE_READY_CHECK_TOOL_RESULT = {
+  structuredContent: {
+    requiresPayment: true,
+    statusCode: 402,
+    x402Version: 2,
+    authMode: 'paid',
+    paymentOptions: [
+      {
+        price: 0.008,
+        priceFormatted: '$0.008',
+        network: 'solana:mainnet',
+        asset: 'USDC',
+        scheme: 'exact',
+        payTo: '0xatlas',
+        amountAtomic: '8000',
+      },
+      {
+        price: 0.008,
+        priceFormatted: '$0.008',
+        network: 'solana:mainnet',
+        asset: 'USDC',
+        scheme: 'tab',
+        payTo: '0xatlas',
+        amountAtomic: '8000',
+      },
+    ],
+    purchaseOptions: PURCHASE_READY_OPTIONS,
+  },
+  content: [
+    {
+      type: 'text',
+      text: 'Fresh quote: Direct Exact and Native Tab are ready.',
+    },
+  ],
+  _meta: { fixture: true },
+  isError: false,
+};
+
 const MCP_INIT_RESULT = {
   protocolVersion: '2026-01-26',
   hostInfo: {
@@ -241,10 +357,12 @@ function installFixedClock(fixedNow) {
 function installChatGptHost({
   searchOutput,
   checkToolResult,
+  toolInput = { query: 'fresh market data' },
   theme = 'light',
   maxHeight = 900,
   allowToolCalls = true,
   allowFollowUp = true,
+  deferFollowUp = false,
   allowDisplayMode = true,
   rejectDisplayMode = false,
 }) {
@@ -269,7 +387,7 @@ function installChatGptHost({
         left: 0,
       },
     },
-    toolInput: { query: 'fresh market data' },
+    toolInput,
     toolOutput: searchOutput,
     toolResponseMetadata: null,
     widgetState: null,
@@ -312,6 +430,9 @@ function installChatGptHost({
         kind: 'sendFollowUpMessage',
         args,
       });
+      if (deferFollowUp) {
+        await new Promise(() => {});
+      }
     };
   }
   if (allowDisplayMode) {
@@ -826,6 +947,96 @@ function assertSearchHostCalls(hostName, calls, kind, expectedToolCalls = 1) {
   );
 }
 
+async function exercisePreparedPurchaseHandoff({
+  hostName,
+  surface,
+}) {
+  await surface.getByRole('button', { name: 'Use this service' }).click();
+  await surface.getByRole(
+    'heading',
+    { name: 'Price estimate available' },
+  ).waitFor();
+
+  const purchaseChoices = surface.locator(
+    '.dx-search-quote__purchase-choices li',
+  );
+  assert.equal(
+    await purchaseChoices.count(),
+    4,
+    `${hostName}: all four explicit modes must remain visible`,
+  );
+
+  const direct = surface.getByRole('radio', { name: /Pay now/ });
+  const nativeTab = surface.getByRole('radio', { name: /Use seller tab/ });
+  const gatewayCash = surface.getByRole('radio', { name: /Gateway cash/ });
+  const gatewayCredit = surface.getByRole('radio', { name: /Gateway credit/ });
+  assert.equal(await direct.isEnabled(), true);
+  assert.equal(await nativeTab.isEnabled(), true);
+  assert.equal(await gatewayCash.isDisabled(), true);
+  assert.equal(await gatewayCredit.isDisabled(), true);
+
+  await nativeTab.check();
+  const review = surface.getByRole(
+    'button',
+    { name: 'Review Use seller tab' },
+  );
+  await review.click();
+  const sent = surface.getByRole('button', { name: 'Opened in chat' });
+  assert.equal(
+    await sent.isDisabled(),
+    true,
+    `${hostName}: the prepared handoff must not submit twice`,
+  );
+}
+
+function assertPreparedPurchaseHostCalls(hostName, calls, kind) {
+  const toolCalls = kind === 'chatgpt'
+    ? calls.filter((call) => call.kind === 'callTool')
+    : calls.filter((call) => call.method === 'tools/call');
+  assert.equal(toolCalls.length, 1);
+  assert.ok(
+    toolCalls.every((call) => (
+      kind === 'chatgpt'
+        ? call.name === 'x402_check'
+        : call.params?.name === 'x402_check'
+    )),
+    `${hostName}: the purchase-mode fixture must only check current terms`,
+  );
+
+  const followUpCall = kind === 'chatgpt'
+    ? calls.find((call) => call.kind === 'sendFollowUpMessage')
+    : calls.find((call) => call.method === 'ui/message');
+  assert.ok(followUpCall, `${hostName}: selected mode must return to chat`);
+  const followUpText = kind === 'chatgpt'
+    ? followUpCall.args?.prompt
+    : followUpCall.params?.content?.find((item) => item.type === 'text')?.text;
+  const selected = PURCHASE_READY_OPTIONS.find(
+    (option) => option.mode === 'native_tab',
+  );
+  assert.ok(selected);
+  assert.equal(
+    followUpText,
+    'I selected Use seller tab for Atlas Price Feed at '
+      + 'https://fixture.example/atlas. Preserve this prepared purchase '
+      + `exactly: ${JSON.stringify(selected.preparedPurchase)}. `
+      + 'The selected seller offer is 8000 atomic units of USDC on '
+      + 'solana:mainnet. Show me the exact request and atomic-unit ceiling, then '
+      + 'ask for my confirmation before paying. Only execute after that '
+      + 'explicit confirmation. Do not change the seller offer, route, or '
+      + 'purchase mode.',
+  );
+
+  const forbiddenPaymentCalls = toolCalls.filter((call) => {
+    const name = kind === 'chatgpt' ? call.name : call.params?.name;
+    return name === 'x402_fetch' || name === 'x402_pay';
+  });
+  assert.equal(
+    forbiddenPaymentCalls.length,
+    0,
+    `${hostName}: mode selection must not dispatch a payment`,
+  );
+}
+
 test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts', async (t) => {
   const vite = await createServer({
     configFile: false,
@@ -850,6 +1061,8 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
     );
     const widgetUrl =
       `http://127.0.0.1:${address.port}/x402-marketplace-search.html`;
+    const pricingWidgetUrl =
+      `http://127.0.0.1:${address.port}/x402-pricing.html`;
 
     browser = await chromium.launch({ headless: true });
     const context = await browser.newContext({
@@ -932,6 +1145,127 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
       const calls = await page.evaluate(() => window.__hostCalls);
       assertSearchHostCalls('ChatGPT', calls, 'chatgpt');
       assert.deepEqual(pageErrors, [], 'ChatGPT: no uncaught browser errors');
+      await page.close();
+    });
+
+    await t.test('ChatGPT preserves a ready prepared mode in its chat handoff', async () => {
+      const page = await context.newPage();
+      const pageErrors = [];
+      page.on('pageerror', (error) => pageErrors.push(error.message));
+      await page.addInitScript(installChatGptHost, {
+        searchOutput: SEARCH_OUTPUT,
+        checkToolResult: FUTURE_PURCHASE_READY_CHECK_TOOL_RESULT,
+      });
+      await page.goto(widgetUrl);
+
+      await exercisePreparedPurchaseHandoff({
+        hostName: 'ChatGPT prepared purchase',
+        surface: page,
+      });
+
+      const calls = await page.evaluate(() => window.__hostCalls);
+      assertPreparedPurchaseHostCalls(
+        'ChatGPT prepared purchase',
+        calls,
+        'chatgpt',
+      );
+      assert.deepEqual(
+        pageErrors,
+        [],
+        'ChatGPT prepared purchase: no uncaught browser errors',
+      );
+      await page.close();
+    });
+
+    await t.test('ChatGPT search coalesces rapid purchase follow-ups', async () => {
+      const page = await context.newPage();
+      const pageErrors = [];
+      page.on('pageerror', (error) => pageErrors.push(error.message));
+      await page.addInitScript(installChatGptHost, {
+        searchOutput: SEARCH_OUTPUT,
+        checkToolResult: FUTURE_PURCHASE_READY_CHECK_TOOL_RESULT,
+        deferFollowUp: true,
+      });
+      await page.goto(widgetUrl);
+
+      await page.getByRole('button', { name: 'Use this service' }).click();
+      await page.getByRole(
+        'heading',
+        { name: 'Price estimate available' },
+      ).waitFor();
+      await page.getByRole('radio', { name: /Use seller tab/ }).check();
+      const review = page.getByRole(
+        'button',
+        { name: 'Review Use seller tab' },
+      );
+      await review.evaluate((button) => {
+        button.click();
+        button.click();
+      });
+      await page.waitForFunction(() => (
+        window.__hostCalls.filter(
+          (call) => call.kind === 'sendFollowUpMessage',
+        ).length === 1
+      ));
+      const calls = await page.evaluate(() => window.__hostCalls);
+      assert.equal(
+        calls.filter((call) => call.kind === 'sendFollowUpMessage').length,
+        1,
+        'ChatGPT search: a rapid double click must emit one follow-up',
+      );
+      assert.deepEqual(
+        pageErrors,
+        [],
+        'ChatGPT search double click: no uncaught browser errors',
+      );
+      await page.close();
+    });
+
+    await t.test('ChatGPT pricing coalesces rapid purchase follow-ups', async () => {
+      const page = await context.newPage();
+      const pageErrors = [];
+      page.on('pageerror', (error) => pageErrors.push(error.message));
+      await page.addInitScript(installChatGptHost, {
+        searchOutput: FUTURE_PURCHASE_READY_CHECK_TOOL_RESULT.structuredContent,
+        checkToolResult: FUTURE_PURCHASE_READY_CHECK_TOOL_RESULT,
+        toolInput: {
+          url: 'https://fixture.example/atlas',
+          method: 'GET',
+        },
+        deferFollowUp: true,
+        allowToolCalls: false,
+        allowDisplayMode: false,
+      });
+      await page.goto(pricingWidgetUrl);
+
+      await page.getByRole(
+        'radio',
+        { name: /Use seller tab/ },
+      ).check();
+      const continueButton = page.getByRole(
+        'button',
+        { name: /Continue in chat · Use seller tab/ },
+      );
+      await continueButton.evaluate((button) => {
+        button.click();
+        button.click();
+      });
+      await page.waitForFunction(() => (
+        window.__hostCalls.filter(
+          (call) => call.kind === 'sendFollowUpMessage',
+        ).length === 1
+      ));
+      const calls = await page.evaluate(() => window.__hostCalls);
+      assert.equal(
+        calls.filter((call) => call.kind === 'sendFollowUpMessage').length,
+        1,
+        'ChatGPT pricing: a rapid double click must emit one follow-up',
+      );
+      assert.deepEqual(
+        pageErrors,
+        [],
+        'ChatGPT pricing double click: no uncaught browser errors',
+      );
       await page.close();
     });
 
@@ -1196,6 +1530,51 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
       );
       assertSearchHostCalls('MCP Apps', calls, 'mcp-apps', 2);
       assert.deepEqual(pageErrors, [], 'MCP Apps: no uncaught browser errors');
+      await page.close();
+    });
+
+    await t.test('MCP Apps preserves a ready prepared mode in its chat handoff', async () => {
+      const page = await context.newPage();
+      await page.setViewportSize({
+        width: 390,
+        height: 844,
+      });
+      const pageErrors = [];
+      page.on('pageerror', (error) => pageErrors.push(error.message));
+      await page.setContent(
+        '<!doctype html><html><body style="margin:0">'
+          + '<iframe id="widget" title="Dexter search widget" '
+          + 'style="border:0;width:390px;height:844px"></iframe>'
+          + '</body></html>',
+      );
+      await page.evaluate(setupMcpParentHost, {
+        checkToolResult: FUTURE_PURCHASE_READY_CHECK_TOOL_RESULT,
+        initResult: MCP_INIT_RESULT,
+        searchToolResult: SEARCH_TOOL_RESULT,
+        widgetUrl,
+      });
+
+      const frame = await page.locator('#widget').contentFrame();
+      assert.ok(
+        frame,
+        'MCP Apps prepared purchase: fixture iframe must expose a content frame',
+      );
+      await exercisePreparedPurchaseHandoff({
+        hostName: 'MCP Apps prepared purchase',
+        surface: frame,
+      });
+
+      const calls = await page.evaluate(() => window.__hostCalls);
+      assertPreparedPurchaseHostCalls(
+        'MCP Apps prepared purchase',
+        calls,
+        'mcp-apps',
+      );
+      assert.deepEqual(
+        pageErrors,
+        [],
+        'MCP Apps prepared purchase: no uncaught browser errors',
+      );
       await page.close();
     });
 

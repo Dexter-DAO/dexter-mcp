@@ -23,7 +23,7 @@ test('both paid tools require the exact approved atomic ceiling', () => {
 test('approved ceiling survives aliases, backend payloads, and auth retries', () => {
   assert.match(
     serverSource,
-    /x402Pay\([\s\S]*?\{ url, method, body, multipart,[\s\S]*?maxAmountAtomic \}/,
+    /x402Pay\([\s\S]*?\{ url, method, body, multipart,[\s\S]*?maxAmountAtomic, purchase \}/,
   );
   assert.match(serverSource, /fd\.append\('maxAmountAtomic', maxAmountAtomic\)/);
   assert.match(
@@ -37,6 +37,38 @@ test('approved ceiling survives aliases, backend payloads, and auth retries', ()
   assert.match(
     serverSource,
     /buildVaultAuthenticationRequired\(\{[\s\S]*?retry:\s*\{[\s\S]*?maxAmountAtomic,[\s\S]*?\}/,
+  );
+});
+
+test('prepared purchase identity survives aliases, backend payloads, and auth retries', () => {
+  assert.equal(
+    (
+      serverSource.match(
+        /purchase:\s*PREPARED_PURCHASE_SCHEMA\.optional\(\)/g,
+      ) || []
+    ).length,
+    2,
+  );
+  assert.match(
+    serverSource,
+    /const requestId = validatedPurchase\?\.preparedId \|\| randomUUID\(\)/,
+  );
+  assert.match(
+    serverSource,
+    /\/v2\/pay\/anon\/x402\/fetch`,[\s\S]*?JSON\.stringify\(\{[\s\S]*?purchase,[\s\S]*?\}\)/,
+  );
+  assert.match(
+    serverSource,
+    /mode: 'vault_not_activated',[\s\S]*?retry:\s*\{[\s\S]*?purchase[\s\S]*?\}/,
+  );
+  assert.match(
+    serverSource,
+    /Every explicit hosted mode[\s\S]*?return buildPurchaseIntegrationRequired/,
+  );
+  assert.match(
+    serverSource,
+    /if \(purchase !== undefined\)[\s\S]*?return buildPurchaseIntegrationRequired[\s\S]*?\n  \}/,
+    'an explicit purchase stops before the legacy anonymous-pay endpoint',
   );
 });
 

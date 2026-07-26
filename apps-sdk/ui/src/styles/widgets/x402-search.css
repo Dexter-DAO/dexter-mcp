@@ -462,6 +462,115 @@
   line-height: 1.55;
 }
 
+.dx-search-quote__purchase-choices {
+  min-width: 0;
+  margin: 14px 0 0;
+  border: 0;
+  border-top: 1px solid var(--dxs-hair);
+  padding: 12px 0 0;
+}
+
+.dx-search-quote__purchase-choices legend {
+  padding: 0;
+  color: var(--dxs-ink);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.dx-search-quote__purchase-choices ul {
+  display: grid;
+  gap: 6px;
+  margin: 9px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dx-search-quote__purchase-choice {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  border-radius: var(--border-radius-md, 10px);
+  padding: 7px 10px;
+  color: var(--dxs-ink);
+  background: var(--dxs-page);
+  cursor: pointer;
+  transition:
+    background var(--dx-duration-fast, 120ms) ease,
+    box-shadow var(--dx-duration-fast, 120ms) ease;
+}
+
+.dx-search-quote__purchase-choice:hover:not(
+  .dx-search-quote__purchase-choice--disabled
+) {
+  background: color-mix(in srgb, var(--dxs-ember) 5%, var(--dxs-page));
+}
+
+.dx-search-quote__purchase-choice--selected {
+  box-shadow: inset 0 0 0 1px var(--dxs-ember);
+  background: color-mix(in srgb, var(--dxs-ember) 7%, var(--dxs-page));
+}
+
+.dx-search-quote__purchase-choice--disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.dx-search-quote__purchase-choice input {
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  border: 1.5px solid var(--dxs-hair-2);
+  border-radius: 50%;
+  background: var(--dxs-paper);
+}
+
+.dx-search-quote__purchase-choice input:checked {
+  border-color: var(--dxs-ember);
+  background:
+    radial-gradient(
+      circle at center,
+      var(--dxs-ember) 0 4px,
+      transparent 4.5px
+    ),
+    var(--dxs-paper);
+}
+
+.dx-search-quote__purchase-choice input:focus-visible {
+  outline: 2px solid var(--dxs-ember);
+  outline-offset: 2px;
+}
+
+.dx-search-quote__purchase-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dx-search-quote__purchase-copy strong {
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.dx-search-quote__purchase-copy small {
+  overflow: hidden;
+  color: var(--dxs-ink-3);
+  font-family: var(--font-mono, var(--dx-font-mono));
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dx-search-quote__purchase-price {
+  font-family: var(--font-mono, var(--dx-font-mono));
+  font-size: 12px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
 .dx-search-quote__routes {
   margin-top: 14px;
   border-top: 1px solid var(--dxs-hair);

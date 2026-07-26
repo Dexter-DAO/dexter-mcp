@@ -219,6 +219,88 @@
   font-style: italic;
 }
 
+/* ---------- Mode-specific purchase truth ---------------------- */
+
+.dx-purchase-receipt {
+  border-top: 1px dashed var(--rule);
+  border-bottom: 1px dashed var(--rule);
+  padding: 16px 0;
+}
+
+.dx-purchase-receipt__header span {
+  color: var(--ink-soft);
+  font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.dx-purchase-receipt__header h2 {
+  margin: 4px 0 0;
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 680;
+  letter-spacing: -0.015em;
+}
+
+.dx-purchase-receipt--success .dx-purchase-receipt__header h2 {
+  color: color-mix(in srgb, var(--dx-success, #14783e) 82%, var(--ink));
+}
+
+.dx-purchase-receipt--warning .dx-purchase-receipt__header h2 {
+  color: color-mix(in srgb, var(--dx-warn, #a15c00) 84%, var(--ink));
+}
+
+.dx-purchase-receipt dl {
+  display: grid;
+  gap: 7px;
+  margin: 14px 0 0;
+}
+
+.dx-purchase-receipt dl > div {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.42fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: baseline;
+}
+
+.dx-purchase-receipt dt,
+.dx-purchase-receipt dd {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.dx-purchase-receipt dt {
+  color: var(--ink-soft);
+}
+
+.dx-purchase-receipt dd {
+  overflow-wrap: anywhere;
+  color: var(--ink);
+  font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-align: right;
+}
+
+.dx-purchase-receipt__retry {
+  margin: 13px 0 0;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 580;
+  line-height: 1.5;
+}
+
+.dx-purchase-receipt__reference {
+  overflow: hidden;
+  margin: 8px 0 0;
+  color: var(--ink-quiet);
+  font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ---------- Stamp --------------------------------------------- */
 
 .dx-receipt-stamp-block {

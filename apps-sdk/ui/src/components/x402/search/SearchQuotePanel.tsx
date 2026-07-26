@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@openai/apps-sdk-ui/components/Button';
 import type { SearchResource } from './types';
 import type {
@@ -6,6 +6,10 @@ import type {
   X402CheckState,
   X402PaymentRoute,
 } from '../check-result-model';
+import {
+  purchaseModeLabel,
+  type PreparedPurchaseOption,
+} from '../purchase-model';
 import { ChainIcon, getChain } from '..';
 import { formatAssetLabel, isSearchCheckRequestBound } from './utils';
 
@@ -16,7 +20,7 @@ type Props = {
   locale?: string;
   timeZone?: string;
   onRetry?: () => void;
-  onContinue?: () => void;
+  onContinue?: (selection: PreparedPurchaseOption | null) => void;
   continueStatus?: 'idle' | 'sending' | 'sent' | 'error';
   continueError?: string | null;
 };
@@ -72,6 +76,31 @@ export function SearchQuotePanel({
   const requestBound = isSearchCheckRequestBound(resource.method);
   const copy = getQuoteCopy(quote.classification, requestBound);
   const routes = [...quote.routes].sort((a, b) => a.price - b.price);
+  const purchaseOptions = useMemo(
+    () =>
+      [...quote.purchaseOptions].sort((a, b) => {
+        const left = a.display.price;
+        const right = b.display.price;
+        if (left === null && right === null) return 0;
+        if (left === null) return 1;
+        if (right === null) return -1;
+        return left - right;
+      }),
+    [quote.purchaseOptions],
+  );
+  const [selectedPreparedId, setSelectedPreparedId] = useState<string | null>(
+    null,
+  );
+  const selectedPurchase =
+    purchaseOptions.find(
+      (option) =>
+        option.preparedPurchase.preparedId === selectedPreparedId
+        && option.availability.state === 'ready',
+    ) ?? null;
+  const requiresPurchaseSelection =
+    requestBound
+    && (quote.classification === 'paid' || quote.classification === 'hybrid')
+    && purchaseOptions.length > 0;
   const routeDisplayCounts = routes.reduce((counts, route) => {
     const key = routeDisplayKey(route);
     counts.set(key, (counts.get(key) ?? 0) + 1);
@@ -91,6 +120,18 @@ export function SearchQuotePanel({
     });
     return () => cancelAnimationFrame(frame);
   }, [quote.classification, resource.url]);
+
+  useEffect(() => {
+    setSelectedPreparedId((current) =>
+      purchaseOptions.some(
+        (option) =>
+          option.preparedPurchase.preparedId === current
+          && option.availability.state === 'ready',
+      )
+        ? current
+        : null,
+    );
+  }, [purchaseOptions, resource.url]);
 
   return (
     <section
@@ -130,7 +171,62 @@ export function SearchQuotePanel({
             : copy.body}
         </p>
 
-        {routes.length > 1 && (
+        {purchaseOptions.length > 0 ? (
+          <fieldset className="dx-search-quote__purchase-choices">
+            <legend>Choose how to buy</legend>
+            <ul>
+              {purchaseOptions.map((option) => {
+                const offer = option.preparedPurchase.route.sellerOffer;
+                const disabled = option.availability.state !== 'ready';
+                return (
+                  <li key={option.preparedPurchase.preparedId}>
+                    <label
+                      className={[
+                        'dx-search-quote__purchase-choice',
+                        selectedPreparedId === option.preparedPurchase.preparedId
+                          ? 'dx-search-quote__purchase-choice--selected'
+                          : '',
+                        disabled
+                          ? 'dx-search-quote__purchase-choice--disabled'
+                          : '',
+                      ].filter(Boolean).join(' ')}
+                    >
+                      <input
+                        type="radio"
+                        name="search-purchase-mode"
+                        checked={
+                          selectedPreparedId
+                          === option.preparedPurchase.preparedId
+                        }
+                        disabled={disabled}
+                        onChange={() =>
+                          setSelectedPreparedId(
+                            option.preparedPurchase.preparedId,
+                          )
+                        }
+                      />
+                      <span className="dx-search-quote__purchase-copy">
+                        <strong>{purchaseModeLabel(option.mode)}</strong>
+                        <small>
+                          {formatAssetLabel(offer.asset)}
+                          {' · '}
+                          {formatNetwork(offer.network)}
+                          {disabled
+                            ? ` · ${availabilityLabel(option)}`
+                            : ''}
+                        </small>
+                      </span>
+                      <span className="dx-search-quote__purchase-price">
+                        {option.display.priceFormatted
+                          ?? `${offer.amountAtomic} atomic`}
+                      </span>
+                    </label>
+                  </li>
+                );
+              })}
+            </ul>
+          </fieldset>
+        ) : routes.length > 1 ? (
           <details className="dx-search-quote__routes">
             <summary>
               {routes.length} ways to pay
@@ -154,7 +250,7 @@ export function SearchQuotePanel({
               ))}
             </ul>
           </details>
-        )}
+        ) : null}
 
         {(onRetry || (onContinue && actionLabel)) && (
           <div className="dx-search-quote__actions">
@@ -173,17 +269,22 @@ export function SearchQuotePanel({
                 color="primary"
                 variant="solid"
                 size="sm"
-                onClick={onContinue}
+                onClick={() => onContinue(selectedPurchase)}
                 disabled={
                   continueStatus === 'sending'
                   || continueStatus === 'sent'
+                  || (requiresPurchaseSelection && !selectedPurchase)
                 }
               >
                 {continueStatus === 'sending'
                   ? 'Opening review…'
                   : continueStatus === 'sent'
                     ? 'Opened in chat'
-                    : actionLabel}
+                    : requiresPurchaseSelection && !selectedPurchase
+                      ? 'Choose how to buy'
+                      : selectedPurchase
+                        ? `Review ${purchaseModeLabel(selectedPurchase.mode)}`
+                        : actionLabel}
               </Button>
             ) : null}
           </div>
@@ -203,6 +304,19 @@ export function SearchQuotePanel({
       </div>
     </section>
   );
+}
+
+function availabilityLabel(option: PreparedPurchaseOption): string {
+  switch (option.availability.state) {
+    case 'ready':
+      return 'Available';
+    case 'request_required':
+      return 'Price the exact request first';
+    case 'integration_required':
+      return 'Connection pending';
+    case 'unavailable':
+      return 'Not offered';
+  }
 }
 
 function getContinueLabel(

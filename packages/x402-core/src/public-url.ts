@@ -317,6 +317,18 @@ async function resolvePublicExternalUrl(
   return { url, addresses };
 }
 
+function withResolvedUrl(response: Response, resolvedUrl: string): Response {
+  // Response.url is normally supplied by the transport. The pinned Node HTTPS
+  // transport constructs a Web Response, so preserve the last validated hop
+  // explicitly for route-bound callers such as x402 pricing.
+  Object.defineProperty(response, 'url', {
+    configurable: true,
+    enumerable: true,
+    value: resolvedUrl,
+  });
+  return response;
+}
+
 /**
  * Fetch a public HTTPS URL after resolving every hop and rejecting private,
  * loopback, link-local, multicast, documentation, and other non-public ranges.
@@ -366,7 +378,7 @@ export async function fetchPublicExternalUrl(
           `Endpoint response exceeds the ${maxResponseBytes}-byte limit.`,
         );
       }
-      if (!response.body) return response;
+      if (!response.body) return withResolvedUrl(response, validated.url.href);
 
       const reader = response.body.getReader();
       const chunks: Uint8Array[] = [];
@@ -394,11 +406,11 @@ export async function fetchPublicExternalUrl(
         body.set(chunk, offset);
         offset += chunk.byteLength;
       }
-      return new Response(body, {
+      return withResolvedUrl(new Response(body, {
         status: response.status,
         statusText: response.statusText,
         headers: response.headers,
-      });
+      }), validated.url.href);
     }
     if (redirectCount >= maxRedirects) {
       await response.body?.cancel().catch(() => undefined);

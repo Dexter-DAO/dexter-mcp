@@ -2,7 +2,7 @@ import '../styles/sdk.css';
 import '../styles/widgets/x402-pricing.css';
 
 import { createRoot } from 'react-dom/client';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Badge } from '@openai/apps-sdk-ui/components/Badge';
 import { Alert } from '@openai/apps-sdk-ui/components/Alert';
@@ -26,25 +26,20 @@ import {
   pickFixInstructions,
 } from '../components/pricing';
 import type {
-  PaymentOption,
   PricingPayload,
   PricingInput,
   HistoryRow,
 } from '../components/pricing';
+import {
+  normalizePreparedPurchaseOptions,
+  purchaseModeLabel,
+} from '../components/x402/purchase-model';
 
 const WORDMARK_URL = 'https://dexter.cash/wordmarks/dexter-wordmark.svg';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Pure helpers
 // ─────────────────────────────────────────────────────────────────────────────
-
-function pickCheapestIndex(options: PaymentOption[]): number {
-  if (!options.length) return -1;
-  return options.reduce(
-    (best, current, idx) => (current.price < options[best].price ? idx : best),
-    0,
-  );
-}
 
 function isFreeEndpoint(payload: PricingPayload): boolean {
   if (payload.free) return true;
@@ -131,10 +126,36 @@ function PricingCheck() {
   const maxHeight = useMaxHeight();
   const containerRef = useIntrinsicHeight();
   const loadingElapsed = useElapsedSeconds(!toolOutput);
+  const purchaseOptions = useMemo(
+    () => normalizePreparedPurchaseOptions(toolOutput?.purchaseOptions),
+    [toolOutput?.purchaseOptions],
+  );
+  const [selectedPreparedId, setSelectedPreparedId] = useState<string | null>(
+    null,
+  );
+  const [continueState, setContinueState] = useState<
+    { status: 'idle' | 'sending' | 'sent' | 'error'; message?: string }
+  >({ status: 'idle' });
+  const continuationInFlight = useRef(false);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
+
+  useEffect(() => {
+    setSelectedPreparedId((current) =>
+      purchaseOptions.some(
+        (option) => option.preparedPurchase.preparedId === current,
+      )
+        ? current
+        : null,
+    );
+  }, [purchaseOptions]);
+
+  useEffect(() => {
+    continuationInFlight.current = false;
+    setContinueState({ status: 'idle' });
+  }, [selectedPreparedId, toolOutput]);
 
   // Live-first-render flag drives entrance choreography on the verdict block.
   // useMemo so it locks in at first render — no flicker on re-renders.
@@ -241,9 +262,25 @@ function PricingCheck() {
   }
 
   // Paid — happy path
-  const options = toolOutput.paymentOptions || [];
-  const cheapestIndex = pickCheapestIndex(options);
-  const selectedPrice = cheapestIndex >= 0 ? options[cheapestIndex].priceFormatted : null;
+  const readyOptions = purchaseOptions.filter(
+    (option) => option.availability.state === 'ready',
+  );
+  const featuredOption = readyOptions.reduce<
+    (typeof readyOptions)[number] | null
+  >((best, option) => {
+    if (!best) return option;
+    const currentPrice = option.display.price;
+    const bestPrice = best.display.price;
+    if (currentPrice === null) return best;
+    if (bestPrice === null || currentPrice < bestPrice) return option;
+    return best;
+  }, null);
+  const selectedOption =
+    purchaseOptions.find(
+      (option) =>
+        option.preparedPurchase.preparedId === selectedPreparedId,
+    ) ?? null;
+  const selectedPrice = selectedOption?.display.priceFormatted ?? null;
 
   const enrichment = toolOutput.enrichment ?? null;
   const recent: HistoryRow[] = enrichment?.history?.recent ?? [];
@@ -260,12 +297,35 @@ function PricingCheck() {
     : null;
 
   const handleContinue = async () => {
-    if (!toolInput?.url || !sendFollowUp) return;
-    await sendFollowUp(
-      `I want to call ${toolInput.url} with ${toolInput.method || 'GET'}. ` +
-      `The displayed price is ${selectedPrice || 'not yet confirmed'}. ` +
-      'Show me the exact request body and maximum USDC charge, then ask for my confirmation before paying.',
-    );
+    if (
+      !toolInput?.url
+      || !sendFollowUp
+      || !selectedOption
+      || continuationInFlight.current
+      || continueState.status === 'sending'
+      || continueState.status === 'sent'
+    ) {
+      return;
+    }
+    const offer = selectedOption.preparedPurchase.route.sellerOffer;
+    continuationInFlight.current = true;
+    setContinueState({ status: 'sending' });
+    try {
+      await sendFollowUp(
+        `I selected ${purchaseModeLabel(selectedOption.mode)} for ${toolInput.url} with ${toolInput.method || 'GET'}. ` +
+        `The seller quote is ${selectedPrice || `${offer.amountAtomic} atomic units`} on ${offer.network} using ${offer.asset}. ` +
+        `Preserve this prepared purchase exactly: ${JSON.stringify(selectedOption.preparedPurchase)}. ` +
+        `Preserve this prepared request body exactly: ${toolOutput.preparedPayload ?? 'none'}. ` +
+        'Show me the exact request and atomic-unit ceiling, then ask for my confirmation before paying. Only call x402_fetch after that explicit confirmation. Do not change the seller offer, route, or purchase mode.',
+      );
+      setContinueState({ status: 'sent' });
+    } catch {
+      continuationInFlight.current = false;
+      setContinueState({
+        status: 'error',
+        message: 'Couldn’t open the review in chat. Try again.',
+      });
+    }
   };
 
   return (
@@ -283,7 +343,26 @@ function PricingCheck() {
 
       {fixText ? <DoctorDexterCard fixText={fixText} animate={animate} /> : null}
 
-      <PaymentRoutes options={options} cheapestIndex={cheapestIndex} />
+      {purchaseOptions.length ? (
+        <PaymentRoutes
+          options={purchaseOptions}
+          featuredPreparedId={
+            featuredOption?.preparedPurchase.preparedId ?? null
+          }
+          selectedPreparedId={selectedPreparedId}
+          onSelect={(option) => {
+            if (option.availability.state === 'ready') {
+              setSelectedPreparedId(option.preparedPurchase.preparedId);
+            }
+          }}
+        />
+      ) : (
+        <Alert
+          color="warning"
+          title="Prepare this purchase again"
+          description="This quote predates route-bound purchase modes. Run x402_check again before paying."
+        />
+      )}
 
       <ResponseShape
         run={primaryRun}
@@ -292,7 +371,28 @@ function PricingCheck() {
       />
 
       {toolInput?.url && sendFollowUp ? (
-        <FetchAction selectedPrice={selectedPrice} onFetch={handleContinue} />
+        <>
+          <FetchAction
+            selectedPrice={selectedPrice}
+            selectedMode={
+              selectedOption ? purchaseModeLabel(selectedOption.mode) : null
+            }
+            status={continueState.status}
+            disabled={
+              !selectedOption
+              || continueState.status === 'sending'
+              || continueState.status === 'sent'
+            }
+            onFetch={handleContinue}
+          />
+          {continueState.status === 'error' ? (
+            <Alert
+              color="danger"
+              title="Couldn’t open chat"
+              description={continueState.message}
+            />
+          ) : null}
+        </>
       ) : null}
 
       <DebugPanel widgetName="x402-pricing" />
@@ -306,7 +406,7 @@ function PricingCheck() {
 
 const root = document.getElementById('x402-pricing-root');
 if (root) {
-  root.setAttribute('data-widget-build', '2026-05-04.1');
+  root.setAttribute('data-widget-build', '2026-07-26.2');
   createRoot(root).render(<PricingCheck />);
 }
 

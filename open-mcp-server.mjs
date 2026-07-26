@@ -37,6 +37,14 @@ import { fetchVaultStateBySession, fetchVaultStateByUserHandle } from './lib/pai
 import { shouldChallengeSpend } from './lib/spend-challenge.mjs';
 import { applyRailTabOffer } from './lib/rail-tab-offer.mjs';
 import {
+  PURCHASE_CONTRACT_VERSION,
+  PURCHASE_MODES,
+  attachPurchaseReceipt,
+  buildPurchaseIntegrationRequired,
+  buildPurchaseOptions,
+  validatePurchaseExecution,
+} from './lib/open-purchase-contract.mjs';
+import {
   fetchSessionPortfolio,
   numericPortfolioSummary,
 } from './lib/session-portfolio.mjs';
@@ -456,11 +464,11 @@ async function x402Search({ query, limit, unverified, testnets, rerank, network 
 // ─── Tool: x402_pay ─────────────────────────────────────────────────────────
 
 async function x402Pay(
-  { url, method, body, multipart, sessionToken, sessionKey, tab, maxAmountAtomic },
+  { url, method, body, multipart, sessionToken, sessionKey, tab, maxAmountAtomic, purchase },
   extra,
 ) {
   const result = await x402Fetch(
-    { url, method, body, multipart, sessionToken, sessionKey, tab, maxAmountAtomic },
+    { url, method, body, multipart, sessionToken, sessionKey, tab, maxAmountAtomic, purchase },
     extra,
   );
   return {
@@ -480,6 +488,7 @@ const MCP_MULTIPART_CONTROL_KEYS = new Set([
   'method',
   'requestId',
   'maxAmountAtomic',
+  'purchase',
 ]);
 
 /**
@@ -574,6 +583,33 @@ function buildVaultPaymentTransportError(requestId = null) {
 // (no silent downgrade to handle mode). Mirror of dexter-api's SESSION_ID_RE.
 const PAY_SESSION_ID_RE = /^[A-Za-z0-9_.\-]{1,256}$/;
 const MAX_AMOUNT_ATOMIC_RE = /^[1-9]\d{0,19}$/;
+const PREPARED_PURCHASE_SCHEMA = z.object({
+  contractVersion: z.literal(PURCHASE_CONTRACT_VERSION),
+  preparedId: z.string().min(8).max(128),
+  state: z.literal('prepared'),
+  preparedAt: z.string(),
+  expiresAt: z.string().nullable(),
+  mode: z.enum(PURCHASE_MODES),
+  route: z.object({
+    routeId: z.string().min(8),
+    resourceUrl: z.string().url(),
+    resolvedUrl: z.string().url(),
+    method: z.enum(['GET', 'POST', 'PUT', 'DELETE']),
+    payloadSha256: z.string().regex(/^[a-f0-9]{64}$/),
+    sellerOffer: z.object({
+      offerId: z.string().min(8),
+      x402Version: z.union([z.literal(1), z.literal(2)]),
+      scheme: z.string().min(1),
+      network: z.string().min(1),
+      asset: z.string().min(1),
+      amountAtomic: z.string().regex(/^[1-9]\d*$/),
+      payTo: z.string().min(1),
+      facilitator: z.string().nullable(),
+      expiresAt: z.string().nullable(),
+      rawAcceptSha256: z.string().regex(/^[a-f0-9]{64}$/),
+    }),
+  }),
+});
 
 // Internal-auth headers for dexter-api's HMAC-gated lookups (same scheme as
 // /pair/link-token/bind: HMAC-SHA256 over `${ts}.${value}` with the shared
@@ -590,7 +626,7 @@ function signedInternalHeaders(value) {
 }
 
 async function x402Fetch(
-  { url, method, body, multipart, sessionToken, sessionKey, tab, maxAmountAtomic },
+  { url, method, body, multipart, sessionToken, sessionKey, tab, maxAmountAtomic, purchase },
   extra,
 ) {
   // The public schema requires this field, and dexter-api independently checks
@@ -611,6 +647,86 @@ async function x402Fetch(
     };
   }
 
+  let validatedPurchase = null;
+  if (purchase !== undefined) {
+    if (multipart) {
+      return {
+        status: 400,
+        mode: 'purchase_contract_error',
+        phase: 'pre_dispatch',
+        retryable: false,
+        error: 'prepared_purchase_multipart_not_supported',
+        message:
+          'A multipart purchase needs a prepared manifest containing file hashes. Nothing was dispatched.',
+        payment: { dispatched: false, settled: false },
+      };
+    }
+    const validation = validatePurchaseExecution({
+      purchase,
+      url,
+      method: method || 'GET',
+      payload: body ?? null,
+      approvedAmountCeilingAtomic: maxAmountAtomic,
+      allowedModes: PURCHASE_MODES,
+    });
+    if (!validation.ok) {
+      return {
+        status: 400,
+        mode: 'purchase_contract_error',
+        phase: 'pre_dispatch',
+        retryable: false,
+        error: validation.code,
+        message: validation.message,
+        payment: { dispatched: false, settled: false },
+      };
+    }
+    validatedPurchase = validation.value;
+    // The current legacy anonymous-pay endpoint does not claim or enforce
+    // opendexter.purchase.v1 before dispatch. Sending an explicit purchase to
+    // it could let that backend reselect another rail, asset, or offer and
+    // only reveal the mismatch after money moved. Every explicit hosted mode
+    // therefore stops here until A3 supplies the durable prepare/execute
+    // contract documented in docs/contracts/OPENDXTER-PURCHASE-V1.md.
+    return buildPurchaseIntegrationRequired(
+      purchase,
+      maxAmountAtomic,
+      `${validatedPurchase.mode}_durable_backend_required`,
+    );
+  }
+
+  const withPurchaseReceipt = (result, backendReceipt = null) => {
+    if (!validatedPurchase) return result;
+    const continuationBeforeDispatch = new Set([
+      'authentication_required',
+      'vault_not_activated',
+      'vault_read_error',
+    ]).has(result?.mode);
+    const normalizedResult =
+      continuationBeforeDispatch
+        ? {
+            ...result,
+            payment: {
+              ...(result?.payment && typeof result.payment === 'object'
+                ? result.payment
+                : {}),
+              dispatched: false,
+              settled: false,
+            },
+          }
+        : result;
+    return attachPurchaseReceipt(normalizedResult, validatedPurchase, {
+      correlationId:
+        normalizedResult?.merchantCorrelationId
+        || normalizedResult?.requestId
+        || validatedPurchase.preparedId,
+      backendReceipt,
+      preDispatchRetry:
+        continuationBeforeDispatch
+          ? 'same_prepared_only'
+          : 'new_prepare_required',
+    });
+  };
+
   // This preflight prevents local/private destinations from reaching either
   // the direct probe or the paid backend. dexter-api must repeat the same check
   // at connection time to close its own DNS-rebinding window.
@@ -621,13 +737,14 @@ async function x402Fetch(
   // unknown offer → the legacy object below passes through UNTOUCHED (same
   // reference — the mode-gate that lets this deploy before the api side).
   // `tab: false` suppresses all offer rendering (x402-mcp-tools parity).
-  const tabEnabled = tab !== false;
+  const tabEnabled = !validatedPurchase && tab !== false;
   const offerCall = {
     url,
     method,
     body,
     ...(multipart ? { multipart } : {}),
     maxAmountAtomic,
+    ...(purchase ? { purchase } : {}),
   };
   // ── Non-custodial passkey-vault path (the ONLY way to pay here) ───────────
   // The remote MCP URL holds NO funds of its own. The buyer's identity is the
@@ -690,7 +807,7 @@ async function x402Fetch(
         const onchainPending = vaultState.onchain || null;
         const pendingUsdc = Number(String(onchainPending?.usdcAtomic ?? '0')) / 1e6;
         console.log(`[x402Fetch] vault not activated ref=${logRef(user_handle)}`);
-        return {
+        return withPurchaseReceipt({
           status: 402,
           mode: 'vault_not_activated',
           paySource: 'anon_vault',
@@ -712,6 +829,7 @@ async function x402Fetch(
             method: method || 'GET',
             body: body ?? null,
             maxAmountAtomic,
+            ...(purchase ? { purchase } : {}),
           },
           message:
             pendingUsdc > 0
@@ -722,7 +840,7 @@ async function x402Fetch(
             'Show the user activate_url and ask them to open dexter.cash/wallet and tap any action (withdraw, pay) to activate. ' +
             'Once activated, re-run this exact x402_fetch (see retry) to complete payment.',
           reason: 'vault_not_activated',
-        };
+        });
       }
     } catch (activationCheckErr) {
       // Non-fatal: if the status check fails, proceed to the pay attempt and let
@@ -730,7 +848,7 @@ async function x402Fetch(
       console.warn(`[x402Fetch] vault activation check failed, proceeding (${safeErrorLabel(activationCheckErr)})`);
     }
 
-    const requestId = randomUUID();
+    const requestId = validatedPurchase?.preparedId || randomUUID();
     try {
       const anonStart = Date.now();
 
@@ -740,27 +858,27 @@ async function x402Fetch(
       if (multipart && typeof multipart === 'object') {
         const requestedMethod = (method || 'POST').toUpperCase();
         if (requestedMethod !== 'POST' && requestedMethod !== 'PUT') {
-          return normalizeAnonVaultFetchResponse({
+          return withPurchaseReceipt(normalizeAnonVaultFetchResponse({
             body: {
               error: 'method_not_supported_for_multipart',
               message: 'Multipart x402 endpoints only accept POST or PUT.',
             },
             httpStatus: 400,
             requestId,
-          }).response;
+          }).response);
         }
         let loadedFiles;
         try {
           loadedFiles = await readMultipartFiles(multipart.files || []);
         } catch (err) {
-          return normalizeAnonVaultFetchResponse({
+          return withPurchaseReceipt(normalizeAnonVaultFetchResponse({
             body: {
               error: 'multipart_files_invalid',
               message: err?.message || 'Unable to read multipart files.',
             },
             httpStatus: 400,
             requestId,
-          }).response;
+          }).response);
         }
         const fd = new FormData();
         // Session mode (money-path part 3): spend authenticates against this
@@ -771,6 +889,9 @@ async function x402Fetch(
         fd.append('method', requestedMethod);
         fd.append('requestId', requestId);
         fd.append('maxAmountAtomic', maxAmountAtomic);
+        if (validatedPurchase) {
+          fd.append('purchase', JSON.stringify(purchase));
+        }
         const extraFields = (multipart.fields && typeof multipart.fields === 'object') ? multipart.fields : {};
         for (const [k, v] of Object.entries(extraFields)) {
           if (MCP_MULTIPART_CONTROL_KEYS.has(k)) continue;
@@ -795,15 +916,18 @@ async function x402Fetch(
         // A rejected or uncertain dispatched payment must never be transformed
         // into a retry-bearing tab offer.
         if (normalized.dispatched && !normalized.succeeded) {
-          return normalized.response;
+          return withPurchaseReceipt(
+            normalized.response,
+            anonBody?.purchaseReceipt,
+          );
         }
-        return applyRailTabOffer({
+        return withPurchaseReceipt(applyRailTabOffer({
           legacy: normalized.response,
           anonBody,
           tabEnabled,
           succeeded: normalized.succeeded,
           call: offerCall,
-        });
+        }), anonBody?.purchaseReceipt);
       }
 
       // JSON branch — original /v2/pay/anon/x402/fetch.
@@ -820,6 +944,11 @@ async function x402Fetch(
           body: body ?? null,
           requestId,
           maxAmountAtomic,
+          ...(validatedPurchase
+            ? {
+                purchase,
+              }
+            : {}),
         }),
         // Must exceed dexter-api's 60s paid-retry window: a shorter client
         // timeout abandons mid-settlement and the retry double-spends.
@@ -834,32 +963,35 @@ async function x402Fetch(
         requestId,
       });
       if (normalized.dispatched && !normalized.succeeded) {
-        return normalized.response;
+        return withPurchaseReceipt(
+          normalized.response,
+          anonBody?.purchaseReceipt,
+        );
       }
-      return applyRailTabOffer({
+      return withPurchaseReceipt(applyRailTabOffer({
         legacy: normalized.response,
         anonBody,
         tabEnabled,
         succeeded: normalized.succeeded,
         call: offerCall,
-      });
+      }), anonBody?.purchaseReceipt);
     } catch (err) {
       console.warn(`[x402_fetch] anonymous paid call failed (${safeErrorLabel(err)})`);
       // Network/timeout talking to the vault path. FAIL CLOSED — never leak
       // into a custodial charge or pretend the known wallet needs reconnecting.
       // The payment may be ambiguous, so the response exposes no automatic
       // retry instruction.
-      return buildVaultPaymentTransportError(requestId);
+      return withPurchaseReceipt(buildVaultPaymentTransportError(requestId));
     }
   }
   if (bindingLookupFailed) {
-    return buildVaultReadError();
+    return withPurchaseReceipt(buildVaultReadError());
   }
   // No handle resolved — this session has no passkey vault bound. Route the
   // caller through the host-native OAuth connection. Do not mint a vpair or
   // ask the user to replace the stable MCP URL with a personalized one.
   if (sessionIdForAnon) {
-    return buildVaultAuthenticationRequired({
+    return withPurchaseReceipt(buildVaultAuthenticationRequired({
       tool: 'x402_fetch',
       reason: 'no_vault_bound',
       retry: {
@@ -868,8 +1000,9 @@ async function x402Fetch(
         method: method || 'GET',
         body: body ?? null,
         maxAmountAtomic,
+        ...(purchase ? { purchase } : {}),
       },
-    });
+    }));
   }
 
   const fetchOpts = { method: method || 'GET', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(15000) };
@@ -884,7 +1017,7 @@ async function x402Fetch(
     let data;
     if (ct.includes('json')) { try { data = await probeRes.json(); } catch { data = await probeRes.text(); } }
     else { data = await probeRes.text(); }
-    return { status: probeRes.status, data };
+    return withPurchaseReceipt({ status: probeRes.status, data });
   }
 
   let body402 = null;
@@ -897,7 +1030,7 @@ async function x402Fetch(
 
   // This is a 402 reached without a bound vault. Preserve the checked price
   // and original call, then ask the host to run the native vault OAuth flow.
-  return buildVaultAuthenticationRequired({
+  return withPurchaseReceipt(buildVaultAuthenticationRequired({
     tool: 'x402_fetch',
     retry: {
       tool: 'x402_fetch',
@@ -905,11 +1038,12 @@ async function x402Fetch(
       method: method || 'GET',
       body: body ?? null,
       maxAmountAtomic,
+      ...(purchase ? { purchase } : {}),
     },
     requirements,
     merchantSettlement: buildMerchantSettlement(requirements),
     reason: 'no_vault_bound',
-  });
+  }));
 }
 
 // ─── Tool: x402_access (wallet-proof auth) ──────────────────────────────────
@@ -1687,7 +1821,7 @@ function createOpenMcpServer() {
 
   registerOpenTool(server, 'x402_pay', {
     title: 'x402 Pay',
-    description: "Alias for x402_fetch. Prefer x402_fetch for paid API calls. Use only after the user approves the exact URL, method, body, and maximum charge; pass that approved USDC atomic-unit ceiling as maxAmountAtomic. Payment comes from the user's own Dexter wallet. A missing or stale vault authorization triggers the host's native OpenDexter connection flow while preserving the approved ceiling.",
+    description: "Alias for x402_fetch. Prefer x402_fetch for paid API calls. After x402_check, preserve its exact preparedPurchase and pass it here as purchase with the user-approved maxAmountAtomic ceiling. purchase.mode explicitly selects direct_exact, native_tab, gateway_cash, or gateway_credit; OpenDexter never silently changes that mode. In this hosted candidate, every explicit-mode call stops before payment with integration_required until the durable backend contract is connected.",
     // Schema is byte-identical to x402_fetch's (drift register Q3): the
     // instructions promise "x402_pay, identical" — so it must accept the
     // same body typing and multipart uploads, not a divergent subset.
@@ -1696,6 +1830,7 @@ function createOpenMcpServer() {
       method: z.enum(['GET', 'POST', 'PUT', 'DELETE']).default('GET').describe('HTTP method'),
       body: z.string().optional().describe('JSON request body for POST/PUT — the RAW payload the seller expects, e.g. {"q":"latest news"}. NEVER send a schema descriptor (anything shaped like {"type":"http","method":...,"bodyType":...,"body":{...}}) — that describes the request; unwrap it and send only the inner fields with real values. Field names come from the search result\'s inputSchema or x402_check.'),
       maxAmountAtomic: z.string().regex(MAX_AMOUNT_ATOMIC_RE).describe('Required user-approved maximum charge in USDC atomic units (positive 1-20 digit decimal string). Pass the exact approved quote ceiling; the payment is rejected if the current quote exceeds it.'),
+      purchase: PREPARED_PURCHASE_SCHEMA.optional().describe('Exact prepared purchase returned by x402_check. When present, URL, method, body digest, seller offer, route, mode, and prepared identity are pinned; a mismatch fails before dispatch. Omit only for legacy clients that have not adopted opendexter.purchase.v1.'),
       multipart: z.object({
         files: z.array(z.object({
           fieldName: z.string().describe('Form field name expected by the x402 endpoint.'),
@@ -1705,7 +1840,7 @@ function createOpenMcpServer() {
         })).describe('Files to upload as multipart parts.'),
         fields: z.record(z.string()).optional().describe('Extra text fields to include in the multipart body.'),
       }).optional().describe('Pass to upload files to a multipart x402 endpoint (image-gen, transcription, document processing). Vault-paid, Solana-only.'),
-      tab: z.boolean().optional().describe('Running-tab offers (default true): when this seller supports a running tab, the response includes the offer. Set false to hide tab offers for this call and pay one-shot only.'),
+      tab: z.boolean().optional().describe('Legacy compatibility only. It controls whether an old API tab invitation is displayed; it does not select a purchase mode. New calls select native_tab or direct_exact through purchase.mode.'),
     },
     annotations: { destructiveHint: true },
     _meta: PAY_META,
@@ -1733,12 +1868,13 @@ function createOpenMcpServer() {
 
   registerOpenTool(server, 'x402_fetch', {
     title: 'x402 Fetch',
-    description: "Call an x402-protected API after the user approves the exact URL, method, body, and maximum charge. Pass the approved USDC atomic-unit ceiling as maxAmountAtomic. Payment comes from the user's own Dexter wallet and is rejected if the current quote exceeds that ceiling. A missing or stale vault authorization triggers the host's native OpenDexter connection flow while preserving the approved call. The vault settles in USDC on Solana.",
+    description: "Call an x402-protected API after x402_check and explicit user approval. Preserve the check's exact preparedPurchase as purchase and pass the approved atomic-unit ceiling as maxAmountAtomic. purchase.mode selects direct_exact, native_tab, gateway_cash, or gateway_credit; the server never silently changes modes. In this hosted candidate, every explicit-mode call stops before payment with integration_required until the durable backend contract is connected.",
     inputSchema: {
       url: z.string().url().describe('The x402 resource URL to call'),
       method: z.enum(['GET', 'POST', 'PUT', 'DELETE']).default('GET').describe('HTTP method'),
       body: z.string().optional().describe('JSON request body for POST/PUT — the RAW payload the seller expects, e.g. {"q":"latest news"}. NEVER send a schema descriptor (anything shaped like {"type":"http","method":...,"bodyType":...,"body":{...}}) — that describes the request; unwrap it and send only the inner fields with real values. Field names come from the search result\'s inputSchema or x402_check.'),
       maxAmountAtomic: z.string().regex(MAX_AMOUNT_ATOMIC_RE).describe('Required user-approved maximum charge in USDC atomic units (positive 1-20 digit decimal string). Pass the exact approved quote ceiling; the payment is rejected if the current quote exceeds it.'),
+      purchase: PREPARED_PURCHASE_SCHEMA.optional().describe('Exact prepared purchase returned by x402_check. When present, URL, method, body digest, seller offer, route, mode, and prepared identity are pinned; a mismatch fails before dispatch. Omit only for legacy clients that have not adopted opendexter.purchase.v1.'),
       multipart: z.object({
         files: z.array(z.object({
           fieldName: z.string().describe('Form field name expected by the x402 endpoint.'),
@@ -1748,7 +1884,7 @@ function createOpenMcpServer() {
         })).describe('Files to upload as multipart parts.'),
         fields: z.record(z.string()).optional().describe('Extra text fields to include in the multipart body.'),
       }).optional().describe('Pass to upload files to a multipart x402 endpoint (image-gen, transcription, document processing). Vault-paid, Solana-only.'),
-      tab: z.boolean().optional().describe('Running-tab offers (default true): when this seller supports a running tab, the response includes the offer. Set false to hide tab offers for this call and pay one-shot only.'),
+      tab: z.boolean().optional().describe('Legacy compatibility only. It controls whether an old API tab invitation is displayed; it does not select a purchase mode. New calls select native_tab or direct_exact through purchase.mode.'),
     },
     annotations: { destructiveHint: true },
     _meta: FETCH_META,
@@ -1780,7 +1916,7 @@ function createOpenMcpServer() {
 
   registerOpenTool(server, 'x402_check', {
     title: 'x402 Check',
-    description: 'Probe an endpoint for x402 payment requirements without paying. Returns pricing options per chain (Solana, Base, and others if supported), input/output schema, and the payTo address for each chain. When the endpoint is in the Dexter catalog, also returns enrichment data: quality score, AI verifier verdict + notes, recent verification history (3 most recent runs), display name, description, hit count, and response shape — so the caller can present a "should I pay $0.05 to call this?" decision rather than a bare price list. Use this to preview costs before calling x402_fetch. For input-dependent pricing (price varies by request — e.g. 10 vs 1000 results, 5s vs 30s of compute), pass sampleInputBody to get pricing for that exact request rather than the endpoint\'s default/advisory price.',
+    description: 'Probe an endpoint for x402 payment requirements without paying. Returns lossless seller terms and explicit purchaseOptions for direct_exact, native_tab, gateway_cash, and gateway_credit, including each mode\'s current availability. Every prepared option pins the URL, method, request digest, seller offer, route, network, asset, atomic amount, and prepared identity. Also returns input/output schema and catalog quality evidence when available. For input-dependent pricing, pass sampleInputBody for the exact non-GET request; otherwise its options are request_required and cannot execute.',
     inputSchema: {
       url: z.string().url().describe('The URL to check'),
       method: z.enum(['GET', 'POST', 'PUT', 'DELETE']).default('GET').describe('HTTP method to probe with'),
@@ -1825,8 +1961,24 @@ function createOpenMcpServer() {
         enrichmentSource = `error:${enrichErr?.name || 'unknown'}`;
       }
 
+      const preparedPayload =
+        (args.method || 'GET') === 'GET'
+          ? null
+          : JSON.stringify(args.sampleInputBody ?? {});
       const merged = {
         ...result,
+        purchaseContractVersion: PURCHASE_CONTRACT_VERSION,
+        preparedPayload,
+        purchaseOptions: buildPurchaseOptions({
+          checkResult: result,
+          url: args.url,
+          method: args.method || 'GET',
+          payload: preparedPayload,
+          requestBound:
+            (args.method || 'GET') === 'GET'
+            || Object.prototype.hasOwnProperty.call(args, 'sampleInputBody'),
+          surface: 'hosted',
+        }),
         enrichment,
         enrichment_source: enrichmentSource,
       };
@@ -1836,7 +1988,15 @@ function createOpenMcpServer() {
       // Anthropic proxy's content validator and breaking the widget render.
       // The structuredContent still carries everything the widget needs.
       return {
-        content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            ...result,
+            purchaseContractVersion: merged.purchaseContractVersion,
+            preparedPayload: merged.preparedPayload,
+            purchaseOptions: merged.purchaseOptions,
+          }, null, 2),
+        }],
         structuredContent: merged,
         _meta: CHECK_META,
       };

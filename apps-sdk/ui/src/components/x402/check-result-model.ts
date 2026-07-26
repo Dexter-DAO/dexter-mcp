@@ -2,6 +2,10 @@ import type {
   CheckResult,
   PaymentOption,
 } from '../../../../../packages/x402-core/src/check.js';
+import {
+  normalizePreparedPurchaseOptions,
+  type PreparedPurchaseOption,
+} from './purchase-model.ts';
 
 /**
  * Reader-facing classifications for an x402_check result.
@@ -47,6 +51,7 @@ export type X402CheckState = Readonly<{
   paymentStatus: 'not_attempted';
   paymentOccurred: false;
   routes: readonly X402PaymentRoute[];
+  purchaseOptions: readonly PreparedPurchaseOption[];
   inputSchema: unknown | null;
   outputSchema: unknown | null;
   resource: unknown | null;
@@ -99,7 +104,8 @@ function routeKey(route: Omit<X402PaymentRoute, 'routeKey'>): string {
     route.asset,
     route.scheme,
     route.payTo,
-    route.price,
+    route.amountAtomic ?? route.price,
+    route.facilitator ?? null,
   ]);
 }
 
@@ -127,6 +133,10 @@ export function normalizeX402PaymentRoutes(value: unknown): X402PaymentRoute[] {
       scheme: nullableString(candidate.scheme),
       asset: nullableString(candidate.asset),
       payTo: nullableString(candidate.payTo),
+      amountAtomic: nullableString(candidate.amountAtomic),
+      decimals: nullableInteger(candidate.decimals),
+      facilitator: nullableString(candidate.facilitator),
+      expiresAt: nullableString(candidate.expiresAt),
     } satisfies PaymentOption;
     const key = routeKey(route);
 
@@ -287,6 +297,9 @@ function readerCopy(
 export function normalizeX402CheckResult(value: unknown): X402CheckState {
   const payload = isRecord(value) ? value : {};
   const routes = normalizeX402PaymentRoutes(payload.paymentOptions);
+  const purchaseOptions = normalizePreparedPurchaseOptions(
+    payload.purchaseOptions,
+  );
   const authMode = canonicalAuthMode(payload.authMode);
   const statusCode = nullableInteger(payload.statusCode);
   const classification = classify(payload, authMode, routes, statusCode);
@@ -308,6 +321,7 @@ export function normalizeX402CheckResult(value: unknown): X402CheckState {
     paymentStatus: 'not_attempted',
     paymentOccurred: false,
     routes,
+    purchaseOptions,
     inputSchema: payload.inputSchema ?? null,
     outputSchema: payload.outputSchema ?? null,
     resource: payload.resource ?? null,

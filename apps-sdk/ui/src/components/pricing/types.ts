@@ -4,6 +4,8 @@
  * by open-mcp-server.mjs after merging the live probe with /api/x402/resource.
  */
 
+import type { PreparedPurchaseOption } from '../x402/purchase-model';
+
 export type PaymentOption = {
   price: number;
   priceFormatted: string;
@@ -11,6 +13,10 @@ export type PaymentOption = {
   scheme: string;
   asset: string;
   payTo: string;
+  amountAtomic?: string | null;
+  decimals?: number | null;
+  facilitator?: string | null;
+  expiresAt?: string | null;
 };
 
 export type ResponseKind =
@@ -114,6 +120,9 @@ export type PricingPayload = {
   statusCode?: number;
   x402Version?: number;
   paymentOptions?: PaymentOption[];
+  purchaseContractVersion?: string;
+  preparedPayload?: string | null;
+  purchaseOptions?: PreparedPurchaseOption[];
   free?: boolean;
   authRequired?: boolean;
   message?: string;
@@ -124,7 +133,11 @@ export type PricingPayload = {
   enrichment_source?: string;
 };
 
-export type PricingInput = { url?: string; method?: string };
+export type PricingInput = {
+  url?: string;
+  method?: string;
+  sampleInputBody?: Record<string, unknown>;
+};
 
 /** Pick the most recent passed run from the recent[] slice, falling back to
  *  the absolute most recent run if none passed. The Professor card uses this

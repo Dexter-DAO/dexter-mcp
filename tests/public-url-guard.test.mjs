@@ -97,6 +97,33 @@ test('fetch guard preserves a public non-redirect response', async () => {
     },
   );
   assert.equal(response.status, 402);
+  assert.equal(response.url, 'https://example.com/price');
+});
+
+test('fetch guard reports the final validated public redirect URL', async () => {
+  const seen = [];
+  const response = await fetchPublicExternalUrl(
+    'https://example.com/start',
+    { method: 'GET' },
+    {
+      lookupFn: publicLookup,
+      fetchFn: async (url) => {
+        seen.push(url.href);
+        if (url.pathname === '/start') {
+          return new Response(null, {
+            status: 302,
+            headers: { location: '/priced' },
+          });
+        }
+        return new Response('payment required', { status: 402 });
+      },
+    },
+  );
+  assert.deepEqual(seen, [
+    'https://example.com/start',
+    'https://example.com/priced',
+  ]);
+  assert.equal(response.url, 'https://example.com/priced');
 });
 
 test('pinned lookup returns only the address that passed validation', async () => {

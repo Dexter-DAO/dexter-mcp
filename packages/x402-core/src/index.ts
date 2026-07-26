@@ -57,7 +57,12 @@ export {
 } from './response.js';
 
 // Endpoint pricing probe
-export { checkEndpointPricing, parsePaymentRequiredHeader } from './check.js';
+export {
+  checkEndpointPricing,
+  exactAtomicString,
+  parsePaymentRequiredHeader,
+  sellerAcceptSha256,
+} from './check.js';
 export type { CheckResult, PaymentOption } from './check.js';
 
 // Public-URL guard used by probes that accept caller-supplied endpoints.

@@ -9,6 +9,7 @@
 
 import { extractBazaarSchema } from './bazaar.js';
 import { fetchPublicExternalUrl } from './public-url.js';
+import { createHash } from 'node:crypto';
 
 export interface PaymentOption {
   price: number;
@@ -17,6 +18,16 @@ export interface PaymentOption {
   scheme: string | null;
   asset: string | null;
   payTo: string | null;
+  /** Exact seller amount. Never derive execution terms from `price`. */
+  amountAtomic?: string | null;
+  /** Display decimals reported by the seller. */
+  decimals?: number | null;
+  /** Facilitator selected by the seller, when the offer names one. */
+  facilitator?: string | null;
+  /** Offer expiry, when the seller publishes one. */
+  expiresAt?: string | null;
+  /** Canonical SHA-256 witness of the complete seller accept object. */
+  rawAcceptSha256?: string | null;
 }
 
 /**
@@ -40,6 +51,8 @@ export interface CheckResult {
   message?: string;
   x402Version?: number;
   paymentOptions?: PaymentOption[];
+  /** Final URL after the guarded pricing probe's redirect chain. */
+  resolvedUrl?: string;
   resource?: unknown;
   /** @deprecated use inputSchema/outputSchema instead. Kept for backward compat with v1.0.x consumers. */
   schema?: unknown;
@@ -57,6 +70,37 @@ export interface CheckResult {
    * How the endpoint gates access. See AuthMode.
    */
   authMode?: AuthMode;
+}
+
+function canonicalJson(value: unknown): string {
+  if (value === null || typeof value !== 'object') {
+    return JSON.stringify(value) ?? 'null';
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map(canonicalJson).join(',')}]`;
+  }
+  const object = value as Record<string, unknown>;
+  return `{${Object.keys(object)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${canonicalJson(object[key])}`)
+    .join(',')}}`;
+}
+
+/** Stable full-offer witness shared by check and execution adapters. */
+export function sellerAcceptSha256(value: unknown): string | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  try {
+    return createHash('sha256').update(canonicalJson(value)).digest('hex');
+  } catch {
+    return null;
+  }
+}
+
+/** Preserve only literal positive decimal strings; JSON numbers are lossy. */
+export function exactAtomicString(value: unknown): string | null {
+  return typeof value === 'string' && /^[1-9]\d*$/.test(value)
+    ? value
+    : null;
 }
 
 /**
@@ -226,7 +270,9 @@ export async function checkEndpointPricing(
   }
 
   const paymentOptions: PaymentOption[] = accepts.map((a: any) => {
-    const amount = Number(a.amount || a.maxAmountRequired || 0);
+    const rawAmount = a.amount ?? a.maxAmountRequired ?? null;
+    const amountAtomic = exactAtomicString(rawAmount);
+    const amount = Number(amountAtomic ?? 0);
     const decimals = Number(a.extra?.decimals ?? 6);
     const price = amount / Math.pow(10, decimals);
     return {
@@ -236,6 +282,21 @@ export async function checkEndpointPricing(
       scheme: a.scheme || null,
       asset: a.asset || null,
       payTo: a.payTo || null,
+      amountAtomic,
+      decimals: Number.isInteger(decimals) && decimals >= 0 ? decimals : null,
+      facilitator:
+        typeof a.extra?.facilitator === 'string'
+          ? a.extra.facilitator
+          : typeof a.extra?.facilitatorUrl === 'string'
+            ? a.extra.facilitatorUrl
+            : null,
+      expiresAt:
+        typeof a.expiresAt === 'string'
+          ? a.expiresAt
+          : typeof a.extra?.expiresAt === 'string'
+            ? a.extra.expiresAt
+            : null,
+      rawAcceptSha256: sellerAcceptSha256(a),
     };
   });
 
@@ -277,6 +338,7 @@ export async function checkEndpointPricing(
     statusCode: 402,
     x402Version: body?.x402Version ?? 2,
     paymentOptions,
+    resolvedUrl: res.url || args.url,
     resource: body?.resource || null,
     schema: rawSchema,          // legacy field, kept for backward-compat
     inputSchema,

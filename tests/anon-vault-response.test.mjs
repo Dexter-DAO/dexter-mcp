@@ -43,6 +43,21 @@ test('paid settlement stays a successful dispatched payment with timing', () => 
   assert.equal(isAnonVaultFailureResponse(result.response), false);
 });
 
+test('new purchase contract failures are MCP tool errors', () => {
+  for (const mode of [
+    'purchase_contract_error',
+    'purchase_mode_integration_required',
+  ]) {
+    const response = {
+      status: mode === 'purchase_contract_error' ? 400 : 501,
+      mode,
+      error: `${mode}_example`,
+    };
+    assert.equal(isAnonVaultFailureResponse(response), true);
+    assert.equal(buildAnonVaultToolResult(response).isError, true);
+  }
+});
+
 test('a genuine successful free response is the only no-payment-required state', () => {
   const result = normalize({
     ok: true,

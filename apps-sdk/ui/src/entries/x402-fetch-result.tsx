@@ -27,6 +27,8 @@ import {
   ReceiptHeader,
   ReceiptStamp,
   ReceiptLoading,
+  PurchaseReceiptSummary,
+  normalizePurchaseReceipt,
   SessionFunding as SessionFundingPanel,
 } from '../components/receipt';
 import { getWidgetLogForDebug } from '../components/receipt/widgetLog';
@@ -94,6 +96,7 @@ type FetchPayload = {
   sessionFunding?: SessionFunding;
   recommendations?: ReceiptRecommendation[];
   _recommendations_hint?: string;
+  purchaseReceipt?: unknown;
 };
 
 const FAILURE_MODES = new Set([
@@ -222,10 +225,20 @@ function FetchResult() {
   const payment = toolOutput.payment;
   const auth = toolOutput.auth;
   const details = payment?.details;
+  const purchaseReceipt = normalizePurchaseReceipt(toolOutput.purchaseReceipt);
 
   // Stamp data — only built when we actually settled. We deliberately
   // keep the txHash off-screen; it lives on the explorerUrl `href`.
   const stamp: ReceiptStampData | null = (() => {
+    if (
+      purchaseReceipt
+      && (
+        purchaseReceipt.mode !== 'direct_exact'
+        || !purchaseReceipt.sellerSettled
+      )
+    ) {
+      return null;
+    }
     if (payment?.settled !== true || !details?.transaction) return null;
     const networkName = details.network ? getChain(details.network).name : '';
     const priceLabel = details.requirements?.amount
@@ -289,22 +302,24 @@ function FetchResult() {
               merchantCorrelationId={toolOutput.merchantCorrelationId}
             />
           ) : (
-            <>
-              <ReceiptBody data={toolOutput.data} />
+            <ReceiptBody data={toolOutput.data} />
+          )}
 
-              {stamp ? (
-                <ReceiptStamp data={stamp} onOpen={openExternal} />
-              ) : accessProof ? (
-                <AccessProof data={accessProof} />
-              ) : null}
+          {purchaseReceipt ? (
+            <PurchaseReceiptSummary receipt={purchaseReceipt} />
+          ) : null}
 
-              {topRec && (
-                <InstinctNextCall
-                  recommendation={topRec}
-                  onAct={(url) => openExternal(url)}
-                />
-              )}
-            </>
+          {!isError && (stamp ? (
+            <ReceiptStamp data={stamp} onOpen={openExternal} />
+          ) : accessProof ? (
+            <AccessProof data={accessProof} />
+          ) : null)}
+
+          {!isError && topRec && (
+            <InstinctNextCall
+              recommendation={topRec}
+              onAct={(url) => openExternal(url)}
+            />
           )}
         </article>
       )}

@@ -1,0 +1,42 @@
+{
+  "contractVersion": "opendexter.purchase.v1",
+  "preparedAt": "2026-07-26T00:00:00.000Z",
+  "resourceUrl": "https://merchant.example/data",
+  "method": "POST",
+  "payload": "{\"q\":\"weather\"}",
+  "resolvedUrl": "https://merchant.example/data",
+  "preparedIds": [
+    "11111111-1111-4111-8111-111111111111",
+    "22222222-2222-4222-8222-222222222222",
+    "33333333-3333-4333-8333-333333333333",
+    "44444444-4444-4444-8444-444444444444"
+  ],
+  "checkResult": {
+    "requiresPayment": true,
+    "statusCode": 402,
+    "x402Version": 2,
+    "resolvedUrl": "https://merchant.example/data",
+    "paymentOptions": [
+      {
+        "scheme": "exact",
+        "network": "solana:mainnet",
+        "asset": "USDC_MINT",
+        "amountAtomic": "10000",
+        "payTo": "SELLER",
+        "facilitator": "https://fac.example",
+        "expiresAt": null,
+        "rawAcceptSha256": "3828a8dec3f9380fb8526ba015215f8409cccebccbb707408f5dcdad6a406df0"
+      },
+      {
+        "scheme": "tab",
+        "network": "solana:mainnet",
+        "asset": "USDC_MINT",
+        "amountAtomic": "10000",
+        "payTo": "SELLER",
+        "facilitator": "https://fac.example",
+        "expiresAt": null,
+        "rawAcceptSha256": "4f241bd7105fd5830c0ee6e00d479bad70d21e82fcc1a0ef501d7bb55b635f54"
+      }
+    ]
+  }
+}

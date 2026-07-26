@@ -43,6 +43,10 @@ import {
   type X402CheckState,
 } from '../components/x402/check-result-model';
 import {
+  purchaseModeLabel,
+  type PreparedPurchaseOption,
+} from '../components/x402/purchase-model';
+import {
   SEARCH_WIDGET_BUILD,
   findSelectedResource,
   getSearchErrorCopy,
@@ -135,12 +139,14 @@ function MarketplaceSearch() {
     useState<QuoteContinuation>({ status: 'idle' });
   const checkRequestId = useRef(0);
   const continuationRequestId = useRef(0);
+  const continuationInFlight = useRef(false);
 
   useEffect(() => { document.documentElement.setAttribute('data-theme', theme); }, [theme]);
 
   useEffect(() => {
     checkRequestId.current += 1;
     continuationRequestId.current += 1;
+    continuationInFlight.current = false;
     setSelectedUrl(undefined);
     setDetailOpen(false);
     setComparisonOpen(false);
@@ -186,6 +192,7 @@ function MarketplaceSearch() {
     }
     const requestId = ++checkRequestId.current;
     continuationRequestId.current += 1;
+    continuationInFlight.current = false;
     addWidgetBreadcrumb('current_terms_requested', { url: resource.url, method: resource.method });
     setSelectedUrl(resource.url);
     setCheckFlow({ status: 'checking', resourceUrl: resource.url });
@@ -225,6 +232,12 @@ function MarketplaceSearch() {
                 price: route.price,
                 priceFormatted: route.priceFormatted,
               })),
+              purchaseOptions: quote.purchaseOptions.map((option) => ({
+                mode: option.mode,
+                availability: option.availability,
+                display: option.display,
+                preparedPurchase: option.preparedPurchase,
+              })),
             },
           },
         }).catch((error) => {
@@ -257,6 +270,7 @@ function MarketplaceSearch() {
   const handleSelectResource = useCallback((resource: SearchResource) => {
     checkRequestId.current += 1;
     continuationRequestId.current += 1;
+    continuationInFlight.current = false;
     addWidgetBreadcrumb('search_resource_selected', {
       url: resource.url,
       resourceId: resource.resourceId,
@@ -286,6 +300,7 @@ function MarketplaceSearch() {
   const handleInspectResource = useCallback((resource: SearchResource) => {
     checkRequestId.current += 1;
     continuationRequestId.current += 1;
+    continuationInFlight.current = false;
     addWidgetBreadcrumb('inspect_opened', { url: resource.url, resourceId: resource.resourceId });
     setSelectedUrl(resource.url);
     setCheckFlow({ status: 'idle' });
@@ -362,11 +377,14 @@ function MarketplaceSearch() {
             }
           : { status: 'idle' };
 
-  const continueFromQuote = useCallback(async () => {
+  const continueFromQuote = useCallback(async (
+    selection: PreparedPurchaseOption | null,
+  ) => {
     if (
       !sendFollowUp
       || !activeResource
       || !activeQuote
+      || continuationInFlight.current
       || quoteContinuation.status === 'sending'
       || quoteContinuation.status === 'sent'
     ) {
@@ -375,6 +393,16 @@ function MarketplaceSearch() {
     const requestId = ++continuationRequestId.current;
     const { classification } = activeQuote.quote;
     const requestBound = isSearchCheckRequestBound(activeResource.method);
+    const selectedPurchase = selection
+      ? activeQuote.quote.purchaseOptions.find(
+          (option) =>
+            option.preparedPurchase.preparedId
+            === selection.preparedPurchase.preparedId
+            && option.availability.state === 'ready',
+        ) ?? null
+      : null;
+    const selectedOffer =
+      selectedPurchase?.preparedPurchase.route.sellerOffer ?? null;
     const prompt =
       classification === 'free'
         ? `Use ${activeResource.name} at ${activeResource.url} for my request.`
@@ -383,10 +411,16 @@ function MarketplaceSearch() {
           : classification === 'apiKey'
             ? `Help me connect the provider access required for ${activeResource.name}.`
             : classification === 'paid' || classification === 'hybrid'
-              ? requestBound
-                ? `Show me the current payment options for ${activeResource.name} at ${activeResource.url}. Do not pay until I explicitly approve.`
+              ? selectedPurchase && selectedOffer
+                ? `I selected ${purchaseModeLabel(selectedPurchase.mode)} for ${activeResource.name} at ${activeResource.url}. ` +
+                  `Preserve this prepared purchase exactly: ${JSON.stringify(selectedPurchase.preparedPurchase)}. ` +
+                  `The selected seller offer is ${selectedOffer.amountAtomic} atomic units of ${selectedOffer.asset} on ${selectedOffer.network}. ` +
+                  'Show me the exact request and atomic-unit ceiling, then ask for my confirmation before paying. Only execute after that explicit confirmation. Do not change the seller offer, route, or purchase mode.'
+                : requestBound
+                  ? `Check the current payment options for ${activeResource.name} at ${activeResource.url} again and let me choose a route. Do not pay until I explicitly approve.`
                 : `Prepare the exact request for ${activeResource.name} at ${activeResource.url} and confirm its current payment options. Do not pay until I explicitly approve.`
               : `Retry the current terms check for ${activeResource.name}.`;
+    continuationInFlight.current = true;
     setQuoteContinuation({ status: 'sending' });
     try {
       await sendFollowUp(prompt);
@@ -394,6 +428,7 @@ function MarketplaceSearch() {
       setQuoteContinuation({ status: 'sent' });
     } catch (error) {
       if (continuationRequestId.current !== requestId) return;
+      continuationInFlight.current = false;
       captureWidgetException(error, {
         phase: 'quote_follow_up',
         url: activeResource.url,
@@ -513,8 +548,8 @@ function MarketplaceSearch() {
                 void confirmCurrentTerms(activeResource).catch(() => {});
               }}
               onContinue={sendFollowUp
-                ? () => {
-                    void continueFromQuote();
+                ? (selection) => {
+                    void continueFromQuote(selection);
                   }
                 : undefined}
               continueStatus={quoteContinuation.status}
