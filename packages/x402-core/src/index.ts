@@ -60,6 +60,16 @@ export {
 export { checkEndpointPricing, parsePaymentRequiredHeader } from './check.js';
 export type { CheckResult, PaymentOption } from './check.js';
 
+// Public-URL guard used by probes that accept caller-supplied endpoints.
+export {
+  assertPublicExternalUrl,
+  createPinnedLookup,
+  fetchPublicExternalUrl,
+  isPublicIpAddress,
+  parseExternalHttpUrl,
+  UnsafeExternalUrlError,
+} from './public-url.js';
+
 // Bazaar-extension schema extractor
 export { extractBazaarSchema } from './bazaar.js';
 export type { BazaarSchema } from './bazaar.js';

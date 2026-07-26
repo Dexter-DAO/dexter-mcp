@@ -19,8 +19,6 @@ import './instrument.open-mcp.mjs';
 import http from 'node:http';
 import { randomUUID, randomBytes, createHmac } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { readFile, stat } from 'node:fs/promises';
-import { basename } from 'node:path';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -47,6 +45,10 @@ import {
   buildAnonVaultToolResult,
   normalizeAnonVaultFetchResponse,
 } from './lib/anon-vault-response.mjs';
+import {
+  DEFAULT_MULTIPART_MAX_BYTES,
+  loadSafeUploadFiles,
+} from './lib/safe-upload-files.mjs';
 import {
   OPEN_MCP_PRM,
   OPEN_MCP_VAULT_AUDIENCE,
@@ -81,7 +83,9 @@ import {
   capabilitySearch as coreCapabilitySearch,
   buildSearchResponse,
   buildSearchErrorResponse,
+  assertPublicExternalUrl,
   checkEndpointPricing,
+  fetchPublicExternalUrl,
 } from '@dexterai/x402-core';
 import { composeSkill } from '@dexterai/x402-skills';
 import { buildServerInstructions, HOSTED_CAPS, assertInstructionRosterParity } from '@dexterai/mcp-instructions';
@@ -409,8 +413,14 @@ async function x402Search({ query, limit, unverified, testnets, rerank, network 
 
 // ─── Tool: x402_pay ─────────────────────────────────────────────────────────
 
-async function x402Pay({ url, method, body, sessionToken, sessionKey, tab }, extra) {
-  const result = await x402Fetch({ url, method, body, sessionToken, sessionKey, tab }, extra);
+async function x402Pay(
+  { url, method, body, multipart, sessionToken, sessionKey, tab, maxAmountAtomic },
+  extra,
+) {
+  const result = await x402Fetch(
+    { url, method, body, multipart, sessionToken, sessionKey, tab, maxAmountAtomic },
+    extra,
+  );
   return {
     ...result,
     tool: 'x402_pay',
@@ -421,8 +431,14 @@ async function x402Pay({ url, method, body, sessionToken, sessionKey, tab }, ext
 // ─── Tool: x402_fetch (auto-pay) ─────────────────────────────────────────────
 
 // Multipart cap matches the dexter-api side (see x402Pay.ts MULTIPART_MAX_BYTES).
-const MCP_MULTIPART_MAX_BYTES = 200 * 1024 * 1024;
-const MCP_MULTIPART_CONTROL_KEYS = new Set(['sessionToken', 'url', 'method', 'requestId']);
+const MCP_MULTIPART_MAX_BYTES = DEFAULT_MULTIPART_MAX_BYTES;
+const MCP_MULTIPART_CONTROL_KEYS = new Set([
+  'sessionToken',
+  'url',
+  'method',
+  'requestId',
+  'maxAmountAtomic',
+]);
 
 /**
  * Read files for a multipart request and validate sizes. Returns a list of
@@ -430,27 +446,7 @@ const MCP_MULTIPART_CONTROL_KEYS = new Set(['sessionToken', 'url', 'method', 're
  * missing/oversized files.
  */
 async function readMultipartFiles(files) {
-  const loaded = [];
-  let total = 0;
-  for (const f of files) {
-    if (!f || typeof f !== 'object' || !f.fieldName || !f.path) {
-      throw new Error('multipart.files entries must include { fieldName, path }');
-    }
-    const info = await stat(f.path);
-    if (!info.isFile()) throw new Error(`multipart.files[${f.fieldName}]: not a file — ${f.path}`);
-    total += info.size;
-    if (info.size > MCP_MULTIPART_MAX_BYTES || total > MCP_MULTIPART_MAX_BYTES) {
-      throw new Error(`multipart payload exceeds ${MCP_MULTIPART_MAX_BYTES} bytes`);
-    }
-    const data = await readFile(f.path);
-    loaded.push({
-      fieldName: f.fieldName,
-      filename: f.filename || basename(f.path),
-      mimeType: f.contentType || 'application/octet-stream',
-      data,
-    });
-  }
-  return loaded;
+  return loadSafeUploadFiles(files, { maxBytes: MCP_MULTIPART_MAX_BYTES });
 }
 
 /**
@@ -535,6 +531,7 @@ function buildVaultPaymentTransportError(requestId = null) {
 // malformed mcp_session_id on the pay endpoints 400s `invalid_mcp_session_id`
 // (no silent downgrade to handle mode). Mirror of dexter-api's SESSION_ID_RE.
 const PAY_SESSION_ID_RE = /^[A-Za-z0-9_.\-]{1,256}$/;
+const MAX_AMOUNT_ATOMIC_RE = /^[1-9]\d{0,19}$/;
 
 // Internal-auth headers for dexter-api's HMAC-gated lookups (same scheme as
 // /pair/link-token/bind: HMAC-SHA256 over `${ts}.${value}` with the shared
@@ -550,14 +547,46 @@ function signedInternalHeaders(value) {
   return { 'x-internal-timestamp': ts, 'x-internal-signature': sig };
 }
 
-async function x402Fetch({ url, method, body, multipart, sessionToken, sessionKey, tab }, extra) {
+async function x402Fetch(
+  { url, method, body, multipart, sessionToken, sessionKey, tab, maxAmountAtomic },
+  extra,
+) {
+  // The public schema requires this field, and dexter-api independently checks
+  // it immediately before build/dispatch. Keep a direct-call guard here so
+  // callers cannot bypass the user's exact approved ceiling by skipping MCP
+  // input validation.
+  if (
+    typeof maxAmountAtomic !== 'string' ||
+    !MAX_AMOUNT_ATOMIC_RE.test(maxAmountAtomic)
+  ) {
+    return {
+      status: 400,
+      mode: 'approval_required',
+      error: 'max_amount_atomic_required',
+      retryable: false,
+      message:
+        'A user-approved maxAmountAtomic ceiling is required before any x402 call can proceed.',
+    };
+  }
+
+  // This preflight prevents local/private destinations from reaching either
+  // the direct probe or the paid backend. dexter-api must repeat the same check
+  // at connection time to close its own DNS-rebinding window.
+  await assertPublicExternalUrl(url);
+
   // Rail-tab offer gate (T4-5b): when dexter-api attaches a `railTabOffer`
   // to a pay response, render it in-band (lib/rail-tab-offer.mjs). Absent or
   // unknown offer → the legacy object below passes through UNTOUCHED (same
   // reference — the mode-gate that lets this deploy before the api side).
   // `tab: false` suppresses all offer rendering (x402-mcp-tools parity).
   const tabEnabled = tab !== false;
-  const offerCall = { url, method, body, ...(multipart ? { multipart } : {}) };
+  const offerCall = {
+    url,
+    method,
+    body,
+    ...(multipart ? { multipart } : {}),
+    maxAmountAtomic,
+  };
   // ── Non-custodial passkey-vault path (the ONLY way to pay here) ───────────
   // The remote MCP URL holds NO funds of its own. The buyer's identity is the
   // MCP session's live vault binding: we resolve user_handle through the
@@ -635,7 +664,13 @@ async function x402Fetch({ url, method, body, multipart, sessionToken, sessionKe
           },
           balances: { usdc: pendingUsdc },
           // Retry-preserving shape — once activated the agent can replay
-          retry: { tool: 'x402_fetch', url, method: method || 'GET', body: body ?? null },
+          retry: {
+            tool: 'x402_fetch',
+            url,
+            method: method || 'GET',
+            body: body ?? null,
+            maxAmountAtomic,
+          },
           message:
             pendingUsdc > 0
               ? `You have $${pendingUsdc.toFixed(2)} USDC in your wallet but it isn't activated yet. ` +
@@ -693,6 +728,7 @@ async function x402Fetch({ url, method, body, multipart, sessionToken, sessionKe
         fd.append('url', url);
         fd.append('method', requestedMethod);
         fd.append('requestId', requestId);
+        fd.append('maxAmountAtomic', maxAmountAtomic);
         const extraFields = (multipart.fields && typeof multipart.fields === 'object') ? multipart.fields : {};
         for (const [k, v] of Object.entries(extraFields)) {
           if (MCP_MULTIPART_CONTROL_KEYS.has(k)) continue;
@@ -741,6 +777,7 @@ async function x402Fetch({ url, method, body, multipart, sessionToken, sessionKe
           method: method || 'GET',
           body: body ?? null,
           requestId,
+          maxAmountAtomic,
         }),
         // Must exceed dexter-api's 60s paid-retry window: a shorter client
         // timeout abandons mid-settlement and the retry double-spends.
@@ -783,7 +820,13 @@ async function x402Fetch({ url, method, body, multipart, sessionToken, sessionKe
     return buildVaultAuthenticationRequired({
       tool: 'x402_fetch',
       reason: 'no_vault_bound',
-      retry: { tool: 'x402_fetch', url, method: method || 'GET', body: body ?? null },
+      retry: {
+        tool: 'x402_fetch',
+        url,
+        method: method || 'GET',
+        body: body ?? null,
+        maxAmountAtomic,
+      },
     });
   }
 
@@ -792,7 +835,7 @@ async function x402Fetch({ url, method, body, multipart, sessionToken, sessionKe
     fetchOpts.body = typeof body === 'string' ? body : JSON.stringify(body);
   }
 
-  const probeRes = await fetch(url, fetchOpts);
+  const probeRes = await fetchPublicExternalUrl(url, fetchOpts);
 
   if (probeRes.status !== 402) {
     const ct = probeRes.headers.get('content-type') || '';
@@ -814,7 +857,13 @@ async function x402Fetch({ url, method, body, multipart, sessionToken, sessionKe
   // and original call, then ask the host to run the native vault OAuth flow.
   return buildVaultAuthenticationRequired({
     tool: 'x402_fetch',
-    retry: { tool: 'x402_fetch', url, method: method || 'GET', body: body ?? null },
+    retry: {
+      tool: 'x402_fetch',
+      url,
+      method: method || 'GET',
+      body: body ?? null,
+      maxAmountAtomic,
+    },
     requirements,
     merchantSettlement: buildMerchantSettlement(requirements),
     reason: 'no_vault_bound',
@@ -824,6 +873,9 @@ async function x402Fetch({ url, method, body, multipart, sessionToken, sessionKe
 // ─── Tool: x402_access (wallet-proof auth) ──────────────────────────────────
 
 async function x402Access({ url, method, body, sessionToken, sessionKey, network }, extra) {
+  // The delegated backend must repeat this at connection time; this preflight
+  // prevents obviously unsafe destinations from entering the access flow.
+  await assertPublicExternalUrl(url);
   const fetchOpts = { method: method || 'GET', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(15000) };
   if (body && method && method.toUpperCase() !== 'GET') {
     fetchOpts.body = typeof body === 'string' ? body : JSON.stringify(body);
@@ -1595,7 +1647,7 @@ function createOpenMcpServer() {
 
   registerOpenTool(server, 'x402_pay', {
     title: 'x402 Pay',
-    description: "Alias for x402_fetch. Prefer x402_fetch for all paid API calls. Payment comes from the user's own Dexter wallet, the non-custodial passkey vault bound to this session. A missing or stale vault authorization triggers the host's native OpenDexter connection flow; after the user approves with their passkey, retry the same call.",
+    description: "Alias for x402_fetch. Prefer x402_fetch for paid API calls. Use only after the user approves the exact URL, method, body, and maximum charge; pass that approved USDC atomic-unit ceiling as maxAmountAtomic. Payment comes from the user's own Dexter wallet. A missing or stale vault authorization triggers the host's native OpenDexter connection flow while preserving the approved ceiling.",
     // Schema is byte-identical to x402_fetch's (drift register Q3): the
     // instructions promise "x402_pay, identical" — so it must accept the
     // same body typing and multipart uploads, not a divergent subset.
@@ -1603,6 +1655,7 @@ function createOpenMcpServer() {
       url: z.string().url().describe('The x402 resource URL to call'),
       method: z.enum(['GET', 'POST', 'PUT', 'DELETE']).default('GET').describe('HTTP method'),
       body: z.string().optional().describe('JSON request body for POST/PUT — the RAW payload the seller expects, e.g. {"q":"latest news"}. NEVER send a schema descriptor (anything shaped like {"type":"http","method":...,"bodyType":...,"body":{...}}) — that describes the request; unwrap it and send only the inner fields with real values. Field names come from the search result\'s inputSchema or x402_check.'),
+      maxAmountAtomic: z.string().regex(MAX_AMOUNT_ATOMIC_RE).describe('Required user-approved maximum charge in USDC atomic units (positive 1-20 digit decimal string). Pass the exact approved quote ceiling; the payment is rejected if the current quote exceeds it.'),
       multipart: z.object({
         files: z.array(z.object({
           fieldName: z.string().describe('Form field name expected by the x402 endpoint.'),
@@ -1640,11 +1693,12 @@ function createOpenMcpServer() {
 
   registerOpenTool(server, 'x402_fetch', {
     title: 'x402 Fetch',
-    description: "Call an x402-protected API and pay from the user's own Dexter wallet, the non-custodial passkey vault bound to this session. A missing or stale vault authorization triggers the host's native OpenDexter connection flow; after the user approves with their passkey, retry the same call. The vault settles in USDC on Solana.",
+    description: "Call an x402-protected API after the user approves the exact URL, method, body, and maximum charge. Pass the approved USDC atomic-unit ceiling as maxAmountAtomic. Payment comes from the user's own Dexter wallet and is rejected if the current quote exceeds that ceiling. A missing or stale vault authorization triggers the host's native OpenDexter connection flow while preserving the approved call. The vault settles in USDC on Solana.",
     inputSchema: {
       url: z.string().url().describe('The x402 resource URL to call'),
       method: z.enum(['GET', 'POST', 'PUT', 'DELETE']).default('GET').describe('HTTP method'),
       body: z.string().optional().describe('JSON request body for POST/PUT — the RAW payload the seller expects, e.g. {"q":"latest news"}. NEVER send a schema descriptor (anything shaped like {"type":"http","method":...,"bodyType":...,"body":{...}}) — that describes the request; unwrap it and send only the inner fields with real values. Field names come from the search result\'s inputSchema or x402_check.'),
+      maxAmountAtomic: z.string().regex(MAX_AMOUNT_ATOMIC_RE).describe('Required user-approved maximum charge in USDC atomic units (positive 1-20 digit decimal string). Pass the exact approved quote ceiling; the payment is rejected if the current quote exceeds it.'),
       multipart: z.object({
         files: z.array(z.object({
           fieldName: z.string().describe('Form field name expected by the x402 endpoint.'),
@@ -2632,7 +2686,11 @@ const httpServer = http.createServer(async (req, res) => {
       return;
     }
     try {
-      const upstream = await fetch(rec.url, { signal: AbortSignal.timeout(8000) });
+      const upstream = await fetchPublicExternalUrl(
+        rec.url,
+        { signal: AbortSignal.timeout(8000) },
+        { maxResponseBytes: 5 * 1024 * 1024 },
+      );
       if (!upstream.ok) throw new Error(`upstream ${upstream.status}`);
       const bytes = Buffer.from(await upstream.arrayBuffer());
       res.writeHead(200, {

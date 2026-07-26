@@ -8,6 +8,7 @@
  */
 
 import { extractBazaarSchema } from './bazaar.js';
+import { fetchPublicExternalUrl } from './public-url.js';
 
 export interface PaymentOption {
   price: number;
@@ -141,7 +142,7 @@ export async function checkEndpointPricing(
 ): Promise<CheckResult> {
   const method = args.method || 'GET';
 
-  const res = await fetch(args.url, {
+  const res = await fetchPublicExternalUrl(args.url, {
     method,
     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
     body: method !== 'GET'
