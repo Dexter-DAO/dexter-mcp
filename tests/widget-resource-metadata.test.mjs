@@ -36,13 +36,14 @@ test('each public widget has a specific CSP with no wildcard cloud allowlist', (
   }
 });
 
-test('tool and resource metadata share one standard CSP projection', () => {
+test('standard CSP omits unsupported redirectDomains while legacy CSP preserves redirects', () => {
   for (const uri of SELECTED_URIS) {
     const raw = buildWidgetCsp('https://dexter.cash/assets', uri);
     const standard = buildStandardWidgetCsp(raw, 'https://dexter.cash');
     assert.ok(standard.resourceDomains.includes('https://dexter.cash'), uri);
     assert.ok(standard.connectDomains.includes('https://dexter.cash'), uri);
-    assert.ok(standard.redirectDomains.includes('https://dexter.cash'), uri);
+    assert.equal(Object.hasOwn(standard, 'redirectDomains'), false, uri);
+    assert.ok(Array.isArray(raw.redirect_domains), uri);
   }
 });
 

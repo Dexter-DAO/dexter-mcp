@@ -4,7 +4,7 @@
   "workspaces": [
     "packages/*"
   ],
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
   "description": "Dexter MCP HTTP server with Supabase OAuth",
   "scripts": {
@@ -21,7 +21,7 @@
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.6",
-    "@dexterai/mcp-instructions": "^2.2.0",
+    "@dexterai/mcp-instructions": "^2.3.0",
     "@dexterai/vault": "^0.37.3",
     "@dexterai/x402": "^5.4.2",
     "@dexterai/x402-core": "^1.5.0",

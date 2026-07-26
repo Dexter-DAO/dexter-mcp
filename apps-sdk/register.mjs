@@ -166,10 +166,6 @@ export function buildStandardWidgetCsp(widgetCsp, widgetDomain) {
       widgetDomain,
       ...((widgetCsp?.connect_domains || []).filter(Boolean)),
     ])),
-    redirectDomains: Array.from(new Set([
-      widgetDomain,
-      ...((widgetCsp?.redirect_domains || []).filter(Boolean)),
-    ])),
   };
 }
 

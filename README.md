@@ -21,29 +21,64 @@ This repo contains two hosted MCP servers and the shared `@dexterai/x402-core` p
 | Product | Endpoint | Auth | Payment |
 |---------|----------|------|---------|
 | **Dexter MCP** (authenticated) | `mcp.dexter.cash/mcp` | Dexter OAuth | Managed wallet, automatic |
-| **OpenDexter MCP** (public) | `open.dexter.cash/mcp` | None | Session wallets, user-funded |
+| **OpenDexter MCP** (hosted) | `open.dexter.cash/mcp` | Mixed per tool: public access or OAuth `scope=vault` | Session-bound passkey wallet; explicit user approval |
 
 The npm packages (`@dexterai/opendexter`, `@dexterai/x402-discovery`) live in [Dexter-DAO/opendexter-ide](https://github.com/Dexter-DAO/opendexter-ide).
 
 ---
 
-## OpenDexter: the public x402 gateway
+## OpenDexter: the hosted x402 buyer
 
-OpenDexter is the public, no-auth MCP server for searching and paying x402 APIs. It powers the "OpenDexter" connector on ChatGPT and Claude.
+OpenDexter is the hosted MCP server behind the OpenDexter connector. Search,
+price inspection, identity-gated access, and the passkey capability probe do not
+require Dexter account authorization. Wallet data, portfolio data, payment, and
+owner-scoped publishing require the host's native OAuth connection with
+`scope=vault`; skill composition supports both public local composition and an
+authenticated publishing path.
 
-**How sessions work.** When a user connects, `x402_wallet` creates a session with two addresses, one Solana and one EVM (shared across Base, Polygon, Arbitrum, Optimism, Avalanche). The user sends USDC to either or both. When `x402_fetch` is called, the system checks all chain balances and picks the best-funded chain that the endpoint accepts. Sessions persist for 30 days in PostgreSQL.
+The hosted executable roster is deliberately limited to these eleven tools:
 
-**How the npm package differs.** `@dexterai/opendexter` runs as a local stdio MCP server. Instead of ephemeral session wallets, it uses a local signer at `~/.dexterai-mcp/wallet.json`. The user funds their own wallet once and it persists indefinitely. It ships the buyer tools (`x402_search`, `x402_check`, `x402_fetch`, `x402_pay`, `x402_access`, `x402_wallet`) and a seller-side CLI command: `opendexter audition <url>` gets an x402 API into the catalog (a real paid test on every route, a quality score, a synthesized agent-callable Skill). `@dexterai/x402-discovery` is a published alias of the same package.
+1. `x402_search`
+2. `x402_pay`
+3. `x402_fetch`
+4. `x402_check`
+5. `x402_access`
+6. `x402_wallet`
+7. `dexter_portfolio`
+8. `x402_compose_skill`
+9. `promote_skill`
+10. `dexter_passkey_probe`
+11. `dexter_passkey`
 
-| | OpenDexter MCP | @dexterai/opendexter npm |
+There are no hosted card tools. Search never pays. A new payment starts with a
+fresh `x402_check`, preserves the selected seller offer and prepared identity,
+and requires an explicit user-approved atomic ceiling. OpenDexter never changes
+purchase mode after consequential dispatch and never automatically retries an
+ambiguous result.
+
+**How wallet identity works.** OAuth authorizes the stable
+`https://open.dexter.cash/mcp` connector. Protected wallet and portfolio calls
+resolve the durable wallet binding for that authenticated MCP session and the
+stored passkey-vault identity behind it. They do not accept a caller-supplied
+wallet address or user handle. `x402_wallet` reads the bound passkey wallet;
+`dexter_portfolio` reads its governed asset inventory without changing the
+spendable balance.
+
+**How the npm package differs.** `@dexterai/opendexter` is a separate
+seven-tool local stdio contract for Codex, Claude Code, and other local agents.
+It uses a user-controlled local signer instead of the hosted connector's OAuth
+and session binding. Its package, install guidance, and seller-side
+`opendexter audition <url>` command live in
+[Dexter-DAO/opendexter-ide](https://github.com/Dexter-DAO/opendexter-ide).
+
+| | OpenDexter MCP | `@dexterai/opendexter` |
 |---|---|---|
-| Transport | HTTPS (SSE) | stdio |
-| Wallet | Ephemeral session (Solana + EVM) | Local signer file |
-| Funding | User sends USDC to session addresses | User funds local wallet |
-| Session lifetime | 30 days | Indefinite |
-| Multi-chain | Yes (6 chains, auto-select) | Solana (local key) |
-| Seller onboarding | `opendexter audition <url>` |
-| Best for | ChatGPT, Claude, web agents | Cursor, Codex, CLI agents |
+| Transport | Hosted HTTP MCP | Local stdio MCP |
+| Authorization | Mixed per-tool OAuth contract | Local process and signer |
+| Wallet identity | Durable passkey wallet bound to the authenticated MCP session | User-controlled local signer |
+| Executable roster | Eleven hosted tools | Seven local tools |
+| Seller onboarding | Not exposed as a hosted tool | `opendexter audition <url>` |
+| Best for | ChatGPT, Claude, hosted agents | Codex, Claude Code, CLI agents |
 
 Source: `open-mcp-server.mjs` (hosted server). npm package source is in [opendexter-ide/packages/mcp](https://github.com/Dexter-DAO/opendexter-ide/tree/main/packages/mcp).
 

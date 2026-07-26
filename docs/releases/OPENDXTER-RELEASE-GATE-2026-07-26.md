@@ -37,7 +37,12 @@ window—not evidence of a live loss.
 | --- | --- | --- | --- |
 | Facilitator | `codex/opendexter-exact-incident-facilitator-2026-07-26` | `81379747d483bab72c956b004786e5800c10683a` | `fcaba164128e427f12e81a35b59ce3a58a9d71a6` |
 | API | `codex/opendexter-release-api-2026-07-26` | `38d23a6446a786b0a031ef5d7d9049569bb22b10` | `5b31b11397ac6f199924ec5124b0f05632a5d432` |
-| Hosted MCP | `codex/opendexter-release-mcp-2026-07-26` | `aa400f5ac41209f0ffd3b979277abcab0dc103e0` | `322425cc5958c825a4bfba289a557862e22e3d10` |
+| Hosted MCP (A3 release base) | `codex/opendexter-release-mcp-2026-07-26` | `aa400f5ac41209f0ffd3b979277abcab0dc103e0` | `322425cc5958c825a4bfba289a557862e22e3d10` |
+
+This B3 source reconciliation is based exactly on
+`2068e6b96846d8ef3ea793972546cd5495f575a4`, a descendant of the A3 release
+base and receipt. Its exact reconciliation commit is recorded in the external
+handoff issued after commit creation.
 
 The production-source baselines are rollback source references, not proof of the
 exact JavaScript already loaded by PM2. Before a live change, capture PM2
@@ -70,10 +75,17 @@ configuration and hashes or archives of the currently running build artifacts.
 
 ### Hosted MCP
 
-- Native per-tool OAuth for the stable connector, with per-request issuer,
-  audience, expiry, scope, subject, and surface validation.
-- Exact ten-tool executable contract, generated manifest, tool-list parity, and
-  cards-off surface.
+- Mixed per-tool authorization for the stable connector: public
+  discovery/inspection paths remain available without a Dexter account,
+  while wallet data, portfolio data, payment, and owner-scoped publishing use
+  native OAuth `scope=vault`.
+- Per-request issuer, audience, expiry, scope, subject, and surface validation
+  on every vault-protected call.
+- Session-bound wallet and portfolio resolution through the stored passkey-vault
+  identity. Neither protected tool accepts a caller-supplied wallet address or
+  user handle.
+- Exact eleven-tool executable contract, generated manifest, tool-list parity,
+  and cards-off surface.
 - Required payment ceiling through text and widget paths.
 - Correct wallet receive-address semantics.
 - Credential scrubbing and private widget metadata.
@@ -92,10 +104,11 @@ configuration and hashes or archives of the currently running build artifacts.
 4. `x402_check`
 5. `x402_access`
 6. `x402_wallet`
-7. `x402_compose_skill`
-8. `promote_skill`
-9. `dexter_passkey_probe`
-10. `dexter_passkey`
+7. `dexter_portfolio`
+8. `x402_compose_skill`
+9. `promote_skill`
+10. `dexter_passkey_probe`
+11. `dexter_passkey`
 
 The six Dextercard tools in the older sixteen-tool package are not part of this
 release. Sensitive card controls remain on the secure Dexter Wallet web surface.
@@ -106,6 +119,18 @@ release. Sensitive card controls remain on the secure Dexter Wallet web surface.
   is included as `c427930`, then tightened by `f4eca83`.
 - Portfolio/artwork head `023f7fd527173c9e0dca8c82f97f2f73f83fdd6f`
   is included.
+- B3 purchasing-parity and governed-asset work is included from `fdcbb16`
+  through `2068e6b`. It preserves the selected mode, offer, route, ceiling, and
+  prepared identity; rejects post-dispatch fallback; and exposes
+  `dexter_portfolio` as a strict read-only, session-bound contract. The shared
+  API remains the sole producer/executor—this MCP lineage does not add another
+  money or portfolio backend.
+- Hosted runtime guidance requires `@dexterai/mcp-instructions@^2.3.0`, sourced
+  from `opendexter-ide` commit
+  `bcff63330df6c24580954cbe309fabc529815b49`. Local validation consumes that
+  exact built package. Publishing it and refreshing registry integrity are
+  separate release actions; do not deploy this source with the older 2.2.0
+  instructions.
 - MCP productization head
   `24530fa23bf1b8acac410d48d3acc41923c52d82` was not merged wholesale.
   Payment ceilings, network boundaries, upload bounds, redaction, runtime
@@ -204,7 +229,7 @@ Before production:
     truthful nonretryable pre-dispatch rejection with no funds moved or
     definitive settlement evidence if external support has changed.
 12. Verify ChatGPT and MCP Apps render both successful and rejected receipts.
-13. Confirm the live tool list is exactly the ten tools above and contains no
+13. Confirm the live tool list is exactly the eleven tools above and contains no
     card tools.
 
 Do not reopen the payment surface if any gate fails.

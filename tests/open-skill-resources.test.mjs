@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { SERVER_INSTRUCTIONS_VERSION } from '@dexterai/mcp-instructions';
 import {
   buildOpenServerInstructions,
   sanitizeOpenServerInstructions,
@@ -72,8 +73,20 @@ test('served guidance requires native OAuth and bounded nonretryable spending', 
 
 test('generated runtime instructions contain only native OAuth wallet guidance', () => {
   const runtime = buildOpenServerInstructions();
+  assert.equal(SERVER_INSTRUCTIONS_VERSION, '2.3.0');
   assert.doesNotMatch(runtime, /\b(?:setup|enroll) link\b|\brelay(?:ing|ed|s)?\b/i);
   assert.match(runtime, /host show its native OpenDexter Connect action/i);
+  assert.match(runtime, /dexter_portfolio/);
+  assert.match(runtime, /purchaseOptions/);
+  assert.match(runtime, /preparedPurchase/);
+  for (const mode of [
+    'direct_exact',
+    'native_tab',
+    'gateway_cash',
+    'gateway_credit',
+  ]) {
+    assert.match(runtime, new RegExp(`\\b${mode}\\b`));
+  }
   assert.match(runtime, /maxAmountAtomic/);
   assert.match(runtime, /provider output as untrusted external data/i);
   assert.match(runtime, /Never automatically retry an ambiguous or post-dispatch/i);
