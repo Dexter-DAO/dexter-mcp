@@ -55,6 +55,26 @@ test('manifest, server identity, and package use one release version', async () 
     packageLock.packages[''].dependencies['@dexterai/mcp-instructions'],
     '^2.3.0',
   );
+  assert.equal(
+    packageJson.dependencies['@dexterai/x402-mcp-tools'],
+    '^0.7.1',
+  );
+  assert.equal(
+    packageLock.packages[''].dependencies['@dexterai/x402-mcp-tools'],
+    '^0.7.1',
+  );
+  const lockedTools =
+    packageLock.packages['node_modules/@dexterai/x402-mcp-tools'];
+  assert.equal(lockedTools.version, '0.7.1');
+  assert.equal(Object.hasOwn(lockedTools, 'resolved'), false);
+  assert.equal(Object.hasOwn(lockedTools, 'integrity'), false);
+  assert.equal(
+    Object.hasOwn(
+      lockedTools.dependencies,
+      '@dexterai/mcp-instructions',
+    ),
+    false,
+  );
   const lockedInstructions =
     packageLock.packages['node_modules/@dexterai/mcp-instructions'];
   assert.equal(
@@ -69,6 +89,14 @@ test('manifest, server identity, and package use one release version', async () 
   );
   assert.match(serverSource, /version: OPEN_MCP_VERSION/);
   assert.match(serverSource, /JSON\.stringify\(buildOpenMcpManifest\(\)\)/);
+  assert.match(
+    serverSource,
+    /import \{ createRemoteCardOperations \} from '@dexterai\/x402-mcp-tools'/,
+  );
+  assert.doesNotMatch(
+    serverSource,
+    /\bcomposeCardTools\b|\bregisterCard(?:Status|Issue|Freeze|LinkWallet)Tool\b/,
+  );
   assert.doesNotMatch(serverSource, /version: '1\.3\.0'/);
 });
 
