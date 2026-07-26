@@ -5,6 +5,8 @@ import { buildWidgetBootstrapScript } from './bootstrap.js';
 import { X402_WIDGET_URIS, CARD_WIDGET_URIS, DIAGNOSTIC_WIDGET_URIS, PASSKEY_WIDGET_URIS } from './widget-uris.mjs';
 import { resolveAppsSdkRelease } from '../scripts/apps-sdk-release.mjs';
 import { registerAppResource, RESOURCE_MIME_TYPE } from '@modelcontextprotocol/ext-apps/server';
+import { isWebauthnProbeTelemetryEnabled } from '../lib/webauthn-probe-telemetry.mjs';
+import { safeUrlOrigin } from '../lib/safe-log-fields.mjs';
 
 // MCP Apps spec-compliant MIME (per @modelcontextprotocol/ext-apps).
 // Was 'text/html+skybridge' (OpenAI/ChatGPT's proprietary form), which
@@ -175,6 +177,7 @@ function buildWidgetRuntimeConfig(entry, assetBase) {
     widgetDomain: resolveWidgetDomain(),
     assetBase,
     release: resolveAppsSdkRelease(),
+    webauthnProbeTelemetryEnabled: isWebauthnProbeTelemetryEnabled(process.env),
     sentry: {
       dsn: resolveWidgetSentryDsn(),
       org: process.env.SENTRY_ORG || 'dexter-ai',
@@ -184,7 +187,7 @@ function buildWidgetRuntimeConfig(entry, assetBase) {
       tracesSampleRate: 1,
       replaysSessionSampleRate: 0.1,
       replaysOnErrorSampleRate: 1,
-      sendDefaultPii: true,
+      sendDefaultPii: false,
     },
   };
 }
@@ -214,14 +217,16 @@ export function registerAppsSdkResources(server, options = {}) {
     return base.replace(/\/+$/, '');
   })();
   if (!assetBase.startsWith('https://')) {
-    console.warn('[apps-sdk] asset base is not HTTPS, skipping widget registration:', assetBase);
+    console.warn(
+      `[apps-sdk] asset base is not HTTPS, skipping widget registration origin=${safeUrlOrigin(assetBase)}`,
+    );
     return;
   }
 
   const widgetDomain = resolveWidgetDomain();
   const widgetCSP = buildWidgetCsp(assetBase);
 
-  console.log('[apps-sdk] Registering widgets with domain:', widgetDomain);
+  console.log(`[apps-sdk] Registering widgets domain=${safeUrlOrigin(widgetDomain)}`);
 
   const entries = [
     {
@@ -666,7 +671,7 @@ export function registerAppsSdkResources(server, options = {}) {
   for (const entry of selectedEntries) {
     const assetPath = path.join(APPS_SDK_DIR, entry.file);
     if (!fileExistsSync(assetPath)) {
-      console.warn('[apps-sdk] missing asset', assetPath);
+      console.warn(`[apps-sdk] missing asset ${path.basename(assetPath)}`);
       continue;
     }
 

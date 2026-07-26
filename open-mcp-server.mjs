@@ -50,6 +50,12 @@ import {
   loadSafeUploadFiles,
 } from './lib/safe-upload-files.mjs';
 import {
+  createLogRef,
+  safeErrorLabel,
+  safeUrlOrigin,
+} from './lib/safe-log-fields.mjs';
+import { isWebauthnProbeTelemetryEnabled } from './lib/webauthn-probe-telemetry.mjs';
+import {
   OPEN_MCP_PRM,
   OPEN_MCP_VAULT_AUDIENCE,
   assertOpenToolAuthPolicyCoverage,
@@ -98,6 +104,11 @@ const PORT = parseInt(process.env.OPEN_MCP_PORT || '3931', 10);
 const SERVER_NAME = 'OpenDexter';
 const DEXTER_API = (process.env.X402_API_URL || 'https://x402.dexter.cash').replace(/\/+$/, '');
 const API_BASE_FALLBACK = (process.env.API_BASE_URL || 'http://127.0.0.1:3030').replace(/\/+$/, '');
+const LOG_CORRELATION_KEY =
+  String(process.env.OPEN_MCP_LOG_REDACTION_KEY || '').trim() || randomUUID();
+const logRef = createLogRef(LOG_CORRELATION_KEY);
+const WEBAUTHN_PROBE_TELEMETRY_ENABLED =
+  isWebauthnProbeTelemetryEnabled(process.env);
 // Composed-skills publish path (Phase E Task 10). DEXTER_API_ORIGIN points
 // at dexter-api (where the internal persist endpoint lives); the shared
 // secret authenticates this server as the trusted caller. The token must
@@ -351,7 +362,8 @@ function payableOn(result, prefix) {
 async function x402Search({ query, limit, unverified, testnets, rerank, network }) {
   const rawQuery = typeof query === 'string' ? query.trim() : '';
   logX402SearchDebug('start', {
-    rawQuery,
+    queryRef: logRef(rawQuery),
+    queryLength: rawQuery.length,
     limit: limit ?? 20,
     unverified: Boolean(unverified),
     testnets: Boolean(testnets),
@@ -360,7 +372,12 @@ async function x402Search({ query, limit, unverified, testnets, rerank, network 
 
   if (!rawQuery) {
     const empty = buildSearchErrorResponse('Query was empty — pass a natural-language capability description.');
-    logX402SearchDebug('result', { rawQuery, mode: 'empty', count: 0 });
+    logX402SearchDebug('result', {
+      queryRef: logRef(rawQuery),
+      queryLength: rawQuery.length,
+      mode: 'empty',
+      count: 0,
+    });
     return empty;
   }
 
@@ -399,7 +416,8 @@ async function x402Search({ query, limit, unverified, testnets, rerank, network 
   }
 
   logX402SearchDebug('result', {
-    rawQuery,
+    queryRef: logRef(rawQuery),
+    queryLength: rawQuery.length,
     mode: response.searchMeta.mode,
     network: network ?? null,
     strongCount: response.strongCount,
@@ -469,7 +487,7 @@ async function checkSessionVaultBinding(sessionId) {
     const binding = await res.json().catch(() => null);
     return { ok: true, bound: Boolean(binding?.user_handle) };
   } catch (err) {
-    console.warn(`[x402_wallet] binding lookup failed: ${err?.message || err}`);
+    console.warn(`[x402_wallet] binding lookup failed (${safeErrorLabel(err)})`);
     return { ok: false, bound: false };
   }
 }
@@ -625,13 +643,13 @@ async function x402Fetch(
         clearSessionVaultBinding(sessionIdForAnon);
       }
     } catch (err) {
-      console.warn(`[x402Fetch] bind lookup failed: ${err?.message || err}`);
+      console.warn(`[x402Fetch] bind lookup failed (${safeErrorLabel(err)})`);
       bindingLookupFailed = true;
     }
   }
   if (user_handle) {
     if (sessionIdForAnon) markSessionVaultBound(sessionIdForAnon);
-    console.log(`[x402Fetch] resolved user_handle via mcp-binding: ${String(user_handle).slice(0, 8)}...`);
+    console.log(`[x402Fetch] resolved user binding ref=${logRef(user_handle)}`);
 
     // Check vault activation state before attempting payment. A vault in
     // "initialized_not_active" state has a receive address but no Swig deployed —
@@ -647,7 +665,7 @@ async function x402Fetch(
         const receiveAddress = vaultState.vault.receiveAddress ?? null;
         const onchainPending = vaultState.onchain || null;
         const pendingUsdc = Number(String(onchainPending?.usdcAtomic ?? '0')) / 1e6;
-        console.log(`[x402Fetch] vault not activated — returning vault_not_activated: ${String(user_handle).slice(0, 8)}...`);
+        console.log(`[x402Fetch] vault not activated ref=${logRef(user_handle)}`);
         return {
           status: 402,
           mode: 'vault_not_activated',
@@ -685,7 +703,7 @@ async function x402Fetch(
     } catch (activationCheckErr) {
       // Non-fatal: if the status check fails, proceed to the pay attempt and let
       // it fail naturally rather than blocking on a transient status check outage.
-      console.warn(`[x402Fetch] vault activation check failed (proceeding): ${activationCheckErr?.message || activationCheckErr}`);
+      console.warn(`[x402Fetch] vault activation check failed, proceeding (${safeErrorLabel(activationCheckErr)})`);
     }
 
     const requestId = randomUUID();
@@ -802,7 +820,7 @@ async function x402Fetch(
         call: offerCall,
       });
     } catch (err) {
-      console.warn(`[x402_fetch] anon paid call failed: ${err?.message || err}`);
+      console.warn(`[x402_fetch] anonymous paid call failed (${safeErrorLabel(err)})`);
       // Network/timeout talking to the vault path. FAIL CLOSED — never leak
       // into a custodial charge or pretend the known wallet needs reconnecting.
       // The payment may be ambiguous, so the response exposes no automatic
@@ -1026,7 +1044,7 @@ async function fetchWalletActivity(sessionId) {
       return { at: it.at, kind: it.kind, amountAtomic: it.amountAtomic, host, sig: it.sig };
     });
   } catch (err) {
-    console.warn(`[x402_wallet] activity read failed: ${err?.message || err}`);
+    console.warn(`[x402_wallet] activity read failed (${safeErrorLabel(err)})`);
     return [];
   }
 }
@@ -1175,7 +1193,7 @@ async function x402Wallet(_args, extra) {
       // clean "not enrolled" — that comes back 200 with a status. Remember it
       // so a transient read failure never gets mistaken for a missing wallet.
       stateReadFailed = true;
-      console.warn(`[x402_wallet] /state read failed: ${err?.message || err}`);
+      console.warn(`[x402_wallet] /state read failed (${safeErrorLabel(err)})`);
     }
   }
   if (state?.status === 'ready' && state.vault && sessionId) {
@@ -1861,9 +1879,9 @@ function createOpenMcpServer() {
   //
   // Diagnostic tool. Renders a one-button widget that runs a real WebAuthn
   // ceremony (navigator.credentials.create + .get against rp.id=dexter.cash)
-  // inside the chat client's widget iframe sandbox. Result is also POSTed
-  // to /dbg/webauthn-probe so the operator can read the outcome on the
-  // server without copy-paste from the device.
+  // inside the chat client's widget iframe sandbox. In an explicitly opted-in
+  // non-production environment only, the result may also be POSTed to the
+  // diagnostic sink.
   //
   // Purpose: empirically determine whether the OpenAI Apps SDK widget
   // sandbox (used by both ChatGPT and Claude) grants
@@ -1875,16 +1893,18 @@ function createOpenMcpServer() {
   // discarded — this is a capability check, not enrollment.
   registerOpenTool(server, 'dexter_passkey_probe', {
     title: 'Passkey iframe probe',
-    description: 'Diagnostic: tests whether navigator.credentials.create() and .get() can run inside the chat client\'s widget iframe against rp.id=dexter.cash. Renders a button that triggers a real WebAuthn ceremony; the OS biometric prompt should fire. The outcome (success / blocked / other) is rendered inline AND POSTed to a server-side log at /tmp/webauthn-probe.log so the operator can read it without copy-paste. Use this to decide whether the production wallet flow ships inline or via popout fallback.',
+    description: 'Diagnostic: tests whether navigator.credentials.create() and .get() can run inside the chat client\'s widget iframe against rp.id=dexter.cash. The outcome is rendered inline. Server-side diagnostic telemetry is disabled by default and cannot be enabled in production.',
     inputSchema: {},
     annotations: { readOnlyHint: true },
     _meta: PASSKEY_PROBE_META,
   }, async () => {
     const result = {
       ok: true,
-      instructions: 'Tap the button. The OS biometric prompt should fire. Outcome will be logged server-side and shown in the widget.',
+      instructions: WEBAUTHN_PROBE_TELEMETRY_ENABLED
+        ? 'Tap the button. The OS biometric prompt should fire. The outcome is shown inline and sent to the explicitly enabled development diagnostic sink.'
+        : 'Tap the button. The OS biometric prompt should fire. The outcome is shown inline and is not sent to the diagnostic sink.',
       rp_id: 'dexter.cash',
-      log_path: '/tmp/webauthn-probe.log',
+      telemetry: WEBAUTHN_PROBE_TELEMETRY_ENABLED ? 'development_opt_in' : 'disabled',
     };
     return {
       content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
@@ -2138,7 +2158,7 @@ function createOpenMcpServer() {
         PASSKEY_ONBOARD_META,
       );
     } catch (err) {
-      console.warn(`[dexter_passkey] /state read failed: ${err?.message || err}`);
+      console.warn(`[dexter_passkey] /state read failed (${safeErrorLabel(err)})`);
       const data = {
         vault_status: 'error',
         vault_address: null,
@@ -2176,7 +2196,7 @@ function createOpenMcpServer() {
       ],
     });
   } catch (err) {
-    console.warn('[open-mcp] Failed to register widget resources:', err?.message || err);
+    console.warn(`[open-mcp] widget registration failed (${safeErrorLabel(err)})`);
   }
 
   // Physics, not vigilance: if the served instructions ever name a tool this
@@ -2269,13 +2289,18 @@ async function seedOAuthVaultBinding(token, payload, sessionId) {
     });
     if (res.ok) {
       markSessionVaultBound(sessionId, VAULT_AUTH_MODE_OAUTH);
-      console.log(`[open-mcp] oauth vault binding seeded: ${String(sessionId).slice(0, 8)}... handle=${String(payload.sub).slice(0, 6)}...`);
+      console.log(
+        `[open-mcp] oauth vault binding seeded sessionRef=${logRef(sessionId)} `
+        + `subjectRef=${logRef(payload.sub)}`,
+      );
       return true;
     } else {
-      console.warn(`[open-mcp] oauth-seed refused (${res.status}) for ${String(sessionId).slice(0, 8)}...`);
+      console.warn(
+        `[open-mcp] oauth-seed refused status=${res.status} sessionRef=${logRef(sessionId)}`,
+      );
     }
   } catch (err) {
-    console.warn(`[open-mcp] oauth-seed failed: ${err?.message || err}`);
+    console.warn(`[open-mcp] oauth-seed failed (${safeErrorLabel(err)})`);
   }
   return false;
 }
@@ -2318,10 +2343,16 @@ async function lookupDurableVaultBinding(sessionId) {
     // 401/403/5xx is NOT evidence of "unbound" (HMAC secret drift, api
     // trouble). Fail OPEN — treat as bound so we never wall a paying user;
     // the in-band OAuth challenge downstream still gates real spend.
-    console.warn(`[open-mcp] mcp-binding lookup returned ${bindRes.status} for ${sessionId} — fail-open, no challenge`);
+    console.warn(
+      `[open-mcp] mcp-binding lookup returned ${bindRes.status} `
+      + `sessionRef=${logRef(sessionId)} — fail-open, no challenge`,
+    );
     return true;
   } catch (err) {
-    console.warn(`[open-mcp] mcp-binding lookup failed (${err?.message || err}) for ${sessionId} — fail-open, no challenge`);
+    console.warn(
+      `[open-mcp] mcp-binding lookup failed (${safeErrorLabel(err)}) `
+      + `sessionRef=${logRef(sessionId)} — fail-open, no challenge`,
+    );
     return true;
   }
 }
@@ -2387,14 +2418,17 @@ async function bindLinkTokenToSession(linkToken, sessionId) {
     });
     if (resp.ok) {
       markSessionVaultBound(sessionId, VAULT_AUTH_MODE_LINK_TOKEN);
-      console.log(`[open-mcp] link-token bound session ${sessionId} (active: ${transports.size})`);
+      console.log(
+        `[open-mcp] link-token bound sessionRef=${logRef(sessionId)} `
+        + `(active: ${transports.size})`,
+      );
       return true;
     }
-    const body = await resp.text().catch(() => '');
-    console.warn(`[open-mcp] link-token bind rejected: ${resp.status} ${body.slice(0, 120)}`);
+    await resp.body?.cancel().catch(() => undefined);
+    console.warn(`[open-mcp] link-token bind rejected status=${resp.status}`);
     return false;
   } catch (err) {
-    console.warn(`[open-mcp] link-token bind error: ${err?.message || err}`);
+    console.warn(`[open-mcp] link-token bind error (${safeErrorLabel(err)})`);
     return false;
   }
 }
@@ -2547,14 +2581,23 @@ const httpServer = http.createServer(async (req, res) => {
 
   // ─── /dbg/webauthn-probe ─────────────────────────────────────────────
   //
-  // Append-only debug log sink for the dexter_passkey_probe widget. The
-  // widget POSTs { outcome, env } here from inside the chat client's
-  // iframe; we write a JSON line to /tmp/webauthn-probe.log so the operator
-  // can `tail -f` it without copy-paste from the device.
+  // Optional append-only debug log sink for the dexter_passkey_probe widget.
+  // It is off by default and impossible to enable in production. When an
+  // operator explicitly enables it in development, the widget POSTs
+  // { outcome, env } and this route writes one JSON line.
   //
-  // Modeled after dexter-fe's /dbg/log pattern. Not for production
-  // telemetry — strip caller sites before they ship beyond demo prep.
+  // Modeled after dexter-fe's /dbg/log pattern. Not production telemetry.
   if (url.pathname === '/dbg/webauthn-probe') {
+    // Reject before attaching body listeners: production and default
+    // configurations must not ingest the probe's IP, user-agent, or payload.
+    if (!WEBAUTHN_PROBE_TELEMETRY_ENABLED) {
+      res.writeHead(404, {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-store',
+      });
+      res.end(JSON.stringify({ ok: false, error: 'not_enabled' }));
+      return;
+    }
     if (req.method !== 'POST') {
       res.writeHead(405, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: false, error: 'method_not_allowed' }));
@@ -2575,8 +2618,9 @@ const httpServer = http.createServer(async (req, res) => {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true }));
       } catch (err) {
+        console.warn(`[webauthn-probe] diagnostic write failed (${safeErrorLabel(err)})`);
         res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ ok: false, error: err?.message || String(err) }));
+        res.end(JSON.stringify({ ok: false, error: 'diagnostic_write_failed' }));
       }
     });
     req.on('error', () => {
@@ -2794,7 +2838,10 @@ const httpServer = http.createServer(async (req, res) => {
         userBindings.set(sessionId, incomingBinding);
         markSessionAccountBound(sessionId);
         if (!prior || prior.userId !== incomingBinding.userId) {
-          console.log(`[open-mcp] bound session ${sessionId} to user ${incomingBinding.userId}${incomingBinding.email ? ` (${incomingBinding.email})` : ''}`);
+          console.log(
+            `[open-mcp] bound sessionRef=${logRef(sessionId)} `
+            + `userRef=${logRef(incomingBinding.userId)}`,
+          );
         }
       }
       // Token present but session not yet vault-bound (bind failed at init,
@@ -2861,7 +2908,7 @@ const httpServer = http.createServer(async (req, res) => {
           const challenge = oauthChallengeForVerification(verification);
           console.warn(
             `[open-mcp] rejected vault Bearer (${verification.reason}) for `
-            + `${protectedCall?.name || 'protected tool'} session ${String(sessionId).slice(0, 8)}...`,
+            + `${protectedCall?.name || 'protected tool'} sessionRef=${logRef(sessionId)}`,
           );
           writeVaultChallenge(res, challenge);
           return;
@@ -2892,7 +2939,9 @@ const httpServer = http.createServer(async (req, res) => {
           boundInMemory,
           boundDurable,
         })) {
-          console.log(`[open-mcp] spend challenge (401 → vault OAuth) for session ${sessionId}`);
+          console.log(
+            `[open-mcp] spend challenge (401 → vault OAuth) sessionRef=${logRef(sessionId)}`,
+          );
           writeVaultChallenge(res);
           return; // session state untouched — the client retries on the same id
         }
@@ -2929,9 +2978,14 @@ const httpServer = http.createServer(async (req, res) => {
         if (incomingBinding) {
           userBindings.set(sid, incomingBinding);
           markSessionAccountBound(sid);
-          console.log(`[open-mcp] session created: ${sid} (active: ${transports.size}) bound user=${incomingBinding.userId}${incomingBinding.email ? ` (${incomingBinding.email})` : ''}`);
+          console.log(
+            `[open-mcp] session created ref=${logRef(sid)} `
+            + `(active: ${transports.size}) userRef=${logRef(incomingBinding.userId)}`,
+          );
         } else {
-          console.log(`[open-mcp] session created: ${sid} (active: ${transports.size})`);
+          console.log(
+            `[open-mcp] session created ref=${logRef(sid)} (active: ${transports.size})`,
+          );
         }
       },
       }),
@@ -2943,7 +2997,9 @@ const httpServer = http.createServer(async (req, res) => {
         transports.delete(sid);
         userBindings.delete(sid);
         sessionMeta.delete(sid);
-        console.log(`[open-mcp] session closed: ${sid} (active: ${transports.size})`);
+        console.log(
+          `[open-mcp] session closed ref=${logRef(sid)} (active: ${transports.size})`,
+        );
       }
     };
 
@@ -3014,5 +3070,5 @@ httpServer.listen(PORT, () => {
   console.log(`[open-mcp] ${SERVER_NAME} listening on :${PORT}`);
   console.log(`[open-mcp] Tools: ${ALL_TOOLS.join(', ')}`);
   console.log('[open-mcp] Auth: mixed — anonymous discovery; wallet/payment tools use scope=vault');
-  console.log(`[open-mcp] Capability search: ${DEXTER_API}${CAPABILITY_PATH}`);
+  console.log(`[open-mcp] Capability search origin: ${safeUrlOrigin(DEXTER_API)}`);
 });

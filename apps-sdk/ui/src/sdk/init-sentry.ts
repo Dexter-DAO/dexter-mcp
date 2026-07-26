@@ -1,4 +1,8 @@
 import * as Sentry from '@sentry/browser';
+import {
+  safeTelemetryError,
+  sanitizeTelemetryRecord,
+} from '../../../telemetry-sanitizer.mjs';
 
 type WidgetRuntimeConfig = {
   entryName?: string;
@@ -7,6 +11,7 @@ type WidgetRuntimeConfig = {
   widgetDomain?: string;
   assetBase?: string;
   release?: string;
+  webauthnProbeTelemetryEnabled?: boolean;
   sentry?: {
     dsn?: string;
     org?: string;
@@ -38,13 +43,18 @@ export function addWidgetBreadcrumb(message: string, data?: Record<string, unkno
     category: 'dexter.widget',
     message,
     level: 'info',
-    data,
+    data: data ? sanitizeTelemetryRecord(data) : undefined,
   });
 }
 
 export function captureWidgetException(error: unknown, extras?: Record<string, unknown>) {
-  Sentry.captureException(error, {
-    extra: extras,
+  const summary = safeTelemetryError(error);
+  Sentry.captureMessage(`widget_exception_${summary.name}`, {
+    level: 'error',
+    extra: sanitizeTelemetryRecord({
+      ...summary,
+      ...(extras || {}),
+    }),
   });
 }
 
@@ -66,7 +76,9 @@ function initWidgetSentry() {
     tracesSampleRate: sentry.tracesSampleRate ?? 1,
     replaysSessionSampleRate: sentry.replaysSessionSampleRate ?? 0,
     replaysOnErrorSampleRate: sentry.replaysOnErrorSampleRate ?? 1,
-    sendDefaultPii: sentry.sendDefaultPii ?? true,
+    // Security invariant: runtime configuration cannot opt widgets back into
+    // automatic user/IP/header collection.
+    sendDefaultPii: false,
     integrations: [],
   });
 
@@ -75,16 +87,15 @@ function initWidgetSentry() {
   Sentry.setTag('widget.entry', runtime.entryName || 'unknown');
   Sentry.setTag('widget.template_uri', runtime.templateUri || 'unknown');
   Sentry.setTag('widget.release', runtime.release || 'unknown');
-  Sentry.setContext('widget_runtime', {
+  Sentry.setContext('widget_runtime', sanitizeTelemetryRecord({
     entryName: runtime.entryName || null,
     templateUri: runtime.templateUri || null,
-    widgetDescription: runtime.widgetDescription || null,
     widgetDomain: runtime.widgetDomain || null,
     assetBase: runtime.assetBase || null,
     sentryOrg: sentry.org || null,
     sentryProject: sentry.project || null,
     build: document.querySelector('[data-widget-build]')?.getAttribute('data-widget-build') || null,
-  });
+  }));
 
   addWidgetBreadcrumb('widget_sentry_initialized', {
     entryName: runtime.entryName,
@@ -110,7 +121,7 @@ function initWidgetSentry() {
   for (const item of preinit) {
     Sentry.captureMessage(`preinit_${item.kind}`, {
       level: 'warning',
-      extra: item.payload,
+      extra: sanitizeTelemetryRecord(item.payload),
     });
   }
   window.__DEXTER_WIDGET_PREINIT_ERRORS__ = [];

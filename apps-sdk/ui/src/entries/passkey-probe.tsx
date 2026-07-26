@@ -59,10 +59,13 @@ type ProbeOutcome =
       stack: string | null;
     };
 
-// Mirrors dexter-fe's debugLog pattern: fire-and-forget POST to the
-// open-mcp HTTP server's /dbg/webauthn-probe endpoint. open-mcp appends
-// the line to /tmp/webauthn-probe.log so the operator can tail it.
+// Development-only diagnostic sink. Production runtime configuration leaves
+// this disabled, so the browser does not transmit user-agent, origin, or probe
+// outcome data. An operator must opt in on a non-production server.
 function reportToServer(payload: unknown): Promise<void> {
+  if (window.__DEXTER_WIDGET_RUNTIME__?.webauthnProbeTelemetryEnabled !== true) {
+    return Promise.resolve();
+  }
   const body = JSON.stringify(payload);
   return fetch('https://open.dexter.cash/dbg/webauthn-probe', {
     method: 'POST',
@@ -163,8 +166,8 @@ async function runPopupProbe(setOutcome: (o: PopupOutcome) => void): Promise<voi
   try { setTimeout(() => { try { win?.close(); } catch {} }, 1500); } catch {}
 }
 
-function randomBytes(len: number): Uint8Array {
-  const bytes = new Uint8Array(len);
+function randomBytes(len: number): Uint8Array<ArrayBuffer> {
+  const bytes = new Uint8Array(new ArrayBuffer(len));
   crypto.getRandomValues(bytes);
   return bytes;
 }
@@ -202,8 +205,8 @@ function nowEnv(): Record<string, string> {
 // 3. If create() returns, immediately call navigator.credentials.get() with
 //    allowCredentials = [the new id]. This proves the assertion path works
 //    too, not just registration.
-// 4. POST the outcome (success or specific error) to the debug log so the
-//    operator can read it without copy-paste.
+// 4. In explicitly opted-in non-production environments only, POST the
+//    outcome to the diagnostic sink.
 //
 // We never persist the credential. The platform retains it locally; we just
 // drop it. That's acceptable for a probe — the user can clean it up later in
@@ -404,7 +407,7 @@ function PasskeyProbe() {
     const target = 'https://dexter.cash/connector/link-check?probe=openlink';
     setOpenLink({ kind: 'running' });
     const result = await openLinkProbe(target);
-    if (result.ok) {
+    if (!('error' in result)) {
       setOpenLink({ kind: 'ok', response: result.response });
       await reportToServer({ probe: 'openlink', outcome: { kind: 'ok' }, env: e, target });
     } else {
