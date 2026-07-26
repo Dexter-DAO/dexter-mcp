@@ -15,7 +15,7 @@ passkey-controlled Dexter Wallet and the x402 marketplace.
   reports `authentication_required`.
 - Never ask the user to paste a token, private key, seed phrase, personalized
   MCP URL, or legacy pairing URL.
-- Treat the ten tools below as the complete hosted roster. Card tools and the
+- Treat the eleven tools below as the complete hosted roster. Card tools and the
   local settings tool are not available on this surface.
 - The passkey administers the wallet. Agents receive bounded, revocable session
   authority; they do not receive an exportable wallet key.
@@ -33,6 +33,7 @@ passkey-controlled Dexter Wallet and the x402 marketplace.
 | Compatibility alias for the same paid call | `x402_pay` |
 | Use wallet-proof or Sign-In-With-X access | `x402_access` |
 | View or resume the Dexter Wallet | `x402_wallet` |
+| View exact governed asset holdings and allowed actions | `dexter_portfolio` |
 | Check passkey wallet status | `dexter_passkey` |
 | Test whether the host supports the passkey ceremony | `dexter_passkey_probe` |
 | Draft or publish a reusable single-host skill | `x402_compose_skill` |
@@ -108,6 +109,12 @@ server-side.
 Call `x402_wallet` first for balance, activity, wallet readiness, or setup. If
 the current MCP session is not authorized, allow the host's Connect action and
 retry the same tool after authorization.
+
+Use `dexter_portfolio` for asset inventory and action availability. The tool
+derives identity from the authenticated MCP session and accepts no handle,
+wallet, vault, actor, agent, grant, role, or authority argument. Its model
+result intentionally omits names, symbols, issuers, URLs, registry labels, and
+policy-reason strings.
 
 Use `dexter_passkey` only as a compatibility status view. Use
 `dexter_passkey_probe` only when the user reports that the passkey ceremony

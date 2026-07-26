@@ -32,6 +32,7 @@ const TOOL_ROSTER = [
   'x402_check',
   'x402_access',
   'x402_wallet',
+  'dexter_portfolio',
   'x402_compose_skill',
   'promote_skill',
   'dexter_passkey_probe',
@@ -51,6 +52,10 @@ test('public, wallet, payment, and optionally linked tools have exact schemes', 
   assert.deepEqual(OPEN_TOOL_SECURITY_SCHEMES.x402_check, [{ type: 'noauth' }]);
   assert.deepEqual(
     OPEN_TOOL_SECURITY_SCHEMES.x402_wallet,
+    [{ type: 'oauth2', scopes: ['vault'] }],
+  );
+  assert.deepEqual(
+    OPEN_TOOL_SECURITY_SCHEMES.dexter_portfolio,
     [{ type: 'oauth2', scopes: ['vault'] }],
   );
   assert.deepEqual(
@@ -74,6 +79,10 @@ test('protected-call classification follows the per-tool auth declaration', () =
     name: 'x402_wallet',
     id: 1,
   });
+  assert.deepEqual(findVaultProtectedToolCall(call('dexter_portfolio')), {
+    name: 'dexter_portfolio',
+    id: 1,
+  });
   assert.deepEqual(findVaultProtectedToolCall([
     call('x402_search'),
     { ...call('x402_pay'), id: 2 },
@@ -94,6 +103,7 @@ test('legacy account authorization is deliberately narrow', () => {
   assert.equal(supportsLegacyAccountAuthorization('x402_compose_skill'), true);
   assert.equal(supportsLegacyAccountAuthorization('promote_skill'), true);
   assert.equal(supportsLegacyAccountAuthorization('x402_wallet'), false);
+  assert.equal(supportsLegacyAccountAuthorization('dexter_portfolio'), false);
   assert.equal(supportsLegacyAccountAuthorization('x402_pay'), false);
 });
 

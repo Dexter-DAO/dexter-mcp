@@ -20,13 +20,14 @@ const EXPECTED_TOOLS = [
   'x402_check',
   'x402_access',
   'x402_wallet',
+  'dexter_portfolio',
   'x402_compose_skill',
   'promote_skill',
   'dexter_passkey_probe',
   'dexter_passkey',
 ];
 
-test('contract covers exactly the ten-tool cards-off roster', () => {
+test('contract preserves the original ten and adds only model-safe portfolio', () => {
   assert.deepEqual(OPEN_TOOL_NAMES, EXPECTED_TOOLS);
   assert.doesNotMatch(OPEN_TOOL_NAMES.join(','), /card_/);
   for (const [name, toolContract] of Object.entries(OPEN_TOOL_CONTRACTS)) {
@@ -48,6 +49,10 @@ test('behavior annotations reflect mutating probes and conditional publishing', 
   assert.equal(OPEN_TOOL_CONTRACTS.x402_search.annotations.readOnlyHint, true);
   assert.equal(OPEN_TOOL_CONTRACTS.x402_wallet.annotations.readOnlyHint, false);
   assert.equal(OPEN_TOOL_CONTRACTS.x402_wallet.annotations.idempotentHint, false);
+  assert.equal(OPEN_TOOL_CONTRACTS.dexter_portfolio.annotations.readOnlyHint, true);
+  assert.equal(OPEN_TOOL_CONTRACTS.dexter_portfolio.annotations.idempotentHint, true);
+  assert.equal(OPEN_TOOL_CONTRACTS.dexter_portfolio.annotations.destructiveHint, false);
+  assert.equal(OPEN_TOOL_CONTRACTS.dexter_portfolio.annotations.openWorldHint, false);
   assert.equal(OPEN_TOOL_CONTRACTS.dexter_passkey.annotations.readOnlyHint, false);
   assert.equal(OPEN_TOOL_CONTRACTS.dexter_passkey.annotations.idempotentHint, false);
   assert.equal(OPEN_TOOL_CONTRACTS.dexter_passkey_probe.annotations.readOnlyHint, false);

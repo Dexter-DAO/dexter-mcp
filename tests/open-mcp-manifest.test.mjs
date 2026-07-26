@@ -9,7 +9,7 @@ import {
   OPEN_MCP_VAULT_AUDIENCE,
 } from '../lib/open-tool-auth.mjs';
 
-test('well-known manifest is generated from the exact ten-tool contract', () => {
+test('well-known manifest is generated from the exact eleven-tool contract', () => {
   const manifest = buildOpenMcpManifest();
   assert.equal(manifest.name, 'OpenDexter');
   assert.equal(manifest.namespace, 'opendexter');
@@ -20,6 +20,7 @@ test('well-known manifest is generated from the exact ten-tool contract', () => 
     'x402_pay',
     'x402_fetch',
     'x402_wallet',
+    'dexter_portfolio',
     'promote_skill',
     'dexter_passkey',
   ]);
@@ -27,7 +28,7 @@ test('well-known manifest is generated from the exact ten-tool contract', () => 
     { name: 'x402_compose_skill', when: 'publish=true' },
   ]);
   assert.deepEqual(manifest.tools.map((tool) => tool.name), OPEN_TOOL_NAMES);
-  assert.equal(manifest.tools.length, 10);
+  assert.equal(manifest.tools.length, 11);
   assert.doesNotMatch(JSON.stringify(manifest), /card_status|best funded chain/i);
 });
 

@@ -59,7 +59,7 @@ test('tolerates junk entries in a batch alongside a spend call', () => {
 // ── Anonymous stays anonymous: browse-class never challenges ────────────────
 
 for (const name of [
-  'x402_search', 'x402_check', 'x402_access', 'x402_wallet', 'dexter_passkey',
+  'x402_search', 'x402_check', 'x402_access', 'x402_wallet', 'dexter_portfolio', 'dexter_passkey',
   'x402_compose_skill', 'promote_skill', 'card_status', 'dexter_passkey_probe',
 ]) {
   test(`never challenges tools/call ${name}`, () => {

@@ -46,6 +46,7 @@ import {
 } from './lib/open-purchase-contract.mjs';
 import {
   fetchSessionPortfolio,
+  modelSafePortfolioSnapshot,
   numericPortfolioSummary,
 } from './lib/session-portfolio.mjs';
 import { projectWalletResultForModel } from './lib/wallet-result-visibility.mjs';
@@ -199,11 +200,16 @@ const FETCH_META = widgetMeta(X402_WIDGET_URIS.fetch, 'Calling API…', 'Respons
 const ACCESS_META = widgetMeta(X402_WIDGET_URIS.fetch, 'Signing access proof…', 'Access response ready', 'Shows identity-gated API responses with wallet proof details and any follow-up requirements.');
 const CHECK_META = widgetMeta(X402_WIDGET_URIS.pricing, 'Checking pricing…', 'Pricing loaded', 'Shows endpoint pricing per blockchain with payment amounts and a pay button.');
 const WALLET_META = widgetMeta(X402_WIDGET_URIS.wallet, 'Loading wallet…', 'Wallet loaded', 'Shows wallet addresses with copy button, USDC balances across chains, and deposit QR code.');
+const PORTFOLIO_META = Object.freeze({
+  'openai/toolInvocation/invoking': 'Loading portfolio…',
+  'openai/toolInvocation/invoked': 'Portfolio loaded',
+});
 const PASSKEY_PROBE_META = widgetMeta(DIAGNOSTIC_WIDGET_URIS.passkeyProbe, 'Loading probe…', 'Probe ready', 'One-button WebAuthn iframe-sandbox capability test. Renders a button that calls navigator.credentials.create() and .get() against rp.id=dexter.cash and reports the outcome.');
 const PASSKEY_ONBOARD_META = widgetMeta(PASSKEY_WIDGET_URIS.onboard, 'Checking wallet…', 'Wallet status loaded', 'Compatibility status view for the passkey wallet. Native host authorization performs the passkey ceremony; this widget shows the Connect handoff or the bound wallet.');
 
 // Card tools removed Jul 24 (owner ruling; card-removal runbook) — the card
-// lives in the wallet widget now. 10 tools.
+// lives in the wallet widget now. The original ten remain intact; the
+// model-safe portfolio reader is the only additive hosted tool in this slice.
 const ALL_TOOLS = OPEN_TOOL_NAMES;
 const OPEN_SESSION_HINT_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -1613,6 +1619,74 @@ async function x402Wallet(_args, extra) {
   };
 }
 
+function buildPortfolioReadError({ userBound = true } = {}) {
+  return {
+    portfolio_status: 'read_error',
+    mode: 'portfolio_read_error',
+    user_bound: userBound,
+    retryable: true,
+    error: 'portfolio_state_read_failed',
+    message:
+      'I could not verify a complete portfolio snapshot just now. No balance, asset, or action availability was inferred.',
+  };
+}
+
+async function dexterPortfolio(_args, extra) {
+  const sessionId = extra ? extractMcpSessionId(extra) : null;
+  if (!sessionId) {
+    return buildVaultAuthenticationRequired({
+      tool: 'dexter_portfolio',
+      reason: 'no_mcp_session',
+    });
+  }
+
+  let state;
+  try {
+    state = await fetchVaultStateBySession(sessionId);
+  } catch (err) {
+    console.warn(
+      `[dexter_portfolio] /state read failed (${safeErrorLabel(err)})`,
+    );
+    const binding = await checkSessionVaultBinding(sessionId);
+    if (binding.bound) {
+      markSessionVaultBound(sessionId);
+      return buildPortfolioReadError({ userBound: true });
+    }
+    if (!binding.ok) return buildPortfolioReadError({ userBound: null });
+    clearSessionVaultBinding(sessionId);
+    return buildVaultAuthenticationRequired({
+      tool: 'dexter_portfolio',
+      reason: 'vault_binding_not_found',
+    });
+  }
+
+  if (state?.status !== 'ready' || !state.vault) {
+    clearSessionVaultBinding(sessionId);
+    return buildVaultAuthenticationRequired({
+      tool: 'dexter_portfolio',
+      reason: state?.status || 'not_enrolled',
+    });
+  }
+  markSessionVaultBound(sessionId);
+
+  const receiveAddress = getVaultReceiveAddress(state.vault);
+  if (!receiveAddress) return buildPortfolioReadError({ userBound: true });
+  const portfolio = await fetchSessionPortfolio({
+    apiBase: API_BASE_FALLBACK,
+    sessionId,
+    expectedWalletAddress: receiveAddress,
+    secret: INTERNAL_HMAC_SECRET,
+  });
+  const projected = modelSafePortfolioSnapshot(portfolio);
+  if (!projected) return buildPortfolioReadError({ userBound: true });
+  return {
+    portfolio_status: 'ready',
+    mode: 'portfolio_ready',
+    user_bound: true,
+    portfolio: projected,
+  };
+}
+
 // ─── MCP Server Setup ───────────────────────────────────────────────────────
 
 // ─── Server instructions + skill resources ──────────────────────────────────
@@ -2054,6 +2128,36 @@ function createOpenMcpServer() {
     } catch (err) {
       const data = { error: err?.message || String(err) };
       return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }], structuredContent: data, isError: true, _meta: WALLET_META };
+    }
+  });
+
+  registerOpenTool(server, 'dexter_portfolio', {
+    title: 'Dexter Portfolio',
+    description:
+      'Read the governed asset portfolio bound to this authenticated MCP session. It accepts no identity or authority arguments and returns only canonical chain identities, exact quantities, bounded numeric valuation, and allowed action enums.',
+    inputSchema: {},
+    annotations: { readOnlyHint: true },
+    _meta: PORTFOLIO_META,
+  }, async (args, extra) => {
+    try {
+      const result = await dexterPortfolio(args, extra);
+      if (isVaultAuthenticationRequired(result)) {
+        return vaultAuthenticationResult(result, PORTFOLIO_META);
+      }
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        structuredContent: result,
+        isError: result.mode === 'portfolio_read_error',
+        _meta: PORTFOLIO_META,
+      };
+    } catch (err) {
+      const data = buildPortfolioReadError({ userBound: null });
+      return {
+        content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
+        structuredContent: data,
+        isError: true,
+        _meta: PORTFOLIO_META,
+      };
     }
   });
 

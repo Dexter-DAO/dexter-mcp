@@ -21,6 +21,7 @@ const EXPECTED_TOOLS = [
   'x402_check',
   'x402_access',
   'x402_wallet',
+  'dexter_portfolio',
   'x402_compose_skill',
   'promote_skill',
   'dexter_passkey_probe',
@@ -35,7 +36,7 @@ test('hosted skill resources are loaded from this release checkout', () => {
   assert.doesNotMatch(SERVER, /opendexter-ide.*opendexter-plugin.*skills/s);
 });
 
-test('hosted workflow names the exact ten-tool cards-off roster', () => {
+test('hosted workflow names the exact eleven-tool cards-off roster', () => {
   for (const name of EXPECTED_TOOLS) {
     assert.match(WORKFLOW, new RegExp(`\\\`${name}\\\``));
   }
