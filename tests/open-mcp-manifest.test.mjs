@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { access, readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { buildOpenMcpManifest, OPEN_MCP_VERSION } from '../lib/open-mcp-manifest.mjs';
 import { OPEN_TOOL_NAMES } from '../lib/open-tool-contracts.mjs';
@@ -36,8 +36,11 @@ test('manifest, server identity, and package use one release version', async () 
   const packageJson = JSON.parse(
     await readFile(new URL('../package.json', import.meta.url), 'utf8'),
   );
-  const packageLock = JSON.parse(
-    await readFile(new URL('../package-lock.json', import.meta.url), 'utf8'),
+  const dependencyTrain = JSON.parse(
+    await readFile(
+      new URL('../release/opendexter-dependency-train.json', import.meta.url),
+      'utf8',
+    ),
   );
   const serverSource = await readFile(
     new URL('../open-mcp-server.mjs', import.meta.url),
@@ -45,48 +48,31 @@ test('manifest, server identity, and package use one release version', async () 
   );
   assert.equal(OPEN_MCP_VERSION, '0.3.0');
   assert.equal(OPEN_MCP_VERSION, packageJson.version);
-  assert.equal(OPEN_MCP_VERSION, packageLock.version);
-  assert.equal(OPEN_MCP_VERSION, packageLock.packages[''].version);
+  assert.equal(OPEN_MCP_VERSION, dependencyTrain.hostedPackage.version);
+  assert.equal(packageJson.packageManager, 'npm@10.9.3');
+  assert.equal(packageJson.engines.node, '^20.19.0 || >=22.12.0');
   assert.equal(
     packageJson.dependencies['@dexterai/mcp-instructions'],
-    '^2.3.0',
-  );
-  assert.equal(
-    packageLock.packages[''].dependencies['@dexterai/mcp-instructions'],
-    '^2.3.0',
+    '2.3.0',
   );
   assert.equal(
     packageJson.dependencies['@dexterai/x402-mcp-tools'],
-    '^0.7.1',
+    '0.7.1',
   );
   assert.equal(
-    packageLock.packages[''].dependencies['@dexterai/x402-mcp-tools'],
-    '^0.7.1',
+    packageJson.dependencies['@modelcontextprotocol/sdk'],
+    '1.29.0',
   );
-  const lockedTools =
-    packageLock.packages['node_modules/@dexterai/x402-mcp-tools'];
-  assert.equal(lockedTools.version, '0.7.1');
-  assert.equal(Object.hasOwn(lockedTools, 'resolved'), false);
-  assert.equal(Object.hasOwn(lockedTools, 'integrity'), false);
+  assert.equal(packageJson.dependencies.zod, '3.25.76');
   assert.equal(
-    Object.hasOwn(
-      lockedTools.dependencies,
-      '@dexterai/mcp-instructions',
-    ),
-    false,
+    packageJson.scripts['build:apps-sdk:local'],
+    'vite build --config apps-sdk/vite.config.ts',
   );
-  const lockedInstructions =
-    packageLock.packages['node_modules/@dexterai/mcp-instructions'];
-  assert.equal(
-    lockedInstructions.version,
-    '2.3.0',
+  assert.match(
+    packageJson.scripts['deploy:mcp'],
+    /^npm run verify:release:runtime && npm run verify:release:lock/,
   );
-  assert.equal(Object.hasOwn(lockedInstructions, 'resolved'), false);
-  assert.equal(Object.hasOwn(lockedInstructions, 'integrity'), false);
-  assert.doesNotMatch(
-    JSON.stringify(lockedInstructions),
-    /mcp-instructions-2\.2\.0|QGILUyt2SoHk0AQdtdEdLa4rUgHtgjWm/,
-  );
+  await assert.rejects(access(new URL('../pnpm-lock.yaml', import.meta.url)));
   assert.match(serverSource, /version: OPEN_MCP_VERSION/);
   assert.match(serverSource, /JSON\.stringify\(buildOpenMcpManifest\(\)\)/);
   assert.match(

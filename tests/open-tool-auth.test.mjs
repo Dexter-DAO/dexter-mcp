@@ -159,8 +159,8 @@ test('real SDK tools/list carries canonical and mirrored auth schemes', async ()
       wireList.result.tools.find((tool) => tool.name === 'x402_wallet').securitySchemes,
       [{ type: 'oauth2', scopes: ['vault'] }],
     );
-    // SDK 1.18's Client response schema strips the non-standard canonical
-    // extension, but preserves the documented compatibility mirror.
+    // MCP SDK 1.x's Client response schema strips the canonical extension but
+    // preserves the documented compatibility mirror.
     assert.deepEqual(
       listed.tools.find((tool) => tool.name === 'x402_wallet')._meta.securitySchemes,
       [{ type: 'oauth2', scopes: ['vault'] }],

@@ -2,14 +2,13 @@
  * MCP Apps JSON-RPC 2.0 bridge over postMessage.
  *
  * This compatibility layer preserves the existing lightweight runtime while
- * following the protocol shapes from @modelcontextprotocol/ext-apps 1.2.2.
- * The installed package currently resolves against an incompatible MCP SDK
- * peer version, so adopting its App class is intentionally a separate,
- * dependency-reconciled change.
+ * following the protocol shapes from @modelcontextprotocol/ext-apps. The
+ * lightweight bridge remains deliberate because it preserves both ChatGPT's
+ * compatibility surface and the MCP Apps postMessage protocol.
  */
 
-import { normalizeCallToolResult } from './call-tool-result';
-import type { CallToolResult, DisplayMode, ToolResultContent } from './types';
+import { normalizeCallToolResult } from './call-tool-result.ts';
+import type { CallToolResult, DisplayMode, ToolResultContent } from './types.ts';
 
 type JsonRpcRequest = {
   jsonrpc: '2.0';

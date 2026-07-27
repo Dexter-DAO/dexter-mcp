@@ -125,12 +125,24 @@ release. Sensitive card controls remain on the secure Dexter Wallet web surface.
   `dexter_portfolio` as a strict read-only, session-bound contract. The shared
   API remains the sole producer/executor—this MCP lineage does not add another
   money or portfolio backend.
-- Hosted runtime guidance requires `@dexterai/mcp-instructions@^2.3.0`, sourced
-  from `opendexter-ide` commit
-  `bcff63330df6c24580954cbe309fabc529815b49`. Local validation consumes that
-  exact built package. Publishing it and refreshing registry integrity are
-  separate release actions; do not deploy this source with the older 2.2.0
-  instructions.
+- Hosted runtime pins `@dexterai/mcp-instructions@2.3.0`, sourced from
+  `opendexter-ide` release-candidate commit
+  `01d9fd9cf8f02a2a442590f79ef272cf48e459b3`. Local validation consumes that
+  exact built package. The coordinated source train is
+  `@dexterai/x402-core@1.5.0`, `@dexterai/mcp-instructions@2.3.0`, and
+  `@dexterai/x402-mcp-tools@0.7.1`. The integrated source proof pins MCP SDK
+  `1.29.0`, MCP Apps extension `1.6.0`, and Zod `3.25.76`. The prior npm lock
+  claimed unpublished package versions without registry integrity and locked
+  an SDK below `@modelcontextprotocol/ext-apps`' peer floor, so it was removed
+  rather than blessed as release evidence.
+  `release/opendexter-dependency-train.json` and
+  `scripts/verify-open-release-dependencies.mjs` now verify Git subtree
+  provenance, source-link destinations, a workspace-aware registry lock, exact
+  installed versions, built entrypoints, and npm peer closure. The
+  Studio-only Claude SDK and Zod 4 dependency are isolated under
+  `scripts/studio-runtime`; they are not part of the hosted MCP graph.
+  Deployment fails closed until publication, a real npm lock, `npm ci`, and
+  installed-runtime verification are complete.
 - MCP productization head
   `24530fa23bf1b8acac410d48d3acc41923c52d82` was not merged wholesale.
   Payment ceilings, network boundaries, upload bounds, redaction, runtime
@@ -170,12 +182,15 @@ release. Sensitive card controls remain on the secure Dexter Wallet web surface.
 - API: 15 suites / 172 tests; strict TypeScript; prebuild anonymous-session
   invariant; diff check; independent integration review found no blocker.
 - Facilitator: 28 focused tests; full build; diff check.
-- Hosted MCP: independent clean-head review, 50/50 focused boundary tests;
-  x402 core build; direct Vite build of 2,016 modules; syntax, dependency,
-  skill-validator, and diff checks.
-- Hosted MCP full repository run: 226/227. The sole failure is a pre-existing
-  Node ESM extensionless-import resolver failure in unchanged source; the Vite
-  build resolves the same files successfully.
+- Hosted MCP release candidate: 314/314 Node tests in the exact disposable
+  source graph; focused strict TypeScript; x402 core build; source-provenance,
+  installed-version, and targeted npm-closure gates; direct non-deploying Vite
+  7.1.12 build of 2,029 modules; diff check.
+- The release runtime is pinned to Node `^20.19.0 || >=22.12.0`, matching the
+  Vite 7.1.12 engine contract, and is checked before install or build.
+- The source graph pins MCP SDK 1.29.0, MCP Apps extension 1.6.0, and Zod
+  3.25.76. The raw checkout deliberately has no release lock or installed
+  graph, so ambient parent `node_modules` is not accepted as release evidence.
 
 These are local results, not live compatibility proof.
 
@@ -210,26 +225,32 @@ Before production:
    hashes plus PM2 configuration.
 4. Resolve the API checkout collision without overwriting the uncommitted
    wallet-transfer activity work.
-5. Approve a short OpenDexter payment maintenance window.
-6. Make the payment surface unavailable, then deploy in this order:
-   facilitator, API, hosted MCP.
-7. Verify both protected-resource metadata paths advertise
+5. Run `npm run verify:release:runtime`, publish the exact internal package
+   train, generate a workspace-aware, registry-resolved npm lock with
+   integrity, run `npm ci`, build the hosted workspace package, and pass
+   `npm run verify:release:installed`.
+6. Approve a short OpenDexter payment maintenance window.
+7. Make the payment surface unavailable, then deploy in this order:
+   facilitator, API, hosted MCP. The repository command is not an atomic
+   multi-service activation or health proof; retain the captured rollback
+   artifacts until every post-deploy check passes.
+8. Verify both protected-resource metadata paths advertise
    `https://mcp.dexter.cash/mcp`; verify the linked authorization-server
    metadata advertises issuer `https://mcp.dexter.cash/mcp`; separately verify
    issued vault JWTs carry `iss=https://dexter.cash` and are accepted under
    that token contract.
-8. Prove fresh ChatGPT Connect/DCR, existing-wallet binding, new-wallet
+9. Prove fresh ChatGPT Connect/DCR, existing-wallet binding, new-wallet
    enrollment, token refresh, same-session OAuth seeding, and wallet-ready
    rendering.
-9. Regress the currently working Claude existing-wallet path.
-10. After a fresh price check and explicit amount approval, run one tiny SYRAA
+10. Regress the currently working Claude existing-wallet path.
+11. After a fresh price check and explicit amount approval, run one tiny SYRAA
    payment with an exact `maxAmountAtomic`.
-11. After its own fresh price check and explicit amount approval, run one tiny
+12. After its own fresh price check and explicit amount approval, run one tiny
     Coinbase/CoinGecko attempt with exact `maxAmountAtomic`. Verify either a
     truthful nonretryable pre-dispatch rejection with no funds moved or
     definitive settlement evidence if external support has changed.
-12. Verify ChatGPT and MCP Apps render both successful and rejected receipts.
-13. Confirm the live tool list is exactly the eleven tools above and contains no
+13. Verify ChatGPT and MCP Apps render both successful and rejected receipts.
+14. Confirm the live tool list is exactly the eleven tools above and contains no
     card tools.
 
 Do not reopen the payment surface if any gate fails.

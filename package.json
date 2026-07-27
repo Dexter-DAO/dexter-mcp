@@ -1,6 +1,10 @@
 {
   "name": "dexter-mcp",
   "private": true,
+  "packageManager": "npm@10.9.3",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
   "workspaces": [
     "packages/*"
   ],
@@ -11,24 +15,32 @@
     "start": "node http-server-oauth.mjs",
     "monitor": "node scripts/studio-monitor.mjs",
     "studio": "node scripts/studio.mjs",
+    "studio:setup": "npm install --prefix scripts/studio-runtime --ignore-scripts",
     "mcp:sessions": "node scripts/mcp-sessions.mjs",
     "mcp:sessions:json": "node scripts/mcp-sessions.mjs --json",
     "test:pumpstream": "node scripts/run-pumpstream-harness.js",
-    "build:apps-sdk": "vite build --config apps-sdk/vite.config.ts && npm run deploy:apps-sdk && npm run sentry:apps-sdk:upload",
+    "verify:release:runtime": "node scripts/verify-open-release-dependencies.mjs --runtime",
+    "verify:release:source": "node scripts/verify-open-release-dependencies.mjs --source",
+    "verify:release:lock": "node scripts/verify-open-release-dependencies.mjs --lock",
+    "verify:release:installed": "node scripts/verify-open-release-dependencies.mjs --installed",
+    "verify:release:registry": "npm run verify:release:runtime && npm run verify:release:lock && npm run verify:release:installed",
+    "build:runtime-workspaces": "npm run build -w @dexterai/x402-core",
+    "typecheck:open-release": "tsc --noEmit --strict --skipLibCheck --target ES2022 --module ESNext --moduleResolution Bundler --jsx react-jsx --allowImportingTsExtensions apps-sdk/ui/src/sdk/mcp-apps-bridge.ts apps-sdk/ui/src/sdk/call-tool-result.ts",
+    "build:apps-sdk:local": "vite build --config apps-sdk/vite.config.ts",
+    "build:apps-sdk": "npm run build:apps-sdk:local && npm run deploy:apps-sdk && npm run sentry:apps-sdk:upload",
     "deploy:apps-sdk": "node scripts/deploy-apps-sdk.mjs",
     "sentry:apps-sdk:upload": "node scripts/upload-apps-sdk-sourcemaps.mjs",
-    "deploy:mcp": "npm run build:apps-sdk && pm2 restart dexter-mcp && echo '✓ MCP server restarted'"
+    "deploy:mcp": "npm run verify:release:runtime && npm run verify:release:lock && npm ci && npm run build:runtime-workspaces && npm run verify:release:installed && npm run build:apps-sdk && pm2 restart dexter-mcp"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.2.6",
-    "@dexterai/mcp-instructions": "^2.3.0",
+    "@dexterai/mcp-instructions": "2.3.0",
     "@dexterai/vault": "^0.37.3",
     "@dexterai/x402": "^5.4.2",
-    "@dexterai/x402-core": "^1.5.0",
-    "@dexterai/x402-mcp-tools": "^0.7.1",
+    "@dexterai/x402-core": "1.5.0",
+    "@dexterai/x402-mcp-tools": "0.7.1",
     "@dexterai/x402-skills": "file:./packages/x402-skills",
-    "@modelcontextprotocol/ext-apps": "^1.2.2",
-    "@modelcontextprotocol/sdk": "^1.17.4",
+    "@modelcontextprotocol/ext-apps": "1.6.0",
+    "@modelcontextprotocol/sdk": "1.29.0",
     "@openai/apps-sdk-ui": "^0.2.1",
     "@sentry/browser": "^10.43.0",
     "@sentry/node": "^10.40.0",
@@ -44,7 +56,7 @@
     "react-dom": "^18.3.1",
     "tailwindcss": "^4.1.18",
     "x402": "^0.6.6",
-    "zod": "^3.23.8",
+    "zod": "3.25.76",
     "zod-to-json-schema": "^3.24.1"
   },
   "devDependencies": {

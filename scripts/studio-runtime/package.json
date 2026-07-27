@@ -1,0 +1,12 @@
+{
+  "name": "dexter-studio-claude-runtime",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "0.2.6",
+    "zod": "4.3.6"
+  }
+}

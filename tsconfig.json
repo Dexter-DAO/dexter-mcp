@@ -3,6 +3,8 @@
     "target": "ES2021",
     "module": "ESNext",
     "moduleResolution": "Node",
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
     "strict": false,

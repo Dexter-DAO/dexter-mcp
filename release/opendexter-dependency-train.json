@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 2,
+  "packageManager": "npm@10.9.3",
+  "node": "^20.19.0 || >=22.12.0",
+  "hostedPackage": {
+    "name": "dexter-mcp",
+    "version": "0.3.0"
+  },
+  "repositories": {
+    "hosted": {
+      "remote": "https://github.com/Dexter-DAO/dexter-mcp.git",
+      "provenanceCommit": "594071d3eb37f4a76c235a77640c80c1867ba850"
+    },
+    "opendexter-ide": {
+      "remote": "https://github.com/Dexter-DAO/dexter-cursor.git",
+      "provenanceCommit": "01d9fd9cf8f02a2a442590f79ef272cf48e459b3"
+    }
+  },
+  "sourcePackages": [
+    {
+      "name": "@dexterai/x402-core",
+      "version": "1.5.0",
+      "rootSpecifier": "1.5.0",
+      "source": "hosted",
+      "path": "packages/x402-core",
+      "entrypoint": "dist/index.js",
+      "treeHash": "97fa680cd4133888ca30b24f8afc6bef239a99cf",
+      "install": {
+        "source": "workspace",
+        "release": "workspace"
+      }
+    },
+    {
+      "name": "@dexterai/mcp-instructions",
+      "version": "2.3.0",
+      "rootSpecifier": "2.3.0",
+      "source": "opendexter-ide",
+      "path": "packages/mcp-instructions",
+      "entrypoint": "dist/index.js",
+      "treeHash": "1da4a167326d28d762b6c36907628ad8211be643",
+      "install": {
+        "source": "linked-source",
+        "release": "registry"
+      }
+    },
+    {
+      "name": "@dexterai/x402-mcp-tools",
+      "version": "0.7.1",
+      "rootSpecifier": "0.7.1",
+      "source": "opendexter-ide",
+      "path": "packages/x402-mcp-tools",
+      "entrypoint": "dist/index.js",
+      "treeHash": "85e066c97b6b365526af4b4c18886af0e97e924a",
+      "install": {
+        "source": "linked-source",
+        "release": "registry"
+      }
+    }
+  ],
+  "runtimePackages": [
+    {
+      "name": "@modelcontextprotocol/sdk",
+      "version": "1.29.0",
+      "rootSpecifier": "1.29.0"
+    },
+    {
+      "name": "@modelcontextprotocol/ext-apps",
+      "version": "1.6.0",
+      "rootSpecifier": "1.6.0"
+    },
+    {
+      "name": "zod",
+      "version": "3.25.76",
+      "rootSpecifier": "3.25.76"
+    }
+  ],
+  "isolatedTooling": [
+    {
+      "name": "Dexter Studio Claude runtime",
+      "path": "scripts/studio-runtime",
+      "excludedFromHostedRuntime": true,
+      "packages": [
+        "@anthropic-ai/claude-agent-sdk@0.2.6",
+        "zod@4.3.6"
+      ]
+    }
+  ],
+  "registryLock": {
+    "requiredBeforeDeploy": true,
+    "file": "package-lock.json"
+  }
+}

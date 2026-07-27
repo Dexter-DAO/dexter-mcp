@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname_early = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: join(__dirname_early, '..', '.env') });
 
-import { query } from '@anthropic-ai/claude-agent-sdk';
+import { query } from './studio-runtime/query.mjs';
 import { readFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';

@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="https://nodejs.org/en/download"><img src="https://img.shields.io/badge/node-%3E=20.0-green.svg" alt="Node >= 20"></a>
+  <a href="https://nodejs.org/en/download"><img src="https://img.shields.io/badge/node-20.19%2B%20%7C%2022.12%2B-green.svg" alt="Node 20.19+ or 22.12+"></a>
   <a href="https://mcp.dexter.cash/mcp"><img src="https://img.shields.io/badge/MCP-https%3A%2F%2Fmcp.dexter.cash%2Fmcp-blue.svg" alt="MCP endpoint"></a>
   <a href="https://dexter.cash"><img src="https://img.shields.io/badge/stack-Dexter%20Connectors-purple.svg" alt="Dexter connectors"></a>
 </p>
@@ -24,6 +24,34 @@ This repo contains two hosted MCP servers and the shared `@dexterai/x402-core` p
 | **OpenDexter MCP** (hosted) | `open.dexter.cash/mcp` | Mixed per tool: public access or OAuth `scope=vault` | Session-bound passkey wallet; explicit user approval |
 
 The npm packages (`@dexterai/opendexter`, `@dexterai/x402-discovery`) live in [Dexter-DAO/opendexter-ide](https://github.com/Dexter-DAO/opendexter-ide).
+
+This OpenDexter source candidate requires the coordinated internal package
+train recorded in
+[`release/opendexter-dependency-train.json`](./release/opendexter-dependency-train.json).
+Its release runtime is Node `^20.19.0 || >=22.12.0`, matching the pinned Vite
+toolchain; `npm run verify:release:runtime` checks that boundary before install
+or build.
+Until those exact versions are published, there is deliberately no registry
+lock and `deploy:mcp` fails its lock gate. An isolated local source train and
+its installed dependency graph can be checked without deploying:
+
+```bash
+OPENDXTER_IDE_SOURCE=/absolute/path/to/opendexter-ide-candidate \
+OPENDXTER_RUNTIME_ROOT=/absolute/path/to/disposable-installed-graph \
+  npm run verify:release:source
+```
+
+The source gate verifies the current Node runtime, package Git provenance,
+exact installed versions, source-link destinations, built entrypoints, and npm
+peer closure. The release path separately verifies the Node runtime and
+registry lock, performs `npm ci`, builds the hosted workspace package, and
+rejects any installed graph that differs from the recorded train.
+
+Use `npm run build:apps-sdk:local` for a non-deploying widget build.
+`build:apps-sdk` retains its release behavior and copies served assets.
+`deploy:mcp` is an ordered install/build/copy/restart command, not atomic
+activation, rollback, health, OAuth, or live-render proof; production use still
+requires the coordinated release runbook and post-deploy checks below.
 
 ---
 
@@ -304,6 +332,10 @@ Supabase interactions flow through Dexter API helpers for consistent auth enforc
 ## Development
 
 For local dev, PM2, harness operations, and Supabase session maintenance, see [`docs/dev/HARNESS.md`](./docs/dev/HARNESS.md).
+
+Dexter Studio uses Claude Agent SDK and Zod 4 in an isolated, non-workspace
+tooling profile so it cannot change the hosted MCP's Zod 3 runtime. Run
+`npm run studio:setup` once before `npm run studio`.
 
 ---
 

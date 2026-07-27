@@ -11,7 +11,10 @@ import {
   finalizeOpenToolContracts,
   installOpenToolContracts,
 } from '../lib/open-tool-contracts.mjs';
-import { OPEN_TOOL_SECURITY_SCHEMES } from '../lib/open-tool-auth.mjs';
+import {
+  OPEN_TOOL_SECURITY_SCHEMES,
+  installCanonicalSecuritySchemeProjection,
+} from '../lib/open-tool-auth.mjs';
 
 const EXPECTED_TOOLS = [
   'x402_search',
@@ -260,6 +263,13 @@ test('real SDK tools/list exposes executable schemas, OAuth, annotations, and me
 
   const client = new Client({ name: 'contract-client', version: '1.0.0' });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  const wireMessages = [];
+  const rawSend = serverTransport.send.bind(serverTransport);
+  serverTransport.send = (message, options) => {
+    wireMessages.push(message);
+    return rawSend(message, options);
+  };
+  installCanonicalSecuritySchemeProjection(serverTransport);
   t.after(async () => {
     await client.close();
     await server.close();
@@ -268,6 +278,10 @@ test('real SDK tools/list exposes executable schemas, OAuth, annotations, and me
   await client.connect(clientTransport);
 
   const tools = (await client.listTools()).tools;
+  const wireTools = wireMessages.find(
+    (message) => Array.isArray(message?.result?.tools),
+  )?.result?.tools;
+  assert.ok(wireTools, 'expected projected tools/list on the transport');
   assert.deepEqual(tools.map((tool) => tool.name), EXPECTED_TOOLS);
   for (const listed of tools) {
     const toolContract = OPEN_TOOL_CONTRACTS[listed.name];
@@ -278,12 +292,16 @@ test('real SDK tools/list exposes executable schemas, OAuth, annotations, and me
       listed.name === 'dexter_portfolio' ? false : true,
     );
     assert.deepEqual(listed.annotations, toolContract.annotations);
-    assert.deepEqual(listed.securitySchemes, toolContract.securitySchemes);
     assert.deepEqual(listed._meta.securitySchemes, toolContract.securitySchemes);
     assert.equal(listed._meta.preservedWidgetSideChannel, true);
   }
+  for (const listed of wireTools) {
+    const toolContract = OPEN_TOOL_CONTRACTS[listed.name];
+    assert.deepEqual(listed.securitySchemes, toolContract.securitySchemes);
+    assert.deepEqual(listed._meta.securitySchemes, toolContract.securitySchemes);
+  }
   assert.deepEqual(
-    tools.find((tool) => tool.name === 'x402_compose_skill').securitySchemes,
+    wireTools.find((tool) => tool.name === 'x402_compose_skill').securitySchemes,
     [{ type: 'noauth' }, { type: 'oauth2', scopes: ['vault'] }],
   );
 
