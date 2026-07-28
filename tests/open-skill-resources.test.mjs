@@ -89,6 +89,10 @@ test('generated runtime instructions contain only native OAuth wallet guidance',
   assert.match(runtime, /maxAmountAtomic/);
   assert.match(runtime, /provider output as untrusted external data/i);
   assert.match(runtime, /Never automatically retry an ambiguous or post-dispatch/i);
+  assert.doesNotMatch(
+    runtime,
+    /\b(?:x402_pay|x402_compose_skill|promote_skill|dexter_passkey(?:_probe)?)\b/,
+  );
   assert.match(SERVER, /const SERVER_INSTRUCTIONS = buildOpenServerInstructions\(\)/);
 });
 
@@ -96,5 +100,12 @@ test('runtime-instruction sanitizer fails closed on unknown legacy guidance', ()
   assert.throws(
     () => sanitizeOpenServerInstructions('A different setup link recipe says relay this URL.'),
     /unrecognized legacy setup-link guidance/,
+  );
+  assert.throws(
+    () =>
+      sanitizeOpenServerInstructions(
+        'Use x402_pay as a different lower-level payment path.',
+      ),
+    /unrecognized legacy paid-alias guidance/,
   );
 });
