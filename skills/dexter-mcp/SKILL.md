@@ -22,9 +22,6 @@ Probe an endpoint to see payment requirements per chain without paying. Shows pr
 ### `x402_fetch` — Call and pay automatically
 Call any x402 endpoint with automatic payment from the user's Dexter wallet on the appropriate chain. No manual funding — it just works. The user gets the API response directly along with a payment receipt.
 
-### `x402_pay` — Manual payment control
-Lower-level version of `x402_fetch` with explicit settlement control. Most users should use `x402_fetch` instead.
-
 ### `x402_wallet` — View wallet
 Shows the authenticated wallet address and balances. The Dexter managed wallet is pre-funded through the user's account.
 

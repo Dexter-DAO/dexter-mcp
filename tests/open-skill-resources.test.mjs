@@ -17,16 +17,11 @@ const DEBUGGING = readFileSync(join(ROOT, 'skills/x402-debugging/SKILL.md'), 'ut
 
 const EXPECTED_TOOLS = [
   'x402_search',
-  'x402_pay',
   'x402_fetch',
   'x402_check',
   'x402_access',
   'x402_wallet',
   'dexter_portfolio',
-  'x402_compose_skill',
-  'promote_skill',
-  'dexter_passkey_probe',
-  'dexter_passkey',
 ];
 
 test('hosted skill resources are loaded from this release checkout', () => {
@@ -37,7 +32,7 @@ test('hosted skill resources are loaded from this release checkout', () => {
   assert.doesNotMatch(SERVER, /opendexter-ide.*opendexter-plugin.*skills/s);
 });
 
-test('hosted workflow names the exact eleven-tool cards-off roster', () => {
+test('hosted workflow names only the six public product tools', () => {
   for (const name of EXPECTED_TOOLS) {
     assert.match(WORKFLOW, new RegExp(`\\\`${name}\\\``));
   }
@@ -48,6 +43,10 @@ test('hosted workflow names the exact eleven-tool cards-off roster', () => {
     EXPECTED_TOOLS.map((name) => `\`${name}\``).sort(),
   );
   assert.doesNotMatch(WORKFLOW, /\bcard_[a-z0-9_]+\b|\bDextercard\b/i);
+  assert.doesNotMatch(
+    WORKFLOW,
+    /\b(?:x402_pay|x402_compose_skill|promote_skill|dexter_passkey(?:_probe)?)\b/,
+  );
 });
 
 test('served guidance requires native OAuth and bounded nonretryable spending', () => {

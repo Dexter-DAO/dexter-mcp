@@ -64,27 +64,24 @@ publishing require the host's native OAuth connection with `scope=vault`;
 skill composition supports both public local composition and an authenticated
 publishing path.
 
-The hosted executable roster is deliberately limited to these eleven tools:
+The public model-facing product roster is deliberately limited to these six
+tools:
 
 1. `x402_search`
-2. `x402_pay`
-3. `x402_fetch`
-4. `x402_check`
-5. `x402_access`
-6. `x402_wallet`
-7. `dexter_portfolio`
-8. `x402_compose_skill`
-9. `promote_skill`
-10. `dexter_passkey_probe` (app-only deprecated diagnostic)
-11. `dexter_passkey` (app-only deprecated alias for `x402_wallet`)
+2. `x402_fetch`
+3. `x402_check`
+4. `x402_access`
+5. `x402_wallet`
+6. `dexter_portfolio`
 
-The raw compatibility roster stays at eleven so installed clients do not break,
-but the two deprecated passkey entries are no longer model-facing. New user
-flows use `x402_wallet`; the probe is retained only for the existing diagnostic
-widget. There are no hosted card tools. Search never pays. A new payment starts
-with a fresh `x402_check`, preserves the selected seller offer and prepared
-identity, and requires an explicit user-approved atomic ceiling. OpenDexter
-never changes purchase mode after consequential dispatch and never
+The raw compatibility roster temporarily stays at eleven so installed clients
+do not break. The old paid-call alias, composed-skill experiment, passkey
+status alias, and diagnostic probe are app-only and absent from model routing.
+The composed-skill records are preserved; those tools are not part of the
+OpenDexter product. There are no hosted card tools. Search never pays. A new
+payment starts with a fresh `x402_check`, preserves the selected seller offer
+and prepared identity, and requires an explicit user-approved atomic ceiling.
+OpenDexter never changes purchase mode after consequential dispatch and never
 automatically retries an ambiguous result.
 
 **How wallet identity works.** OAuth authorizes the stable
@@ -96,7 +93,7 @@ wallet address or user handle. `x402_wallet` reads the bound passkey wallet;
 spendable balance.
 
 **How the npm package differs.** `@dexterai/opendexter` is a separate
-seven-tool local stdio contract for Codex, Claude Code, and other local agents.
+eight-tool local stdio contract for Codex, Claude Code, and other local agents.
 It uses a user-controlled local signer instead of the hosted connector's OAuth
 and session binding. Its package, install guidance, and seller-side
 `opendexter audition <url>` command live in
@@ -123,7 +120,11 @@ Source: `http-server-oauth.mjs`.
 
 ---
 
-## `dexter_passkey`: the OTS buyer-onboarding widget
+## Legacy internals: `dexter_passkey` onboarding widget
+
+This section documents the retained compatibility implementation. It is not a
+public OpenDexter product tool; current wallet setup and state use
+`x402_wallet` plus the host's native OAuth action.
 
 `dexter_passkey` is the agent-facing onboarding for the [Open Tabs Standard](https://github.com/Dexter-DAO/dexter-vault) buyer wallet. When called, it returns an embedded React widget (in `apps-sdk/ui/src/entries/passkey-onboard.tsx`) that renders one of four durable states resolved from `dexter-api`:
 

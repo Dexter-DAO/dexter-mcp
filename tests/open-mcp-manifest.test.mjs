@@ -86,7 +86,7 @@ test('manifest, server identity, and package use one release version', async () 
   assert.doesNotMatch(serverSource, /version: '1\.3\.0'/);
 });
 
-test('hosted source documentation names the eleven-tool mixed-auth contract', async () => {
+test('hosted source documentation separates the public product from the raw compatibility contract', async () => {
   const [readme, releaseGate] = await Promise.all([
     readFile(new URL('../README.md', import.meta.url), 'utf8'),
     readFile(
@@ -98,11 +98,25 @@ test('hosted source documentation names the eleven-tool mixed-auth contract', as
     ),
   ]);
 
+  for (const name of OPEN_TOOL_NAMES) {
+    assert.ok(releaseGate.includes(`\`${name}\``), name);
+  }
+  assert.match(releaseGate, /eleven/i);
+
+  for (const name of [
+    'x402_search',
+    'x402_fetch',
+    'x402_check',
+    'x402_access',
+    'x402_wallet',
+    'dexter_portfolio',
+  ]) {
+    assert.ok(readme.includes(`\`${name}\``), name);
+  }
+  assert.match(readme, /public model-facing product roster/i);
+  assert.match(readme, /raw compatibility roster temporarily stays at eleven/i);
+
   for (const source of [readme, releaseGate]) {
-    for (const name of OPEN_TOOL_NAMES) {
-      assert.ok(source.includes(`\`${name}\``), name);
-    }
-    assert.match(source, /eleven/i);
     assert.match(source, /scope=vault/);
     assert.match(source, /session-bound/i);
     assert.doesNotMatch(source, /public, no-auth|ephemeral session/i);
