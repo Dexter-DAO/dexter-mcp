@@ -96,8 +96,8 @@ test('hosted source declares one exact internal dependency train', async () => {
     manifest.sourcePackages.map(({ name, version }) => `${name}@${version}`),
     [
       '@dexterai/x402-core@1.5.0',
-      '@dexterai/mcp-instructions@2.3.0',
-      '@dexterai/x402-mcp-tools@0.7.1',
+      '@dexterai/mcp-instructions@2.4.0',
+      '@dexterai/x402-mcp-tools@0.8.0',
     ],
   );
   assert.deepEqual(
@@ -121,7 +121,7 @@ test('hosted source declares one exact internal dependency train', async () => {
   );
   assert.equal(
     manifest.repositories['opendexter-ide'].provenanceCommit,
-    '01d9fd9cf8f02a2a442590f79ef272cf48e459b3',
+    '49805e9cd7894e982d8e6227af1e98e0ccd1d05e',
   );
   assert.equal(manifest.registryLock.requiredBeforeDeploy, true);
 });

@@ -13,7 +13,7 @@
     },
     "opendexter-ide": {
       "remote": "https://github.com/Dexter-DAO/dexter-cursor.git",
-      "provenanceCommit": "01d9fd9cf8f02a2a442590f79ef272cf48e459b3"
+      "provenanceCommit": "49805e9cd7894e982d8e6227af1e98e0ccd1d05e"
     }
   },
   "sourcePackages": [
@@ -32,12 +32,12 @@
     },
     {
       "name": "@dexterai/mcp-instructions",
-      "version": "2.3.0",
-      "rootSpecifier": "2.3.0",
+      "version": "2.4.0",
+      "rootSpecifier": "2.4.0",
       "source": "opendexter-ide",
       "path": "packages/mcp-instructions",
       "entrypoint": "dist/index.js",
-      "treeHash": "1da4a167326d28d762b6c36907628ad8211be643",
+      "treeHash": "9c17a942c7393875cca685c06e7b8bcb80a011eb",
       "install": {
         "source": "linked-source",
         "release": "registry"
@@ -45,12 +45,12 @@
     },
     {
       "name": "@dexterai/x402-mcp-tools",
-      "version": "0.7.1",
-      "rootSpecifier": "0.7.1",
+      "version": "0.8.0",
+      "rootSpecifier": "0.8.0",
       "source": "opendexter-ide",
       "path": "packages/x402-mcp-tools",
       "entrypoint": "dist/index.js",
-      "treeHash": "85e066c97b6b365526af4b4c18886af0e97e924a",
+      "treeHash": "266beeb8deaab7f05bc06d929252d2e22c0ec6e8",
       "install": {
         "source": "linked-source",
         "release": "registry"
