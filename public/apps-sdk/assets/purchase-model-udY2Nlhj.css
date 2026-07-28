@@ -1,0 +1,765 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   x402-pricing widget
+   Token-driven. Per-class layout; no inline color or spacing values.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.dx-pricing {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dx-space-5);
+  padding: var(--dx-space-5);
+  color: var(--dx-fg);
+  font-size: var(--dx-text-md);
+  line-height: var(--dx-leading-snug);
+}
+
+/* ───── Wordmark header ─────────────────────────────────────────────── */
+
+.dx-pricing__wordmark {
+  display: flex;
+  align-items: center;
+}
+
+.dx-pricing__wordmark-img {
+  height: 18px;
+  width: auto;
+  opacity: 0.92;
+}
+
+/* ───── Resource identity (favicon + name + meta) ───────────────────── */
+
+.dx-pricing__identity {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--dx-space-3);
+}
+
+.dx-pricing__identity-icon {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--dx-radius-sm);
+  background: var(--dx-bg-quiet);
+  border: 1px solid var(--dx-border-quiet);
+  overflow: hidden;
+}
+
+.dx-pricing__identity-icon-img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+}
+
+.dx-pricing__identity-icon-placeholder {
+  width: 18px;
+  height: 18px;
+  border-radius: var(--dx-radius-sm);
+  background: var(--dx-border);
+}
+
+.dx-pricing__identity-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dx-space-1);
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.dx-pricing__identity-name {
+  margin: 0;
+  font-size: var(--dx-text-2xl);
+  font-weight: var(--dx-weight-semibold);
+  letter-spacing: var(--dx-tracking-tight);
+  line-height: var(--dx-leading-tight);
+  color: var(--dx-fg);
+}
+
+.dx-pricing__identity-meta {
+  margin: 0;
+  font-size: var(--dx-text-sm);
+  color: var(--dx-fg-quiet);
+  letter-spacing: var(--dx-tracking-normal);
+}
+
+/* ───── Description ─────────────────────────────────────────────────── */
+
+.dx-pricing__description {
+  margin: 0;
+  font-size: var(--dx-text-md);
+  line-height: var(--dx-leading-snug);
+  color: var(--dx-fg-muted);
+}
+
+/* ───── Section title ───────────────────────────────────────────────── */
+
+.dx-pricing__section-title {
+  margin: 0 0 var(--dx-space-2) 0;
+  font-size: var(--dx-text-xs);
+  font-weight: var(--dx-weight-semibold);
+  letter-spacing: var(--dx-tracking-widest);
+  text-transform: uppercase;
+  color: var(--dx-fg-quiet);
+}
+
+/* ───── Verdict (Professor Dexter) ──────────────────────────────────── */
+
+.dx-pricing__verdict,
+.dx-pricing__doctor {
+  display: flex;
+  /* Rail anchors to the top of the bubble — the avatar/thermometer don't
+   * stretch to fill empty bubble space below them. The bubble is the
+   * height-driver; the rail rides alongside with its natural height. */
+  align-items: flex-start;
+  gap: var(--dx-space-3);
+}
+
+.dx-pricing__verdict-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--dx-space-2);
+  flex: 0 0 auto;
+  /* Pull the rail down a hair so the avatar lines up with the bubble's
+   * tail anchor (the tail sits ~24px from the top of the bubble). */
+  padding-top: 4px;
+}
+
+.dx-pricing__doctor-rail-cap {
+  font-size: 9px;
+  letter-spacing: var(--dx-tracking-wider);
+  text-transform: uppercase;
+  color: var(--dx-fg-quiet);
+  text-align: center;
+  max-width: 80px;
+}
+
+.dx-pricing__verdict-bubble {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.dx-pricing__verdict-bubble-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--dx-space-2);
+  margin-bottom: var(--dx-space-2);
+}
+
+.dx-pricing__verdict-bubble-eyebrow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dx-pricing__verdict-bubble-name {
+  font-size: 10px;
+  font-weight: var(--dx-weight-semibold);
+  letter-spacing: var(--dx-tracking-wider);
+  text-transform: uppercase;
+  color: var(--dx-fg-muted);
+  font-family: var(--dx-font-mono);
+}
+
+.dx-pricing__verdict-bubble-action {
+  font-size: 10px;
+  letter-spacing: var(--dx-tracking-wider);
+  text-transform: uppercase;
+  color: var(--dx-fg-quiet);
+  font-family: var(--dx-font-mono);
+}
+
+.dx-pricing__verdict-bubble-empty {
+  margin: 0;
+  font-size: var(--dx-text-base);
+  color: var(--dx-fg-quiet);
+  font-style: italic;
+}
+
+.dx-pricing__verdict-prose {
+  margin: 0;
+  font-size: var(--dx-text-md);
+  line-height: var(--dx-leading-relaxed);
+  color: var(--dx-fg);
+  font-weight: var(--dx-weight-medium);
+}
+
+.dx-pricing__verdict-prose--reveal .dx-pricing__verdict-word {
+  display: inline-block;
+  opacity: 0;
+  transform: translateY(2px);
+  animation: dxPricingWord 0.22s var(--dx-ease-standard) forwards;
+}
+
+@keyframes dxPricingWord {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.dx-pricing__verdict-footer {
+  margin-top: var(--dx-space-3);
+  font-size: 10px;
+  letter-spacing: var(--dx-tracking-wide);
+  text-transform: uppercase;
+  color: var(--dx-fg-quiet);
+  font-family: var(--dx-font-mono);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--dx-space-1);
+}
+
+.dx-pricing__verdict-footer-sep {
+  opacity: 0.5;
+}
+
+/* ───── Speech bubble ───────────────────────────────────────────────── */
+/*
+ * Ruled-paper treatment. Two layered linear gradients give it a notepad
+ * feel without adding raster assets:
+ *   1. Horizontal rules every 24px (matches body line-height).
+ *   2. A vertical margin rule 14px in from the right edge.
+ * Tone tint colors the rules so the bubble still telegraphs verdict
+ * temperature. Tail is a CSS triangle pair (border-trick) aligned to
+ * the bubble baseline — sharper than the previous SVG approach.
+ */
+
+.dx-pricing__bubble {
+  position: relative;
+  border-radius: var(--dx-radius-md);
+  border: 1.5px solid;
+  padding: var(--dx-space-3) var(--dx-space-4);
+  background-color: var(--dx-bg-quiet);
+  background-image:
+    linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent 23px,
+      var(--dx-bubble-rule) 23px,
+      var(--dx-bubble-rule) 24px
+    ),
+    linear-gradient(
+      to right,
+      transparent calc(100% - 15px),
+      var(--dx-bubble-margin) calc(100% - 15px),
+      var(--dx-bubble-margin) calc(100% - 14px),
+      transparent calc(100% - 14px)
+    );
+  background-size: 100% 24px, 100% 100%;
+  background-position: left 18px, 0 0;
+  background-repeat: repeat-y, no-repeat;
+}
+
+.dx-pricing__bubble--high {
+  border-color: color-mix(in srgb, var(--dx-success) 38%, transparent);
+  background-color: color-mix(in srgb, var(--dx-success) 4%, var(--dx-bg-quiet));
+  --dx-bubble-rule:   color-mix(in srgb, var(--dx-success) 18%, transparent);
+  --dx-bubble-margin: color-mix(in srgb, var(--dx-success) 38%, transparent);
+}
+.dx-pricing__bubble--mid {
+  border-color: color-mix(in srgb, var(--dx-warn) 38%, transparent);
+  background-color: color-mix(in srgb, var(--dx-warn) 4%, var(--dx-bg-quiet));
+  --dx-bubble-rule:   color-mix(in srgb, var(--dx-warn) 18%, transparent);
+  --dx-bubble-margin: color-mix(in srgb, var(--dx-warn) 38%, transparent);
+}
+.dx-pricing__bubble--low {
+  border-color: color-mix(in srgb, var(--dx-danger) 38%, transparent);
+  background-color: color-mix(in srgb, var(--dx-danger) 4%, var(--dx-bg-quiet));
+  --dx-bubble-rule:   color-mix(in srgb, var(--dx-danger) 18%, transparent);
+  --dx-bubble-margin: color-mix(in srgb, var(--dx-danger) 38%, transparent);
+}
+.dx-pricing__bubble--prescription {
+  border-color: color-mix(in srgb, var(--dx-accent) 42%, transparent);
+  background-color: color-mix(in srgb, var(--dx-accent) 5%, var(--dx-bg-quiet));
+  --dx-bubble-rule:   color-mix(in srgb, var(--dx-accent) 20%, transparent);
+  --dx-bubble-margin: color-mix(in srgb, var(--dx-accent) 42%, transparent);
+}
+.dx-pricing__bubble--unknown {
+  border-color: var(--dx-border);
+  background-color: var(--dx-bg-quiet);
+  --dx-bubble-rule:   color-mix(in srgb, var(--dx-fg-quiet) 16%, transparent);
+  --dx-bubble-margin: var(--dx-border);
+}
+
+/*
+ * CSS-only tail — pair of triangles (one for the border, one for the fill).
+ * Sits at top-left, points back toward the avatar. Sharper than the
+ * previous SVG version and lines up cleanly with the bubble border.
+ */
+.dx-pricing__bubble-tail {
+  position: absolute;
+  left: -10px;
+  top: 24px;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.dx-pricing__bubble-tail::before,
+.dx-pricing__bubble-tail::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  border-style: solid;
+}
+/* Outer triangle = border color */
+.dx-pricing__bubble-tail::before {
+  border-width: 9px 11px 9px 0;
+  border-color: transparent currentColor transparent transparent;
+}
+/* Inner triangle = fill color, inset 1.5px to align with the bubble border */
+.dx-pricing__bubble-tail::after {
+  left: 1.5px;
+  top: 1px;
+  border-width: 8px 10px 8px 0;
+  border-color: transparent var(--dx-bubble-tail-fill, var(--dx-bg-quiet)) transparent transparent;
+}
+
+.dx-pricing__bubble--high         { color: color-mix(in srgb, var(--dx-success) 38%, transparent); --dx-bubble-tail-fill: color-mix(in srgb, var(--dx-success) 4%, var(--dx-bg-quiet)); }
+.dx-pricing__bubble--mid          { color: color-mix(in srgb, var(--dx-warn) 38%, transparent);    --dx-bubble-tail-fill: color-mix(in srgb, var(--dx-warn) 4%, var(--dx-bg-quiet)); }
+.dx-pricing__bubble--low          { color: color-mix(in srgb, var(--dx-danger) 38%, transparent);  --dx-bubble-tail-fill: color-mix(in srgb, var(--dx-danger) 4%, var(--dx-bg-quiet)); }
+.dx-pricing__bubble--prescription { color: color-mix(in srgb, var(--dx-accent) 42%, transparent);  --dx-bubble-tail-fill: color-mix(in srgb, var(--dx-accent) 5%, var(--dx-bg-quiet)); }
+.dx-pricing__bubble--unknown      { color: var(--dx-border); --dx-bubble-tail-fill: var(--dx-bg-quiet); }
+
+/* ───── Avatar ──────────────────────────────────────────────────────── */
+
+.dx-pricing__avatar {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--dx-radius-pill);
+  background: var(--dx-bg-elevated);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--dx-border);
+}
+
+.dx-pricing__avatar--high         { border-color: color-mix(in srgb, var(--dx-success) 40%, transparent); }
+.dx-pricing__avatar--mid          { border-color: color-mix(in srgb, var(--dx-warn) 40%, transparent); }
+.dx-pricing__avatar--low          { border-color: color-mix(in srgb, var(--dx-danger) 40%, transparent); }
+.dx-pricing__avatar--prescription { border-color: color-mix(in srgb, var(--dx-accent) 50%, transparent); }
+.dx-pricing__avatar--unknown      { border-color: var(--dx-border); }
+
+.dx-pricing__avatar-img {
+  width: 36px;
+  height: 36px;
+}
+
+.dx-pricing__avatar-badge {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--dx-radius-pill);
+  background: var(--dx-bg-elevated);
+  border: 1px solid var(--dx-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--dx-fg);
+}
+
+.dx-pricing__avatar-badge-icon {
+  width: 12px;
+  height: 12px;
+}
+
+/* ───── Stamp ───────────────────────────────────────────────────────── */
+
+.dx-pricing__stamp {
+  position: relative;
+  width: 60px;
+  height: 60px;
+  flex: none;
+  font-family: var(--dx-font-mono);
+  font-weight: 900;
+  user-select: none;
+  transform: rotate(-7deg);
+}
+
+.dx-pricing__stamp--high         { color: var(--dx-success); }
+.dx-pricing__stamp--mid          { color: var(--dx-warn); }
+.dx-pricing__stamp--low          { color: var(--dx-danger); }
+.dx-pricing__stamp--unknown      { color: var(--dx-fg-quiet); }
+
+.dx-pricing__stamp--animate {
+  animation: dxPricingStamp 0.32s var(--dx-ease-emphasized) 0.18s backwards;
+}
+
+@keyframes dxPricingStamp {
+  from {
+    opacity: 0;
+    transform: rotate(4deg) scale(1.32);
+  }
+  to {
+    opacity: 1;
+    transform: rotate(-7deg) scale(1);
+  }
+}
+
+.dx-pricing__stamp-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.dx-pricing__stamp-letter {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30px;
+  line-height: 1;
+  transform: translateY(1px);
+}
+
+/* Mini variant — used in dense lists (search results). Same identity, ~half
+ * the footprint. Reuses every other style via the cascade. */
+.dx-pricing__stamp--mini {
+  width: 36px;
+  height: 36px;
+}
+.dx-pricing__stamp--mini .dx-pricing__stamp-letter {
+  font-size: 16px;
+}
+
+/* ───── Thermometer ─────────────────────────────────────────────────── */
+
+.dx-pricing__therm {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 36px;
+}
+
+.dx-pricing__therm-num {
+  font-family: var(--dx-font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  line-height: 1;
+  font-weight: var(--dx-weight-semibold);
+  margin-bottom: var(--dx-space-1);
+}
+
+.dx-pricing__therm-num--high     { color: var(--dx-success); }
+.dx-pricing__therm-num--mid      { color: var(--dx-warn); }
+.dx-pricing__therm-num--low      { color: var(--dx-danger); }
+.dx-pricing__therm-num--unknown  { color: var(--dx-fg-quiet); }
+
+.dx-pricing__therm-svg {
+  display: block;
+  overflow: visible;
+}
+
+.dx-pricing__therm-track {
+  fill: color-mix(in srgb, var(--dx-fg-quiet) 10%, transparent);
+  stroke: color-mix(in srgb, var(--dx-fg-quiet) 25%, transparent);
+  stroke-width: 1;
+}
+
+.dx-pricing__therm-bulb-empty {
+  fill: color-mix(in srgb, var(--dx-fg-quiet) 15%, transparent);
+  stroke: color-mix(in srgb, var(--dx-fg-quiet) 30%, transparent);
+  stroke-width: 1;
+}
+
+.dx-pricing__therm-tick {
+  stroke: color-mix(in srgb, var(--dx-fg-quiet) 30%, transparent);
+  stroke-width: 1;
+}
+
+.dx-pricing__therm-cap {
+  margin-top: var(--dx-space-1);
+  font-family: var(--dx-font-mono);
+  font-size: 8px;
+  letter-spacing: var(--dx-tracking-wide);
+  text-transform: uppercase;
+  color: var(--dx-fg-quiet);
+}
+
+.dx-pricing__therm-glow {
+  animation: dxPricingGlow 2.2s ease-in-out infinite;
+}
+
+@keyframes dxPricingGlow {
+  0%, 100% { opacity: 0.16; }
+  50%      { opacity: 0.34; }
+}
+
+.dx-pricing__spark-glow {
+  animation: dxPricingSparkGlowA 1.8s ease-in-out infinite;
+}
+
+.dx-pricing__spark-glow--b {
+  animation: dxPricingSparkGlowB 1.4s ease-in-out infinite;
+  animation-delay: 0.3s;
+}
+
+@keyframes dxPricingSparkGlowA {
+  0%, 100% { opacity: 0.18; }
+  50%      { opacity: 0.42; }
+}
+
+@keyframes dxPricingSparkGlowB {
+  0%, 100% { opacity: 0.25; }
+  50%      { opacity: 0.55; }
+}
+
+.dx-pricing__spark {
+  animation: dxPricingSpark 2.2s ease-out infinite;
+}
+
+@keyframes dxPricingSpark {
+  0%   { transform: translateY(0)   scale(1);    opacity: 0; }
+  45%  { transform: translateY(-12px) scale(1.25); opacity: 1; }
+  100% { transform: translateY(-24px) scale(0.25); opacity: 0; }
+}
+
+/* ───── Doctor copy button ──────────────────────────────────────────── */
+
+.dx-pricing__doctor-copy {
+  font-size: 10px;
+  letter-spacing: var(--dx-tracking-wider);
+  text-transform: uppercase;
+  font-family: var(--dx-font-mono);
+  padding: var(--dx-space-1) var(--dx-space-2);
+  border-radius: var(--dx-radius-sm);
+  border: 1px solid var(--dx-border);
+  background: transparent;
+  color: var(--dx-fg);
+  cursor: pointer;
+  transition: border-color var(--dx-duration-fast) var(--dx-ease-standard);
+}
+
+.dx-pricing__doctor-copy:hover  { border-color: var(--dx-border-strong); }
+.dx-pricing__doctor-copy:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--dx-accent);
+}
+
+.dx-pricing__doctor-text {
+  margin: 0;
+  font-size: var(--dx-text-md);
+  line-height: var(--dx-leading-relaxed);
+  color: var(--dx-fg);
+}
+
+/* ───── Routes (chains) ─────────────────────────────────────────────── */
+
+.dx-pricing__routes-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dx-space-2);
+}
+
+.dx-pricing__route {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--dx-space-3);
+  padding: var(--dx-space-3) var(--dx-space-4);
+  border: 1px solid var(--dx-border-quiet);
+  border-radius: var(--dx-radius-md);
+  background: var(--dx-bg-quiet);
+  cursor: pointer;
+  transition:
+    border-color var(--dx-duration-base) var(--dx-ease-standard),
+    background var(--dx-duration-base) var(--dx-ease-standard);
+}
+
+.dx-pricing__route--best {
+  border-color: color-mix(in srgb, var(--dx-accent) 50%, var(--dx-border));
+  background: color-mix(in srgb, var(--dx-accent) 5%, var(--dx-bg-quiet));
+}
+
+.dx-pricing__route--selected {
+  border-color: var(--dx-accent);
+  background: color-mix(in srgb, var(--dx-accent) 9%, var(--dx-bg-quiet));
+}
+
+.dx-pricing__route--disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.dx-pricing__route > input {
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  border: 1.5px solid var(--dx-border-strong);
+  border-radius: var(--dx-radius-pill);
+  background: var(--dx-bg-elevated);
+}
+
+.dx-pricing__route > input:checked {
+  border-color: var(--dx-accent);
+  background:
+    radial-gradient(
+      circle at center,
+      var(--dx-accent) 0 4px,
+      transparent 4.5px
+    ),
+    var(--dx-bg-elevated);
+}
+
+.dx-pricing__route > input:focus-visible {
+  outline: 2px solid var(--dx-accent);
+  outline-offset: 2px;
+}
+
+.dx-pricing__route-chain {
+  display: flex;
+  align-items: center;
+  gap: var(--dx-space-3);
+  min-width: 0;
+}
+
+.dx-pricing__route-chain-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.dx-pricing__route-chain-line {
+  display: flex;
+  align-items: center;
+  gap: var(--dx-space-2);
+}
+
+.dx-pricing__route-chain-name {
+  font-size: var(--dx-text-md);
+  font-weight: var(--dx-weight-medium);
+  color: var(--dx-fg);
+}
+
+.dx-pricing__route-chain-asset {
+  font-size: var(--dx-text-xs);
+  color: var(--dx-fg-quiet);
+  text-transform: uppercase;
+  letter-spacing: var(--dx-tracking-wider);
+}
+
+.dx-pricing__route-payto {
+  display: flex;
+  align-items: center;
+  gap: var(--dx-space-1);
+  min-width: 0;
+}
+
+.dx-pricing__route-payto-addr {
+  font-family: var(--dx-font-mono);
+  font-size: var(--dx-text-xs);
+  color: var(--dx-fg-quiet);
+}
+
+.dx-pricing__route-price {
+  font-size: var(--dx-text-lg);
+  font-weight: var(--dx-weight-semibold);
+  color: var(--dx-fg);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 560px) {
+  .dx-pricing__route {
+    grid-template-columns: 18px minmax(0, 1fr) auto;
+  }
+
+  .dx-pricing__route-payto {
+    display: none;
+  }
+
+  .dx-pricing__route-price {
+    font-size: var(--dx-text-md);
+  }
+}
+
+/* ───── Response shape ──────────────────────────────────────────────── */
+
+.dx-pricing__shape-meta {
+  display: flex;
+  align-items: baseline;
+  gap: var(--dx-space-2);
+  font-size: var(--dx-text-base);
+  color: var(--dx-fg-muted);
+}
+
+.dx-pricing__shape-meta-kind {
+  font-weight: var(--dx-weight-semibold);
+  color: var(--dx-fg);
+}
+
+.dx-pricing__shape-meta-sep   { color: var(--dx-fg-quiet); }
+.dx-pricing__shape-meta-size  { color: var(--dx-fg-muted); }
+
+.dx-pricing__preview {
+  margin-top: var(--dx-space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--dx-space-2);
+}
+
+.dx-pricing__preview-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--dx-space-2);
+  font-size: var(--dx-text-sm);
+  font-family: var(--dx-font-mono);
+  color: var(--dx-fg-muted);
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  align-self: flex-start;
+}
+
+.dx-pricing__preview-toggle:hover { color: var(--dx-fg); }
+
+.dx-pricing__preview-toggle-arrow {
+  display: inline-block;
+  transition: transform var(--dx-duration-fast) var(--dx-ease-standard);
+}
+
+.dx-pricing__preview-toggle-arrow[data-open="1"] {
+  transform: rotate(90deg);
+}
+
+.dx-pricing__preview-body {
+  margin: 0;
+  padding: var(--dx-space-3);
+  background: var(--dx-bg-sunken);
+  border: 1px solid var(--dx-border-quiet);
+  border-radius: var(--dx-radius-md);
+  max-height: 320px;
+  overflow: auto;
+  font-family: var(--dx-font-mono);
+  font-size: var(--dx-text-xs);
+  line-height: var(--dx-leading-snug);
+  color: var(--dx-fg);
+  white-space: pre;
+  word-break: normal;
+}
+
+/* ───── State frames (loading / auth / error / free) ────────────────── */
+
+.dx-pricing__state {
+  padding: var(--dx-space-4);
+  border: 1px solid var(--dx-border);
+  border-radius: var(--dx-radius-md);
+  background: var(--dx-bg-quiet);
+  font-size: var(--dx-text-md);
+  color: var(--dx-fg);
+}
+
+.dx-pricing__state--loading p { margin: 0; color: var(--dx-fg-muted); font-size: var(--dx-text-sm); }

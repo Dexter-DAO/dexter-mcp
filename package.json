@@ -60,6 +60,7 @@
     "zod-to-json-schema": "^3.24.1"
   },
   "devDependencies": {
+    "@types/aws-lambda": "8.10.161",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
     "@vitejs/plugin-react": "^5.1.0",

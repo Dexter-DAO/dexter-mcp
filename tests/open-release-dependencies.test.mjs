@@ -127,9 +127,15 @@ test('hosted source declares one exact internal dependency train', async () => {
 });
 
 test('registry deployment gate fails closed without a real npm lock', async () => {
-  const result = await inspectRegistryLock(hostedRoot);
-  assert.equal(result.ready, false);
-  assert.match(result.issues.join('\n'), /package-lock\.json is absent/);
+  const fixture = await registryLockFixture();
+  try {
+    await rm(resolve(fixture, 'package-lock.json'));
+    const result = await inspectRegistryLock(fixture);
+    assert.equal(result.ready, false);
+    assert.match(result.issues.join('\n'), /package-lock\.json is absent/);
+  } finally {
+    await rm(fixture, { recursive: true, force: true });
+  }
 });
 
 test('registry lock accepts the hosted workspace and exact registry packages', async () => {

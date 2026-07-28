@@ -1,0 +1,1806 @@
+import { j as jsxRuntimeExports, r as reactExports, h as addWidgetBreadcrumb, c as captureWidgetException, u as useToolOutput, i as useToolInput, g as useAdaptiveTheme, k as useAdaptiveHostContext, l as useAdaptiveHostCapabilities, m as useAdaptiveMaxHeight, n as useAdaptiveDisplayMode, p as useAdaptiveRequestDisplayMode, q as useAdaptiveUpdateModelContext, e as useAdaptiveSendFollowUp, s as useAdaptiveCallToolFn } from "./adapter-B3ynKBmf.js";
+/* empty css             */
+import { r as resourceIconUrl, f as formatListedPrice, a as formatAssetLabel, P as ProfessorDexterCard, D as DoctorDexterCard, h as hostLabel, i as isSearchCheckRequestBound, p as purchaseModeLabel, n as normalizePreparedPurchaseOptions } from "./purchase-model-ajjP35yn.js";
+/* empty css                        */
+import { c as clientExports } from "./client-CGLDWKLD.js";
+import { E as EmptyMessage } from "./EmptyMessage-C1UnmQDI.js";
+import { S as Search } from "./Search-LusG1W-i.js";
+import { W as Warning } from "./Warning-BlUVe1mr.js";
+import { D as DexterLoading } from "./DexterLoading-Cur2rtol.js";
+import { B as Button } from "./Button-B7uq752z.js";
+import { C as CopyButton } from "./CopyButton-BckYW53F.js";
+import { C as ChainIcon, g as getChain } from "./ChainIcon-Dy4uVkQR.js";
+import "./portfolioModel-yEMSOUo4.js";
+import "./Check-1vL_MH1D.js";
+import "./Copy-BYEHp3zd.js";
+const GOOGLE_COLORS = {
+  blue: "#4285F4",
+  red: "#EA4335",
+  yellow: "#FBBC05",
+  green: "#34A853"
+};
+const X402GLE_COLORS = [
+  GOOGLE_COLORS.blue,
+  // x
+  GOOGLE_COLORS.red,
+  // 4
+  GOOGLE_COLORS.yellow,
+  // 0
+  GOOGLE_COLORS.blue,
+  // 2
+  GOOGLE_COLORS.green,
+  // g
+  GOOGLE_COLORS.red,
+  // l
+  GOOGLE_COLORS.yellow
+  // e
+];
+function X402gleLockup({ size = "sm", showBeta = false }) {
+  const text = "x402gle";
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-x402gle-lockup", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `dx-x402gle-lockup__wordmark dx-x402gle-lockup__wordmark--${size}`, "aria-label": "x402gle", children: text.split("").map((char, i) => /* @__PURE__ */ jsxRuntimeExports.jsx("span", { style: { color: X402GLE_COLORS[i] }, children: char }, i)) }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-x402gle-lockup__by", children: [
+      showBeta && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-x402gle-lockup__beta", children: "beta" }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-x402gle-lockup__by-label", children: "by" }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs(
+        "a",
+        {
+          href: "https://dexter.cash",
+          target: "_blank",
+          rel: "noopener noreferrer",
+          className: "dx-x402gle-lockup__by-link",
+          children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-x402gle-lockup__dexter-mark", "aria-hidden": true, children: "◇" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-x402gle-lockup__dexter-name", children: "Dexter" })
+          ]
+        }
+      )
+    ] })
+  ] });
+}
+function MarketplaceSummaryHeader({
+  resultCount,
+  rerankApplied = false,
+  isFullscreen,
+  canToggleFullscreen,
+  onToggleFullscreen
+}) {
+  const tierLabel = `${resultCount.toLocaleString()} service${resultCount !== 1 ? "s" : ""} reviewed`;
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-search-header", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "dx-search-header__brand", children: /* @__PURE__ */ jsxRuntimeExports.jsx(X402gleLockup, { size: "sm", showBeta: true }) }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-search-header__meta", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-search-header__count", children: tierLabel }),
+      rerankApplied && /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "span",
+        {
+          className: "sr-only",
+          children: "Ranking refined for this request"
+        }
+      ),
+      canToggleFullscreen && /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "button",
+        {
+          type: "button",
+          className: "dx-search-header__expand",
+          onClick: onToggleFullscreen,
+          children: isFullscreen ? "Close comparison" : "Compare"
+        }
+      )
+    ] })
+  ] });
+}
+function MarketBoardLoading({ query }) {
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(
+    DexterLoading,
+    {
+      eyebrow: "x402gle · MARKET BOARD",
+      logoSrc: "https://x402gle.com/x-final-transparent.png",
+      logoAlt: "x402gle",
+      stages: [
+        {
+          upTo: 4,
+          heading: "Surveying the market…",
+          supporting: "Ranking paid APIs, trust signals, and recent verifier passes."
+        },
+        {
+          upTo: 9,
+          heading: "Cross-referencing verifier history…",
+          supporting: "Pulling AI grades, payment routes, and seller reputation per match."
+        },
+        {
+          upTo: 16,
+          heading: "Re-ranking strong matches…",
+          supporting: "Cross-encoder is reordering the top candidates."
+        },
+        {
+          upTo: Infinity,
+          heading: "Still in flight — long-tail catalog is slow tonight.",
+          supporting: "The capability index is still working through this query. Holding."
+        }
+      ],
+      context: query || null,
+      contextLabel: "query"
+    }
+  );
+}
+function SearchIdentityIcon({ resource, size = 44 }) {
+  const sources = reactExports.useMemo(() => {
+    const list = [];
+    if (resource.iconUrl) list.push(resource.iconUrl);
+    if (resource.sellerMeta?.logoUrl) list.push(resource.sellerMeta.logoUrl);
+    const proxied = resourceIconUrl(resource);
+    if (proxied && !list.includes(proxied)) list.push(proxied);
+    return list;
+  }, [resource]);
+  const sourceKey = sources.join("\n");
+  const [loadState, setLoadState] = reactExports.useState({
+    sourceKey: "",
+    attempt: 0
+  });
+  const attempt = loadState.sourceKey === sourceKey ? loadState.attempt : 0;
+  const currentSrc = sources[attempt];
+  const allFailed = attempt >= sources.length;
+  if (!currentSrc || allFailed) {
+    return /* @__PURE__ */ jsxRuntimeExports.jsx(UnsignedMark, { size });
+  }
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(
+    "img",
+    {
+      src: currentSrc,
+      alt: "",
+      width: size,
+      height: size,
+      className: "dx-search-identity__img",
+      style: { width: size, height: size },
+      onError: () => {
+        setLoadState((current) => ({
+          sourceKey,
+          attempt: current.sourceKey === sourceKey ? current.attempt + 1 : 1
+        }));
+      },
+      "aria-hidden": "true"
+    }
+  );
+}
+function UnsignedMark({ size }) {
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(
+    "div",
+    {
+      className: "dx-search-identity__unsigned",
+      style: { width: size, height: size },
+      "aria-hidden": "true",
+      children: /* @__PURE__ */ jsxRuntimeExports.jsxs("svg", { viewBox: "0 0 44 44", width: size, height: size, children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("defs", { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("linearGradient", { id: "dx-id-grad", x1: "0", y1: "0", x2: "1", y2: "1", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("stop", { offset: "0%", stopColor: "rgba(255,255,255,0.06)" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("stop", { offset: "100%", stopColor: "rgba(255,255,255,0.02)" })
+        ] }) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("rect", { x: "0", y: "0", width: "44", height: "44", rx: "14", fill: "url(#dx-id-grad)" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "rect",
+          {
+            x: "6",
+            y: "6",
+            width: "32",
+            height: "32",
+            rx: "10",
+            fill: "none",
+            stroke: "currentColor",
+            strokeWidth: "1",
+            opacity: "0.18"
+          }
+        ),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "path",
+          {
+            d: "M22 12 L32 22 L22 32 L12 22 Z",
+            fill: "none",
+            stroke: "currentColor",
+            strokeWidth: "1.2",
+            strokeLinejoin: "round",
+            opacity: "0.32"
+          }
+        ),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("circle", { cx: "22", cy: "22", r: "2.6", fill: "currentColor", opacity: "0.42" })
+      ] })
+    }
+  );
+}
+const API_ORIGIN = "https://api.dexter.cash";
+function SearchVerdictDrawer({ resource, onClose, onCheckPrice }) {
+  const [payload, setPayload] = reactExports.useState(null);
+  const [loading, setLoading] = reactExports.useState(true);
+  const [error, setError] = reactExports.useState(null);
+  const [checking, setChecking] = reactExports.useState(false);
+  const [checkError, setCheckError] = reactExports.useState(null);
+  const [activeRunIndex, setActiveRunIndex] = reactExports.useState(0);
+  const carouselRef = reactExports.useRef(null);
+  reactExports.useEffect(() => {
+    const handleEscape = (event) => {
+      if (event.key === "Escape") void onClose();
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [onClose]);
+  reactExports.useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    setCheckError(null);
+    setActiveRunIndex(0);
+    async function load() {
+      try {
+        addWidgetBreadcrumb("drawer_fetch_start", { url: resource.url });
+        const url = `${API_ORIGIN}/api/x402/resource?url=${encodeURIComponent(resource.url)}&history=3&full_previews=1`;
+        const res = await fetch(url, { cache: "no-store" });
+        const json = await res.json();
+        if (cancelled) return;
+        setPayload(json);
+        addWidgetBreadcrumb("drawer_fetch_success", {
+          url: resource.url,
+          historyCount: json.history?.recent?.length ?? 0
+        });
+      } catch (err) {
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : "Failed to load resource detail");
+        captureWidgetException(err, { phase: "drawer_fetch", url: resource.url });
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [resource.url]);
+  const runs = payload?.history?.recent ?? [];
+  const summary = payload?.history?.summary ?? null;
+  const accepts = payload?.resource?.accepts ?? [];
+  const whyText = resource.why?.trim() ?? "";
+  const qualityScore = typeof resource.qualityScore === "number" && Number.isFinite(resource.qualityScore) ? resource.qualityScore : null;
+  const listedRoutes = reactExports.useMemo(() => {
+    if (resource.chains?.length) {
+      return resource.chains.map((chain) => ({
+        network: chain.network,
+        assetLabel: formatAssetLabel(chain.asset),
+        priceLabel: formatListedPrice(
+          chain.priceLabel,
+          chain.priceUsdc,
+          resource.price === "free" ? "Free" : resource.price
+        )
+      }));
+    }
+    if (accepts.length) {
+      return accepts.map((accept) => ({
+        network: accept.network,
+        assetLabel: formatAssetLabel(accept.asset, accept.extra?.name),
+        priceLabel: formatChainPrice(accept.amount, accept.extra?.decimals)
+      }));
+    }
+    return [{
+      network: resource.network,
+      assetLabel: formatAssetLabel(resource.priceAsset),
+      priceLabel: resource.price === "free" ? "Free" : resource.price
+    }];
+  }, [accepts, resource.chains, resource.network, resource.price, resource.priceAsset]);
+  async function handleCheckPrice(e) {
+    e.stopPropagation();
+    if (!onCheckPrice) return;
+    setCheckError(null);
+    setChecking(true);
+    try {
+      await onCheckPrice(resource);
+    } catch {
+      setCheckError("Couldn’t confirm the current terms. Try again.");
+    } finally {
+      setChecking(false);
+    }
+  }
+  reactExports.useEffect(() => {
+    const carousel = carouselRef.current;
+    if (!carousel || runs.length <= 1) return;
+    const slides = Array.from(carousel.querySelectorAll("[data-slide-idx]"));
+    if (!slides.length) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        const visible = entries.filter((e) => e.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio);
+        if (visible[0]) {
+          const idx = parseInt(visible[0].target.getAttribute("data-slide-idx") ?? "0", 10);
+          setActiveRunIndex(idx);
+        }
+      },
+      { root: carousel, threshold: [0.5, 0.75, 1] }
+    );
+    slides.forEach((s) => obs.observe(s));
+    return () => obs.disconnect();
+  }, [runs.length]);
+  const scrollToSlide = (index) => {
+    const carousel = carouselRef.current;
+    if (!carousel) return;
+    const slides = carousel.querySelectorAll("[data-slide-idx]");
+    const target = slides[index];
+    if (target) {
+      target.scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" });
+    }
+  };
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-search-drawer", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-search-drawer__header", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-search-drawer__identity", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(SearchIdentityIcon, { resource, size: 48 }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-search-drawer__identity-text", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("h3", { className: "dx-search-drawer__name", children: resource.name }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "dx-search-drawer__host", children: resource.url })
+        ] })
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "button",
+        {
+          type: "button",
+          className: "dx-search-drawer__close",
+          onClick: () => void onClose(),
+          "aria-label": "Close detail",
+          children: "✕"
+        }
+      )
+    ] }),
+    resource.description && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "dx-search-drawer__description", children: resource.description }),
+    (whyText || qualityScore !== null) && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-search-drawer__signals", children: [
+      qualityScore !== null && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-search-drawer__quality", "aria-label": `Quality ${qualityScore} out of 100`, children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Quality" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: qualityScore }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "/100" })
+      ] }),
+      whyText && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-search-drawer__why", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Why this matched" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: whyText })
+      ] })
+    ] }),
+    loading && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-search-drawer__loading", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "dx-search-drawer__loading-spinner" }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Loading verifier history…" })
+    ] }),
+    error && !loading && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-search-drawer__error", children: [
+      "Couldn't load the deeper detail — ",
+      error
+    ] }),
+    summary && summary.total > 0 && !loading && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-search-drawer__summary", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-search-drawer__summary-label", children: "Recent runs" }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "dx-search-drawer__summary-stat", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: summary.passes }),
+        " passed"
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-search-drawer__summary-sep", children: "·" }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "dx-search-drawer__summary-stat", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: summary.fails }),
+        " failed"
+      ] }),
+      typeof summary.median_duration_ms === "number" && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-search-drawer__summary-sep", children: "·" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "dx-search-drawer__summary-stat", children: [
+          "median ",
+          /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: formatDuration(summary.median_duration_ms) })
+        ] })
+      ] })
+    ] }),
+    runs.length > 0 && !loading && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-search-drawer__carousel-section", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: carouselRef, className: "dx-search-drawer__carousel", children: runs.map((run, i) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "div",
+        {
+          "data-slide-idx": i,
+          className: "dx-search-drawer__slide",
+          children: /* @__PURE__ */ jsxRuntimeExports.jsx(RunCard, { run, runNumber: i + 1, totalRuns: runs.length })
+        },
+        run.attempted_at + i
+      )) }),
+      runs.length > 1 && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "dx-search-drawer__dots", children: runs.map((_, i) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "button",
+        {
+          type: "button",
+          className: `dx-search-drawer__dot ${i === activeRunIndex ? "dx-search-drawer__dot--active" : ""}`,
+          onClick: () => scrollToSlide(i),
+          "aria-label": `Go to run ${i + 1}`
+        },
+        i
+      )) })
+    ] }),
+    listedRoutes.length > 0 && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-search-drawer__chains", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "dx-search-drawer__chains-label", children: "Listed payment routes" }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("ul", { className: "dx-search-drawer__chains-list", children: listedRoutes.map((route, i) => /* @__PURE__ */ jsxRuntimeExports.jsxs(
+        "li",
+        {
+          className: "dx-search-drawer__chain-row",
+          children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "dx-search-drawer__chain-identity", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-search-drawer__chain-network", children: shortenNetwork(route.network) }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-search-drawer__chain-asset", title: route.assetLabel, children: route.assetLabel })
+            ] }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-search-drawer__chain-price", children: route.priceLabel })
+          ]
+        },
+        `${route.network ?? "x"}-${route.assetLabel}-${route.priceLabel}-${i}`
+      )) })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-search-drawer__footer", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx(CopyButton, { copyValue: resource.url, variant: "ghost", color: "secondary", size: "sm", children: "Copy URL" }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "dx-search-drawer__footer-actions", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+        Button,
+        {
+          variant: "soft",
+          color: "secondary",
+          size: "sm",
+          onClick: handleCheckPrice,
+          disabled: checking || !onCheckPrice,
+          children: !onCheckPrice ? "Unavailable in this host" : checking ? "Confirming…" : "Use this service"
+        }
+      ) })
+    ] }),
+    checkError && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "dx-search-drawer__action-error", role: "alert", children: checkError })
+  ] });
+}
+function RunCard({ run, runNumber, totalRuns }) {
+  const hasFix = run.ai_fix_instructions && run.ai_status !== "pass" && (run.ai_score == null || run.ai_score < 75);
+  const responseStatus = run.response_status;
+  const responseSize = run.response_size_bytes;
+  const responseKind = run.response_kind;
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-search-drawer__run", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-search-drawer__run-header", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "dx-search-drawer__run-marker", children: [
+        "run ",
+        runNumber,
+        " of ",
+        totalRuns
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-search-drawer__run-status", children: run.final_status })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(ProfessorDexterCard, { run, passesOfRecent: null, animate: false }),
+    hasFix && run.ai_fix_instructions && /* @__PURE__ */ jsxRuntimeExports.jsx(DoctorDexterCard, { fixText: run.ai_fix_instructions, animate: false }),
+    (responseStatus !== null || responseSize) && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-search-drawer__shape", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-search-drawer__shape-key", children: "Response" }),
+      responseStatus !== null && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-search-drawer__shape-val", children: responseStatus }),
+      responseKind !== "unknown" && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-search-drawer__shape-val", children: responseKind }),
+      typeof responseSize === "number" && responseSize > 0 && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-search-drawer__shape-val", children: formatBytes(responseSize) })
+    ] }),
+    responseKind === "image" && run.response_image_bytes_persisted && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "dx-search-drawer__image-preview", children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-search-drawer__image-format", children: run.response_image_format ?? "image" }) })
+  ] });
+}
+function formatDuration(ms) {
+  if (ms == null) return "—";
+  if (ms < 1e3) return `${ms}ms`;
+  return `${(ms / 1e3).toFixed(1)}s`;
+}
+function formatBytes(bytes) {
+  if (bytes < 1024) return `${bytes}B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+}
+function shortenNetwork(network) {
+  if (!network) return "—";
+  const [family, ref] = network.split(":");
+  if (!family) return network;
+  if (family === "solana") return "Solana";
+  if (family === "algorand") return "Algorand";
+  if (family === "stellar") return "Stellar";
+  if (family === "eip155") {
+    if (ref === "8453") return "Base";
+    if (ref === "137") return "Polygon";
+    if (ref === "42161") return "Arbitrum";
+    if (ref === "10") return "Optimism";
+    if (ref === "43114") return "Avalanche";
+    if (ref === "56") return "BNB";
+    if (ref === "1") return "Ethereum";
+    return `EVM ${ref}`;
+  }
+  return family;
+}
+function formatChainPrice(amount, decimals = 6) {
+  if (!amount) return "—";
+  const n = Number(amount);
+  if (!Number.isFinite(n)) return "—";
+  const usd = n / Math.pow(10, decimals);
+  if (usd < 0.01) return `$${usd.toFixed(4)}`;
+  if (usd < 1) return `$${usd.toFixed(3)}`;
+  return `$${usd.toFixed(2)}`;
+}
+function buildSearchDecision(resources, selectedUrl, alternativeLimit = 3) {
+  const recommended = resources[0] ?? null;
+  if (!recommended) {
+    return {
+      recommended: null,
+      recommendationKind: null,
+      selected: null,
+      actionTarget: null,
+      alternatives: [],
+      hiddenAlternativeCount: 0,
+      isRecommendationSelected: false
+    };
+  }
+  const selected = resources.find((resource) => resource.url === selectedUrl) ?? null;
+  const actionTarget = selected ?? recommended;
+  const limit = Math.max(0, Math.floor(alternativeLimit));
+  const alternativePool = resources.filter(
+    (resource) => resource.url !== actionTarget.url
+  );
+  const alternatives = alternativePool.slice(0, limit);
+  return {
+    recommended,
+    recommendationKind: recommended.tier === "related" ? "related" : "strong",
+    selected,
+    actionTarget,
+    alternatives,
+    hiddenAlternativeCount: Math.max(
+      0,
+      alternativePool.length - alternatives.length
+    ),
+    isRecommendationSelected: selected?.url === recommended.url
+  };
+}
+function summarizeSearchResource(resource) {
+  const primaryRoute = resource.chains?.[0];
+  const qualityScore = typeof resource.qualityScore === "number" && Number.isFinite(resource.qualityScore) ? Math.min(100, Math.max(0, Math.round(resource.qualityScore))) : null;
+  const listedAsFree = resource.price.trim().toLowerCase() === "free";
+  return {
+    why: resource.why?.trim() || resource.description.trim() || "Matches the capability you asked for.",
+    qualityScore,
+    priceLabel: primaryRoute?.priceLabel?.trim() || (listedAsFree ? "Free" : resource.price.trim()) || null,
+    priceUsdc: primaryRoute?.priceUsdc ?? resource.priceUsdc ?? null,
+    priceFallback: listedAsFree ? "Free" : "Price on check"
+  };
+}
+function SearchDecisionBrief({
+  resources,
+  selectedUrl,
+  checkState = { status: "idle" },
+  onSelect,
+  onUseService,
+  onCompareAll,
+  canCheckCurrentTerms = true,
+  canCompare = true,
+  heading = "Best match",
+  alternativeLimit = 3
+}) {
+  const headingId = reactExports.useId();
+  const [showAllAlternatives, setShowAllAlternatives] = reactExports.useState(false);
+  reactExports.useEffect(() => {
+    setShowAllAlternatives(false);
+  }, [resources]);
+  const decision = buildSearchDecision(
+    resources,
+    selectedUrl,
+    showAllAlternatives ? resources.length : alternativeLimit
+  );
+  if (!decision.recommended || !decision.actionTarget) {
+    return /* @__PURE__ */ jsxRuntimeExports.jsxs(
+      "section",
+      {
+        className: "rounded-2xl border border-subtle bg-surface px-4 py-6 text-center",
+        "aria-labelledby": headingId,
+        children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { id: headingId, className: "text-base font-semibold text-primary", children: "No matching services" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "mt-1 text-sm leading-5 text-secondary", children: "Try describing the outcome you need in a different way." })
+        ]
+      }
+    );
+  }
+  const {
+    recommended,
+    recommendationKind,
+    actionTarget,
+    alternatives
+  } = decision;
+  const displayedSummary = summarizeSearchResource(actionTarget);
+  const displayedPrice = formatListedPrice(
+    displayedSummary.priceLabel,
+    displayedSummary.priceUsdc,
+    displayedSummary.priceFallback
+  );
+  const isShowingRecommendation = actionTarget.url === recommended.url;
+  const leadingLabel = recommendationKind === "related" ? "Closest match" : "Recommended";
+  const relevantCheckState = !checkState.resourceUrl || checkState.resourceUrl === actionTarget.url ? checkState : { status: "idle" };
+  const isChecking = relevantCheckState.status === "checking";
+  const hasCurrentTerms = relevantCheckState.status === "checked";
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs(
+    "section",
+    {
+      className: `dx-search-brief overflow-hidden rounded-2xl border border-default bg-surface ${hasCurrentTerms ? "dx-search-brief--confirmed" : ""}`,
+      "aria-labelledby": headingId,
+      children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-search-brief__recommendation p-4 sm:p-5", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-search-brief__identity flex items-start gap-3", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(SearchIdentityIcon, { resource: actionTarget, size: 44 }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "min-w-0 flex-1", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-wrap items-center gap-2", children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-search-brief__badge", children: isShowingRecommendation ? leadingLabel : "Selected" }),
+                actionTarget.verified && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-search-brief__badge dx-search-brief__badge--verified", children: "Verified" })
+              ] }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "h2",
+                {
+                  id: headingId,
+                  className: "dx-search-brief__title mt-2 truncate text-lg font-semibold leading-6 text-primary",
+                  children: actionTarget.name
+                }
+              ),
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { className: "mt-0.5 truncate text-xs text-tertiary", children: [
+                isShowingRecommendation ? recommendationKind === "related" ? "Closest related match" : heading : "Selected alternative",
+                " ·",
+                " ",
+                hostLabel(actionTarget.url)
+              ] })
+            ] }),
+            hasCurrentTerms && canCompare && resources.length > 1 && /* @__PURE__ */ jsxRuntimeExports.jsxs(
+              Button,
+              {
+                className: "dx-search-brief__change",
+                color: "secondary",
+                variant: "soft",
+                size: "sm",
+                onClick: onCompareAll,
+                "aria-label": "Change service",
+                children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-search-brief__change-wide", children: "Change service" }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-search-brief__change-compact", "aria-hidden": "true", children: "Change" })
+                ]
+              }
+            )
+          ] }),
+          !hasCurrentTerms && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "dx-search-brief__why mt-4 line-clamp-3 text-sm leading-6 text-secondary", children: displayedSummary.why }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("dl", { className: "dx-search-brief__facts mt-4 grid grid-cols-2 gap-3 border-t border-subtle pt-4", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx("dt", { className: "text-xs text-tertiary", children: "Quality" }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("dd", { className: "mt-0.5 text-sm font-semibold text-primary", children: displayedSummary.qualityScore === null ? "Not scored" : `${displayedSummary.qualityScore}/100` })
+              ] }),
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx("dt", { className: "text-xs text-tertiary", children: "Listed price" }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("dd", { className: "mt-0.5 text-sm font-semibold text-primary", children: displayedPrice })
+              ] })
+            ] })
+          ] })
+        ] }),
+        !hasCurrentTerms && alternatives.length > 0 && /* @__PURE__ */ jsxRuntimeExports.jsxs("fieldset", { className: "dx-search-brief__alternatives border-t border-subtle px-4 py-4 sm:px-5", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("legend", { className: "px-1 text-xs font-medium text-tertiary", children: "Other options" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("ul", { className: "dx-search-brief__alternative-list mt-1 space-y-2", children: alternatives.map((resource) => {
+            const summary = summarizeSearchResource(resource);
+            const listedPrice = formatListedPrice(
+              summary.priceLabel,
+              summary.priceUsdc,
+              summary.priceFallback
+            );
+            const isLeading = resource.url === recommended.url;
+            return /* @__PURE__ */ jsxRuntimeExports.jsx("li", { children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
+              "button",
+              {
+                type: "button",
+                onClick: () => onSelect(resource),
+                className: "flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-subtle px-3 py-2.5 transition-colors hover:bg-surface-secondary",
+                children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "min-w-0 flex-1", children: [
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "block truncate text-sm font-medium text-primary", children: resource.name }),
+                    /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "block truncate text-xs text-tertiary", children: [
+                      isLeading ? `${leadingLabel} · ` : "",
+                      hostLabel(resource.url)
+                    ] })
+                  ] }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "shrink-0 text-right", children: [
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "block text-sm font-medium text-primary", children: listedPrice }),
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "block text-xs text-tertiary", children: summary.qualityScore === null ? "Not scored" : `${summary.qualityScore}/100 quality` })
+                  ] }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    "span",
+                    {
+                      className: "dx-search-brief__choice",
+                      "aria-hidden": "true",
+                      children: "›"
+                    }
+                  )
+                ]
+              }
+            ) }, resource.resourceId || resource.url);
+          }) }),
+          !canCompare && decision.hiddenAlternativeCount > 0 && /* @__PURE__ */ jsxRuntimeExports.jsxs(
+            "button",
+            {
+              type: "button",
+              className: "dx-search-brief__show-more",
+              onClick: () => setShowAllAlternatives(true),
+              children: [
+                "Show ",
+                decision.hiddenAlternativeCount,
+                " more"
+              ]
+            }
+          )
+        ] }),
+        !hasCurrentTerms && /* @__PURE__ */ jsxRuntimeExports.jsxs("footer", { className: "dx-search-brief__footer border-t border-subtle bg-surface-secondary px-4 py-4 sm:px-5", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col-reverse gap-2 sm:flex-row sm:justify-end", children: [
+            canCompare && resources.length > 1 && /* @__PURE__ */ jsxRuntimeExports.jsx(
+              Button,
+              {
+                color: "secondary",
+                variant: "soft",
+                size: "sm",
+                onClick: onCompareAll,
+                children: "Compare all"
+              }
+            ),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              Button,
+              {
+                className: "dx-search-primary-action",
+                color: "primary",
+                variant: "solid",
+                size: "sm",
+                onClick: () => onUseService(actionTarget),
+                disabled: isChecking || !canCheckCurrentTerms,
+                children: !canCheckCurrentTerms ? "Unavailable in this host" : isChecking ? "Confirming terms…" : relevantCheckState.status === "error" ? "Try again" : "Use this service"
+              }
+            )
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "mt-3 text-xs leading-5 text-tertiary", "aria-live": "polite", children: !canCheckCurrentTerms ? /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: "This host can’t check current terms from the widget." }) : relevantCheckState.status === "error" ? /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-danger", role: "alert", children: relevantCheckState.message }) : relevantCheckState.status === "checking" ? /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: relevantCheckState.message || "Confirming the current terms…" }) : /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: "Dexter will confirm the current terms before approval." }) })
+        ] })
+      ]
+    }
+  );
+}
+const INITIAL_SHORTLIST_SIZE = 4;
+function SearchComparisonPanel({
+  resources,
+  selectedUrl,
+  onSelect,
+  onInspect
+}) {
+  const [showAll, setShowAll] = reactExports.useState(false);
+  if (resources.length < 2) return null;
+  const selectedIndex = resources.findIndex(
+    (resource) => resource.url === selectedUrl
+  );
+  const keepSelectedVisible = selectedIndex >= INITIAL_SHORTLIST_SIZE;
+  const visibleResources = showAll || keepSelectedVisible ? resources : resources.slice(0, INITIAL_SHORTLIST_SIZE);
+  const hiddenCount = resources.length - visibleResources.length;
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("section", { className: "dx-search-compare", "aria-labelledby": "dx-search-compare-title", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-search-compare__header", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { id: "dx-search-compare-title", children: "Compare services" }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { children: [
+        resources.length,
+        " services reviewed for this request"
+      ] })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "dx-search-compare__grid", children: visibleResources.map((resource, index) => {
+      const summary = summarizeSearchResource(resource);
+      const price = formatListedPrice(
+        summary.priceLabel,
+        summary.priceUsdc,
+        summary.priceFallback
+      );
+      const selected = selectedUrl === resource.url;
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs(
+        "article",
+        {
+          className: "dx-search-compare__card",
+          "data-selected": selected ? "true" : void 0,
+          children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-search-compare__identity", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx(SearchIdentityIcon, { resource, size: 38 }),
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: resource.name }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("small", { children: hostLabel(resource.url) })
+              ] }),
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-search-compare__badges", children: [
+                index === 0 && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: resource.tier === "related" ? "Closest match" : "Recommended" }),
+                selected && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { "data-selected": "true", children: "Selected" })
+              ] })
+            ] }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "dx-search-compare__why", children: summary.why }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("dl", { className: "dx-search-compare__facts", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx("dt", { children: "Quality" }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("dd", { children: summary.qualityScore === null ? "Not scored" : `${summary.qualityScore}/100` })
+              ] }),
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx("dt", { children: "Listed price" }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("dd", { children: price })
+              ] })
+            ] }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-search-compare__actions", children: [
+              selected ? /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-search-compare__selected-label", children: "Current choice" }) : /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "button",
+                {
+                  type: "button",
+                  className: "dx-search-compare__choose",
+                  onClick: () => onSelect(resource),
+                  children: "Choose"
+                }
+              ),
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
+                Button,
+                {
+                  className: "dx-search-compare__details",
+                  color: "secondary",
+                  variant: "ghost",
+                  size: "sm",
+                  onClick: () => onInspect(resource),
+                  children: "Details"
+                }
+              )
+            ] })
+          ]
+        },
+        resource.resourceId || resource.url
+      );
+    }) }),
+    hiddenCount > 0 && /* @__PURE__ */ jsxRuntimeExports.jsxs(
+      "button",
+      {
+        type: "button",
+        className: "dx-search-compare__more",
+        onClick: () => setShowAll(true),
+        children: [
+          "Show ",
+          hiddenCount,
+          " more"
+        ]
+      }
+    )
+  ] });
+}
+const COPY = {
+  paid: {
+    eyebrow: "Current terms",
+    title: "Ready for your approval",
+    body: "Choose whether to continue. Nothing has been charged."
+  },
+  free: {
+    eyebrow: "Current access",
+    title: "Ready to use",
+    body: "This service did not request payment."
+  },
+  siwx: {
+    eyebrow: "Current access",
+    title: "Wallet sign-in required",
+    body: "The service wants wallet identity, not a payment."
+  },
+  apiKey: {
+    eyebrow: "Current access",
+    title: "Provider access required",
+    body: "Connect the provider account before using this service."
+  },
+  hybrid: {
+    eyebrow: "Current terms",
+    title: "Sign in, then approve",
+    body: "Authentication comes first. Nothing has been charged."
+  },
+  error: {
+    eyebrow: "Live check",
+    title: "Current terms unavailable",
+    body: "Dexter could not verify this service right now."
+  }
+};
+function SearchQuotePanel({
+  resource,
+  quote,
+  checkedAt,
+  locale,
+  timeZone,
+  onRetry,
+  onContinue,
+  continueStatus = "idle",
+  continueError = null
+}) {
+  const panelRef = reactExports.useRef(null);
+  const requestBound = isSearchCheckRequestBound(resource.method);
+  const copy = getQuoteCopy(quote.classification);
+  const routes = [...quote.routes].sort((a, b) => a.price - b.price);
+  const purchaseOptions = reactExports.useMemo(
+    () => [...quote.purchaseOptions].sort((a, b) => {
+      const left = a.display.price;
+      const right = b.display.price;
+      if (left === null && right === null) return 0;
+      if (left === null) return 1;
+      if (right === null) return -1;
+      return left - right;
+    }),
+    [quote.purchaseOptions]
+  );
+  const [selectedPreparedId, setSelectedPreparedId] = reactExports.useState(
+    null
+  );
+  const selectedPurchase = purchaseOptions.find(
+    (option) => option.preparedPurchase.preparedId === selectedPreparedId && option.availability.state === "ready"
+  ) ?? null;
+  const requiresPurchaseSelection = requestBound;
+  const routeDisplayCounts = routes.reduce((counts, route) => {
+    const key = routeDisplayKey(route);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+    return counts;
+  }, /* @__PURE__ */ new Map());
+  const primaryRoute = routes[0] ?? null;
+  const checkedLabel = new Intl.DateTimeFormat(locale, {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone
+  }).format(checkedAt);
+  const actionLabel = getContinueLabel(quote.classification);
+  reactExports.useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      panelRef.current?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [quote.classification, resource.url]);
+  reactExports.useEffect(() => {
+    setSelectedPreparedId(
+      (current) => purchaseOptions.some(
+        (option) => option.preparedPurchase.preparedId === current && option.availability.state === "ready"
+      ) ? current : null
+    );
+  }, [purchaseOptions, resource.url]);
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs(
+    "section",
+    {
+      ref: panelRef,
+      tabIndex: -1,
+      className: `dx-search-quote dx-search-quote--${quote.classification}`,
+      "aria-live": "polite",
+      "aria-labelledby": "dx-search-quote-title",
+      children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "dx-search-quote__signal", "aria-hidden": "true", children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", {}) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-search-quote__content", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-search-quote__meta", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: copy.eyebrow }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { "aria-label": `Checked at ${checkedLabel}`, children: [
+              "updated ",
+              checkedLabel
+            ] })
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-search-quote__headline", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { id: "dx-search-quote-title", children: copy.title }) }),
+            primaryRoute && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-search-quote__price", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: primaryRoute.priceFormatted }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: formatRouteIdentity(primaryRoute) })
+            ] })
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "dx-search-quote__body", children: quote.classification === "error" && quote.errorMessage ? quote.errorMessage : copy.body }),
+          purchaseOptions.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("fieldset", { className: "dx-search-quote__purchase-choices", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("legend", { children: "Choose how to buy" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("ul", { children: purchaseOptions.map((option) => {
+              const offer = option.preparedPurchase.route.sellerOffer;
+              const disabled = option.availability.state !== "ready";
+              return /* @__PURE__ */ jsxRuntimeExports.jsx("li", { children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
+                "label",
+                {
+                  className: [
+                    "dx-search-quote__purchase-choice",
+                    selectedPreparedId === option.preparedPurchase.preparedId ? "dx-search-quote__purchase-choice--selected" : "",
+                    disabled ? "dx-search-quote__purchase-choice--disabled" : ""
+                  ].filter(Boolean).join(" "),
+                  children: [
+                    /* @__PURE__ */ jsxRuntimeExports.jsx(
+                      "input",
+                      {
+                        type: "radio",
+                        name: "search-purchase-mode",
+                        checked: selectedPreparedId === option.preparedPurchase.preparedId,
+                        disabled,
+                        onChange: () => setSelectedPreparedId(
+                          option.preparedPurchase.preparedId
+                        )
+                      }
+                    ),
+                    /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "dx-search-quote__purchase-copy", children: [
+                      /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: purchaseModeLabel(option.mode) }),
+                      /* @__PURE__ */ jsxRuntimeExports.jsxs("small", { children: [
+                        formatAssetLabel(offer.asset),
+                        " · ",
+                        formatNetwork(offer.network),
+                        disabled ? ` · ${availabilityLabel(option)}` : ""
+                      ] })
+                    ] }),
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-search-quote__purchase-price", children: option.display.priceFormatted ?? `${offer.amountAtomic} atomic` })
+                  ]
+                }
+              ) }, option.preparedPurchase.preparedId);
+            }) })
+          ] }) : routes.length > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("details", { className: "dx-search-quote__routes", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("summary", { children: [
+              routes.length,
+              " ways to pay",
+              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "View options" })
+            ] }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("ul", { children: routes.map((route) => /* @__PURE__ */ jsxRuntimeExports.jsxs("li", { children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "dx-search-quote__route-name", children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx(ChainIcon, { network: route.network, size: 16 }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: formatNetwork(route.network) }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("small", { children: formatRouteDetail(
+                  route,
+                  (routeDisplayCounts.get(routeDisplayKey(route)) ?? 0) > 1
+                ) })
+              ] }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: route.priceFormatted })
+            ] }, route.routeKey)) })
+          ] }) : null,
+          (onRetry || onContinue && actionLabel) && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "dx-search-quote__actions", children: quote.classification === "error" && onRetry ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+            Button,
+            {
+              color: "secondary",
+              variant: "soft",
+              size: "sm",
+              onClick: onRetry,
+              children: "Try again"
+            }
+          ) : onContinue && actionLabel ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+            Button,
+            {
+              className: "dx-search-primary-action",
+              color: "primary",
+              variant: "solid",
+              size: "sm",
+              onClick: () => onContinue(selectedPurchase),
+              disabled: continueStatus === "sending" || continueStatus === "sent" || requiresPurchaseSelection,
+              children: continueStatus === "sending" ? "Opening review…" : continueStatus === "sent" ? "Opened in chat" : selectedPurchase ? `Review ${purchaseModeLabel(selectedPurchase.mode)}` : actionLabel
+            }
+          ) : null }),
+          !onContinue && actionLabel && quote.classification !== "error" && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "dx-search-quote__handoff", children: "Ask Dexter in chat to continue with this checked service." }),
+          continueError && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "dx-search-quote__action-error", role: "alert", children: continueError })
+        ] })
+      ]
+    }
+  );
+}
+function availabilityLabel(option) {
+  switch (option.availability.state) {
+    case "ready":
+      return "Available";
+    case "request_required":
+      return "Price the exact request first";
+    case "integration_required":
+      return "Connection pending";
+    case "unavailable":
+      return "Not offered";
+  }
+}
+function getContinueLabel(classification, requestBound) {
+  switch (classification) {
+    case "paid":
+      return "Review request";
+    case "free":
+      return "Use it now";
+    case "siwx":
+      return "Continue to sign in";
+    case "apiKey":
+      return "Review access";
+    case "hybrid":
+      return "Review request";
+    case "error":
+      return null;
+  }
+}
+function getQuoteCopy(classification, requestBound) {
+  if (classification === "paid" || classification === "hybrid") {
+    return {
+      eyebrow: "Price estimate",
+      title: "Price estimate available",
+      body: "Final pricing depends on the request details. Dexter will confirm the exact amount before you approve."
+    };
+  }
+  return COPY[classification];
+}
+function formatRouteIdentity(route) {
+  const asset = formatAssetLabel(route.asset);
+  return route.network ? `${asset} · ${formatNetwork(route.network)}` : asset;
+}
+function formatNetwork(network) {
+  if (!network) return "Network unavailable";
+  return getChain(network).name || network;
+}
+function routeDisplayKey(route) {
+  return JSON.stringify([
+    route.network,
+    route.asset,
+    route.priceFormatted
+  ]);
+}
+function formatRouteDetail(route, needsDiscriminator) {
+  const asset = formatAssetLabel(route.asset);
+  if (!needsDiscriminator) return asset;
+  const details = [
+    route.scheme?.trim() || null,
+    route.payTo ? `to ${shortRecipient(route.payTo)}` : null
+  ].filter((value) => Boolean(value));
+  return details.length ? `${asset} · ${details.join(" · ")}` : asset;
+}
+function shortRecipient(value) {
+  const trimmed = value.trim();
+  return trimmed.length <= 12 ? trimmed : `${trimmed.slice(0, 6)}…${trimmed.slice(-4)}`;
+}
+function isRecord(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function nullableString(value) {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed || null;
+}
+function nullableFiniteNumber(value) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+function nullableInteger(value) {
+  const number = nullableFiniteNumber(value);
+  return number !== null && Number.isInteger(number) ? number : null;
+}
+function canonicalAuthMode(value) {
+  switch (value) {
+    case "paid":
+    case "siwx":
+    case "apiKey":
+    case "apiKey+paid":
+    case "unprotected":
+    case "unknown":
+      return value;
+    default:
+      return null;
+  }
+}
+function fallbackPriceLabel(price) {
+  if (Number.isInteger(price)) return `$${price.toFixed(2)}`;
+  return `$${price.toFixed(6).replace(/0+$/, "").replace(/\.$/, "")}`;
+}
+function routeKey(route) {
+  return JSON.stringify([
+    route.network,
+    route.asset,
+    route.scheme,
+    route.payTo,
+    route.amountAtomic ?? route.price,
+    route.facilitator ?? null
+  ]);
+}
+function normalizeX402PaymentRoutes(value) {
+  if (!Array.isArray(value)) return [];
+  const routes = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const candidate of value) {
+    if (!isRecord(candidate)) continue;
+    const price = nullableFiniteNumber(candidate.price);
+    if (price === null || price < 0) continue;
+    const route = {
+      price,
+      priceFormatted: nullableString(candidate.priceFormatted) ?? fallbackPriceLabel(price),
+      network: nullableString(candidate.network),
+      scheme: nullableString(candidate.scheme),
+      asset: nullableString(candidate.asset),
+      payTo: nullableString(candidate.payTo),
+      amountAtomic: nullableString(candidate.amountAtomic),
+      decimals: nullableInteger(candidate.decimals),
+      facilitator: nullableString(candidate.facilitator),
+      expiresAt: nullableString(candidate.expiresAt)
+    };
+    const key = routeKey(route);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    routes.push({ ...route, routeKey: key });
+  }
+  return routes;
+}
+function hasReportedError(payload) {
+  return payload.error === true || nullableString(payload.error) !== null;
+}
+function classify(payload, authMode, routes, statusCode) {
+  if (authMode === "apiKey") return "apiKey";
+  if (authMode === "siwx") return "siwx";
+  if (authMode === "apiKey+paid") {
+    return routes.length > 0 ? "hybrid" : "error";
+  }
+  if (authMode === "paid") {
+    return !hasReportedError(payload) && routes.length > 0 ? "paid" : "error";
+  }
+  if (authMode === "unprotected") {
+    return hasReportedError(payload) ? "error" : "free";
+  }
+  if (authMode === "unknown") return "error";
+  const requiresPayment = payload.requiresPayment === true;
+  const authRequired = payload.authRequired === true || statusCode === 401 || statusCode === 403;
+  if (authRequired && requiresPayment && routes.length > 0) return "hybrid";
+  if (authRequired) return "apiKey";
+  if (hasReportedError(payload)) return "error";
+  if (requiresPayment && routes.length > 0) return "paid";
+  if (payload.free === true) return "free";
+  if (payload.requiresPayment === false && statusCode !== null && statusCode >= 200 && statusCode < 300) {
+    return "free";
+  }
+  return "error";
+}
+function conciseMessage(value) {
+  const message = nullableString(value);
+  if (!message) return null;
+  const singleLine = message.replace(/\s+/g, " ");
+  return singleLine.length <= 180 ? singleLine : `${singleLine.slice(0, 177)}…`;
+}
+function errorMessage(payload) {
+  return conciseMessage(payload.message) ?? (typeof payload.error === "string" ? conciseMessage(payload.error) : null);
+}
+function quoteDescription(routes) {
+  if (routes.length === 0) return "no usable payment route";
+  if (routes.length === 1) {
+    const [route] = routes;
+    return route.network ? `${route.priceFormatted} on ${route.network}` : route.priceFormatted;
+  }
+  const sorted = [...routes].sort((a, b) => a.price - b.price);
+  const lowest = sorted[0];
+  const highest = sorted[sorted.length - 1];
+  const routeLabel = `${routes.length} payment routes`;
+  return lowest.price === highest.price ? `${lowest.priceFormatted} across ${routeLabel}` : `${routeLabel} from ${lowest.priceFormatted} to ${highest.priceFormatted}`;
+}
+function readerCopy(classification, routes, failure) {
+  const noPayment = "This check made no payment.";
+  switch (classification) {
+    case "paid":
+      return {
+        title: "Payment required",
+        summary: `Current quote: ${quoteDescription(routes)}. ${noPayment}`,
+        nextStep: "review-payment"
+      };
+    case "free":
+      return {
+        title: "No payment required",
+        summary: `This endpoint is currently unprotected. ${noPayment}`,
+        nextStep: "use-without-payment"
+      };
+    case "siwx":
+      return {
+        title: "Wallet sign-in required",
+        summary: `This endpoint requires wallet identity, not a payment quote. ${noPayment}`,
+        nextStep: "sign-in"
+      };
+    case "apiKey":
+      return {
+        title: "Provider authentication required",
+        summary: `Authenticate with the provider before x402 access can be checked. ${noPayment}`,
+        nextStep: "authenticate"
+      };
+    case "hybrid":
+      return {
+        title: "Authentication and payment required",
+        summary: `Authenticate first; the current quote is ${quoteDescription(routes)}. ${noPayment}`,
+        nextStep: "authenticate-then-review-payment"
+      };
+    case "error":
+      return {
+        title: "Pricing unavailable",
+        summary: `Current pricing could not be verified${failure ? `: ${failure}` : ""}. ${noPayment}`,
+        nextStep: "retry-check"
+      };
+  }
+}
+function normalizeX402CheckResult(value) {
+  const payload = isRecord(value) ? value : {};
+  const routes = normalizeX402PaymentRoutes(payload.paymentOptions);
+  const purchaseOptions = normalizePreparedPurchaseOptions(
+    payload.purchaseOptions
+  );
+  const authMode = canonicalAuthMode(payload.authMode);
+  const statusCode = nullableInteger(payload.statusCode);
+  const classification = classify(payload, authMode, routes, statusCode);
+  const failure = classification === "error" ? errorMessage(payload) : null;
+  const copy = readerCopy(classification, routes, failure);
+  return {
+    classification,
+    ...copy,
+    authMode,
+    statusCode,
+    x402Version: nullableInteger(payload.x402Version),
+    requiresPayment: classification === "paid" || classification === "hybrid" ? true : classification === "free" || classification === "siwx" ? false : null,
+    paymentStatus: "not_attempted",
+    paymentOccurred: false,
+    routes,
+    purchaseOptions,
+    inputSchema: payload.inputSchema ?? null,
+    outputSchema: payload.outputSchema ?? null,
+    resource: payload.resource ?? null,
+    errorMessage: failure
+  };
+}
+const SEARCH_WIDGET_BUILD = "2026-07-25.3";
+function getSearchGuidance(payload) {
+  if ((payload.triangulate?.alternateResourceIds?.length ?? 0) > 0) {
+    return "The leading match has limited structured evidence. Compare a profile-backed alternative before choosing.";
+  }
+  if (payload.searchMeta?.mode === "related_only") {
+    return "These are the closest related services. Review the fit before continuing.";
+  }
+  return null;
+}
+function normalizeSearchResource(resource, fallbackTier) {
+  const sellerValue = resource.seller;
+  const sellerMeta = resource.sellerMeta ?? {
+    payTo: null,
+    displayName: null,
+    logoUrl: null,
+    twitterHandle: null
+  };
+  if (sellerValue && typeof sellerValue === "object") {
+    const sellerObj = sellerValue;
+    return {
+      ...resource,
+      tier: resource.tier ?? fallbackTier,
+      seller: typeof sellerObj.displayName === "string" ? sellerObj.displayName : null,
+      sellerMeta: {
+        payTo: typeof sellerObj.payTo === "string" ? sellerObj.payTo : sellerMeta.payTo ?? null,
+        displayName: typeof sellerObj.displayName === "string" ? sellerObj.displayName : sellerMeta.displayName ?? null,
+        logoUrl: typeof sellerObj.logoUrl === "string" ? sellerObj.logoUrl : sellerMeta.logoUrl ?? null,
+        twitterHandle: typeof sellerObj.twitterHandle === "string" ? sellerObj.twitterHandle : sellerMeta.twitterHandle ?? null
+      }
+    };
+  }
+  return {
+    ...resource,
+    tier: resource.tier ?? fallbackTier,
+    seller: typeof sellerValue === "string" ? sellerValue : null,
+    sellerMeta
+  };
+}
+function normalizeSearchPayload(payload) {
+  if (!payload) return null;
+  return {
+    ...payload,
+    resources: Array.isArray(payload.resources) ? payload.resources.map((resource) => normalizeSearchResource(resource)) : [],
+    strongResults: Array.isArray(payload.strongResults) ? payload.strongResults.map((resource) => normalizeSearchResource(resource, "strong")) : void 0,
+    relatedResults: Array.isArray(payload.relatedResults) ? payload.relatedResults.map((resource) => normalizeSearchResource(resource, "related")) : void 0
+  };
+}
+function getSearchSections(payload) {
+  const strongResults = (payload.strongResults ?? []).map((resource) => resource.tier ? resource : { ...resource, tier: "strong" });
+  const relatedResults = (payload.relatedResults ?? []).map((resource) => resource.tier ? resource : { ...resource, tier: "related" });
+  const hasTieredShape = Array.isArray(payload.strongResults) || Array.isArray(payload.relatedResults);
+  return {
+    strongResults,
+    relatedResults,
+    hasTieredShape,
+    resources: hasTieredShape ? [...strongResults, ...relatedResults] : payload.resources ?? []
+  };
+}
+function getSearchErrorCopy(payload) {
+  const isBackendError = payload.searchMeta?.mode === "error" || Boolean(payload.error) || Boolean(payload.errorDetail);
+  if (!isBackendError) return null;
+  const description = payload.searchMeta?.note?.trim() || payload.tip?.trim() || payload.error?.trim() || "Dexter could not reach the marketplace. Retry the same search in a moment.";
+  return {
+    title: "Marketplace search unavailable",
+    description
+  };
+}
+function findSelectedResource(resources, selectedUrl) {
+  if (!selectedUrl) return null;
+  return resources.find((resource) => resource.url === selectedUrl) ?? null;
+}
+function toolResultPayload(result) {
+  if (result.structuredContent !== void 0) return result.structuredContent;
+  if (!result.result) return null;
+  try {
+    return JSON.parse(result.result);
+  } catch {
+    return { error: true, message: result.result };
+  }
+}
+function useCompactViewport() {
+  const [isCompact, setIsCompact] = reactExports.useState(false);
+  reactExports.useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    const media = window.matchMedia("(max-width: 640px)");
+    const update = () => setIsCompact(media.matches);
+    update();
+    media.addEventListener?.("change", update);
+    return () => media.removeEventListener?.("change", update);
+  }, []);
+  return isCompact;
+}
+function MarketplaceSearch() {
+  const toolOutput = useToolOutput();
+  const toolInput = useToolInput();
+  const theme = useAdaptiveTheme();
+  const hostContext = useAdaptiveHostContext();
+  const hostCapabilities = useAdaptiveHostCapabilities();
+  const maxHeight = useAdaptiveMaxHeight();
+  const displayMode = useAdaptiveDisplayMode();
+  const requestDisplayMode = useAdaptiveRequestDisplayMode();
+  const updateModelContext = useAdaptiveUpdateModelContext();
+  const sendFollowUp = useAdaptiveSendFollowUp();
+  const isMobile = useCompactViewport();
+  const callTool = useAdaptiveCallToolFn();
+  const isFullscreen = displayMode === "fullscreen";
+  const canToggleFullscreen = Boolean(
+    requestDisplayMode && hostCapabilities.requestDisplayMode && hostContext.availableDisplayModes.includes("fullscreen")
+  );
+  const constrainedMaxHeight = maxHeight;
+  const activeOutput = reactExports.useMemo(
+    () => normalizeSearchPayload(toolOutput),
+    [toolOutput]
+  );
+  const externalQuery = toolInput?.query ?? "";
+  const [selectedUrl, setSelectedUrl] = reactExports.useState(void 0);
+  const [detailOpen, setDetailOpen] = reactExports.useState(false);
+  const [comparisonOpen, setComparisonOpen] = reactExports.useState(false);
+  const [checkFlow, setCheckFlow] = reactExports.useState({ status: "idle" });
+  const [quoteContinuation, setQuoteContinuation] = reactExports.useState({ status: "idle" });
+  const checkRequestId = reactExports.useRef(0);
+  const continuationRequestId = reactExports.useRef(0);
+  const continuationInFlight = reactExports.useRef(false);
+  reactExports.useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+  }, [theme]);
+  reactExports.useEffect(() => {
+    checkRequestId.current += 1;
+    continuationRequestId.current += 1;
+    continuationInFlight.current = false;
+    setSelectedUrl(void 0);
+    setDetailOpen(false);
+    setComparisonOpen(false);
+    setCheckFlow({ status: "idle" });
+    setQuoteContinuation({ status: "idle" });
+  }, [activeOutput, externalQuery]);
+  reactExports.useEffect(() => {
+    if (!activeOutput) return;
+    addWidgetBreadcrumb("search_payload_normalized", {
+      count: getSearchSections(activeOutput).resources.length
+    });
+  }, [activeOutput]);
+  const searchSections = reactExports.useMemo(
+    () => activeOutput ? getSearchSections(activeOutput) : null,
+    [activeOutput]
+  );
+  const resources = searchSections?.resources ?? [];
+  const rerankApplied = activeOutput?.rerank?.applied === true;
+  const noMatchReason = activeOutput?.noMatchReason ?? null;
+  const selectedResource = reactExports.useMemo(
+    () => findSelectedResource(resources, selectedUrl),
+    [resources, selectedUrl]
+  );
+  const searchError = activeOutput ? getSearchErrorCopy(activeOutput) : null;
+  const searchGuidance = activeOutput ? getSearchGuidance(activeOutput) : null;
+  reactExports.useEffect(() => {
+    if (!selectedUrl || selectedResource) return;
+    setSelectedUrl(void 0);
+    setDetailOpen(false);
+  }, [selectedResource, selectedUrl]);
+  const confirmCurrentTerms = reactExports.useCallback(async (resource) => {
+    if (!hostCapabilities.callTool) {
+      setCheckFlow({
+        status: "error",
+        resourceUrl: resource.url,
+        message: "This host can’t check current terms from the widget."
+      });
+      return;
+    }
+    const requestId = ++checkRequestId.current;
+    continuationRequestId.current += 1;
+    continuationInFlight.current = false;
+    addWidgetBreadcrumb("current_terms_requested", { url: resource.url, method: resource.method });
+    setSelectedUrl(resource.url);
+    setCheckFlow({ status: "checking", resourceUrl: resource.url });
+    setQuoteContinuation({ status: "idle" });
+    try {
+      const result = await callTool("x402_check", {
+        url: resource.url,
+        method: resource.method || "GET"
+      });
+      if (checkRequestId.current !== requestId) return;
+      const payload = toolResultPayload(result);
+      const quote = normalizeX402CheckResult(
+        result.isError ? {
+          ...payload && typeof payload === "object" ? payload : {},
+          error: true,
+          authMode: "unknown"
+        } : payload
+      );
+      if (updateModelContext) {
+        void updateModelContext({
+          text: isSearchCheckRequestBound(resource.method) ? `Checked the current access and pricing for ${resource.name}. No payment was made.` : `Checked an indicative price for ${resource.name}. The exact request still needs pricing before approval. No payment was made.`,
+          structuredContent: {
+            checkedResource: {
+              name: resource.name,
+              url: resource.url,
+              method: resource.method || "GET",
+              classification: quote.classification,
+              requestBound: isSearchCheckRequestBound(resource.method),
+              paymentOptions: quote.routes.map((route) => ({
+                network: route.network,
+                asset: route.asset,
+                scheme: route.scheme,
+                price: route.price,
+                priceFormatted: route.priceFormatted
+              })),
+              purchaseOptions: quote.purchaseOptions.map((option) => ({
+                mode: option.mode,
+                availability: option.availability,
+                display: option.display,
+                preparedPurchase: option.preparedPurchase
+              }))
+            }
+          }
+        }).catch((error) => {
+          captureWidgetException(error, {
+            phase: "update_checked_model_context",
+            url: resource.url
+          });
+        });
+      }
+      setCheckFlow({
+        status: "checked",
+        resourceUrl: resource.url,
+        quote,
+        checkedAt: /* @__PURE__ */ new Date()
+      });
+    } catch (error) {
+      if (checkRequestId.current !== requestId) return;
+      captureWidgetException(error, { phase: "confirm_current_terms", url: resource.url });
+      setCheckFlow({
+        status: "error",
+        resourceUrl: resource.url,
+        message: error instanceof Error ? error.message : "Couldn’t verify the current terms."
+      });
+      throw error;
+    }
+  }, [callTool, hostCapabilities.callTool, updateModelContext]);
+  const handleSelectResource = reactExports.useCallback((resource) => {
+    checkRequestId.current += 1;
+    continuationRequestId.current += 1;
+    continuationInFlight.current = false;
+    addWidgetBreadcrumb("search_resource_selected", {
+      url: resource.url,
+      resourceId: resource.resourceId
+    });
+    setSelectedUrl(resource.url);
+    setCheckFlow({ status: "idle" });
+    setQuoteContinuation({ status: "idle" });
+    if (updateModelContext) {
+      void updateModelContext({
+        text: `Selected ${resource.name} for comparison in the x402 marketplace.`,
+        structuredContent: {
+          selectedResource: {
+            name: resource.name,
+            url: resource.url,
+            method: resource.method || "GET"
+          }
+        }
+      }).catch((error) => {
+        captureWidgetException(error, {
+          phase: "update_model_context",
+          url: resource.url
+        });
+      });
+    }
+  }, [updateModelContext]);
+  const handleInspectResource = reactExports.useCallback((resource) => {
+    checkRequestId.current += 1;
+    continuationRequestId.current += 1;
+    continuationInFlight.current = false;
+    addWidgetBreadcrumb("inspect_opened", { url: resource.url, resourceId: resource.resourceId });
+    setSelectedUrl(resource.url);
+    setCheckFlow({ status: "idle" });
+    setQuoteContinuation({ status: "idle" });
+    setDetailOpen(true);
+  }, []);
+  const handleCloseDetail = reactExports.useCallback(() => {
+    addWidgetBreadcrumb("inspect_closed");
+    setDetailOpen(false);
+  }, []);
+  const toggleFullscreen = reactExports.useCallback(() => {
+    if (!canToggleFullscreen || !requestDisplayMode) return;
+    try {
+      void Promise.resolve(
+        requestDisplayMode({ mode: isFullscreen ? "inline" : "fullscreen" })
+      ).then(() => setComparisonOpen(!isFullscreen)).catch((error) => {
+        captureWidgetException(error, { phase: "request_display_mode" });
+        if (!isFullscreen) setComparisonOpen(true);
+      });
+    } catch (error) {
+      captureWidgetException(error, { phase: "request_display_mode" });
+      if (!isFullscreen) setComparisonOpen(true);
+    }
+  }, [canToggleFullscreen, isFullscreen, requestDisplayMode]);
+  const handleCompareAll = reactExports.useCallback(() => {
+    if (isFullscreen) {
+      setComparisonOpen(true);
+      return;
+    }
+    if (!canToggleFullscreen || !requestDisplayMode) return;
+    try {
+      void Promise.resolve(requestDisplayMode({ mode: "fullscreen" })).then(() => setComparisonOpen(true)).catch((error) => {
+        captureWidgetException(error, { phase: "request_compare_fullscreen" });
+        setComparisonOpen(true);
+      });
+    } catch (error) {
+      captureWidgetException(error, { phase: "request_compare_fullscreen" });
+      setComparisonOpen(true);
+    }
+  }, [canToggleFullscreen, isFullscreen, requestDisplayMode]);
+  const activeResource = selectedResource ?? resources[0] ?? null;
+  const activeQuote = checkFlow.status === "checked" && activeResource && checkFlow.resourceUrl === activeResource.url ? checkFlow : null;
+  const decisionCheckState = checkFlow.status === "checking" ? {
+    status: "checking",
+    resourceUrl: checkFlow.resourceUrl,
+    message: "Confirming the service’s current terms…"
+  } : checkFlow.status === "checked" ? {
+    status: "checked",
+    resourceUrl: checkFlow.resourceUrl,
+    message: "A fresh price estimate is ready below."
+  } : checkFlow.status === "error" ? {
+    status: "error",
+    resourceUrl: checkFlow.resourceUrl,
+    message: checkFlow.message
+  } : { status: "idle" };
+  const continueFromQuote = reactExports.useCallback(async (selection) => {
+    if (!sendFollowUp || !activeResource || !activeQuote || continuationInFlight.current || quoteContinuation.status === "sending" || quoteContinuation.status === "sent") {
+      return;
+    }
+    const requestId = ++continuationRequestId.current;
+    const { classification } = activeQuote.quote;
+    isSearchCheckRequestBound(activeResource.method);
+    const selectedPurchase = selection ? activeQuote.quote.purchaseOptions.find(
+      (option) => option.preparedPurchase.preparedId === selection.preparedPurchase.preparedId && option.availability.state === "ready"
+    ) ?? null : null;
+    const selectedOffer = selectedPurchase?.preparedPurchase.route.sellerOffer ?? null;
+    const prompt = classification === "free" ? `Use ${activeResource.name} at ${activeResource.url} for my request.` : classification === "siwx" ? `Help me sign in to ${activeResource.name} with my wallet. Do not make a payment.` : classification === "apiKey" ? `Help me connect the provider access required for ${activeResource.name}.` : classification === "paid" || classification === "hybrid" ? selectedPurchase && selectedOffer ? `I selected ${purchaseModeLabel(selectedPurchase.mode)} for ${activeResource.name} at ${activeResource.url}. Preserve this prepared purchase exactly: ${JSON.stringify(selectedPurchase.preparedPurchase)}. The selected seller offer is ${selectedOffer.amountAtomic} atomic units of ${selectedOffer.asset} on ${selectedOffer.network}. Show me the exact request and atomic-unit ceiling, then ask for my confirmation before paying. Only execute after that explicit confirmation. Do not change the seller offer, route, or purchase mode.` : `Prepare the exact request for ${activeResource.name} at ${activeResource.url} and confirm its current payment options. Do not pay until I explicitly approve.` : `Retry the current terms check for ${activeResource.name}.`;
+    continuationInFlight.current = true;
+    setQuoteContinuation({ status: "sending" });
+    try {
+      await sendFollowUp(prompt);
+      if (continuationRequestId.current !== requestId) return;
+      setQuoteContinuation({ status: "sent" });
+    } catch (error) {
+      if (continuationRequestId.current !== requestId) return;
+      continuationInFlight.current = false;
+      captureWidgetException(error, {
+        phase: "quote_follow_up",
+        url: activeResource.url
+      });
+      setQuoteContinuation({
+        status: "error",
+        message: "Couldn’t open the review in chat. Try again."
+      });
+    }
+  }, [
+    activeQuote,
+    activeResource,
+    quoteContinuation.status,
+    sendFollowUp
+  ]);
+  const checkFromDetail = reactExports.useCallback(async (resource) => {
+    setDetailOpen(false);
+    await confirmCurrentTerms(resource);
+  }, [confirmCurrentTerms]);
+  if (!activeOutput) {
+    return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "data-theme": theme, className: "dxs-root p-2", style: { maxHeight: constrainedMaxHeight ?? void 0 }, children: /* @__PURE__ */ jsxRuntimeExports.jsx(MarketBoardLoading, { query: externalQuery }) });
+  }
+  if (searchError) {
+    return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "data-theme": theme, className: "dxs-root p-4", style: { maxHeight: constrainedMaxHeight ?? void 0 }, children: /* @__PURE__ */ jsxRuntimeExports.jsxs(EmptyMessage, { className: "rounded-2xl border border-subtle bg-surface px-4 py-8", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyMessage.Icon, { color: "danger", children: /* @__PURE__ */ jsxRuntimeExports.jsx(Warning, {}) }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyMessage.Title, { color: "danger", children: searchError.title }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyMessage.Description, { children: searchError.description })
+    ] }) });
+  }
+  if (resources.length === 0) {
+    const queryLabel = externalQuery;
+    const emptyTitle = noMatchReason === "below_strong_threshold" ? `Only weak matches${queryLabel ? ` for "${queryLabel}"` : ""}` : `No x402 APIs found${queryLabel ? ` for "${queryLabel}"` : ""}`;
+    const emptyDescription = noMatchReason === "below_similarity_threshold" ? "Nothing in our capability index matches that query yet. Try rephrasing, or widen the description of what you want to do." : noMatchReason === "below_strong_threshold" ? "We found some adjacent services but nothing cleared the strong-match bar. Try a more specific verb for the capability you want." : "Try a broader query or a different angle.";
+    return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "data-theme": theme, className: "dxs-root p-4", style: { maxHeight: constrainedMaxHeight ?? void 0 }, children: /* @__PURE__ */ jsxRuntimeExports.jsxs(EmptyMessage, { className: "rounded-2xl border border-subtle bg-surface px-4 py-8", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyMessage.Icon, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(Search, {}) }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyMessage.Title, { children: emptyTitle }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyMessage.Description, { children: emptyDescription })
+    ] }) });
+  }
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs(
+    "div",
+    {
+      "data-theme": theme,
+      className: `dxs-root dx-search-shell ${isFullscreen ? "dx-search-shell--fullscreen" : ""}`,
+      style: {
+        maxHeight: isFullscreen ? void 0 : constrainedMaxHeight ?? void 0,
+        paddingBottom: hostContext.safeAreaInsets.bottom || void 0
+      },
+      children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "dx-search-shell__header", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+          MarketplaceSummaryHeader,
+          {
+            resultCount: activeOutput.count,
+            rerankApplied,
+            isFullscreen,
+            canToggleFullscreen,
+            onToggleFullscreen: toggleFullscreen
+          }
+        ) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs(
+          "main",
+          {
+            className: `dx-search-experience ${isFullscreen ? "dx-search-experience--fullscreen" : ""}`,
+            children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs(
+                "div",
+                {
+                  className: `dx-search-experience__decision ${activeQuote ? "dx-search-experience__decision--confirmed" : ""}`,
+                  children: [
+                    /* @__PURE__ */ jsxRuntimeExports.jsx(
+                      SearchDecisionBrief,
+                      {
+                        resources,
+                        selectedUrl,
+                        checkState: decisionCheckState,
+                        onSelect: handleSelectResource,
+                        onUseService: (resource) => {
+                          void confirmCurrentTerms(resource).catch(() => {
+                          });
+                        },
+                        onCompareAll: handleCompareAll,
+                        canCheckCurrentTerms: hostCapabilities.callTool,
+                        canCompare: canToggleFullscreen || isFullscreen,
+                        heading: externalQuery ? "Recommended for this request" : "Best match",
+                        alternativeLimit: isFullscreen ? 0 : 2
+                      }
+                    ),
+                    activeQuote && activeResource && /* @__PURE__ */ jsxRuntimeExports.jsx(
+                      SearchQuotePanel,
+                      {
+                        resource: activeResource,
+                        quote: activeQuote.quote,
+                        checkedAt: activeQuote.checkedAt,
+                        locale: hostContext.locale,
+                        timeZone: hostContext.timeZone,
+                        onRetry: () => {
+                          void confirmCurrentTerms(activeResource).catch(() => {
+                          });
+                        },
+                        onContinue: sendFollowUp ? (selection) => {
+                          void continueFromQuote(selection);
+                        } : void 0,
+                        continueStatus: quoteContinuation.status,
+                        continueError: quoteContinuation.status === "error" ? quoteContinuation.message : null
+                      }
+                    )
+                  ]
+                }
+              ),
+              (comparisonOpen || isFullscreen) && /* @__PURE__ */ jsxRuntimeExports.jsx(
+                SearchComparisonPanel,
+                {
+                  resources,
+                  selectedUrl,
+                  onSelect: handleSelectResource,
+                  onInspect: handleInspectResource
+                }
+              ),
+              !isMobile && detailOpen && selectedResource && /* @__PURE__ */ jsxRuntimeExports.jsx("aside", { className: "dx-search-experience__detail", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                SearchVerdictDrawer,
+                {
+                  resource: selectedResource,
+                  onClose: handleCloseDetail,
+                  onCheckPrice: hostCapabilities.callTool ? checkFromDetail : void 0
+                }
+              ) })
+            ]
+          }
+        ),
+        isMobile && detailOpen && selectedResource && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-search-mobile-backdrop fixed inset-0 z-20 flex items-end px-3 py-3 backdrop-blur-sm", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "button",
+            {
+              type: "button",
+              className: "dx-search-mobile-dismiss",
+              onClick: handleCloseDetail,
+              "aria-label": "Close endpoint details"
+            }
+          ),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "relative z-10 max-h-[92vh] w-full overflow-y-auto animate-[fadein_.18s_ease-out]", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+            SearchVerdictDrawer,
+            {
+              resource: selectedResource,
+              onClose: handleCloseDetail,
+              onCheckPrice: hostCapabilities.callTool ? checkFromDetail : void 0
+            }
+          ) })
+        ] }),
+        searchGuidance && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "dx-search-shell__tip", children: searchGuidance })
+      ]
+    }
+  );
+}
+const root = document.getElementById("x402-marketplace-search-root");
+if (root) {
+  root.setAttribute("data-widget-build", SEARCH_WIDGET_BUILD);
+  clientExports.createRoot(root).render(/* @__PURE__ */ jsxRuntimeExports.jsx(MarketplaceSearch, {}));
+}

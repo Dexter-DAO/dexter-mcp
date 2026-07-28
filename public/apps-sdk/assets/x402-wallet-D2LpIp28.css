@@ -1,0 +1,644 @@
+/*
+ * Dexter Wallet widget — direction B (Calm Home + Sheets).
+ * Approved visual spec: apps-sdk/design-reference/wallet-widget-B-calm-home-sheets.*
+ * All classes namespaced `dxw-` so nothing collides with the shared SDK styles.
+ */
+
+.dxw-root {
+  --page:    var(--color-background-secondary, #F1EEE8);
+  --paper:   var(--color-background-primary, #FFFDF9);
+  --ink:     var(--color-text-primary, #1D1710);
+  --ink-2:   var(--color-text-secondary, #6F6659);
+  /* Meaningful small copy must remain readable even when a host's tertiary
+     token is decorative/low contrast. */
+  --ink-3:   var(--color-text-secondary, #6F6659);
+  --hair:    var(--color-border-tertiary, rgba(61, 50, 39, .10));
+  --hair-2:  var(--color-border-secondary, rgba(61, 50, 39, .16));
+  --ember:   var(--color-ring-primary, #F2681A);
+  --ember-ink: color-mix(in srgb, var(--ember) 52%, var(--ink));
+  --gold:    #CBAD72;
+  --card-gold: #d4b87e;
+  font-family: var(--font-sans, "Inter", system-ui, sans-serif);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+.dxw-root *, .dxw-root *::before, .dxw-root *::after { box-sizing: border-box; }
+/* :where() keeps this reset at element-specificity so class-based backgrounds
+   (swatches, the CTA, the address pill) win without needing !important. */
+:where(.dxw-root) button {
+  font: inherit; background: none; border: none; cursor: pointer;
+  color: inherit; text-align: inherit; padding: 0;
+}
+.dxw-root button:focus-visible {
+  outline: 2px solid var(--ember);
+  outline-offset: 2px;
+}
+.dxw-mono { font-family: "JetBrains Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+
+/* ---------- widget frame ---------- */
+.dxw-widget {
+  position: relative;
+  width: 100%;
+  max-width: 390px;
+  margin: 0 auto;
+  background: var(--paper);
+  border: 1px solid rgba(58, 46, 36, .08);
+  border-radius: 24px;
+  box-shadow:
+    0 1px 2px rgba(26, 21, 17, .04),
+    0 10px 28px rgba(26, 21, 17, .07),
+    0 32px 64px -24px rgba(26, 21, 17, .14);
+  padding: 22px 22px 8px;
+  overflow: hidden;
+}
+
+.dxw-head { display: flex; align-items: center; justify-content: space-between; }
+.dxw-head .dxw-lockup svg { display: block; }
+.dxw-custody { font-size: 11px; color: var(--ink-3); letter-spacing: .01em; }
+
+.dxw-hero { margin-top: 30px; }
+.dxw-spend-label { font-size: 13px; color: var(--ink-2); }
+.dxw-spend-amount {
+  margin-top: 6px;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500; font-size: 44px; line-height: 1; color: var(--ink);
+  display: flex; align-items: baseline;
+}
+.dxw-spend-amount .dxw-cur { font-size: 26px; color: var(--ink-3); margin-right: 3px; font-weight: 400; }
+.dxw-spend-amount .dxw-cents { font-size: 26px; color: var(--ink-2); }
+
+/* composition bar */
+.dxw-comp { margin-top: 22px; }
+.dxw-comp-bar { display: flex; gap: 3px; height: 6px; }
+.dxw-comp-bar .dxw-seg { border-radius: 2px; min-width: 0; }
+.dxw-seg-own    { background: var(--ember); }
+.dxw-seg-credit {
+  background: repeating-linear-gradient(135deg,
+    rgba(242, 104, 26, .60) 0 3px, rgba(242, 104, 26, .14) 3px 6px);
+}
+.dxw-seg-work   { background: var(--gold); position: relative; overflow: hidden; }
+.dxw-seg-work::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(100deg, transparent 20%, rgba(255, 251, 240, .75) 50%, transparent 80%);
+  transform: translateX(-100%);
+  animation: dxw-sheen 3.2s ease-in-out infinite;
+}
+@keyframes dxw-sheen { 0% { transform: translateX(-100%); } 55%, 100% { transform: translateX(100%); } }
+
+.dxw-legend { margin-top: 12px; font-size: 12px; }
+.dxw-legend .dxw-row { display: flex; justify-content: space-between; align-items: baseline; padding: 3px 0; }
+.dxw-legend .dxw-cluster { display: flex; align-items: baseline; gap: 7px; color: var(--ink-2); }
+.dxw-legend .dxw-amt { font-family: "JetBrains Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; font-size: 12px; color: #3A2E24; }
+.dxw-dot { width: 8px; height: 8px; border-radius: 2px; display: inline-block; transform: translateY(.5px); flex: none; }
+.dxw-dot-own { background: var(--ember); }
+.dxw-dot-credit { background: repeating-linear-gradient(135deg, rgba(242, 104, 26, .6) 0 2px, rgba(242, 104, 26, .15) 2px 4px); }
+.dxw-dot-work { background: var(--gold); }
+
+/* ---------- card ---------- */
+.dxw-card {
+  margin-top: 24px;
+  width: 100%; aspect-ratio: 1.586 / 1;
+  border-radius: 14px;
+  position: relative;
+  padding: 18px 20px 16px;
+  display: flex; flex-direction: column;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .06),
+    0 2px 4px rgba(20, 14, 8, .18),
+    0 18px 36px -12px rgba(20, 14, 8, .38);
+}
+.dxw-card-top { display: flex; align-items: center; justify-content: space-between; }
+.dxw-card-brand {
+  font-family: "Inter Display", "Inter", sans-serif;
+  font-weight: 700; font-size: 13px; letter-spacing: .22em;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, .55);
+}
+.dxw-freeze {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; font-weight: 500;
+  border: 1px solid rgba(212, 184, 126, .32);
+  border-radius: 999px; padding: 5px 11px;
+  cursor: default;
+}
+.dxw-freeze svg { display: block; }
+.dxw-chip { margin-top: 22px; }
+.dxw-pan {
+  margin-top: 18px;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 17px; letter-spacing: .06em;
+  display: flex; align-items: center; gap: 14px;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, .55);
+}
+.dxw-pan .dxw-reveal {
+  margin-left: auto;
+  display: flex; align-items: center; gap: 5px;
+  font-family: "Inter", sans-serif; font-size: 10.5px; letter-spacing: .01em;
+  white-space: nowrap;
+  min-height: 40px;
+  padding-block: 12px;
+  margin-block: -12px;
+}
+.dxw-pan .dxw-reveal-unavailable { cursor: default; opacity: .72; }
+.dxw-card-bottom {
+  margin-top: auto;
+  display: flex; align-items: flex-end; justify-content: space-between;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, .55);
+}
+.dxw-holder { font-size: 11.5px; letter-spacing: .14em; font-weight: 500; }
+.dxw-exp { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12px; opacity: .75; }
+.dxw-visa {
+  font-family: "Inter Display", "Inter", sans-serif;
+  font-style: italic; font-weight: 800; font-size: 16px; letter-spacing: .08em;
+}
+
+/* Tappable composition bar (opens the credit chit) — button reset that keeps
+   the bar's block layout exactly as the div rendered it. */
+button.dxw-comp {
+  display: block; width: 100%; text-align: left;
+  background: transparent; border: none; padding: 0; color: inherit;
+  font: inherit; cursor: pointer;
+}
+
+/* ---------- credit chit sheet (#115, single source: credit-chit-b2-widget-
+   language.html) ---------- */
+.dxw-chit-head { display: flex; align-items: baseline; gap: 6px; margin-top: 4px; }
+.dxw-chit-line { font-size: 22px; font-weight: 700; letter-spacing: -.01em; }
+.dxw-chit-line-label { font-size: 11px; color: var(--ink-2); }
+.dxw-chit-bar {
+  margin-top: 14px; height: 8px; border-radius: 999px;
+  background: color-mix(in srgb, var(--ink-2) 14%, transparent);
+  display: flex; overflow: hidden;
+}
+.dxw-chit-drawn { background: var(--ember); }
+.dxw-chit-open {
+  flex: 1;
+  background: repeating-linear-gradient(-55deg, rgba(232, 100, 31, .5) 0 4px, rgba(232, 100, 31, .12) 4px 8px);
+}
+.dxw-chit-legend {
+  display: flex; justify-content: space-between; margin-top: 8px;
+  font-size: 12px; color: var(--ink-2);
+}
+.dxw-chit-legend b { color: var(--ink-1, currentColor); font-weight: 600; }
+.dxw-chit-body { margin-top: 13px; font-size: 13.5px; line-height: 1.5; }
+.dxw-chit-owed { margin-top: 12px; font-size: 13.5px; line-height: 1.45; }
+.dxw-chit-net {
+  margin-top: 14px; padding-top: 10px;
+  border-top: 1px solid color-mix(in srgb, var(--ink-2) 22%, transparent);
+  display: flex; justify-content: space-between;
+  font-size: 11.5px; color: var(--ink-2);
+}
+.dxw-chit-net b { font-weight: 600; color: var(--ink-1, currentColor); }
+.dxw-chit-neg b { color: #c84510; }
+.dxw-chit-meta {
+  margin: 14px -18px 0; padding: 9px 18px 10px;
+  background: color-mix(in srgb, var(--ink-2) 8%, transparent);
+  font-size: 11px; color: var(--ink-2);
+}
+
+/* Verified-human mark: quiet second line under the custody note, right-aligned
+   so it never crowds the lockup. */
+.dxw-custody { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.dxw-verified {
+  display: inline-flex; align-items: center; gap: 4px;
+  color: var(--ink-2);
+}
+.dxw-verified svg { opacity: .85; }
+
+/* The single quiet invite (personhood or credit — never both). */
+.dxw-invite {
+  margin-top: 14px;
+  display: flex; align-items: center; gap: 12px;
+  width: 100%; text-align: left;
+  padding: 11px 12px;
+  border: 1px solid color-mix(in srgb, var(--ink-2) 22%, transparent);
+  border-radius: 10px;
+  background: transparent; cursor: pointer;
+  color: inherit;
+}
+.dxw-invite-mark {
+  display: flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 50%;
+  background: color-mix(in srgb, var(--ink-2) 12%, transparent);
+  color: var(--ink-1, currentColor);
+  flex: none;
+}
+.dxw-invite > span:nth-child(2) { flex: 1; min-width: 0; }
+.dxw-invite-main { font-size: 13px; font-weight: 600; }
+.dxw-invite-sub { font-size: 11.5px; color: var(--ink-2); margin-top: 1px; }
+
+/* ---------- compact fit under host height caps (board #95 punch) ----------
+   Branch's law: compaction = whitespace and rhythm ONLY — nothing is ever
+   removed. Two steps down as the host's clamp tightens. */
+@media (max-height: 720px) {
+  .dxw-card { margin-top: 16px; padding: 14px 18px 13px; }
+  .dxw-chip { margin-top: 14px; }
+  .dxw-pan { margin-top: 12px; }
+  .dxw-comp { margin-top: 14px; }
+  .dxw-actions { margin-top: 14px; }
+  .dxw-invite { margin-top: 11px; padding: 9px 11px; }
+  .dxw-last-tx { margin-top: 11px; }
+}
+@media (max-height: 600px) {
+  .dxw-head { margin-bottom: 2px; }
+  /* Everything stays; geometry shrinks. The card keeps its aspect ratio but
+     narrows (centered), which is where the real height comes back. */
+  .dxw-hero { margin-top: 10px; }
+  .dxw-spend-amount { font-size: 34px; }
+  .dxw-spend-amount .dxw-cur, .dxw-spend-amount .dxw-cents { font-size: 18px; }
+  .dxw-card { margin-top: 11px; padding: 12px 16px 11px; max-width: 76%; margin-inline: auto; border-radius: 11px; }
+  .dxw-chip { margin-top: 6px; }
+  .dxw-chip svg { width: 30px; height: auto; }
+  .dxw-pan { margin-top: 6px; font-size: 12px; gap: 7px; letter-spacing: .04em; }
+  .dxw-pan .dxw-reveal { font-size: 9.5px; gap: 3px; }
+  .dxw-card-brand { font-size: 11px; }
+  .dxw-holder { font-size: 9.5px; }
+  .dxw-exp { font-size: 10px; }
+  .dxw-comp { margin-top: 10px; }
+  .dxw-actions { margin-top: 10px; }
+  .dxw-action { padding-top: 8px; padding-bottom: 8px; }
+  .dxw-invite { margin-top: 9px; padding: 8px 10px; }
+  .dxw-last-tx { margin-top: 9px; padding-top: 8px; padding-bottom: 8px; }
+  .dxw-card-status { margin-top: 8px; }
+}
+
+/* Frozen: the face frosts over; controls stay tappable above the veil. */
+.dxw-card-frozen::after {
+  content: '';
+  position: absolute; inset: 0; border-radius: 14px;
+  background: linear-gradient(160deg, rgba(214, 230, 244, .16), rgba(190, 214, 236, .30));
+  backdrop-filter: saturate(.55) brightness(1.08);
+  pointer-events: none;
+}
+.dxw-card-frozen > * { position: relative; z-index: 1; }
+
+/* No card yet: the face is a quiet preview; one overlay button owns the tap. */
+.dxw-card-preview { opacity: .82; }
+.dxw-card-get {
+  position: absolute; inset: 0; border-radius: 14px;
+  background: transparent; border: none; cursor: pointer; z-index: 2;
+}
+
+/* Revealed numbers: the carrier's single-use render, pixels only. The whole
+   strip is a button — tap anywhere on it to hide. */
+.dxw-pan-revealed {
+  padding: 0; border: none; background: transparent; cursor: pointer;
+  display: block; width: 100%;
+}
+.dxw-reveal-img {
+  display: block; width: 100%; max-height: 64px; object-fit: contain;
+  object-position: left center;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .45));
+}
+
+.dxw-freeze:disabled, .dxw-reveal:disabled { opacity: .45; cursor: default; }
+
+.dxw-card-status {
+  margin-top: 12px;
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 12px; color: var(--ink-2);
+}
+.dxw-swatches { display: flex; align-items: center; gap: 0; }
+.dxw-swatch {
+  width: 40px; height: 40px; border-radius: 50%; cursor: pointer; border: none;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.dxw-swatch > span { width: 12px; height: 12px; border-radius: 50%; }
+.dxw-swatch-orange > span { background: linear-gradient(135deg, #ff8a3a, #c84510); }
+.dxw-swatch-obsidian > span { background: linear-gradient(135deg, #1a1a1c, #050506); }
+.dxw-swatch-moon > span { background: linear-gradient(135deg, #2a3548, #0a0d18); }
+.dxw-swatch[aria-pressed="true"] > span { box-shadow: 0 0 0 1.5px var(--paper), 0 0 0 3px var(--ember); }
+
+/* ---------- actions ---------- */
+.dxw-actions {
+  margin-top: 20px;
+  display: grid; grid-template-columns: repeat(4, 1fr);
+}
+.dxw-action {
+  display: flex; flex-direction: column; align-items: center; gap: 7px;
+  padding: 12px 0 13px; border-radius: 12px;
+  font-size: 12px; font-weight: 500; color: #3A2E24;
+  min-height: 48px;
+}
+.dxw-action:hover { background: rgba(242, 104, 26, .05); }
+.dxw-action:disabled { opacity: .42; cursor: default; }
+.dxw-action:disabled:hover { background: transparent; }
+.dxw-action svg { display: block; stroke: var(--ink-2); }
+.dxw-action.dxw-primary svg { stroke: var(--ember); }
+.dxw-action-note {
+  margin-top: -4px;
+  color: var(--ink-2);
+  font-size: 9.5px;
+  font-weight: 400;
+}
+
+/* last transaction teaser */
+.dxw-last-tx {
+  margin-top: 6px;
+  border-top: 1px solid var(--hair);
+  display: flex; align-items: center; gap: 10px;
+  padding: 13px 2px 15px; width: 100%;
+}
+.dxw-last-tx .dxw-tx-main { font-size: 12.5px; color: var(--ink); }
+.dxw-last-tx .dxw-tx-sub { font-size: 11px; color: var(--ink-3); margin-top: 2px; }
+.dxw-last-tx .dxw-tx-amt { margin-left: auto; font-size: 13px; color: var(--ink); }
+.dxw-last-tx .dxw-chev { flex: none; }
+
+/* ---------- sheet overlay ---------- */
+.dxw-scrim {
+  position: absolute; inset: 0;
+  background: rgba(26, 17, 9, .38);
+  animation: dxw-fade .18s ease-out;
+  z-index: 5;
+}
+@keyframes dxw-fade { from { opacity: 0; } to { opacity: 1; } }
+.dxw-sheet {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  background: var(--paper);
+  border-radius: 18px 18px 24px 24px;
+  box-shadow: 0 -14px 44px rgba(24, 16, 9, .28);
+  padding: 20px 22px 22px;
+  max-height: calc(100% - 12px);
+  overflow-y: auto;
+  z-index: 6;
+  animation: dxw-rise .26s cubic-bezier(.2, .8, .2, 1);
+}
+@keyframes dxw-rise { from { transform: translateY(100%); } to { transform: translateY(0); } }
+.dxw-sheet h2 {
+  font-family: "Inter Display", "Inter", sans-serif;
+  font-size: 18px; font-weight: 600; letter-spacing: -.01em; color: var(--ink);
+  margin: 0;
+}
+.dxw-sheet-close {
+  position: absolute; top: 10px; right: 16px;
+  width: 40px; height: 40px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--ink-2);
+}
+.dxw-sheet-close:hover { background: rgba(61, 50, 39, .06); color: var(--ink-2); }
+
+/* receive sheet */
+.dxw-receive { display: flex; gap: 16px; align-items: flex-start; margin-top: 20px; }
+.dxw-qr-tile {
+  flex: none; width: 104px; height: 104px;
+  background: #fff; border: 1px solid var(--hair-2); border-radius: 10px;
+  padding: 8px;
+}
+.dxw-qr-tile svg { display: block; width: 100%; height: 100%; }
+.dxw-receive .dxw-r-title { font-size: 13.5px; font-weight: 600; color: var(--ink); }
+.dxw-receive .dxw-r-sub { font-size: 12px; color: var(--ink-2); margin-top: 3px; line-height: 1.45; }
+.dxw-addr {
+  margin-top: 10px;
+  display: inline-flex; align-items: center; gap: 8px;
+  background: #F6F1E9; border-radius: 8px;
+  padding: 7px 11px;
+  min-height: 40px;
+  font-size: 12px; color: #3A2E24;
+}
+.dxw-addr:hover { background: #F1EAE0; }
+.dxw-addr:disabled { opacity: .5; cursor: default; }
+.dxw-addr svg { display: block; stroke: var(--ink-2); }
+.dxw-footnote { margin-top: 16px; font-size: 11px; color: var(--ink-3); line-height: 1.5; }
+
+/* ---------- unified assets sheet ---------- */
+.dxw-assets-summary {
+  margin-top: 14px;
+  padding: 12px 0 16px;
+  border-bottom: 1px solid var(--hair);
+}
+.dxw-assets-summary-label {
+  color: var(--ink-2);
+  font-size: 11.5px;
+}
+.dxw-assets-summary-value {
+  margin-top: 5px;
+  color: var(--ink);
+  font-size: 28px;
+  line-height: 1.05;
+  letter-spacing: -.025em;
+}
+.dxw-assets-summary-meta,
+.dxw-assets-disclosure {
+  margin-top: 7px;
+  color: var(--ink-3);
+  font-size: 11px;
+  line-height: 1.45;
+}
+.dxw-assets-disclosure {
+  padding-top: 8px;
+  border-top: 1px solid var(--hair);
+  color: var(--ink-2);
+}
+.dxw-assets-unavailable {
+  margin-top: 16px;
+  padding: 10px 0 18px;
+}
+.dxw-assets-unavailable-title {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+.dxw-assets-unavailable p {
+  margin: 6px 0 0;
+  color: var(--ink-2);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.dxw-assets-list {
+  margin: 10px -4px 0;
+}
+.dxw-asset + .dxw-asset { border-top: 1px solid var(--hair); }
+.dxw-asset-row {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto 14px;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  min-height: 64px;
+  padding: 10px 4px;
+  border-radius: 10px;
+}
+.dxw-asset-row:hover { background: color-mix(in srgb, var(--page) 66%, transparent); }
+.dxw-asset-row-blocked { cursor: default; }
+.dxw-asset-row-blocked:hover { background: transparent; }
+.dxw-asset-row[aria-expanded="true"] .dxw-chev { transform: rotate(90deg); }
+.dxw-asset-mark {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #F2E8DC;
+  color: #7A4B2A;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  overflow: hidden;
+}
+.dxw-asset-mark-artwork { background: transparent; }
+.dxw-asset-mark img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.dxw-asset-mark-cash { background: #E8F1EB; color: #315D43; }
+.dxw-asset-mark-yield { background: #EEE9DA; color: #6F5B2F; }
+.dxw-asset-mark-stock { background: #E7EAF1; color: #3E4965; }
+.dxw-asset-identity,
+.dxw-asset-balance {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.dxw-asset-name { font-size: 13px; font-weight: 600; color: var(--ink); }
+.dxw-asset-sub {
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-3);
+  font-size: 10.5px;
+}
+.dxw-asset-balance { align-items: flex-end; }
+.dxw-asset-amount { color: var(--ink); font-size: 12px; }
+.dxw-asset-value { margin-top: 3px; color: var(--ink-3); font-size: 10.5px; }
+.dxw-asset-blocked-copy {
+  margin: -6px 18px 12px 52px;
+  color: var(--ink-2);
+  font-size: 10.5px;
+  line-height: 1.4;
+}
+.dxw-asset-details {
+  margin: 0 4px 14px 48px;
+  padding: 4px 0 2px;
+}
+.dxw-asset-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 14px;
+  margin: 0;
+}
+.dxw-asset-facts div { min-width: 0; }
+.dxw-asset-facts dt {
+  color: var(--ink-3);
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+.dxw-asset-facts dd {
+  margin: 3px 0 0;
+  overflow-wrap: anywhere;
+  color: var(--ink-2);
+  font-size: 11px;
+}
+.dxw-asset-status-approved { color: #315D43 !important; }
+.dxw-asset-status-caution { color: #8A621E !important; }
+.dxw-asset-status-blocked { color: #A33B2D !important; }
+.dxw-asset-actions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 2px 8px;
+  margin-top: 12px;
+}
+.dxw-asset-actions button {
+  min-height: 40px;
+  padding: 7px 4px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  color: var(--ink-2);
+  text-align: center;
+  font-size: 10.5px;
+}
+.dxw-asset-actions button:disabled {
+  color: var(--ink-3);
+  cursor: default;
+  opacity: .76;
+}
+.dxw-asset-actions .dxw-asset-action-live {
+  border-color: color-mix(in srgb, var(--ember) 34%, var(--hair));
+  background: color-mix(in srgb, var(--ember) 6%, transparent);
+  color: var(--ember-ink);
+  font-weight: 600;
+}
+.dxw-asset-reasons {
+  margin-top: 11px;
+  color: var(--ink-2);
+  font-size: 10.5px;
+  line-height: 1.4;
+}
+.dxw-asset-reasons-label {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--ink);
+  font-weight: 600;
+}
+.dxw-asset-reasons ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.dxw-asset-reasons li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 3px 0;
+}
+.dxw-asset-reasons li span:first-child {
+  min-width: 0;
+  color: var(--ink-2);
+}
+.dxw-asset-reasons li span:last-child {
+  flex: none;
+  max-width: 48%;
+  color: var(--ink);
+  text-align: right;
+}
+.dxw-assets-empty,
+.dxw-assets-footnote {
+  margin-top: 14px;
+  color: var(--ink-2);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.dxw-assets-footnote {
+  padding-top: 12px;
+  border-top: 1px solid var(--hair);
+}
+
+@media (max-width: 380px) {
+  .dxw-widget { padding-inline: 17px; }
+  .dxw-sheet { padding-inline: 17px; }
+  .dxw-asset-details { margin-left: 0; }
+  .dxw-asset-blocked-copy { margin-left: 0; }
+  .dxw-asset-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dxw-receive { gap: 12px; }
+  .dxw-qr-tile { width: 92px; height: 92px; }
+}
+
+/* activity sheet */
+.dxw-act-list { margin-top: 4px; }
+.dxw-act-row { display: flex; align-items: center; gap: 10px; padding: 13px 0; }
+.dxw-act-row + .dxw-act-row { border-top: 1px solid var(--hair); }
+.dxw-act-main { font-size: 13px; color: var(--ink); }
+.dxw-act-sub { font-size: 11px; color: var(--ink-3); margin-top: 2px; }
+.dxw-act-amt { margin-left: auto; font-size: 13px; color: var(--ink); }
+.dxw-empty { margin-top: 16px; font-size: 12.5px; color: var(--ink-3); line-height: 1.5; }
+
+/* compact non-ready states */
+.dxw-simple { margin-top: 24px; padding-bottom: 6px; }
+.dxw-simple-title { font-family: "Inter Display", "Inter", sans-serif; font-weight: 600; font-size: 17px; color: var(--ink); }
+.dxw-simple-body { margin-top: 8px; font-size: 13px; color: var(--ink-2); line-height: 1.5; }
+.dxw-cta {
+  margin-top: 18px; width: 100%;
+  background: var(--ember); color: #fff;
+  border-radius: 12px; padding: 13px 0;
+  font-size: 14px; font-weight: 600; text-align: center;
+}
+.dxw-cta:hover { filter: brightness(1.04); }
+
+@media (prefers-reduced-motion: reduce) {
+  .dxw-seg-work::after,
+  .dxw-sheet, .dxw-scrim { animation: none; }
+}
