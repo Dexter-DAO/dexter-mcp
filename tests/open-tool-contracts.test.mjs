@@ -208,6 +208,79 @@ test('recursive scrub drops common provider credential aliases', () => {
   assert.equal(result.structuredContent.nested.safe, 'retained');
 });
 
+test('recursive scrub preserves shared purchase-route objects without mistaking aliases for cycles', () => {
+  const route = {
+    routeId: 'route_shared',
+    resourceUrl: 'https://provider.example/call',
+    resolvedUrl: 'https://provider.example/call',
+    method: 'GET',
+    payloadSha256: 'a'.repeat(64),
+    sellerOffer: {
+      offerId: 'offer_shared',
+      x402Version: 2,
+      scheme: 'exact',
+      network: 'solana:mainnet',
+      asset: 'USDC',
+      amountAtomic: '10000',
+      payTo: 'seller',
+      facilitator: null,
+      expiresAt: null,
+      rawAcceptSha256: 'b'.repeat(64),
+    },
+  };
+  const purchaseOptions = ['direct_exact', 'gateway_cash', 'gateway_credit'].map(
+    (mode) => ({
+      mode,
+      availability: { state: 'integration_required', reason: null },
+      display: { price: 0.01, priceFormatted: '$0.01' },
+      preparedPurchase: {
+        contractVersion: 'opendexter.purchase.v1',
+        preparedId: `prepared_${mode}`,
+        state: 'prepared',
+        preparedAt: '2026-07-28T00:00:00.000Z',
+        expiresAt: null,
+        mode,
+        route,
+      },
+    }),
+  );
+
+  const result = applyOpenToolResultPolicy('x402_check', {
+    content: [{ type: 'text', text: JSON.stringify({ purchaseOptions }) }],
+    structuredContent: { purchaseOptions },
+  });
+
+  assert.equal(typeof result.structuredContent.purchaseOptions[0].preparedPurchase.route, 'object');
+  assert.equal(typeof result.structuredContent.purchaseOptions[1].preparedPurchase.route, 'object');
+  assert.equal(typeof result.structuredContent.purchaseOptions[2].preparedPurchase.route, 'object');
+  assert.deepEqual(
+    result.structuredContent.purchaseOptions.map(
+      (option) => option.preparedPurchase.route.routeId,
+    ),
+    ['route_shared', 'route_shared', 'route_shared'],
+  );
+  assert.equal(
+    OPEN_TOOL_CONTRACTS.x402_check.outputSchema.safeParse(result.structuredContent).success,
+    true,
+  );
+});
+
+test('recursive scrub still terminates real object and array cycles', () => {
+  const objectCycle = { safe: 'retained' };
+  objectCycle.self = objectCycle;
+  const arrayCycle = [];
+  arrayCycle.push(arrayCycle);
+
+  const result = applyOpenToolResultPolicy('x402_access', {
+    content: [{ type: 'text', text: '{}' }],
+    structuredContent: { objectCycle, arrayCycle },
+  });
+
+  assert.equal(result.structuredContent.objectCycle.safe, 'retained');
+  assert.equal(result.structuredContent.objectCycle.self, '[circular]');
+  assert.equal(result.structuredContent.arrayCycle[0], '[circular]');
+});
+
 test('credentials and first-party setup tokens are recursively removed from model output', () => {
   const setupUrl =
     'https://dexter.cash/wallet/setup-passkey?mcp=11111111-2222-4333-8444-555555555555';
