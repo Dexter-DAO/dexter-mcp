@@ -7,7 +7,7 @@
  * Persistence: Supabase PostgreSQL (studio_jobs table)
  */
 
-import { query } from '@anthropic-ai/claude-agent-sdk';
+import { query } from '../../../scripts/studio-runtime/query.mjs';
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
