@@ -55,7 +55,7 @@ function main() {
   // This avoids cache-race outages where stale HTML references removed assets.
   try {
     const output = execSync(
-      `rsync -av "${SOURCE}/" "${TARGET}/"`,
+      `rsync -av --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r "${SOURCE}/" "${TARGET}/"`,
       { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
     );
 
