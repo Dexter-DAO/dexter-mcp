@@ -32,7 +32,7 @@ settled. A provider HTTP `2xx` response alone does not prove settlement.
 ## Tool routing
 
 - `x402_check` discovers requirements and reports `authMode`.
-- `x402_fetch` and `x402_pay` handle paid requests.
+- `x402_fetch` handles paid requests.
 - `x402_access` handles wallet-proof/Sign-In-With-X requests and must not be used
   to bypass a paid requirement.
 - `x402_wallet` reports the currently bound Dexter Wallet; it does not prove an

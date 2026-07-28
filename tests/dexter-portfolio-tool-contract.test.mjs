@@ -12,8 +12,8 @@ import {
 
 const ROOT = new URL('../', import.meta.url);
 
-test('dexter_portfolio is the only additive tool and is strict OAuth read-only', () => {
-  assert.equal(OPEN_TOOL_NAMES.length, 11);
+test('dexter_portfolio is part of the canonical six and is strict OAuth read-only', () => {
+  assert.equal(OPEN_TOOL_NAMES.length, 6);
   assert.equal(OPEN_TOOL_NAMES.includes('dexter_portfolio'), true);
   assert.deepEqual(OPEN_TOOL_SECURITY_SCHEMES.dexter_portfolio, [
     { type: 'oauth2', scopes: ['vault'] },
@@ -45,7 +45,7 @@ test('registered portfolio accepts no identity input and attaches no legacy widg
   assert.notEqual(start, -1);
   const registration = server.slice(
     start,
-    server.indexOf('// ─── dexter_passkey_probe', start),
+    server.indexOf('// ─── Dextercard tools:', start),
   );
   assert.match(registration, /inputSchema:\s*\{\}/);
   assert.match(registration, /dexterPortfolio\(args,\s*extra\)/);

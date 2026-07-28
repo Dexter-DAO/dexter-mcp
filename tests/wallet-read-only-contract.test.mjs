@@ -58,7 +58,7 @@ test('hosted x402_wallet remains read-only with no caller identity input', async
   assert.notEqual(registrationStart, -1, 'x402_wallet registration must exist');
   const registration = server.slice(
     registrationStart,
-    server.indexOf("// ─── dexter_passkey_probe", registrationStart),
+    server.indexOf("registerOpenTool(server, 'dexter_portfolio'", registrationStart),
   );
 
   assert.match(registration, /inputSchema:\s*\{\}/);
@@ -80,7 +80,7 @@ test('hosted x402_wallet keeps verified portfolio display data in widget metadat
   assert.notEqual(registrationStart, -1, 'x402_wallet registration must exist');
   const registration = server.slice(
     registrationStart,
-    server.indexOf("// ─── dexter_passkey_probe", registrationStart),
+    server.indexOf("registerOpenTool(server, 'dexter_portfolio'", registrationStart),
   );
 
   assert.match(walletImplementation, /fetchSessionPortfolio\(\{/);

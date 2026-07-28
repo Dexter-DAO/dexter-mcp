@@ -92,10 +92,7 @@ import {
   buildOpenMcpManifest,
 } from './lib/open-mcp-manifest.mjs';
 import { buildOpenServerInstructions } from './lib/open-server-instructions.mjs';
-import {
-  buildPasskeyReadyData,
-  getVaultReceiveAddress,
-} from './lib/passkey-wallet-result.mjs';
+import { getVaultReceiveAddress } from './lib/passkey-wallet-result.mjs';
 import {
   VAULT_AUTH_MODE_LINK_TOKEN,
   VAULT_AUTH_MODE_OAUTH,
@@ -122,7 +119,6 @@ import {
   checkEndpointPricing,
   fetchPublicExternalUrl,
 } from '@dexterai/x402-core';
-import { composeSkill } from '@dexterai/x402-skills';
 import { assertInstructionRosterParity } from '@dexterai/mcp-instructions';
 
 const PORT = parseInt(process.env.OPEN_MCP_PORT || '3931', 10);
@@ -140,17 +136,6 @@ const LOG_CORRELATION_KEY =
 const logRef = createLogRef(LOG_CORRELATION_KEY);
 const WEBAUTHN_PROBE_TELEMETRY_ENABLED =
   isWebauthnProbeTelemetryEnabled(process.env);
-// Composed-skills publish path (Phase E Task 10). DEXTER_API_ORIGIN points
-// at dexter-api (where the internal persist endpoint lives); the shared
-// secret authenticates this server as the trusted caller. The token must
-// match DEXTER_INTERNAL_TOKEN on dexter-api.
-const DEXTER_API_ORIGIN = normalizeInternalApiOrigin(
-  process.env.DEXTER_API_ORIGIN || 'https://api.dexter.cash',
-);
-const DEXTER_INTERNAL_TOKEN = process.env.DEXTER_INTERNAL_TOKEN || '';
-if (!DEXTER_INTERNAL_TOKEN) {
-  console.warn('[open-mcp] WARN: DEXTER_INTERNAL_TOKEN unset — x402_compose_skill publish path and promote_skill will fail. Non-publish path still works.');
-}
 /**
  * Capability search endpoint — semantic vector search over the x402 corpus
  * with synonym expansion, similarity floor, strong/related tiering, and
@@ -205,7 +190,6 @@ function widgetMeta(templateUri, invoking, invoked, description) {
 }
 
 const SEARCH_META = widgetMeta(X402_WIDGET_URIS.search, 'Searching marketplace…', 'Results ready', 'Shows paid API search results as interactive cards with quality rings, prices, and fetch buttons.');
-const PAY_META = widgetMeta(X402_WIDGET_URIS.fetch, 'Processing payment…', 'Payment complete', 'Shows API response data with payment receipt, transaction link, and settlement status.');
 const FETCH_META = widgetMeta(X402_WIDGET_URIS.fetch, 'Calling API…', 'Response received', 'Shows API response data with payment receipt, transaction link, and settlement status.');
 const ACCESS_META = widgetMeta(X402_WIDGET_URIS.fetch, 'Signing access proof…', 'Access response ready', 'Shows identity-gated API responses with wallet proof details and any follow-up requirements.');
 const CHECK_META = widgetMeta(X402_WIDGET_URIS.pricing, 'Checking pricing…', 'Pricing loaded', 'Shows endpoint pricing per blockchain with payment amounts and a pay button.');
@@ -214,12 +198,9 @@ const PORTFOLIO_META = Object.freeze({
   'openai/toolInvocation/invoking': 'Loading portfolio…',
   'openai/toolInvocation/invoked': 'Portfolio loaded',
 });
-const PASSKEY_PROBE_META = widgetMeta(DIAGNOSTIC_WIDGET_URIS.passkeyProbe, 'Loading probe…', 'Probe ready', 'One-button WebAuthn iframe-sandbox capability test. Renders a button that calls navigator.credentials.create() and .get() against rp.id=dexter.cash and reports the outcome.');
-const PASSKEY_ONBOARD_META = widgetMeta(PASSKEY_WIDGET_URIS.onboard, 'Checking wallet…', 'Wallet status loaded', 'Compatibility status view for the passkey wallet. Native host authorization performs the passkey ceremony; this widget shows the Connect handoff or the bound wallet.');
 
-// Card tools removed Jul 24 (owner ruling; card-removal runbook) — the card
-// lives in the wallet widget now. The original ten remain intact; the
-// model-safe portfolio reader is the only additive hosted tool in this slice.
+// Card and compatibility tools are retired from the hosted MCP. Every client
+// receives the same canonical six through the strict contract finalizer.
 const ALL_TOOLS = OPEN_TOOL_NAMES;
 const OPEN_SESSION_HINT_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -475,23 +456,6 @@ async function x402Search({ query, limit, unverified, testnets, rerank, network 
   });
 
   return response;
-}
-
-// ─── Tool: x402_pay ─────────────────────────────────────────────────────────
-
-async function x402Pay(
-  { url, method, body, multipart, sessionToken, sessionKey, tab, maxAmountAtomic, purchase },
-  extra,
-) {
-  const result = await x402Fetch(
-    { url, method, body, multipart, sessionToken, sessionKey, tab, maxAmountAtomic, purchase },
-    extra,
-  );
-  return {
-    ...result,
-    tool: 'x402_pay',
-    canonicalFlow: true,
-  };
 }
 
 // ─── Tool: x402_fetch (auto-pay) ─────────────────────────────────────────────
@@ -1735,136 +1699,6 @@ const SKILLS_ROOT = (() => {
 // sanitizer and append the authoritative native-OAuth/spend boundary.
 const SERVER_INSTRUCTIONS = buildOpenServerInstructions();
 
-/**
- * Resolve the caller's principal from an MCP `extra` context.
- *
- * Used by composed-skill tools (x402_compose_skill publish path,
- * promote_skill) — anything that mutates server-side state on behalf of a
- * claimed handle. Two binding shapes are supported:
- *
- *   1. Supabase-bound session — forwards the user's JWT to /principals/me.
- *   2. Passkey/anon session — looks up the mcp-binding to get a
- *      user_handle, then queries /principals/me?user_handle=…
- *
- * Returns:
- *   { identity, principal, sessionId } on success — `identity` is the
- *   exact shape the internal endpoints expect.
- *   { error: { code, extras } } on any failure — code is one of
- *   `principal_lookup_failed`, `no_claimed_handle`, `auth_required_to_publish`.
- *
- * Caller renders the error via the standard structuredContent shape.
- */
-async function resolvePrincipalForSession(extra) {
-  const sessionId = extra ? extractMcpSessionId(extra) : null;
-  const binding = sessionId ? getUserBinding(sessionId) : null;
-
-  if (binding?.userId && binding.supabaseAccessToken) {
-    const meRes = await fetchInternalApi('/api/principals/me', {
-      headers: { Authorization: `Bearer ${binding.supabaseAccessToken}` },
-      signal: AbortSignal.timeout(3000),
-    }, { origin: DEXTER_API_ORIGIN });
-    if (!meRes.ok) {
-      return { error: { code: 'principal_lookup_failed', extras: { status: meRes.status } } };
-    }
-    const me = await meRes.json();
-    if (!me.claimed) {
-      return {
-        error: {
-          code: 'no_claimed_handle',
-          extras: {
-            hint: sessionId
-              ? `Claim a handle at dexter.cash/wallet/claim-handle?mcp=${sessionId}`
-              : 'Claim a handle at dexter.cash/wallet/claim-handle',
-            claim_url: sessionId
-              ? `https://dexter.cash/wallet/claim-handle?mcp=${sessionId}`
-              : 'https://dexter.cash/wallet/claim-handle',
-          },
-        },
-      };
-    }
-    return {
-      identity: { kind: 'supabase', supabase_user_id: binding.userId },
-      principal: me.principal,
-      sessionId,
-    };
-  }
-
-  if (sessionId) {
-    let userHandle = null;
-    try {
-      const bindRes = await fetchInternalApi(
-        `/api/passkey-anon/mcp-binding/${encodeURIComponent(sessionId)}`,
-        {
-          headers: signedInternalHeaders(sessionId),
-          signal: AbortSignal.timeout(2000),
-        },
-        { origin: DEXTER_API_ORIGIN },
-      );
-      if (bindRes.ok) {
-        const bindBody = await bindRes.json();
-        userHandle = bindBody?.user_handle || null;
-        if (!userHandle) clearSessionVaultBinding(sessionId);
-      } else if (bindRes.status === 404) {
-        clearSessionVaultBinding(sessionId);
-      }
-    } catch {
-      // network blip — fall through to auth_required_to_publish below
-    }
-
-    if (userHandle) {
-      markSessionVaultBound(sessionId);
-      const meRes = await fetchInternalApi(
-        `/api/principals/me?user_handle=${encodeURIComponent(userHandle)}`,
-        { signal: AbortSignal.timeout(3000) },
-        { origin: DEXTER_API_ORIGIN },
-      );
-      if (!meRes.ok) {
-        return { error: { code: 'principal_lookup_failed', extras: { status: meRes.status } } };
-      }
-      const me = await meRes.json();
-      if (me.claimed) {
-        return {
-          identity: { kind: 'passkey', swig_address: me.principal.agent_wallet_address },
-          principal: me.principal,
-          sessionId,
-        };
-      }
-      return {
-        error: {
-          code: 'no_claimed_handle',
-          extras: {
-            hint: `Claim a handle at dexter.cash/wallet/claim-handle?mcp=${sessionId}`,
-            claim_url: `https://dexter.cash/wallet/claim-handle?mcp=${sessionId}`,
-          },
-        },
-      };
-    }
-  }
-
-  return {
-    error: {
-      code: 'auth_required_to_publish',
-      extras: {
-        hint: sessionId
-          ? 'Connect OpenDexter from the host, then claim a handle at dexter.cash/wallet/claim-handle.'
-          : 'MCP session id missing — cannot resolve user.',
-      },
-    },
-  };
-}
-
-/**
- * Build the standard error response shape for composed-skill tools.
- */
-function composedSkillsErrorResponse(code, extras = {}) {
-  const data = { error: code, ...extras };
-  return {
-    content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
-    structuredContent: data,
-    isError: true,
-  };
-}
-
 function createOpenMcpServer() {
   assertOpenToolAuthPolicyCoverage(ALL_TOOLS);
   const server = new McpServer({
@@ -1917,53 +1751,6 @@ function createOpenMcpServer() {
     } catch (err) {
       const data = buildSearchErrorResponse(err?.message || String(err));
       return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }], structuredContent: data, isError: true, _meta: SEARCH_META };
-    }
-  });
-
-  registerOpenTool(server, 'x402_pay', {
-    title: 'x402 Pay',
-    description: "Alias for x402_fetch. Prefer x402_fetch for paid API calls. After x402_check, preserve its exact preparedPurchase and pass it here as purchase with the user-approved maxAmountAtomic ceiling. purchase.mode explicitly selects direct_exact, native_tab, gateway_cash, or gateway_credit; OpenDexter never silently changes that mode. In this hosted candidate, every explicit-mode call stops before payment with integration_required until the durable backend contract is connected.",
-    // Schema is byte-identical to x402_fetch's (drift register Q3): the
-    // instructions promise "x402_pay, identical" — so it must accept the
-    // same body typing and multipart uploads, not a divergent subset.
-    inputSchema: {
-      url: z.string().url().describe('The x402 resource URL to call'),
-      method: z.enum(['GET', 'POST', 'PUT', 'DELETE']).default('GET').describe('HTTP method'),
-      body: z.string().optional().describe('JSON request body for POST/PUT — the RAW payload the seller expects, e.g. {"q":"latest news"}. NEVER send a schema descriptor (anything shaped like {"type":"http","method":...,"bodyType":...,"body":{...}}) — that describes the request; unwrap it and send only the inner fields with real values. Field names come from the search result\'s inputSchema or x402_check.'),
-      maxAmountAtomic: z.string().regex(MAX_AMOUNT_ATOMIC_RE).describe('Required user-approved maximum charge in USDC atomic units (positive 1-20 digit decimal string). Pass the exact approved quote ceiling; the payment is rejected if the current quote exceeds it.'),
-      purchase: PREPARED_PURCHASE_SCHEMA.optional().describe('Exact prepared purchase returned by x402_check. When present, URL, method, body digest, seller offer, route, mode, and prepared identity are pinned; a mismatch fails before dispatch. Omit only for legacy clients that have not adopted opendexter.purchase.v1.'),
-      multipart: z.object({
-        files: z.array(z.object({
-          fieldName: z.string().describe('Form field name expected by the x402 endpoint.'),
-          path: z.string().describe('Absolute filesystem path to the file to upload.'),
-          filename: z.string().optional().describe('Filename to send (defaults to basename of path).'),
-          contentType: z.string().optional().describe('MIME type (defaults to application/octet-stream).'),
-        })).describe('Files to upload as multipart parts.'),
-        fields: z.record(z.string()).optional().describe('Extra text fields to include in the multipart body.'),
-      }).optional().describe('Pass to upload files to a multipart x402 endpoint (image-gen, transcription, document processing). Vault-paid, Solana-only.'),
-      tab: z.boolean().optional().describe('Legacy compatibility only. It controls whether an old API tab invitation is displayed; it does not select a purchase mode. New calls select native_tab or direct_exact through purchase.mode.'),
-    },
-    annotations: { destructiveHint: true },
-    _meta: PAY_META,
-  }, async (args, extra) => {
-    try {
-      const result = await x402Pay(args, extra);
-      result.url = args.url;
-      result.method = (args.method || 'GET').toUpperCase();
-      const meta = { ...PAY_META };
-      if (isVaultAuthenticationRequired(result)) {
-        return vaultAuthenticationResult(result, meta);
-      }
-      if (result.session?.sessionToken) {
-        meta.sessionToken = result.session.sessionToken;
-        const { sessionToken: _drop, ...cleanSession } = result.session;
-        result.session = cleanSession;
-      }
-      return buildAnonVaultToolResult(result, meta);
-    } catch (err) {
-      const msg = err?.cause?.code === 'ENOTFOUND' ? `Could not reach ${args.url}` : err?.message || String(err);
-      const data = { status: 500, error: msg, url: args.url, method: (args.method || 'GET').toUpperCase() };
-      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }], structuredContent: data, isError: true, _meta: PAY_META };
     }
   });
 
@@ -2114,7 +1901,7 @@ function createOpenMcpServer() {
       url: z.string().url().describe('The protected resource URL to call'),
       method: z.enum(['GET', 'POST', 'PUT', 'DELETE']).default('GET').describe('HTTP method'),
       body: z.string().optional().describe('JSON request body for POST/PUT — the RAW payload the seller expects, e.g. {"q":"latest news"}. NEVER send a schema descriptor (anything shaped like {"type":"http","method":...,"bodyType":...,"body":{...}}) — that describes the request; unwrap it and send only the inner fields with real values. Field names come from the search result\'s inputSchema or x402_check.'),
-      sessionToken: z.string().optional().describe('Token for the legacy per-session access context this tool uses for wallet-proof auth. If omitted, a fresh access session starts automatically. This context is specific to x402_access and is separate from the Dexter wallet that x402_pay and x402_fetch spend from.'),
+      sessionToken: z.string().optional().describe('Token for the legacy per-session access context this tool uses for wallet-proof auth. If omitted, a fresh access session starts automatically. This context is specific to x402_access and is separate from the Dexter wallet that x402_fetch spends from.'),
       sessionKey: z.string().optional().describe('Optional stable key for reusing the same legacy access-session context across calls (for example, caller-hash on phone).'),
       network: z.string().optional().describe('Optional preferred auth network, e.g. solana:... or eip155:8453'),
     },
@@ -2188,305 +1975,11 @@ function createOpenMcpServer() {
     }
   });
 
-  // ─── dexter_passkey_probe ─────────────────────────────────────────────────
-  //
-  // Diagnostic tool. Renders a one-button widget that runs a real WebAuthn
-  // ceremony (navigator.credentials.create + .get against rp.id=dexter.cash)
-  // inside the chat client's widget iframe sandbox. In an explicitly opted-in
-  // non-production environment only, the result may also be POSTed to the
-  // diagnostic sink.
-  //
-  // Purpose: empirically determine whether the OpenAI Apps SDK widget
-  // sandbox (used by both ChatGPT and Claude) grants
-  // 'publickey-credentials-create' and 'publickey-credentials-get'. The
-  // answer decides whether the production passkey-controlled wallet flow
-  // ships inline or via popout fallback.
-  //
-  // Not a stub. The OS biometric prompt should fire. The credential is
-  // discarded — this is a capability check, not enrollment.
-  registerOpenTool(server, 'dexter_passkey_probe', {
-    title: 'Passkey iframe probe',
-    description: 'Diagnostic: tests whether navigator.credentials.create() and .get() can run inside the chat client\'s widget iframe against rp.id=dexter.cash. The outcome is rendered inline. Server-side diagnostic telemetry is disabled by default and cannot be enabled in production.',
-    inputSchema: {},
-    annotations: { readOnlyHint: true },
-    _meta: PASSKEY_PROBE_META,
-  }, async () => {
-    const result = {
-      ok: true,
-      instructions: WEBAUTHN_PROBE_TELEMETRY_ENABLED
-        ? 'Tap the button. The OS biometric prompt should fire. The outcome is shown inline and sent to the explicitly enabled development diagnostic sink.'
-        : 'Tap the button. The OS biometric prompt should fire. The outcome is shown inline and is not sent to the diagnostic sink.',
-      rp_id: 'dexter.cash',
-      telemetry: WEBAUTHN_PROBE_TELEMETRY_ENABLED ? 'development_opt_in' : 'disabled',
-    };
-    return {
-      content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-      structuredContent: result,
-      _meta: PASSKEY_PROBE_META,
-    };
-  });
-
-  registerOpenTool(server, 'x402_compose_skill', {
-    title: 'x402 Compose Skill',
-    description: 'Compose a Claude Code skill bundle from an x402gle host. v1 modes: (default) returns the bundle inline for the user to install ad-hoc; (publish: true) persists the composition as a permanent installable skill at https://x402gle.com/skills/<your-handle>/<slug>, committed to the Dexter-DAO/composed-skills GitHub monorepo and listed in the aggregate x402gle marketplace. Publishing requires a claimed handle (one-time setup at dexter.cash/wallet/claim-handle). Use compose when the user wants to ADOPT a host as a reusable skill — not when they want to call it directly (use x402_fetch for that).',
-    inputSchema: {
-      hosts: z.array(z.string()).min(1).max(1).describe('Exactly one host slug (e.g. "blockrun.ai"). v1 supports single-host composition; multi-host arrives later.'),
-      skill_name: z.string().optional().describe('Optional display name. Defaults to a title derived from the host (e.g. "blockrun.ai" → "Blockrun").'),
-      publish: z.boolean().optional().describe('When true, persists this composition to x402gle as a composed skill that anyone can install via the marketplace. Requires the user to have claimed a handle at dexter.cash/wallet/claim-handle. When false (default), the bundle is returned inline only — nothing is persisted or published.'),
-      visibility: z.enum(['unlisted', 'public']).optional().describe('When publish: true, controls discoverability. "public" lists the skill on x402gle.com/skills. "unlisted" hides it from public discovery but anyone with the URL can still install. Defaults to "unlisted".'),
-    },
-    annotations: { readOnlyHint: true },
-  }, async (args, extra) => {
-    try {
-      // ── Non-publish path: byte-identical to v0. ─────────────────────
-      if (!args.publish) {
-        const result = await composeSkill({
-          hosts: args.hosts,
-          skill_name: args.skill_name,
-          publish: false,
-        });
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-          structuredContent: result,
-        };
-      }
-
-      // ── Publish path: resolve identity → look up principal → persist ─
-      const resolution = await resolvePrincipalForSession(extra);
-      if (resolution.error) {
-        if (resolution.error.code === 'auth_required_to_publish') {
-          return vaultAuthenticationResult(
-            buildVaultAuthenticationRequired({
-              tool: 'x402_compose_skill',
-              reason: 'auth_required_to_publish',
-            }),
-          );
-        }
-        return composedSkillsErrorResponse(resolution.error.code, resolution.error.extras);
-      }
-      const { identity, principal } = resolution;
-      const ownerHandle = principal.handle;
-
-      if (!DEXTER_INTERNAL_TOKEN) {
-        return composedSkillsErrorResponse('publish_misconfigured', {
-          hint: 'DEXTER_INTERNAL_TOKEN missing on the MCP server.',
-        });
-      }
-
-      // Persister: thin pass-through to the internal endpoint. The
-      // dexter-api side does ownership + handle-match enforcement.
-      const persister = async (input) => {
-        const response = await fetchInternalApi(
-          '/api/internal/composed-skills/persist',
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Internal-Auth': DEXTER_INTERNAL_TOKEN,
-            },
-            body: JSON.stringify({ identity, payload: input }),
-            signal: AbortSignal.timeout(60000),
-          },
-          { origin: DEXTER_API_ORIGIN },
-        );
-        if (!response.ok) {
-          const errBody = await response.json().catch(() => ({ error: 'unknown' }));
-          const suffix = errBody?.hint ? ` — ${errBody.hint}` : '';
-          throw new Error(
-            `Persist failed (${response.status}): ${errBody.error || 'unknown'}${suffix}`,
-          );
-        }
-        const body = await response.json();
-        return {
-          skill_id: body.skill_id,
-          version_no: body.version_no,
-          preview_url: body.preview_url,
-        };
-      };
-
-      const result = await composeSkill({
-        hosts: args.hosts,
-        skill_name: args.skill_name,
-        publish: true,
-        owner_handle: ownerHandle,
-        composer_kind: 'user_authored',
-        composer_id: identity.kind === 'supabase'
-          ? identity.supabase_user_id
-          : identity.swig_address,
-        visibility: args.visibility ?? 'unlisted',
-        persister,
-      });
-
-      return {
-        content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        structuredContent: result,
-      };
-    } catch (err) {
-      const message = err?.message || String(err);
-      const data = { error: 'compose_failed', message };
-      return {
-        content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
-        structuredContent: data,
-        isError: true,
-      };
-    }
-  });
-
-  // ─── promote_skill ────────────────────────────────────────────────────────
-  //
-  // Change the visibility of a composed skill the caller owns.
-  //   public   — listed on x402gle.com/skills (the public marketplace)
-  //   unlisted — hidden from discovery, but installable via direct URL
-  //   archived — hidden from both discovery and direct install
-  //
-  // Ownership is enforced server-side: dexter-api resolves the principal
-  // from the bound MCP identity and updates only rows where
-  // owner_handle = principal.handle. The MCP schema deliberately omits
-  // owner_handle — a misbehaving client can't promote someone else's skill.
-  registerOpenTool(server, 'promote_skill', {
-    title: 'Promote Composed Skill',
-    description: 'Change the visibility of a composed skill you own. "public" lists it on x402gle.com/skills (the public marketplace). "unlisted" hides it from discovery — anyone with the direct URL can still install. "archived" hides it from both discovery and direct install. Only the skill\'s owner can promote it. Requires a claimed handle.',
-    inputSchema: {
-      slug: z.string().describe('The skill slug (e.g. "blockrun-ai"). You must own this skill — promote_skill resolves your handle automatically from the session.'),
-      visibility: z.enum(['unlisted', 'public', 'archived']).describe('Target visibility. "public" lists on x402gle.com/skills; "unlisted" is URL-only; "archived" hides everywhere.'),
-    },
-    annotations: { readOnlyHint: false },
-  }, async (args, extra) => {
-    try {
-      const resolution = await resolvePrincipalForSession(extra);
-      if (resolution.error) {
-        if (resolution.error.code === 'auth_required_to_publish') {
-          return vaultAuthenticationResult(
-            buildVaultAuthenticationRequired({
-              tool: 'promote_skill',
-              reason: 'auth_required_to_publish',
-            }),
-          );
-        }
-        return composedSkillsErrorResponse(resolution.error.code, resolution.error.extras);
-      }
-      const { identity } = resolution;
-
-      if (!DEXTER_INTERNAL_TOKEN) {
-        return composedSkillsErrorResponse('promote_misconfigured', {
-          hint: 'DEXTER_INTERNAL_TOKEN missing on the MCP server.',
-        });
-      }
-
-      const response = await fetchInternalApi(
-        '/api/internal/composed-skills/promote',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Internal-Auth': DEXTER_INTERNAL_TOKEN,
-          },
-          body: JSON.stringify({
-            identity,
-            slug: args.slug,
-            visibility: args.visibility,
-          }),
-          signal: AbortSignal.timeout(10000),
-        },
-        { origin: DEXTER_API_ORIGIN },
-      );
-
-      if (!response.ok) {
-        const errBody = await response.json().catch(() => ({ error: 'unknown' }));
-        const data = {
-          error: errBody.error || 'promote_failed',
-          hint: errBody.hint,
-          status: response.status,
-        };
-        return {
-          content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
-          structuredContent: data,
-          isError: true,
-        };
-      }
-
-      const data = await response.json();
-      return {
-        content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
-        structuredContent: data,
-      };
-    } catch (err) {
-      const message = err?.message || String(err);
-      const data = { error: 'promote_failed', message };
-      return {
-        content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
-        structuredContent: data,
-        isError: true,
-      };
-    }
-  });
-
-  // ─── dexter_passkey ───────────────────────────────────────────────────────
-  //
-  // Deprecated compatibility/status alias. New hosts use x402_wallet and the
-  // same native scope=vault OAuth transaction. Keeping this read-only alias
-  // avoids breaking older prompts while removing its contradictory vpair /
-  // permanent-connector onboarding path.
-  registerOpenTool(server, 'dexter_passkey', {
-    title: 'Dexter passkey wallet',
-    description: 'Compatibility status view for the passkey wallet. Prefer x402_wallet. If the current MCP session is not authorized, this triggers the host-native OpenDexter connection flow; it never creates or returns a personalized MCP URL.',
-    inputSchema: {},
-    annotations: { readOnlyHint: true },
-    _meta: PASSKEY_ONBOARD_META,
-  }, async (_args, extra) => {
-    const sessionId = extra ? extractMcpSessionId(extra) : null;
-    if (!sessionId) {
-      return vaultAuthenticationResult(
-        buildVaultAuthenticationRequired({
-          tool: 'dexter_passkey',
-          reason: 'no_mcp_session',
-        }),
-        PASSKEY_ONBOARD_META,
-      );
-    }
-
-    try {
-      const state = await fetchVaultStateBySession(sessionId);
-      if (state?.status === 'ready' && state.vault) {
-        markSessionVaultBound(sessionId);
-        const data = buildPasskeyReadyData(state.vault);
-        return {
-          content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
-          structuredContent: data,
-          _meta: PASSKEY_ONBOARD_META,
-        };
-      }
-
-      clearSessionVaultBinding(sessionId);
-      return vaultAuthenticationResult(
-        buildVaultAuthenticationRequired({
-          tool: 'dexter_passkey',
-          reason: state?.status || 'not_enrolled',
-        }),
-        PASSKEY_ONBOARD_META,
-      );
-    } catch (err) {
-      console.warn(`[dexter_passkey] /state read failed (${safeErrorLabel(err)})`);
-      const data = {
-        vault_status: 'error',
-        vault_address: null,
-        swig_address: null,
-        error: 'Could not read the authorized wallet state. Try again in a moment.',
-      };
-      return {
-        content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
-        structuredContent: data,
-        isError: true,
-        _meta: PASSKEY_ONBOARD_META,
-      };
-    }
-  });
-
   // ─── Dextercard tools: REMOVED (owner ruling Jul 23; card-removal runbook,
   // opendexter-ide/docs/CARD-REMOVAL-RUNBOOK-2026-07-23.md). The card is a
   // wallet-widget concern now: x402_wallet carries the read-only card summary
   // and the /widget/card/* frame-only rail handles reveal/freeze. Instructions
-  // render card-free via @dexterai/mcp-instructions@2.2.0 HOSTED_CAPS
+  // render card-free via @dexterai/mcp-instructions@2.4.0 HOSTED_CAPS
   // (hasCardTools:false) — reintroducing a card tool here without flipping the
   // cap back on would trip assertInstructionRosterParity at boot.
 
@@ -2499,6 +1992,8 @@ function createOpenMcpServer() {
         X402_WIDGET_URIS.fetch,
         X402_WIDGET_URIS.pricing,
         X402_WIDGET_URIS.wallet,
+        // Preserve already-served resource bytes for cached host renders.
+        // Neither compatibility resource has a callable tool in this release.
         DIAGNOSTIC_WIDGET_URIS.passkeyProbe,
         PASSKEY_WIDGET_URIS.onboard,
       ],
@@ -2902,7 +2397,8 @@ const httpServer = http.createServer(async (req, res) => {
 
   // ─── /dbg/webauthn-probe ─────────────────────────────────────────────
   //
-  // Optional append-only debug log sink for the dexter_passkey_probe widget.
+  // Optional append-only debug log sink for the legacy WebAuthn diagnostic
+  // resource. It is not an MCP tool.
   // It is off by default and impossible to enable in production. When an
   // operator explicitly enables it in development, the widget POSTs
   // { outcome, env } and this route writes one JSON line.
@@ -3190,8 +2686,8 @@ const httpServer = http.createServer(async (req, res) => {
       // must send a currently valid ES256 Bearer with issuer, audience,
       // lifetime, scope=vault, subject, and revocable surface on EVERY
       // protected invocation. Explicit personal-link sessions retain their
-      // separate legacy rail, and a valid account JWT remains sufficient only
-      // for the two account-owned skill actions.
+      // separate legacy rail; an account JWT never substitutes for the vault
+      // authorization required by the canonical protected tools.
       const protectedCall = findVaultProtectedToolCall(parsedBody);
       const bearer = extractBearer(req);
       let hasValidVaultBearer = false;

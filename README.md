@@ -59,30 +59,24 @@ requires the coordinated release runbook and post-deploy checks below.
 
 OpenDexter is the hosted MCP server behind the OpenDexter connector. Search,
 price inspection, and identity-gated access do not require Dexter account
-authorization. Wallet data, portfolio data, payment, and owner-scoped
-publishing require the host's native OAuth connection with `scope=vault`;
-skill composition supports both public local composition and an authenticated
-publishing path.
+authorization. Wallet data, portfolio data, and payment require the host's
+native OAuth connection with `scope=vault`.
 
-The public model-facing product roster is deliberately limited to these six
-tools:
+Every MCP client receives the same six-tool product roster:
 
 1. `x402_search`
-2. `x402_fetch`
-3. `x402_check`
+2. `x402_check`
+3. `x402_fetch`
 4. `x402_access`
 5. `x402_wallet`
 6. `dexter_portfolio`
 
-The raw compatibility roster temporarily stays at eleven so installed clients
-do not break. The old paid-call alias, composed-skill experiment, passkey
-status alias, and diagnostic probe are app-only and absent from model routing.
-The composed-skill records are preserved; those tools are not part of the
-OpenDexter product. There are no hosted card tools. Search never pays. A new
-payment starts with a fresh `x402_check`, preserves the selected seller offer
-and prepared identity, and requires an explicit user-approved atomic ceiling.
-OpenDexter never changes purchase mode after consequential dispatch and never
-automatically retries an ambiguous result.
+There are no hosted compatibility aliases, composed-skill, passkey-probe, or
+card tools. Search never pays. A new payment starts with a fresh `x402_check`,
+preserves the selected seller offer and prepared identity, and requires an
+explicit user-approved atomic ceiling. OpenDexter never changes purchase mode
+after consequential dispatch and never automatically retries an ambiguous
+result.
 
 **How wallet identity works.** OAuth authorizes the stable
 `https://open.dexter.cash/mcp` connector. Protected wallet and portfolio calls
@@ -92,8 +86,8 @@ wallet address or user handle. `x402_wallet` reads the bound passkey wallet;
 `dexter_portfolio` reads its governed asset inventory without changing the
 spendable balance.
 
-**How the npm package differs.** `@dexterai/opendexter` is a separate
-eight-tool local stdio contract for Codex, Claude Code, and other local agents.
+**How the npm package differs.** `@dexterai/opendexter` provides the same six
+user capabilities over local stdio for Codex, Claude Code, and other agents.
 It uses a user-controlled local signer instead of the hosted connector's OAuth
 and session binding. Its package, install guidance, and seller-side
 `opendexter audition <url>` command live in
@@ -104,7 +98,7 @@ and session binding. Its package, install guidance, and seller-side
 | Transport | Hosted HTTP MCP | Local stdio MCP |
 | Authorization | Mixed per-tool OAuth contract | Local process and signer |
 | Wallet identity | Durable passkey wallet bound to the authenticated MCP session | User-controlled local signer |
-| Executable roster | Eleven hosted tools | Seven local tools |
+| Executable roster | Six canonical tools | Six canonical tools |
 | Seller onboarding | Not exposed as a hosted tool | `opendexter audition <url>` |
 | Best for | ChatGPT, Claude, hosted agents | Codex, Claude Code, CLI agents |
 
@@ -117,94 +111,6 @@ Source: `open-mcp-server.mjs` (hosted server). npm package source is in [opendex
 The authenticated server at `mcp.dexter.cash/mcp` exposes the broader Dexter platform surface over OAuth-authenticated HTTPS, reusing the managed Dexter wallet infrastructure for automatic payment. It's what the Dexter brand connector on Claude and ChatGPT talks to.
 
 Source: `http-server-oauth.mjs`.
-
----
-
-## Legacy internals: `dexter_passkey` onboarding widget
-
-This section documents the retained compatibility implementation. It is not a
-public OpenDexter product tool; current wallet setup and state use
-`x402_wallet` plus the host's native OAuth action.
-
-`dexter_passkey` is the agent-facing onboarding for the [Open Tabs Standard](https://github.com/Dexter-DAO/dexter-vault) buyer wallet. When called, it returns an embedded React widget (in `apps-sdk/ui/src/entries/passkey-onboard.tsx`) that renders one of four durable states resolved from `dexter-api`:
-
-| State | What the widget shows |
-|---|---|
-| `not_enrolled` | "Set up your wallet" CTA, opens dexter.cash/wallet/setup-passkey in a new top-level tab (the chat-iframe sandbox blocks WebAuthn) |
-| `awaiting_ceremony` | "Finish in the other tab", the user started enrollment but hasn't completed the passkey ceremony; widget polls until it flips |
-| `provisioning` | "Setting up your wallet", vault is being created on Solana |
-| `ready` | "Your wallet's ready", shows the swig address with copy + "Manage your wallet" + "View on Solscan" |
-
-State is resolved via `GET /api/passkey-vault/state?mcp_session_id=…`, HMAC-gated and durable: it reads the `passkey_vault_pairings` table directly so it survives MCP process restarts. The widget polls every 1.5s while `awaiting_ceremony` and consumes the poll's return value to update itself, rather than relying on host tool-result notifications that don't fire for widget-initiated calls.
-
-Both MCP servers register the tool (`open-mcp-server.mjs` for the public OpenDexter server, the authenticated tree for `dexter-mcp`). The shared helper that calls `/state` lives in [`lib/pairing-mint.mjs`](./lib/pairing-mint.mjs).
-
-### Widget state machine
-
-The widget mounts in whatever state `dexter-api` says, polls every 1.5s while a passkey ceremony is open in another tab, and consumes its own poll's return value to flip. Without that the host never delivers the update for a widget-initiated call.
-
-```mermaid
-stateDiagram-v2
-    [*] --> Loading: widget mount
-    Loading --> NotEnrolled: vault_status\nnot_enrolled
-    Loading --> Provisioning: vault_status\nprovisioning
-    Loading --> Ready: vault_status\nready
-    Loading --> UserNotPaired: vault_status\nuser_not_paired
-    Loading --> ErrorState: vault_status\nerror
-
-    NotEnrolled --> AwaitingCeremony: user clicks\n"Set up wallet"\nopens dexter.cash\nin new tab
-
-    AwaitingCeremony --> AwaitingCeremony: every 1.5s\ncallTool dexter_passkey\nconsume return
-    AwaitingCeremony --> Provisioning: ceremony complete\n/state flips
-    AwaitingCeremony --> Ready: vault provisioned\n/state flips
-    Provisioning --> Ready: vault row written
-
-    Ready --> [*]: confetti +\nYour wallet's ready\nswig address + Copy
-
-    UserNotPaired --> [*]: legacy track\nsign in to dexter.cash
-    ErrorState --> [*]: Try again button
-```
-
-`awaiting_ceremony` is a flag on `not_enrolled` (not a separate top-level status), but it's what drives the "Finish in the other tab" copy and the auto-polling. The widget mints a fresh pairing URL only on the *first* entry into `not_enrolled`. Minting on every poll was the forever-poll bug.
-
-### Tool flow
-
-`dexter_passkey` branches on what the MCP session already knows about the caller:
-
-```mermaid
-flowchart TD
-    Entry["dexter_passkey called"] --> SessionID{"MCP session id<br/>available"}
-    SessionID -->|no| FB["Fallback:<br/>not_enrolled + enroll_url"]
-
-    SessionID -->|yes| Bound{"user already<br/>Supabase-bound"}
-
-    Bound -->|yes| Legacy["GET /api/passkey-vault/status<br/>via userScopedDexterFetch<br/>bearer auth"]
-    Bound -->|no| Durable["GET /api/passkey-vault/state<br/>mcp_session_id query<br/>HMAC-gated"]
-
-    Legacy --> Map["map enrolled / hasVault<br/>→ vault_status"]
-    Durable --> Direct["state.status is<br/>vault_status"]
-
-    Direct --> NeedsMint{"status is<br/>not_enrolled"}
-    NeedsMint -->|yes| Mint["mint vault pairing<br/>request_id +<br/>setup-passkey URL"]
-    NeedsMint -->|"awaiting_ceremony"| NoMint["reuse existing<br/>pairing"]
-    NeedsMint -->|"provisioning or ready"| NoMint
-
-    Map --> Out["structuredContent<br/>→ widget"]
-    Mint --> Out
-    NoMint --> Out
-    FB --> Out
-
-    classDef entryNode fill:#fff7ed,stroke:#f97316,color:#7c2d12
-    classDef branchNode fill:#eef2ff,stroke:#6366f1,color:#312e81
-    classDef apiNode fill:#ecfdf5,stroke:#059669,color:#064e3b
-    classDef outNode fill:#f1f5f9,stroke:#475569,color:#0f172a
-    class Entry entryNode
-    class SessionID,Bound,NeedsMint branchNode
-    class Legacy,Durable,Direct,Map,Mint,NoMint apiNode
-    class Out,FB outNode
-```
-
-Branch 1 is for legacy Supabase-paired sessions and still uses the bearer-auth `/status` route. Branch 2 is the durable path used by every new guest-track caller, the same path the `dexter_passkey_probe` tool exercises during onboarding diagnostics. Branch 3 is the fallback for a session without an id.
 
 ---
 

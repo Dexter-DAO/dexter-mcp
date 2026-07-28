@@ -903,7 +903,7 @@ function assertSearchHostCalls(hostName, calls, kind, expectedToolCalls = 1) {
 
   const forbiddenPaymentCalls = toolCalls.filter((call) => {
     const name = kind === 'chatgpt' ? call.name : call.params?.name;
-    return name === 'x402_fetch' || name === 'x402_pay';
+    return name === 'x402_fetch';
   });
   assert.equal(
     forbiddenPaymentCalls.length,
@@ -1028,7 +1028,7 @@ function assertPreparedPurchaseHostCalls(hostName, calls, kind) {
 
   const forbiddenPaymentCalls = toolCalls.filter((call) => {
     const name = kind === 'chatgpt' ? call.name : call.params?.name;
-    return name === 'x402_fetch' || name === 'x402_pay';
+    return name === 'x402_fetch';
   });
   assert.equal(
     forbiddenPaymentCalls.length,

@@ -20,23 +20,17 @@ import {
   projectCanonicalSecuritySchemes,
   projectCanonicalSecuritySchemesOnMessage,
   registerOpenTool,
-  supportsLegacyAccountAuthorization,
   vaultAuthenticationResult,
   withOpenToolAuth,
 } from '../lib/open-tool-auth.mjs';
 
 const TOOL_ROSTER = [
   'x402_search',
-  'x402_pay',
-  'x402_fetch',
   'x402_check',
+  'x402_fetch',
   'x402_access',
   'x402_wallet',
   'dexter_portfolio',
-  'x402_compose_skill',
-  'promote_skill',
-  'dexter_passkey_probe',
-  'dexter_passkey',
 ];
 
 test('mixed auth policy covers the exact hosted roster', () => {
@@ -47,7 +41,7 @@ test('mixed auth policy covers the exact hosted roster', () => {
   );
 });
 
-test('public, wallet, payment, and optionally linked tools have exact schemes', () => {
+test('public, wallet, portfolio, and payment tools have exact schemes', () => {
   assert.deepEqual(OPEN_TOOL_SECURITY_SCHEMES.x402_search, [{ type: 'noauth' }]);
   assert.deepEqual(OPEN_TOOL_SECURITY_SCHEMES.x402_check, [{ type: 'noauth' }]);
   assert.deepEqual(
@@ -61,10 +55,6 @@ test('public, wallet, payment, and optionally linked tools have exact schemes', 
   assert.deepEqual(
     OPEN_TOOL_SECURITY_SCHEMES.x402_fetch,
     [{ type: 'oauth2', scopes: ['vault'] }],
-  );
-  assert.deepEqual(
-    OPEN_TOOL_SECURITY_SCHEMES.x402_compose_skill,
-    [{ type: 'noauth' }, { type: 'oauth2', scopes: ['vault'] }],
   );
 });
 
@@ -85,26 +75,11 @@ test('protected-call classification follows the per-tool auth declaration', () =
   });
   assert.deepEqual(findVaultProtectedToolCall([
     call('x402_search'),
-    { ...call('x402_pay'), id: 2 },
-  ]), { name: 'x402_pay', id: 2 });
-  assert.deepEqual(findVaultProtectedToolCall([
-    call('x402_compose_skill', { publish: true }),
-    { ...call('x402_pay'), id: 2 },
-  ]), { name: 'x402_pay', id: 2 });
+    { ...call('x402_fetch'), id: 2 },
+  ]), { name: 'x402_fetch', id: 2 });
   assert.equal(findVaultProtectedToolCall(call('x402_search')), null);
+  assert.equal(findVaultProtectedToolCall(call('x402_pay')), null);
   assert.equal(findVaultProtectedToolCall(call('x402_compose_skill')), null);
-  assert.deepEqual(
-    findVaultProtectedToolCall(call('x402_compose_skill', { publish: true })),
-    { name: 'x402_compose_skill', id: 1 },
-  );
-});
-
-test('legacy account authorization is deliberately narrow', () => {
-  assert.equal(supportsLegacyAccountAuthorization('x402_compose_skill'), true);
-  assert.equal(supportsLegacyAccountAuthorization('promote_skill'), true);
-  assert.equal(supportsLegacyAccountAuthorization('x402_wallet'), false);
-  assert.equal(supportsLegacyAccountAuthorization('dexter_portfolio'), false);
-  assert.equal(supportsLegacyAccountAuthorization('x402_pay'), false);
 });
 
 test('registration config carries canonical and mirrored schemes', () => {

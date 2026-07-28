@@ -27,7 +27,7 @@ test('OAuth sessions verify every protected invocation, including a missing Bear
 
 test('an unclassified session verifies any presented Bearer before trusting it', () => {
   assert.equal(shouldVerifyVaultBearer({
-    protectedCall: protectedCall('x402_pay'),
+    protectedCall: protectedCall('x402_fetch'),
     sessionMeta: anonymous,
     bearerPresent: true,
     hasValidAccountBinding: false,
@@ -52,30 +52,24 @@ test('explicit personal-link sessions preserve the legacy connector rail', () =>
   }), false);
 });
 
-test('account JWT compatibility is limited to owner-scoped skill actions', () => {
-  for (const name of ['x402_compose_skill', 'promote_skill']) {
+test('account bindings never substitute for vault authorization', () => {
+  for (const name of ['x402_fetch', 'x402_wallet', 'dexter_portfolio']) {
     assert.equal(shouldVerifyVaultBearer({
       protectedCall: protectedCall(name),
       sessionMeta: anonymous,
       bearerPresent: true,
       hasValidAccountBinding: true,
-    }), false);
+    }), true);
   }
-  assert.equal(shouldVerifyVaultBearer({
-    protectedCall: protectedCall('x402_pay'),
-    sessionMeta: anonymous,
-    bearerPresent: true,
-    hasValidAccountBinding: true,
-  }), true);
 });
 
-test('a stale cached account binding cannot authorize a later Bearer-less call', () => {
+test('a stale cached account binding cannot trigger vault verification without a Bearer', () => {
   assert.equal(shouldVerifyVaultBearer({
-    protectedCall: protectedCall('promote_skill'),
+    protectedCall: protectedCall('x402_wallet'),
     sessionMeta: anonymous,
     bearerPresent: false,
-    hasValidAccountBinding: false,
-  }), true);
+    hasValidAccountBinding: true,
+  }), false);
 });
 
 test('public calls never trigger vault Bearer verification', () => {

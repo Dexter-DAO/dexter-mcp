@@ -29,13 +29,13 @@ const UNBOUND = {
   boundDurable: false,
 };
 
-test('raw HTTP challenge set is exactly the two money-execution tools', () => {
-  assert.deepEqual([...SPEND_TOOL_NAMES].sort(), ['x402_fetch', 'x402_pay']);
+test('raw HTTP challenge set is exactly the canonical money-execution tool', () => {
+  assert.deepEqual([...SPEND_TOOL_NAMES], ['x402_fetch']);
 });
 
 // ── Challenge fires: unbound, Bearer-less money-execution tools/call ────────
 
-for (const name of ['x402_pay', 'x402_fetch']) {
+for (const name of ['x402_fetch']) {
   test(`challenges ${name} when unbound with no Bearer`, () => {
     assert.equal(shouldChallengeSpend({ messages: call(name), ...UNBOUND }), true);
   });
@@ -47,7 +47,7 @@ test('challenges when ANY message in a batch is a money-execution tools/call', (
 });
 
 test('challenges a batch whose only spend call is last', () => {
-  const batch = [call('x402_check'), call('x402_search', 2), call('x402_pay', 3)];
+  const batch = [call('x402_check'), call('x402_search', 2), call('x402_fetch', 3)];
   assert.equal(shouldChallengeSpend({ messages: batch, ...UNBOUND }), true);
 });
 
@@ -59,7 +59,7 @@ test('tolerates junk entries in a batch alongside a spend call', () => {
 // ── Anonymous stays anonymous: browse-class never challenges ────────────────
 
 for (const name of [
-  'x402_search', 'x402_check', 'x402_access', 'x402_wallet', 'dexter_portfolio', 'dexter_passkey',
+  'x402_search', 'x402_check', 'x402_access', 'x402_wallet', 'dexter_portfolio', 'x402_pay', 'dexter_passkey',
   'x402_compose_skill', 'promote_skill', 'card_status', 'dexter_passkey_probe',
 ]) {
   test(`never challenges tools/call ${name}`, () => {
@@ -83,7 +83,7 @@ test('never challenges an all-anonymous batch', () => {
 test('a verified vault Bearer suppresses the raw challenge', () => {
   assert.equal(
     shouldChallengeSpend({
-      messages: call('x402_pay'),
+      messages: call('x402_fetch'),
       hasValidVaultBearer: true,
       boundInMemory: false,
       boundDurable: false,
@@ -107,7 +107,7 @@ test('in-memory bound suppresses the challenge', () => {
 test('durable binding suppresses the challenge (restart survivor)', () => {
   assert.equal(
     shouldChallengeSpend({
-      messages: call('x402_pay'),
+      messages: call('x402_fetch'),
       hasValidVaultBearer: false,
       boundInMemory: false,
       boundDurable: true,
@@ -140,7 +140,11 @@ for (const [label, body] of [
 // ── hasSpendToolCall directly ────────────────────────────────────────────────
 
 test('hasSpendToolCall: single spend message', () => {
-  assert.equal(hasSpendToolCall(call('x402_pay')), true);
+  assert.equal(hasSpendToolCall(call('x402_fetch')), true);
+});
+
+test('hasSpendToolCall: retired paid alias is not executable', () => {
+  assert.equal(hasSpendToolCall(call('x402_pay')), false);
 });
 
 test('hasSpendToolCall: single non-spend message', () => {

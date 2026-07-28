@@ -18,20 +18,24 @@ import {
 
 const EXPECTED_TOOLS = [
   'x402_search',
-  'x402_pay',
-  'x402_fetch',
   'x402_check',
+  'x402_fetch',
   'x402_access',
   'x402_wallet',
   'dexter_portfolio',
+];
+
+const RETIRED_TOOLS = [
+  'x402_pay',
   'x402_compose_skill',
   'promote_skill',
   'dexter_passkey_probe',
   'dexter_passkey',
 ];
 
-test('contract preserves the original ten and adds only model-safe portfolio', () => {
+test('contract is exactly the canonical hosted six', () => {
   assert.deepEqual(OPEN_TOOL_NAMES, EXPECTED_TOOLS);
+  assert.deepEqual(Object.keys(OPEN_TOOL_CONTRACTS).sort(), [...EXPECTED_TOOLS].sort());
   assert.doesNotMatch(OPEN_TOOL_NAMES.join(','), /card_/);
   for (const [name, toolContract] of Object.entries(OPEN_TOOL_CONTRACTS)) {
     assert.equal(
@@ -142,7 +146,7 @@ test('both supported registration APIs close after finalization', () => {
   );
 });
 
-test('behavior annotations reflect mutating probes and conditional publishing', () => {
+test('behavior annotations reflect the canonical six operations', () => {
   assert.equal(OPEN_TOOL_CONTRACTS.x402_search.annotations.readOnlyHint, true);
   assert.equal(OPEN_TOOL_CONTRACTS.x402_wallet.annotations.readOnlyHint, false);
   assert.equal(OPEN_TOOL_CONTRACTS.x402_wallet.annotations.idempotentHint, false);
@@ -150,28 +154,14 @@ test('behavior annotations reflect mutating probes and conditional publishing', 
   assert.equal(OPEN_TOOL_CONTRACTS.dexter_portfolio.annotations.idempotentHint, true);
   assert.equal(OPEN_TOOL_CONTRACTS.dexter_portfolio.annotations.destructiveHint, false);
   assert.equal(OPEN_TOOL_CONTRACTS.dexter_portfolio.annotations.openWorldHint, false);
-  assert.equal(OPEN_TOOL_CONTRACTS.dexter_passkey.annotations.readOnlyHint, false);
-  assert.equal(OPEN_TOOL_CONTRACTS.dexter_passkey.annotations.idempotentHint, false);
-  assert.equal(OPEN_TOOL_CONTRACTS.dexter_passkey_probe.annotations.readOnlyHint, false);
-  assert.equal(OPEN_TOOL_CONTRACTS.dexter_passkey_probe.annotations.idempotentHint, false);
   assert.equal(OPEN_TOOL_CONTRACTS.x402_check.annotations.readOnlyHint, false);
   assert.equal(OPEN_TOOL_CONTRACTS.x402_check.annotations.destructiveHint, true);
-  assert.equal(OPEN_TOOL_CONTRACTS.x402_compose_skill.annotations.readOnlyHint, false);
-  assert.equal(OPEN_TOOL_CONTRACTS.x402_pay.annotations.idempotentHint, false);
   assert.equal(OPEN_TOOL_CONTRACTS.x402_fetch.annotations.idempotentHint, false);
 });
 
-test('legacy passkey compatibility tools remain callable but are not model-facing', () => {
-  assert.deepEqual(OPEN_TOOL_CONTRACTS.dexter_passkey_probe.visibility, ['app']);
-  assert.deepEqual(OPEN_TOOL_CONTRACTS.dexter_passkey.visibility, ['app']);
-  assert.match(OPEN_TOOL_CONTRACTS.dexter_passkey_probe.description, /Deprecated app-only diagnostic/);
-  assert.match(OPEN_TOOL_CONTRACTS.dexter_passkey.description, /models must use x402_wallet/);
-});
-
-test('deprecated paid and skill compatibility tools remain callable but are not model-facing', () => {
-  for (const name of ['x402_pay', 'x402_compose_skill', 'promote_skill']) {
-    assert.deepEqual(OPEN_TOOL_CONTRACTS[name].visibility, ['app']);
-    assert.match(OPEN_TOOL_CONTRACTS[name].description, /Deprecated compatibility/);
+test('retired compatibility names have no contract or output schema', () => {
+  for (const name of RETIRED_TOOLS) {
+    assert.equal(OPEN_TOOL_CONTRACTS[name], undefined, name);
   }
 });
 
@@ -295,10 +285,10 @@ test('recursive scrub still terminates real object and array cycles', () => {
   assert.equal(result.structuredContent.arrayCycle[0], '[circular]');
 });
 
-test('credentials and first-party setup tokens are recursively removed from model output', () => {
+test('wallet setup credentials are recursively removed from model output', () => {
   const setupUrl =
     'https://dexter.cash/wallet/setup-passkey?mcp=11111111-2222-4333-8444-555555555555';
-  const cleaned = applyOpenToolResultPolicy('dexter_passkey', {
+  const cleaned = applyOpenToolResultPolicy('x402_wallet', {
     content: [{
       type: 'text',
       text: JSON.stringify({
@@ -387,11 +377,65 @@ test('real SDK tools/list exposes executable schemas, OAuth, annotations, and me
     assert.deepEqual(listed.securitySchemes, toolContract.securitySchemes);
     assert.deepEqual(listed._meta.securitySchemes, toolContract.securitySchemes);
   }
-  assert.deepEqual(
-    wireTools.find((tool) => tool.name === 'x402_compose_skill').securitySchemes,
-    [{ type: 'noauth' }, { type: 'oauth2', scopes: ['vault'] }],
-  );
-
   const called = await client.callTool({ name: 'x402_wallet', arguments: {} });
   assert.equal(called._meta.runtimeWidgetSideChannel, true);
+  for (const name of RETIRED_TOOLS) {
+    const retired = await client.callTool({ name, arguments: {} });
+    assert.equal(retired.isError, true, name);
+    assert.match(JSON.stringify(retired), /not found|unknown tool/i, name);
+  }
 });
+
+for (const clientName of ['Generic MCP', 'ChatGPT', 'Claude']) {
+  test(`${clientName} discovery receives the same raw six and no retired calls`, async () => {
+    const server = new McpServer({
+      name: 'host-discovery-test',
+      version: '0.3.0',
+    });
+    installOpenToolContracts(server);
+    for (const name of EXPECTED_TOOLS) {
+      server.registerTool(name, { inputSchema: {} }, async () => ({
+        content: [{ type: 'text', text: '{}' }],
+        structuredContent: {},
+      }));
+    }
+    finalizeOpenToolContracts(server);
+
+    const client = new Client({ name: clientName, version: '1.0.0' });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const wireMessages = [];
+    const rawSend = serverTransport.send.bind(serverTransport);
+    serverTransport.send = (message, options) => {
+      wireMessages.push(message);
+      return rawSend(message, options);
+    };
+    installCanonicalSecuritySchemeProjection(serverTransport);
+    await Promise.all([
+      server.connect(serverTransport),
+      client.connect(clientTransport),
+    ]);
+
+    try {
+      const listed = await client.listTools();
+      assert.deepEqual(listed.tools.map((tool) => tool.name), EXPECTED_TOOLS);
+      const wireTools = wireMessages.find(
+        (message) => Array.isArray(message?.result?.tools),
+      )?.result?.tools;
+      assert.ok(wireTools);
+      assert.deepEqual(wireTools.map((tool) => tool.name), EXPECTED_TOOLS);
+      for (const tool of wireTools) {
+        assert.equal(tool.inputSchema.type, 'object', tool.name);
+        assert.equal(tool.outputSchema.type, 'object', tool.name);
+        assert.deepEqual(tool.securitySchemes, tool._meta.securitySchemes, tool.name);
+      }
+      for (const name of RETIRED_TOOLS) {
+        const retired = await client.callTool({ name, arguments: {} });
+        assert.equal(retired.isError, true, name);
+        assert.match(JSON.stringify(retired), /not found|unknown tool/i, name);
+      }
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+}

@@ -77,14 +77,14 @@ configuration and hashes or archives of the currently running build artifacts.
 
 - Mixed per-tool authorization for the stable connector: public
   discovery/inspection paths remain available without a Dexter account,
-  while wallet data, portfolio data, payment, and owner-scoped publishing use
-  native OAuth `scope=vault`.
+  while wallet data, portfolio data, and payment use native OAuth
+  `scope=vault`.
 - Per-request issuer, audience, expiry, scope, subject, and surface validation
   on every vault-protected call.
 - Session-bound wallet and portfolio resolution through the stored passkey-vault
   identity. Neither protected tool accepts a caller-supplied wallet address or
   user handle.
-- Exact eleven-tool executable contract, generated manifest, tool-list parity,
+- Exact six-tool executable contract, generated manifest, tool-list parity,
   and cards-off surface.
 - Required payment ceiling through text and widget paths.
 - Correct wallet receive-address semantics.
@@ -99,16 +99,11 @@ configuration and hashes or archives of the currently running build artifacts.
 ## Deliberate live tool roster
 
 1. `x402_search`
-2. `x402_pay`
+2. `x402_check`
 3. `x402_fetch`
-4. `x402_check`
-5. `x402_access`
-6. `x402_wallet`
-7. `dexter_portfolio`
-8. `x402_compose_skill`
-9. `promote_skill`
-10. `dexter_passkey_probe`
-11. `dexter_passkey`
+4. `x402_access`
+5. `x402_wallet`
+6. `dexter_portfolio`
 
 The six Dextercard tools in the older sixteen-tool package are not part of this
 release. Sensitive card controls remain on the secure Dexter Wallet web surface.
@@ -125,12 +120,12 @@ release. Sensitive card controls remain on the secure Dexter Wallet web surface.
   `dexter_portfolio` as a strict read-only, session-bound contract. The shared
   API remains the sole producer/executor—this MCP lineage does not add another
   money or portfolio backend.
-- Hosted runtime pins `@dexterai/mcp-instructions@2.3.0`, sourced from
+- Hosted runtime pins `@dexterai/mcp-instructions@2.4.0`, sourced from
   `opendexter-ide` release-candidate commit
-  `01d9fd9cf8f02a2a442590f79ef272cf48e459b3`. Local validation consumes that
+  `49805e9cd7894e982d8e6227af1e98e0ccd1d05e`. Local validation consumes that
   exact built package. The coordinated source train is
-  `@dexterai/x402-core@1.5.0`, `@dexterai/mcp-instructions@2.3.0`, and
-  `@dexterai/x402-mcp-tools@0.7.1`. The integrated source proof pins MCP SDK
+  `@dexterai/x402-core@1.5.0`, `@dexterai/mcp-instructions@2.4.0`, and
+  `@dexterai/x402-mcp-tools@0.8.0`. The integrated source proof pins MCP SDK
   `1.29.0`, MCP Apps extension `1.6.0`, and Zod `3.25.76`. The prior npm lock
   claimed unpublished package versions without registry integrity and locked
   an SDK below `@modelcontextprotocol/ext-apps`' peer floor, so it was removed
@@ -250,7 +245,7 @@ Before production:
     truthful nonretryable pre-dispatch rejection with no funds moved or
     definitive settlement evidence if external support has changed.
 13. Verify ChatGPT and MCP Apps render both successful and rejected receipts.
-14. Confirm the live tool list is exactly the eleven tools above and contains no
+14. Confirm the live tool list is exactly the six tools above and contains no
     card tools.
 
 Do not reopen the payment surface if any gate fails.

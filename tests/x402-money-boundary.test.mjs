@@ -7,24 +7,20 @@ const serverSource = await readFile(
   'utf8',
 );
 
-test('both paid tools require the exact approved atomic ceiling', () => {
+test('the canonical paid tool requires the exact approved atomic ceiling', () => {
   assert.equal(
     (
       serverSource.match(
         /maxAmountAtomic:\s*z\.string\(\)\.regex\(MAX_AMOUNT_ATOMIC_RE\)/g,
       ) || []
     ).length,
-    2,
+    1,
   );
   assert.match(serverSource, /const MAX_AMOUNT_ATOMIC_RE = \/\^\[1-9\]\\d\{0,19\}\$\//);
   assert.match(serverSource, /error: 'max_amount_atomic_required'/);
 });
 
-test('approved ceiling survives aliases, backend payloads, and auth retries', () => {
-  assert.match(
-    serverSource,
-    /x402Pay\([\s\S]*?\{ url, method, body, multipart,[\s\S]*?maxAmountAtomic, purchase \}/,
-  );
+test('approved ceiling survives backend payloads and auth retries', () => {
   assert.match(serverSource, /fd\.append\('maxAmountAtomic', maxAmountAtomic\)/);
   assert.match(
     serverSource,
@@ -40,14 +36,14 @@ test('approved ceiling survives aliases, backend payloads, and auth retries', ()
   );
 });
 
-test('prepared purchase identity survives aliases, backend payloads, and auth retries', () => {
+test('prepared purchase identity survives backend payloads and auth retries', () => {
   assert.equal(
     (
       serverSource.match(
         /purchase:\s*PREPARED_PURCHASE_SCHEMA\.optional\(\)/g,
       ) || []
     ).length,
-    2,
+    1,
   );
   assert.match(
     serverSource,
