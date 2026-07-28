@@ -58,11 +58,11 @@ requires the coordinated release runbook and post-deploy checks below.
 ## OpenDexter: the hosted x402 buyer
 
 OpenDexter is the hosted MCP server behind the OpenDexter connector. Search,
-price inspection, identity-gated access, and the passkey capability probe do not
-require Dexter account authorization. Wallet data, portfolio data, payment, and
-owner-scoped publishing require the host's native OAuth connection with
-`scope=vault`; skill composition supports both public local composition and an
-authenticated publishing path.
+price inspection, and identity-gated access do not require Dexter account
+authorization. Wallet data, portfolio data, payment, and owner-scoped
+publishing require the host's native OAuth connection with `scope=vault`;
+skill composition supports both public local composition and an authenticated
+publishing path.
 
 The hosted executable roster is deliberately limited to these eleven tools:
 
@@ -75,14 +75,17 @@ The hosted executable roster is deliberately limited to these eleven tools:
 7. `dexter_portfolio`
 8. `x402_compose_skill`
 9. `promote_skill`
-10. `dexter_passkey_probe`
-11. `dexter_passkey`
+10. `dexter_passkey_probe` (app-only deprecated diagnostic)
+11. `dexter_passkey` (app-only deprecated alias for `x402_wallet`)
 
-There are no hosted card tools. Search never pays. A new payment starts with a
-fresh `x402_check`, preserves the selected seller offer and prepared identity,
-and requires an explicit user-approved atomic ceiling. OpenDexter never changes
-purchase mode after consequential dispatch and never automatically retries an
-ambiguous result.
+The raw compatibility roster stays at eleven so installed clients do not break,
+but the two deprecated passkey entries are no longer model-facing. New user
+flows use `x402_wallet`; the probe is retained only for the existing diagnostic
+widget. There are no hosted card tools. Search never pays. A new payment starts
+with a fresh `x402_check`, preserves the selected seller offer and prepared
+identity, and requires an explicit user-approved atomic ceiling. OpenDexter
+never changes purchase mode after consequential dispatch and never
+automatically retries an ambiguous result.
 
 **How wallet identity works.** OAuth authorizes the stable
 `https://open.dexter.cash/mcp` connector. Protected wallet and portfolio calls
