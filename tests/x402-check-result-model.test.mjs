@@ -21,6 +21,8 @@ const baseRoute = {
 test('classifies a paid quote without implying that payment occurred', () => {
   const state = normalizeX402CheckResult({
     requiresPayment: true,
+    intentId: 'intent-bound-1',
+    quoteOnly: false,
     statusCode: 402,
     authMode: 'paid',
     paymentOptions: [baseRoute],
@@ -34,6 +36,8 @@ test('classifies a paid quote without implying that payment occurred', () => {
   });
 
   assert.equal(state.classification, 'paid');
+  assert.equal(state.intentId, 'intent-bound-1');
+  assert.equal(state.quoteOnly, false);
   assert.equal(state.title, 'Payment required');
   assert.equal(state.summary, 'Current quote: $0.01 on eip155:8453. This check made no payment.');
   assert.equal(state.nextStep, 'review-payment');
@@ -46,6 +50,29 @@ test('classifies a paid quote without implying that payment occurred', () => {
     body: null,
     requestBound: true,
   });
+});
+
+test('anonymous or malformed check output remains quote-only without an intent', () => {
+  const anonymous = normalizeX402CheckResult({
+    requiresPayment: true,
+    statusCode: 402,
+    authMode: 'paid',
+    paymentOptions: [baseRoute],
+    intentId: null,
+    quoteOnly: true,
+  });
+  const missingIntent = normalizeX402CheckResult({
+    requiresPayment: true,
+    statusCode: 402,
+    authMode: 'paid',
+    paymentOptions: [baseRoute],
+    quoteOnly: false,
+  });
+
+  assert.equal(anonymous.intentId, null);
+  assert.equal(anonymous.quoteOnly, true);
+  assert.equal(missingIntent.intentId, null);
+  assert.equal(missingIntent.quoteOnly, true);
 });
 
 test('search checks bind GET URLs but require a body before binding non-GET requests', () => {

@@ -524,9 +524,10 @@ test('known pre-dispatch continuation preserves only the same prepared identity'
   assert.equal(result.purchaseReceipt.sellerSettlement.state, 'not_dispatched');
 });
 
-test('hosted check schema exposes only the supported request path while receipts stay typed', () => {
-  const prepared = options('hosted')[0];
+test('hosted intent schemas reject caller-carried purchases and route receipts', () => {
   const checkOutput = OPEN_TOOL_CONTRACTS.x402_check.outputSchema.safeParse({
+    intentId: 'opaque-intent-1',
+    quoteOnly: false,
     requiresPayment: true,
     statusCode: 402,
     checkedRequest: {
@@ -536,9 +537,11 @@ test('hosted check schema exposes only the supported request path while receipts
       requestBound: true,
     },
     executionGuidance: {
-      supportedPath: 'check_then_fetch',
+      supportedPath: 'fetch_by_intent',
       readyForFetch: true,
+      intentRequired: true,
       requiredCeilingField: 'maxAmountAtomic',
+      fetchArguments: ['intentId', 'maxAmountAtomic'],
       dispatchAtMostOnce: true,
     },
   });
@@ -548,21 +551,23 @@ test('hosted check schema exposes only the supported request path while receipts
   assert.equal(Object.hasOwn(checkShape, 'preparedPayload'), false);
   assert.equal(Object.hasOwn(checkShape, 'purchaseOptions'), false);
 
-  const purchase = {
-    ...prepared.preparedPurchase,
-    approvedAmountCeilingAtomic: '10000',
-  };
-  const receipt = buildPurchaseIntegrationRequired(
-    prepared.preparedPurchase,
-    '10000',
-    'direct_exact_adapter_required',
-  ).purchaseReceipt;
   const fetchOutput = OPEN_TOOL_CONTRACTS.x402_fetch.outputSchema.safeParse({
-    status: 501,
-    purchaseReceipt: receipt,
+    intentId: 'opaque-intent-1',
+    status: 'preparing',
+    delivery: { state: 'not_dispatched' },
+    payment: { state: 'not_built', confirmed: false },
+    reconciliation: { required: false, performed: false },
+    retryable: false,
+    retryWithSameIntentOnly: true,
   });
   assert.equal(fetchOutput.success, true);
-  assert.equal(purchase.approvedAmountCeilingAtomic, '10000');
+  assert.equal(
+    OPEN_TOOL_CONTRACTS.x402_fetch.outputSchema.safeParse({
+      intentId: 'opaque-intent-1',
+      purchaseReceipt: { mode: 'direct_exact' },
+    }).success,
+    false,
+  );
 });
 
 test('widget normalization rejects a prepared expiry that differs from the seller offer', () => {

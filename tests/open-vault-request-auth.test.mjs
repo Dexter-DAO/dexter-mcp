@@ -7,7 +7,10 @@ import {
   createOpenSessionMeta,
   markVaultBound,
 } from '../lib/open-session-auth-state.mjs';
-import { shouldVerifyVaultBearer } from '../lib/open-vault-request-auth.mjs';
+import {
+  shouldAcceptOptionalVaultBearer,
+  shouldVerifyVaultBearer,
+} from '../lib/open-vault-request-auth.mjs';
 
 const protectedCall = (name = 'x402_wallet') => ({ name, id: 1 });
 const anonymous = createOpenSessionMeta(1);
@@ -78,5 +81,23 @@ test('public calls never trigger vault Bearer verification', () => {
     sessionMeta: oauth,
     bearerPresent: true,
     hasValidAccountBinding: false,
+  }), false);
+});
+
+test('a presented Bearer can promote public list/check without challenging anonymous calls', () => {
+  assert.equal(shouldAcceptOptionalVaultBearer({
+    protectedCall: null,
+    sessionMeta: anonymous,
+    bearerPresent: true,
+  }), true);
+  assert.equal(shouldAcceptOptionalVaultBearer({
+    protectedCall: null,
+    sessionMeta: anonymous,
+    bearerPresent: false,
+  }), false);
+  assert.equal(shouldAcceptOptionalVaultBearer({
+    protectedCall: null,
+    sessionMeta: link,
+    bearerPresent: true,
   }), false);
 });

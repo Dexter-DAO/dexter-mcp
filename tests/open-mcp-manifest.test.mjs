@@ -2,14 +2,18 @@ import assert from 'node:assert/strict';
 import { access, readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { buildOpenMcpManifest, OPEN_MCP_VERSION } from '../lib/open-mcp-manifest.mjs';
-import { OPEN_TOOL_NAMES } from '../lib/open-tool-contracts.mjs';
+import {
+  OPEN_ANONYMOUS_TOOL_NAMES,
+  OPEN_OAUTH_PROMOTED_TOOL_NAMES,
+  OPEN_TOOL_NAMES,
+} from '../lib/open-tool-contracts.mjs';
 import {
   OPEN_MCP_AUTHORIZATION_SERVER,
   OPEN_MCP_PRM_URL,
   OPEN_MCP_VAULT_AUDIENCE,
 } from '../lib/open-tool-auth.mjs';
 
-test('well-known manifest is generated from the exact six-tool contract', () => {
+test('well-known manifest is generated from the five-to-seven OAuth contract', () => {
   const manifest = buildOpenMcpManifest();
   assert.equal(manifest.name, 'OpenDexter');
   assert.equal(manifest.namespace, 'opendexter');
@@ -18,12 +22,16 @@ test('well-known manifest is generated from the exact six-tool contract', () => 
   assert.equal(manifest.auth.authorizationServer, OPEN_MCP_AUTHORIZATION_SERVER);
   assert.deepEqual(manifest.auth.protectedTools, [
     'x402_fetch',
+    'x402_status',
     'x402_wallet',
     'dexter_portfolio',
   ]);
-  assert.deepEqual(manifest.auth.conditionallyProtectedTools, []);
+  assert.deepEqual(manifest.auth.conditionallyProtectedTools, ['x402_check']);
+  assert.deepEqual(manifest.rosters.anonymous, OPEN_ANONYMOUS_TOOL_NAMES);
+  assert.deepEqual(manifest.rosters.oauthPromotes, OPEN_OAUTH_PROMOTED_TOOL_NAMES);
+  assert.deepEqual(manifest.rosters.connected, OPEN_TOOL_NAMES);
   assert.deepEqual(manifest.tools.map((tool) => tool.name), OPEN_TOOL_NAMES);
-  assert.equal(manifest.tools.length, 6);
+  assert.equal(manifest.tools.length, 7);
   assert.doesNotMatch(JSON.stringify(manifest), /card_status|best funded chain/i);
 });
 
@@ -41,7 +49,7 @@ test('manifest, server identity, and package use one release version', async () 
     new URL('../open-mcp-server.mjs', import.meta.url),
     'utf8',
   );
-  assert.equal(OPEN_MCP_VERSION, '0.3.0');
+  assert.equal(OPEN_MCP_VERSION, '0.4.0');
   assert.equal(OPEN_MCP_VERSION, packageJson.version);
   assert.equal(OPEN_MCP_VERSION, dependencyTrain.hostedPackage.version);
   assert.equal(packageJson.packageManager, 'npm@10.9.3');
@@ -81,12 +89,12 @@ test('manifest, server identity, and package use one release version', async () 
   assert.doesNotMatch(serverSource, /version: '1\.3\.0'/);
 });
 
-test('hosted source documentation states one exact six-tool product contract', async () => {
-  const [readme, releaseGate] = await Promise.all([
+test('hosted source documentation states the current opaque-intent product contract', async () => {
+  const [readme, currentContract] = await Promise.all([
     readFile(new URL('../README.md', import.meta.url), 'utf8'),
     readFile(
       new URL(
-        '../docs/releases/OPENDXTER-RELEASE-GATE-2026-07-26.md',
+        '../docs/contracts/OPENDXTER-OPAQUE-INTENT-V1.md',
         import.meta.url,
       ),
       'utf8',
@@ -94,13 +102,14 @@ test('hosted source documentation states one exact six-tool product contract', a
   ]);
 
   for (const name of OPEN_TOOL_NAMES) {
-    assert.ok(releaseGate.includes(`\`${name}\``), name);
+    assert.ok(currentContract.includes(`\`${name}\``), name);
   }
-  assert.match(releaseGate, /six-tool/i);
+  assert.match(currentContract, /seven(?:-tool| tools)/i);
 
   for (const name of [
     'x402_search',
     'x402_fetch',
+    'x402_status',
     'x402_check',
     'x402_access',
     'x402_wallet',
@@ -108,15 +117,15 @@ test('hosted source documentation states one exact six-tool product contract', a
   ]) {
     assert.ok(readme.includes(`\`${name}\``), name);
   }
-  assert.match(readme, /Every MCP client receives the same six-tool product roster/i);
+  assert.match(readme, /exact seven-tool\s+connected roster/i);
   assert.doesNotMatch(
     readme,
     /\b(?:x402_pay|x402_compose_skill|promote_skill|dexter_passkey(?:_probe)?)\b/,
   );
 
-  for (const source of [readme, releaseGate]) {
+  for (const source of [readme, currentContract]) {
     assert.match(source, /scope=vault/);
-    assert.match(source, /session-bound/i);
-    assert.doesNotMatch(source, /public, no-auth|ephemeral session/i);
+    assert.match(source, /intentId/);
+    assert.doesNotMatch(source, /caller-carried PreparedPurchase/i);
   }
 });

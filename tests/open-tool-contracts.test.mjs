@@ -4,6 +4,8 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import {
+  OPEN_ANONYMOUS_TOOL_NAMES,
+  OPEN_OAUTH_PROMOTED_TOOL_NAMES,
   OPEN_TOOL_CONTRACTS,
   OPEN_TOOL_NAMES,
   PROVIDER_DATA_POLICY,
@@ -20,6 +22,7 @@ const EXPECTED_TOOLS = [
   'x402_search',
   'x402_check',
   'x402_fetch',
+  'x402_status',
   'x402_access',
   'x402_wallet',
   'dexter_portfolio',
@@ -33,14 +36,16 @@ const RETIRED_TOOLS = [
   'dexter_passkey',
 ];
 
-test('contract is exactly the canonical hosted six', () => {
+test('contract is exactly the canonical hosted seven', () => {
   assert.deepEqual(OPEN_TOOL_NAMES, EXPECTED_TOOLS);
   assert.deepEqual(Object.keys(OPEN_TOOL_CONTRACTS).sort(), [...EXPECTED_TOOLS].sort());
   assert.doesNotMatch(OPEN_TOOL_NAMES.join(','), /card_/);
   for (const [name, toolContract] of Object.entries(OPEN_TOOL_CONTRACTS)) {
     assert.equal(
       toolContract.outputSchema?._def?.unknownKeys,
-      name === 'dexter_portfolio' ? 'strict' : 'passthrough',
+      ['x402_check', 'x402_fetch', 'x402_status', 'dexter_portfolio'].includes(name)
+        ? 'strict'
+        : 'passthrough',
       name,
     );
     assert.deepEqual(
@@ -56,17 +61,19 @@ test('contract is exactly the canonical hosted six', () => {
   }
 });
 
-test('hosted paid guidance uses one supported check-then-fetch path', () => {
+test('hosted paid guidance uses one opaque check-fetch-status path', () => {
   const fetchDescription = OPEN_TOOL_CONTRACTS.x402_fetch.description;
   const checkDescription = OPEN_TOOL_CONTRACTS.x402_check.description;
 
-  assert.match(fetchDescription, /fresh x402_check/);
+  assert.match(fetchDescription, /opaque intentId/);
   assert.match(fetchDescription, /maxAmountAtomic/);
-  assert.match(fetchDescription, /CrossPay/);
+  assert.match(fetchDescription, /x402_status/);
+  assert.doesNotMatch(fetchDescription, /same URL|same method|same body|CrossPay/);
   assert.doesNotMatch(fetchDescription, /preparedPurchase|purchase mode|omit purchase/i);
 
-  assert.match(checkDescription, /paymentOptions/);
-  assert.match(checkDescription, /one x402_fetch/);
+  assert.match(checkDescription, /quoteOnly/);
+  assert.match(checkDescription, /raw JSON string/);
+  assert.match(checkDescription, /intentId/);
   assert.doesNotMatch(checkDescription, /prepared seller-route|purchase-mode choices|omit purchase/i);
 });
 
@@ -160,7 +167,7 @@ test('both supported registration APIs close after finalization', () => {
   );
 });
 
-test('behavior annotations reflect the canonical six operations', () => {
+test('behavior annotations reflect the canonical seven operations', () => {
   assert.equal(OPEN_TOOL_CONTRACTS.x402_search.annotations.readOnlyHint, true);
   assert.equal(OPEN_TOOL_CONTRACTS.x402_wallet.annotations.readOnlyHint, false);
   assert.equal(OPEN_TOOL_CONTRACTS.x402_wallet.annotations.idempotentHint, false);
@@ -171,6 +178,8 @@ test('behavior annotations reflect the canonical six operations', () => {
   assert.equal(OPEN_TOOL_CONTRACTS.x402_check.annotations.readOnlyHint, false);
   assert.equal(OPEN_TOOL_CONTRACTS.x402_check.annotations.destructiveHint, true);
   assert.equal(OPEN_TOOL_CONTRACTS.x402_fetch.annotations.idempotentHint, false);
+  assert.equal(OPEN_TOOL_CONTRACTS.x402_status.annotations.readOnlyHint, true);
+  assert.equal(OPEN_TOOL_CONTRACTS.x402_status.annotations.idempotentHint, true);
 });
 
 test('retired compatibility names have no contract or output schema', () => {
@@ -226,61 +235,24 @@ test('recursive scrub drops common provider credential aliases', () => {
   assert.equal(result.structuredContent.nested.safe, 'retained');
 });
 
-test('recursive scrub preserves shared purchase-route objects without mistaking aliases for cycles', () => {
-  const route = {
-    routeId: 'route_shared',
-    resourceUrl: 'https://provider.example/call',
-    resolvedUrl: 'https://provider.example/call',
-    method: 'GET',
-    payloadSha256: 'a'.repeat(64),
-    sellerOffer: {
-      offerId: 'offer_shared',
-      x402Version: 2,
-      scheme: 'exact',
-      network: 'solana:mainnet',
-      asset: 'USDC',
-      amountAtomic: '10000',
-      payTo: 'seller',
-      facilitator: null,
-      expiresAt: null,
-      rawAcceptSha256: 'b'.repeat(64),
-    },
-  };
-  const purchaseOptions = ['direct_exact', 'gateway_cash', 'gateway_credit'].map(
-    (mode) => ({
-      mode,
-      availability: { state: 'integration_required', reason: null },
-      display: { price: 0.01, priceFormatted: '$0.01' },
-      preparedPurchase: {
-        contractVersion: 'opendexter.purchase.v1',
-        preparedId: `prepared_${mode}`,
-        state: 'prepared',
-        preparedAt: '2026-07-28T00:00:00.000Z',
-        expiresAt: null,
-        mode,
-        route,
-      },
-    }),
-  );
-
-  const result = applyOpenToolResultPolicy('x402_check', {
-    content: [{ type: 'text', text: JSON.stringify({ purchaseOptions }) }],
-    structuredContent: { purchaseOptions },
-  });
-
-  assert.equal(typeof result.structuredContent.purchaseOptions[0].preparedPurchase.route, 'object');
-  assert.equal(typeof result.structuredContent.purchaseOptions[1].preparedPurchase.route, 'object');
-  assert.equal(typeof result.structuredContent.purchaseOptions[2].preparedPurchase.route, 'object');
-  assert.deepEqual(
-    result.structuredContent.purchaseOptions.map(
-      (option) => option.preparedPurchase.route.routeId,
-    ),
-    ['route_shared', 'route_shared', 'route_shared'],
-  );
-  assert.equal(
-    OPEN_TOOL_CONTRACTS.x402_check.outputSchema.safeParse(result.structuredContent).success,
-    true,
-  );
+test('intent output schemas reject route and prepared-purchase leakage', () => {
+  for (const name of ['x402_check', 'x402_fetch', 'x402_status']) {
+    for (const field of [
+      'mode',
+      'route',
+      'selectedRail',
+      'preparedId',
+      'preparedPurchase',
+      'challenge',
+      'tab',
+    ]) {
+      assert.equal(
+        OPEN_TOOL_CONTRACTS[name].outputSchema.safeParse({ [field]: 'leak' }).success,
+        false,
+        `${name}.${field}`,
+      );
+    }
+  }
 });
 
 test('recursive scrub still terminates real object and array cycles', () => {
@@ -380,16 +352,21 @@ test('real SDK tools/list exposes executable schemas, OAuth, annotations, and me
     assert.equal(listed.outputSchema.type, 'object');
     assert.equal(
       listed.outputSchema.additionalProperties,
-      listed.name === 'dexter_portfolio' ? false : true,
+      ['x402_check', 'x402_fetch', 'x402_status', 'dexter_portfolio'].includes(listed.name)
+        ? false
+        : true,
     );
     assert.deepEqual(listed.annotations, toolContract.annotations);
     assert.deepEqual(listed._meta.securitySchemes, toolContract.securitySchemes);
     assert.equal(listed._meta.preservedWidgetSideChannel, true);
     if (listed.name === 'x402_fetch') {
-      assert.equal(
-        Object.hasOwn(listed.inputSchema.properties ?? {}, 'purchase'),
-        false,
-      );
+      for (const forbidden of ['purchase', 'url', 'method', 'body', 'tab']) {
+        assert.equal(
+          Object.hasOwn(listed.inputSchema.properties ?? {}, forbidden),
+          false,
+          forbidden,
+        );
+      }
     }
     if (listed.name === 'x402_check') {
       for (const candidateField of [
@@ -419,10 +396,10 @@ test('real SDK tools/list exposes executable schemas, OAuth, annotations, and me
 });
 
 for (const clientName of ['Generic MCP', 'ChatGPT', 'Claude']) {
-  test(`${clientName} discovery receives the same raw six and no retired calls`, async () => {
+  test(`${clientName} connected discovery receives the same raw seven and no retired calls`, async () => {
     const server = new McpServer({
       name: 'host-discovery-test',
-      version: '0.3.0',
+      version: '0.4.0',
     });
     installOpenToolContracts(server);
     for (const name of EXPECTED_TOOLS) {
@@ -471,3 +448,37 @@ for (const clientName of ['Generic MCP', 'ChatGPT', 'Claude']) {
     }
   });
 }
+
+test('tools/list promotes exactly fetch and status after OAuth binding', async (t) => {
+  let connected = false;
+  const server = new McpServer({ name: 'dynamic-roster-test', version: '0.4.0' });
+  installOpenToolContracts(server);
+  for (const name of EXPECTED_TOOLS) {
+    server.registerTool(name, { inputSchema: {} }, async () => ({
+      content: [{ type: 'text', text: '{}' }],
+      structuredContent: {},
+    }));
+  }
+  finalizeOpenToolContracts(server, {
+    listedToolNames: () => connected ? OPEN_TOOL_NAMES : OPEN_ANONYMOUS_TOOL_NAMES,
+  });
+
+  const client = new Client({ name: 'dynamic-client', version: '1.0.0' });
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+  await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+
+  assert.deepEqual(
+    (await client.listTools()).tools.map((tool) => tool.name),
+    OPEN_ANONYMOUS_TOOL_NAMES,
+  );
+  connected = true;
+  assert.deepEqual(
+    (await client.listTools()).tools.map((tool) => tool.name),
+    OPEN_TOOL_NAMES,
+  );
+  assert.deepEqual(OPEN_OAUTH_PROMOTED_TOOL_NAMES, ['x402_fetch', 'x402_status']);
+});

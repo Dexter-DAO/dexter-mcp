@@ -129,8 +129,16 @@ function paidContinuationPrompt(
   const requestBound =
     quote.checkedRequest?.requestBound
     ?? isSearchCheckRequestBound(resource.method);
-  if (!requestBound) {
-    return `Form the exact raw JSON request body for ${resource.name} at ${checkedUrl} using ${method}, then run x402_check again with that body before asking me to approve a payment. Do not pay from this indicative quote.`;
+  const body = method === 'GET' ? null : quote.checkedRequest?.body ?? null;
+  if (quote.quoteOnly || !quote.intentId || !requestBound) {
+    const bodyInstruction = method === 'GET'
+      ? 'and omit body'
+      : body === null
+        ? 'and first form the exact raw body string required for the request'
+        : `and pass body as the exact raw string ${JSON.stringify(body)}`;
+    return `Connect OpenDexter, then repeat x402_check for ${resource.name} with url ${checkedUrl}, method ${method}, ${bodyInstruction}. `
+      + 'Use the authenticated re-check only if it returns a non-quote-only intentId. '
+      + 'Do not call x402_fetch from this quote.';
   }
 
   const route = exactCeilingRoute(quote.routes);
@@ -138,19 +146,18 @@ function paidContinuationPrompt(
     return `Run x402_check again for the exact ${method} request to ${checkedUrl} and obtain a current positive atomic amount before asking me to approve a payment. Do not pay from this incomplete quote.`;
   }
 
-  const body = method === 'GET' ? null : quote.checkedRequest?.body ?? null;
   const bodyDescription = body === null
     ? 'no request body'
     : `raw JSON body ${body}`;
-  const fetchBody = body === null ? 'no body' : `body ${body}`;
   const reviewLead = quote.classification === 'hybrid'
     ? `Connect the provider access required for ${resource.name}, then review`
     : 'Review';
   return `${reviewLead} payment for ${resource.name} at ${checkedUrl}. `
     + `Exact request: ${method} with ${bodyDescription}. Current seller terms: ${sellerTerms(route)}. `
     + `The approval ceiling is maxAmountAtomic ${route.amountAtomic}. Ask for my confirmation before paying. `
-    + `After I confirm, call x402_fetch once with url ${checkedUrl}, method ${method}, ${fetchBody}, and maxAmountAtomic ${route.amountAtomic}. `
-    + 'Do not retry automatically if the outcome is ambiguous or the request was dispatched.';
+    + `After I confirm, call x402_fetch once with only intentId ${quote.intentId} and maxAmountAtomic ${route.amountAtomic}. `
+    + 'Do not include URL, method, body, route, payee, asset, challenge, or prepared purchase data. '
+    + `If the outcome is preparing or ambiguous, call x402_status with only intentId ${quote.intentId}; do not call x402_fetch again.`;
 }
 
 function useCompactViewport() {
@@ -289,6 +296,8 @@ function MarketplaceSearch() {
                 ?? canonicalMethod(resource.method),
               body: quote.checkedRequest?.body ?? null,
               classification: quote.classification,
+              intentId: quote.intentId,
+              quoteOnly: quote.quoteOnly,
               requestBound:
                 quote.checkedRequest?.requestBound
                 ?? isSearchCheckRequestBound(resource.method),

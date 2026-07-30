@@ -114,6 +114,8 @@ export type Enrichment = {
 };
 
 export type PricingPayload = {
+  intentId?: string | null;
+  quoteOnly?: boolean;
   requiresPayment?: boolean;
   statusCode?: number;
   x402Version?: number;
@@ -137,7 +139,8 @@ export type PricingPayload = {
 export type PricingInput = {
   url?: string;
   method?: string;
-  sampleInputBody?: Record<string, unknown>;
+  /** Exact request bytes represented as a UTF-8 string. Never reserialize it. */
+  body?: string;
 };
 
 /** Pick the most recent passed run from the recent[] slice, falling back to

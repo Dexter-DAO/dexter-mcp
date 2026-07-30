@@ -134,6 +134,8 @@ const SEARCH_TOOL_RESULT = {
 
 const CHECK_TOOL_RESULT = {
   structuredContent: {
+    intentId: null,
+    quoteOnly: true,
     requiresPayment: true,
     statusCode: 402,
     x402Version: 2,
@@ -179,6 +181,8 @@ const CHECK_TOOL_RESULT = {
 
 const EXACT_GET_CHECK_TOOL_RESULT = {
   structuredContent: {
+    intentId: '11111111-1111-4111-8111-111111111111',
+    quoteOnly: false,
     requiresPayment: true,
     statusCode: 402,
     x402Version: 2,
@@ -702,9 +706,9 @@ async function exerciseSearchFlow({
   await selectAlternative(surface);
 
   await surface.getByRole('button', { name: 'Use this service' }).click();
-  await surface.getByRole('heading', { name: 'Price estimate available' }).waitFor();
+  await surface.getByRole('heading', { name: 'Connect for a bound quote' }).waitFor();
   await surface.getByText(
-    'Final pricing depends on the request details. Dexter will confirm the exact amount before you approve.',
+    'Connect OpenDexter, form the exact raw request body, and repeat this check before approval. Nothing has been charged.',
     { exact: true },
   ).waitFor();
   await surface.getByLabel('Checked at 12:34 PM').waitFor();
@@ -727,7 +731,7 @@ async function exerciseSearchFlow({
     `${hostName}: the PYUSD route must identify both its network and asset`,
   );
 
-  const reviewButton = surface.getByRole('button', { name: 'Review request' });
+  const reviewButton = surface.getByRole('button', { name: 'Connect & re-check' });
   const reviewPresentation = await buttonPresentation(reviewButton);
   assert.ok(
     reviewPresentation.height >= 44,
@@ -786,7 +790,7 @@ async function exerciseSearchFlow({
     });
     await surface.getByRole(
       'heading',
-      { name: 'Price estimate available' },
+      { name: 'Connect for a bound quote' },
     ).waitFor();
   }
 
@@ -873,10 +877,11 @@ function assertSearchHostCalls(hostName, calls, kind, expectedToolCalls = 1) {
     : followUpCall.params?.content?.find((item) => item.type === 'text')?.text;
   assert.equal(
     followUpText,
-    'Form the exact raw JSON request body for Beacon Price Feed at '
-      + 'https://fixture.example/beacon using POST, then run x402_check again '
-      + 'with that body before asking me to approve a payment. Do not pay from '
-      + 'this indicative quote.',
+    'Connect OpenDexter, then repeat x402_check for Beacon Price Feed with url '
+      + 'https://fixture.example/beacon, method POST, and first form the exact '
+      + 'raw body string required for the request. Use the authenticated re-check '
+      + 'only if it returns a non-quote-only intentId. Do not call x402_fetch from '
+      + 'this quote.',
   );
   assert.doesNotMatch(followUpText, /preparedPurchase|purchaseOptions|purchase mode/i);
 
@@ -946,9 +951,16 @@ function assertExactPaymentHostCalls(hostName, calls, kind) {
       + 'Exact request: GET with no request body. Current seller terms: 8000 '
       + 'atomic units of USDC on solana:mainnet to 0xatlas. The approval ceiling '
       + 'is maxAmountAtomic 8000. Ask for my confirmation before paying. After I '
-      + 'confirm, call x402_fetch once with url https://fixture.example/atlas, '
-      + 'method GET, no body, and maxAmountAtomic 8000. Do not '
-      + 'retry automatically if the outcome is ambiguous or the request was dispatched.',
+      + 'confirm, call x402_fetch once with only intentId '
+      + '11111111-1111-4111-8111-111111111111 and maxAmountAtomic 8000. Do not '
+      + 'include URL, method, body, route, payee, asset, challenge, or prepared '
+      + 'purchase data. If the outcome is preparing or ambiguous, call x402_status '
+      + 'with only intentId 11111111-1111-4111-8111-111111111111; do not call '
+      + 'x402_fetch again.',
+  );
+  assert.doesNotMatch(
+    followUpText,
+    /call x402_fetch once with (?:url|method|body)/i,
   );
   assert.doesNotMatch(followUpText, /preparedPurchase|purchaseOptions|purchase mode/i);
 
@@ -964,6 +976,11 @@ function assertExactPaymentHostCalls(hostName, calls, kind) {
   assert.ok(contextCall, `${hostName}: current seller terms must update model context`);
   const contextArgs = kind === 'chatgpt' ? contextCall.args : contextCall.params;
   assert.equal(contextArgs.structuredContent.checkedResource.requestBound, true);
+  assert.equal(
+    contextArgs.structuredContent.checkedResource.intentId,
+    '11111111-1111-4111-8111-111111111111',
+  );
+  assert.equal(contextArgs.structuredContent.checkedResource.quoteOnly, false);
   assert.equal(
     contextArgs.structuredContent.checkedResource.paymentOptions[0].amountAtomic,
     '8000',
@@ -1205,7 +1222,11 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
       )?.args?.prompt;
       assert.match(pricingPrompt, /Exact request: GET with no request body/);
       assert.match(pricingPrompt, /maxAmountAtomic 8000/);
-      assert.match(pricingPrompt, /call x402_fetch once/);
+      assert.match(pricingPrompt, /call x402_fetch once with only intentId/);
+      assert.doesNotMatch(
+        pricingPrompt,
+        /call x402_fetch once with (?:url|method|body)/i,
+      );
       assert.doesNotMatch(
         pricingPrompt,
         /preparedPurchase|purchaseOptions|purchase mode|omit purchase/i,

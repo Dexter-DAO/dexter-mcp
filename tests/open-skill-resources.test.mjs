@@ -18,6 +18,7 @@ const DEBUGGING = readFileSync(join(ROOT, 'skills/x402-debugging/SKILL.md'), 'ut
 const EXPECTED_TOOLS = [
   'x402_search',
   'x402_fetch',
+  'x402_status',
   'x402_check',
   'x402_access',
   'x402_wallet',
@@ -32,7 +33,7 @@ test('hosted skill resources are loaded from this release checkout', () => {
   assert.doesNotMatch(SERVER, /opendexter-ide.*opendexter-plugin.*skills/s);
 });
 
-test('hosted workflow names only the six public product tools', () => {
+test('hosted workflow names only the seven connected product tools', () => {
   for (const name of EXPECTED_TOOLS) {
     assert.match(WORKFLOW, new RegExp(`\\\`${name}\\\``));
   }
@@ -73,10 +74,8 @@ test('served guidance requires native OAuth and bounded nonretryable spending', 
     /Leave this unset for ordinary Dexter discovery so eligible CrossPay resources are not removed/,
   );
   assert.match(WORKFLOW, /vaultPda[\s\S]*not a deposit\s+fallback/);
-  assert.match(
-    DEBUGGING,
-    /do not retry until settlement and\s+wallet activity have been reconciled/,
-  );
+  assert.match(DEBUGGING, /call `x402_status`[\s\S]*same `intentId`/);
+  assert.match(DEBUGGING, /Never retry `x402_fetch` automatically/);
 });
 
 test('generated runtime instructions contain only native OAuth wallet guidance', () => {
@@ -86,8 +85,10 @@ test('generated runtime instructions contain only native OAuth wallet guidance',
   assert.match(runtime, /host show its native OpenDexter Connect action/i);
   assert.match(runtime, /dexter_portfolio/);
   assert.match(runtime, /paymentOptions/);
-  assert.match(runtime, /call x402_fetch once/);
-  assert.match(runtime, /native or CrossPay route/);
+  assert.match(runtime, /call x402_fetch once with only intentId and maxAmountAtomic/);
+  assert.match(runtime, /x402_status accepts only intentId/);
+  assert.match(runtime, /quoteOnly/);
+  assert.doesNotMatch(runtime, /sampleInputBody|same URL, method, raw body/);
   assert.doesNotMatch(
     runtime,
     /purchaseOptions?|preparedPurchase|prepared-purchase|integration_required|omit purchase|choose one ready option/i,

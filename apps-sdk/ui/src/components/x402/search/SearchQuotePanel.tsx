@@ -72,7 +72,16 @@ export function SearchQuotePanel({
   const requestBound =
     quote.checkedRequest?.requestBound
     ?? isSearchCheckRequestBound(resource.method);
-  const copy = getQuoteCopy(quote.classification, requestBound);
+  const intentReady = Boolean(
+    quote.intentId
+    && !quote.quoteOnly
+    && requestBound,
+  );
+  const copy = getQuoteCopy(
+    quote.classification,
+    requestBound,
+    intentReady,
+  );
   const routes = [...quote.routes].sort((a, b) => a.price - b.price);
   const routeDisplayCounts = routes.reduce((counts, route) => {
     const key = routeDisplayKey(route);
@@ -85,7 +94,10 @@ export function SearchQuotePanel({
     minute: '2-digit',
     timeZone,
   }).format(checkedAt);
-  const actionLabel = getContinueLabel(quote.classification, requestBound);
+  const actionLabel = getContinueLabel(
+    quote.classification,
+    intentReady,
+  );
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
@@ -209,11 +221,11 @@ export function SearchQuotePanel({
 
 function getContinueLabel(
   classification: X402CheckClassification,
-  requestBound: boolean,
+  intentReady: boolean,
 ): string | null {
   switch (classification) {
     case 'paid':
-      return requestBound ? 'Review payment' : 'Review request';
+      return intentReady ? 'Review payment' : 'Connect & re-check';
     case 'free':
       return 'Use it now';
     case 'siwx':
@@ -221,7 +233,7 @@ function getContinueLabel(
     case 'apiKey':
       return 'Review access';
     case 'hybrid':
-      return requestBound ? 'Review access and payment' : 'Review request';
+      return intentReady ? 'Review access and payment' : 'Connect & re-check';
     case 'error':
       return null;
   }
@@ -230,15 +242,18 @@ function getContinueLabel(
 function getQuoteCopy(
   classification: X402CheckClassification,
   requestBound: boolean,
+  intentReady: boolean,
 ): { eyebrow: string; title: string; body: string } {
   if (
-    !requestBound
+    !intentReady
     && (classification === 'paid' || classification === 'hybrid')
   ) {
     return {
-      eyebrow: 'Price estimate',
-      title: 'Price estimate available',
-      body: 'Final pricing depends on the request details. Dexter will confirm the exact amount before you approve.',
+      eyebrow: requestBound ? 'Quote only' : 'Price estimate',
+      title: 'Connect for a bound quote',
+      body: requestBound
+        ? 'Connect OpenDexter and repeat this check to create one server-held purchase intent. Nothing has been charged.'
+        : 'Connect OpenDexter, form the exact raw request body, and repeat this check before approval. Nothing has been charged.',
     };
   }
   return COPY[classification];

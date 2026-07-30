@@ -181,17 +181,16 @@ export async function checkEndpointPricing(
      * NOTE: this covers body-priced POST/PUT/etc. GET-query input-dependent
      * pricing (price riding query params) is a follow-up — out of scope here.
      */
-    sampleInputBody?: Record<string, unknown>;
+    sampleInputBody?: Record<string, unknown> | string;
   },
 ): Promise<CheckResult> {
   const method = args.method || 'GET';
+  const requestBody = exactCheckRequestBody(method, args.sampleInputBody);
 
   const res = await fetchPublicExternalUrl(args.url, {
     method,
     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-    body: method !== 'GET'
-      ? JSON.stringify(args.sampleInputBody ?? {})
-      : undefined,
+    body: requestBody,
     signal: AbortSignal.timeout(15_000),
   });
 
@@ -345,4 +344,19 @@ export async function checkEndpointPricing(
     outputSchema,
     authMode,
   };
+}
+
+/**
+ * Preserve a caller-supplied raw JSON string byte-for-byte. Object input stays
+ * available for older consumers, but only string input can carry lexical body
+ * identity across check and execution.
+ */
+export function exactCheckRequestBody(
+  method: string,
+  sampleInputBody?: Record<string, unknown> | string,
+): string | undefined {
+  if (method.toUpperCase() === 'GET') return undefined;
+  return typeof sampleInputBody === 'string'
+    ? sampleInputBody
+    : JSON.stringify(sampleInputBody ?? {});
 }

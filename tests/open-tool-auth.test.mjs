@@ -28,6 +28,7 @@ const TOOL_ROSTER = [
   'x402_search',
   'x402_check',
   'x402_fetch',
+  'x402_status',
   'x402_access',
   'x402_wallet',
   'dexter_portfolio',
@@ -43,7 +44,10 @@ test('mixed auth policy covers the exact hosted roster', () => {
 
 test('public, wallet, portfolio, and payment tools have exact schemes', () => {
   assert.deepEqual(OPEN_TOOL_SECURITY_SCHEMES.x402_search, [{ type: 'noauth' }]);
-  assert.deepEqual(OPEN_TOOL_SECURITY_SCHEMES.x402_check, [{ type: 'noauth' }]);
+  assert.deepEqual(OPEN_TOOL_SECURITY_SCHEMES.x402_check, [
+    { type: 'noauth' },
+    { type: 'oauth2', scopes: ['vault'] },
+  ]);
   assert.deepEqual(
     OPEN_TOOL_SECURITY_SCHEMES.x402_wallet,
     [{ type: 'oauth2', scopes: ['vault'] }],
@@ -54,6 +58,10 @@ test('public, wallet, portfolio, and payment tools have exact schemes', () => {
   );
   assert.deepEqual(
     OPEN_TOOL_SECURITY_SCHEMES.x402_fetch,
+    [{ type: 'oauth2', scopes: ['vault'] }],
+  );
+  assert.deepEqual(
+    OPEN_TOOL_SECURITY_SCHEMES.x402_status,
     [{ type: 'oauth2', scopes: ['vault'] }],
   );
 });
@@ -77,6 +85,11 @@ test('protected-call classification follows the per-tool auth declaration', () =
     call('x402_search'),
     { ...call('x402_fetch'), id: 2 },
   ]), { name: 'x402_fetch', id: 2 });
+  assert.deepEqual(findVaultProtectedToolCall(call('x402_status')), {
+    name: 'x402_status',
+    id: 1,
+  });
+  assert.equal(findVaultProtectedToolCall(call('x402_check')), null);
   assert.equal(findVaultProtectedToolCall(call('x402_search')), null);
   assert.equal(findVaultProtectedToolCall(call('x402_pay')), null);
   assert.equal(findVaultProtectedToolCall(call('x402_compose_skill')), null);
@@ -211,6 +224,21 @@ test('runtime challenge is host-native and contains no legacy pairing path', () 
   assert.match(VAULT_WWW_AUTHENTICATE, /scope="vault"/);
   assert.match(VAULT_WWW_AUTHENTICATE, /error="insufficient_scope"/);
   assert.match(VAULT_WWW_AUTHENTICATE, /error_description="[^"]+"/);
+});
+
+test('opaque-intent authentication challenges without confusing hosted consent', () => {
+  assert.equal(isVaultAuthenticationRequired({
+    status: 'authentication_required',
+    authorizationRequired: true,
+    error: 'authentication_required',
+    intentId: 'intent-1',
+  }), true);
+  assert.equal(isVaultAuthenticationRequired({
+    status: 'authorization_required',
+    authorizationRequired: true,
+    error: 'hosted_consent_unavailable',
+    intentId: 'intent-1',
+  }), false);
 });
 
 test('runtime challenges preserve precise OAuth errors and escape header input', () => {

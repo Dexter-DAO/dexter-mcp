@@ -35,7 +35,12 @@ test('search can only open a fresh pricing check', () => {
   assert.doesNotMatch(actionSources, /Check fresh price/);
   assert.match(entry, /normalizeX402CheckResult/);
   assert.match(entry, /structuredContent/);
-  assert.match(entry, /call x402_fetch once/);
+  assert.match(entry, /call x402_fetch once with only intentId/);
+  assert.match(entry, /Connect OpenDexter, then repeat x402_check/);
+  assert.doesNotMatch(
+    entry,
+    /call x402_fetch once with (?:url|method|body)/i,
+  );
   assert.doesNotMatch(
     actionSources,
     /preparedPurchase|purchaseOptions|purchase mode|omit purchase/i,

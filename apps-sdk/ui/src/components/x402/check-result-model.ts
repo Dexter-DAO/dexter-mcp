@@ -43,6 +43,8 @@ export type X402CheckedRequest = Readonly<{
 }>;
 
 export type X402CheckState = Readonly<{
+  intentId: string | null;
+  quoteOnly: boolean;
   classification: X402CheckClassification;
   title: string;
   summary: string;
@@ -314,6 +316,7 @@ function readerCopy(
  */
 export function normalizeX402CheckResult(value: unknown): X402CheckState {
   const payload = isRecord(value) ? value : {};
+  const intentId = nullableString(payload.intentId);
   const routes = normalizeX402PaymentRoutes(payload.paymentOptions);
   const authMode = canonicalAuthMode(payload.authMode);
   const statusCode = nullableInteger(payload.statusCode);
@@ -322,6 +325,8 @@ export function normalizeX402CheckResult(value: unknown): X402CheckState {
   const copy = readerCopy(classification, routes, failure);
 
   return {
+    intentId,
+    quoteOnly: payload.quoteOnly === true || intentId === null,
     classification,
     ...copy,
     authMode,

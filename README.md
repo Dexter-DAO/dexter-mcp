@@ -57,26 +57,42 @@ requires the coordinated release runbook and post-deploy checks below.
 
 ## OpenDexter: the hosted x402 buyer
 
-OpenDexter is the hosted MCP server behind the OpenDexter connector. Search,
-price inspection, and identity-gated access do not require Dexter account
-authorization. Wallet data, portfolio data, and payment require the host's
-native OAuth connection with `scope=vault`.
+OpenDexter is the hosted MCP server behind the OpenDexter connector. Its
+anonymous roster contains search, quote-only price inspection,
+identity-gated access, and the wallet and portfolio entrypoints. The latter
+two return the host-native Connect path rather than private data until the
+session has OAuth `scope=vault` and a durable wallet binding.
 
-Every MCP client receives the same six-tool product roster:
+OAuth promotes `x402_fetch` and `x402_status`, producing this exact seven-tool
+connected roster:
 
 1. `x402_search`
 2. `x402_check`
 3. `x402_fetch`
-4. `x402_access`
-5. `x402_wallet`
-6. `dexter_portfolio`
+4. `x402_status`
+5. `x402_access`
+6. `x402_wallet`
+7. `dexter_portfolio`
 
 There are no hosted compatibility aliases, composed-skill, passkey-probe, or
-card tools. Search never pays. A new payment starts with a fresh `x402_check`,
-preserves the selected seller offer and prepared identity, and requires an
-explicit user-approved atomic ceiling. OpenDexter never changes purchase mode
-after consequential dispatch and never automatically retries an ambiguous
-result.
+card tools. The anonymous roster is exactly `x402_search`, `x402_check`,
+`x402_access`, `x402_wallet`, and `dexter_portfolio`; it does not include fetch
+or status.
+
+Search never pays. `x402_check` accepts the endpoint URL, method, and optional
+exact raw request-body string. Anonymous checks are quote-only. An
+authenticated check asks Dexter to custody the request and seller terms and
+returns one opaque `intentId`. `x402_fetch` accepts only that `intentId` and an
+explicit user- or policy-approved `maxAmountAtomic` ceiling. It never accepts
+URL, body, route, tab, seller, or caller-carried prepared-purchase JSON.
+`x402_status` accepts only the same `intentId` and reads state without
+redispatching.
+
+If execution authority is missing, the hosted consent handoff must preserve
+the same intent. After any ambiguous or post-dispatch result, OpenDexter does
+not retry the purchase; it checks status and reconciliation on that intent.
+Internal settlement-rail choice remains API-owned and is not a public tool or
+mode menu.
 
 **How wallet identity works.** OAuth authorizes the stable
 `https://open.dexter.cash/mcp` connector. Protected wallet and portfolio calls
@@ -86,11 +102,12 @@ wallet address or user handle. `x402_wallet` reads the bound passkey wallet;
 `dexter_portfolio` reads its governed asset inventory without changing the
 spendable balance.
 
-**How the npm package differs.** `@dexterai/opendexter` provides the same six
-user capabilities over local stdio for Codex, Claude Code, and other agents.
-It uses a user-controlled local signer instead of the hosted connector's OAuth
-and session binding. Its package, install guidance, and seller-side
-`opendexter audition <url>` command live in
+**How the npm package differs.** `@dexterai/opendexter` is an independently
+versioned local stdio package for Codex, Claude Code, and other agents. It uses
+a user-controlled local signer instead of the hosted connector's OAuth and
+session binding. This hosted source contract does not assert that a published
+npm version has adopted the seven-tool opaque-intent boundary. Its package,
+install guidance, and seller-side `opendexter audition <url>` command live in
 [Dexter-DAO/opendexter-ide](https://github.com/Dexter-DAO/opendexter-ide).
 
 | | OpenDexter MCP | `@dexterai/opendexter` |
@@ -98,11 +115,16 @@ and session binding. Its package, install guidance, and seller-side
 | Transport | Hosted HTTP MCP | Local stdio MCP |
 | Authorization | Mixed per-tool OAuth contract | Local process and signer |
 | Wallet identity | Durable passkey wallet bound to the authenticated MCP session | User-controlled local signer |
-| Executable roster | Six canonical tools | Six canonical tools |
+| Executable roster | Five anonymous entry tools; seven after OAuth promotion | Independently versioned; verify the installed package |
 | Seller onboarding | Not exposed as a hosted tool | `opendexter audition <url>` |
 | Best for | ChatGPT, Claude, hosted agents | Codex, Claude Code, CLI agents |
 
 Source: `open-mcp-server.mjs` (hosted server). npm package source is in [opendexter-ide/packages/mcp](https://github.com/Dexter-DAO/opendexter-ide/tree/main/packages/mcp).
+
+The opaque-intent boundary and its unverified backend dependencies are
+documented in
+[`docs/contracts/OPENDXTER-OPAQUE-INTENT-V1.md`](./docs/contracts/OPENDXTER-OPAQUE-INTENT-V1.md).
+It is a source candidate, not proof of deployment or end-to-end settlement.
 
 ---
 

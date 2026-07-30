@@ -2,7 +2,7 @@ import { Button } from '@openai/apps-sdk-ui/components/Button';
 
 interface Props {
   price: string | null;
-  requestBound: boolean;
+  intentReady: boolean;
   disabled?: boolean;
   status?: 'idle' | 'sending' | 'sent' | 'error';
   onFetch: () => void;
@@ -10,7 +10,7 @@ interface Props {
 
 export function FetchAction({
   price,
-  requestBound,
+  intentReady,
   disabled = false,
   status = 'idle',
   onFetch,
@@ -20,9 +20,9 @@ export function FetchAction({
       ? 'Opening review…'
       : status === 'sent'
         ? 'Review opened in chat'
-        : requestBound
+        : intentReady
           ? 'Review payment'
-          : 'Review request';
+          : 'Connect & re-check';
   return (
     <Button color="primary" block onClick={onFetch} disabled={disabled}>
       {label}

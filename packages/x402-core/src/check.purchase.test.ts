@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  exactCheckRequestBody,
   exactAtomicString,
   sellerAcceptSha256,
 } from './check.js';
@@ -47,4 +48,11 @@ test('atomic amounts reject JSON numbers before precision can be implied', () =>
   assert.equal(exactAtomicString(9007199254740993), null);
   assert.equal(exactAtomicString('0'), null);
   assert.equal(exactAtomicString('1e6'), null);
+});
+
+test('raw check bodies retain lexical byte identity', () => {
+  const raw = '{\n  "z": 1, "a": [ 2, 3 ]\n}\n';
+  assert.equal(exactCheckRequestBody('POST', raw), raw);
+  assert.equal(exactCheckRequestBody('GET', raw), undefined);
+  assert.equal(exactCheckRequestBody('PUT', { z: 1, a: [2, 3] }), '{"z":1,"a":[2,3]}');
 });

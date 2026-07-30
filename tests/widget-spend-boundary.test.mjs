@@ -9,21 +9,50 @@ async function source(path) {
 }
 
 test('pricing widget continues in chat instead of invoking a money tool', async () => {
-  const [pricing, action] = await Promise.all([
+  const [pricing, action, pricingTypes] = await Promise.all([
     source('apps-sdk/ui/src/entries/x402-pricing.tsx'),
     source('apps-sdk/ui/src/components/pricing/FetchAction.tsx'),
+    source('apps-sdk/ui/src/components/pricing/types.ts'),
   ]);
   assert.doesNotMatch(pricing, /callTool\(\s*['"]x402_(?:fetch|pay)['"]/);
   assert.match(pricing, /useAdaptiveSendFollowUp/);
   assert.match(pricing, /Exact request:/);
   assert.match(pricing, /maxAmountAtomic/);
-  assert.match(pricing, /call x402_fetch once/);
+  assert.match(pricing, /call x402_fetch once with only intentId/);
+  assert.match(pricing, /Connect OpenDexter, then repeat x402_check/);
+  assert.match(pricing, /pass body as the exact raw string/);
+  assert.doesNotMatch(
+    pricing,
+    /call x402_fetch once with (?:url|method|body)/i,
+  );
   assert.doesNotMatch(
     pricing,
     /preparedPurchase|purchaseOptions|purchase mode|omit purchase/i,
   );
   assert.match(action, /Review payment/);
-  assert.match(action, /Review request/);
+  assert.match(action, /Connect & re-check/);
+  assert.match(pricingTypes, /body\?: string/);
+  assert.doesNotMatch(pricingTypes, /sampleInputBody/);
+});
+
+test('fetch result reports one intent lifecycle and never interprets rail modes', async () => {
+  const [fetchResult, lifecycleModel] = await Promise.all([
+    source('apps-sdk/ui/src/entries/x402-fetch-result.tsx'),
+    source('apps-sdk/ui/src/components/x402/fetch-result-model.ts'),
+  ]);
+  const lifecycleSources = `${fetchResult}\n${lifecycleModel}`;
+  assert.match(fetchResult, /normalizeIntentLifecycle/);
+  assert.match(lifecycleSources, /x402_status/);
+  assert.match(lifecycleSources, /Delivery/);
+  assert.match(lifecycleSources, /Payment/);
+  assert.match(lifecycleSources, /Reconciliation/);
+  assert.match(lifecycleSources, /Reservation/);
+  assert.match(fetchResult, /Open Dexter consent/);
+  assert.match(fetchResult, /startsWith\('https:\/\/dexter\.cash\/'\)/);
+  assert.doesNotMatch(
+    lifecycleSources,
+    /purchaseReceipt|normalizePurchaseReceipt|toolOutput\.mode|direct_exact|native_tab/,
+  );
 });
 
 test('funding widget requests a fresh approval in chat instead of retrying payment', async () => {

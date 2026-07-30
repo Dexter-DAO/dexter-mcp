@@ -81,10 +81,7 @@ function checkedPaymentRequest(
   input: PricingInput | null | undefined,
 ): CheckedPaymentRequest {
   const method = canonicalMethod(payload.checkedRequest?.method ?? input?.method);
-  const sampleBodyProvided = Boolean(
-    input
-    && Object.prototype.hasOwnProperty.call(input, 'sampleInputBody'),
-  );
+  const rawBodyProvided = typeof input?.body === 'string';
   return {
     url: payload.checkedRequest?.url || input?.url || '',
     method,
@@ -92,12 +89,10 @@ function checkedPaymentRequest(
       method === 'GET'
         ? null
         : payload.checkedRequest?.body
-          ?? (sampleBodyProvided
-            ? JSON.stringify(input?.sampleInputBody ?? {})
-            : null),
+          ?? (rawBodyProvided ? input.body! : null),
     requestBound:
       payload.checkedRequest?.requestBound
-      ?? (method === 'GET' || sampleBodyProvided),
+      ?? (method === 'GET' || rawBodyProvided),
   };
 }
 
@@ -125,9 +120,21 @@ function sellerTerms(route: X402PaymentRoute): string {
 function paidContinuationPrompt(
   request: CheckedPaymentRequest,
   routes: readonly X402PaymentRoute[],
+  intentId: string | null,
+  quoteOnly: boolean,
 ): string {
-  if (!request.requestBound) {
-    return `Form the exact raw JSON request body for ${request.url} using ${request.method}, then run x402_check again with sampleInputBody before asking me to approve a payment. Do not pay from this indicative quote.`;
+  if (quoteOnly || !intentId || !request.requestBound) {
+    const exactRequest = request.url
+      ? `url ${request.url}, method ${request.method}`
+      : 'the same URL and method';
+    const bodyInstruction = request.method === 'GET'
+      ? 'and omit body'
+      : request.body === null
+        ? 'and first form the exact raw body string required for the request'
+        : `and pass body as the exact raw string ${JSON.stringify(request.body)}`;
+    return `Connect OpenDexter, then repeat x402_check with ${exactRequest} ${bodyInstruction}. `
+      + 'Use the authenticated re-check only if it returns a non-quote-only intentId. '
+      + 'Do not call x402_fetch from this quote.';
   }
 
   const route = exactCeilingRoute(routes);
@@ -138,12 +145,12 @@ function paidContinuationPrompt(
   const bodyDescription = request.body === null
     ? 'no request body'
     : `raw JSON body ${request.body}`;
-  const fetchBody = request.body === null ? 'no body' : `body ${request.body}`;
   return `Review payment for ${request.url}. Exact request: ${request.method} with ${bodyDescription}. `
     + `Current seller terms: ${sellerTerms(route)}. `
     + `The approval ceiling is maxAmountAtomic ${route.amountAtomic}. Ask for my confirmation before paying. `
-    + `After I confirm, call x402_fetch once with url ${request.url}, method ${request.method}, ${fetchBody}, and maxAmountAtomic ${route.amountAtomic}. `
-    + 'Do not retry automatically if the outcome is ambiguous or the request was dispatched.';
+    + `After I confirm, call x402_fetch once with only intentId ${intentId} and maxAmountAtomic ${route.amountAtomic}. `
+    + 'Do not include URL, method, body, route, payee, asset, challenge, or prepared purchase data. '
+    + `If the outcome is preparing or ambiguous, call x402_status with only intentId ${intentId}; do not call x402_fetch again.`;
 }
 
 /** Returns seconds elapsed while `pending` is true, resetting to 0 otherwise. */
@@ -344,6 +351,11 @@ function PricingCheck() {
     ?? paymentOptions[0]?.priceFormatted
     ?? null;
   const requestBound = checkedRequest?.requestBound ?? false;
+  const intentId = typeof toolOutput.intentId === 'string' && toolOutput.intentId.trim()
+    ? toolOutput.intentId.trim()
+    : null;
+  const quoteOnly = toolOutput.quoteOnly === true || intentId === null;
+  const intentReady = Boolean(intentId && !quoteOnly && requestBound && ceilingRoute?.amountAtomic);
 
   const enrichment = toolOutput.enrichment ?? null;
   const recent: HistoryRow[] = enrichment?.history?.recent ?? [];
@@ -361,7 +373,7 @@ function PricingCheck() {
 
   const handleContinue = async () => {
     if (
-      !checkedRequest?.url
+      !checkedRequest
       || !sendFollowUp
       || continuationInFlight.current
       || continueState.status === 'sending'
@@ -373,7 +385,12 @@ function PricingCheck() {
     setContinueState({ status: 'sending' });
     try {
       await sendFollowUp(
-        paidContinuationPrompt(checkedRequest, paymentOptions),
+        paidContinuationPrompt(
+          checkedRequest,
+          paymentOptions,
+          intentId,
+          quoteOnly,
+        ),
       );
       setContinueState({ status: 'sent' });
     } catch {
@@ -420,7 +437,7 @@ function PricingCheck() {
         <>
           <FetchAction
             price={displayedPrice}
-            requestBound={requestBound}
+            intentReady={intentReady}
             status={continueState.status}
             disabled={
               continueState.status === 'sending'

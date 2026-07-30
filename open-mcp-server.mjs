@@ -45,6 +45,12 @@ import {
 } from './lib/open-purchase-contract.mjs';
 import { buildHostedCheckModelResult } from './lib/open-check-result.mjs';
 import {
+  OPEN_X402_INTENT_API_PATHS,
+  callOpenX402IntentApi,
+  isOpenX402AuthorityRequired,
+  sanitizeOpenX402IntentResult,
+} from './lib/open-x402-intent-api.mjs';
+import {
   fetchSessionPortfolio,
   modelSafePortfolioSnapshot,
   numericPortfolioSummary,
@@ -78,6 +84,7 @@ import {
   vaultAuthenticationResult,
 } from './lib/open-tool-auth.mjs';
 import {
+  OPEN_ANONYMOUS_TOOL_NAMES,
   OPEN_TOOL_NAMES,
   finalizeOpenToolContracts,
   installOpenToolContracts,
@@ -110,7 +117,10 @@ import {
   oauthChallengeForVerification,
   verifyOpenVaultBearer,
 } from './lib/open-vault-oauth.mjs';
-import { shouldVerifyVaultBearer } from './lib/open-vault-request-auth.mjs';
+import {
+  shouldAcceptOptionalVaultBearer,
+  shouldVerifyVaultBearer,
+} from './lib/open-vault-request-auth.mjs';
 import {
   capabilitySearch as coreCapabilitySearch,
   buildSearchResponse,
@@ -198,9 +208,13 @@ const PORTFOLIO_META = Object.freeze({
   'openai/toolInvocation/invoking': 'Loading portfolio…',
   'openai/toolInvocation/invoked': 'Portfolio loaded',
 });
+const STATUS_META = Object.freeze({
+  'openai/toolInvocation/invoking': 'Checking purchase…',
+  'openai/toolInvocation/invoked': 'Purchase status loaded',
+});
 
 // Card and compatibility tools are retired from the hosted MCP. Every client
-// receives the same canonical six through the strict contract finalizer.
+// receives the same canonical seven through the strict contract finalizer.
 const ALL_TOOLS = OPEN_TOOL_NAMES;
 const OPEN_SESSION_HINT_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -577,6 +591,147 @@ function signedInternalHeaders(value) {
   return { 'x-internal-timestamp': ts, 'x-internal-signature': sig };
 }
 
+async function resolveIntentSession(extra) {
+  const sessionId = extra ? extractMcpSessionId(extra) : null;
+  if (!sessionId || !PAY_SESSION_ID_RE.test(sessionId)) {
+    return { sessionId: null, authenticated: false, lookupFailed: false };
+  }
+  if (isVaultBound(sessionMeta.get(sessionId))) {
+    return { sessionId, authenticated: true, lookupFailed: false };
+  }
+  const binding = await checkSessionVaultBinding(sessionId);
+  if (binding.bound) {
+    markSessionVaultBound(sessionId);
+    return { sessionId, authenticated: true, lookupFailed: false };
+  }
+  return {
+    sessionId,
+    authenticated: false,
+    lookupFailed: !binding.ok,
+  };
+}
+
+function intentConsentResult({ intentId, maxAmountAtomic, data }) {
+  const retry = {
+    intentId,
+    ...(maxAmountAtomic ? { maxAmountAtomic } : {}),
+  };
+  if (
+    typeof data?.consentUrl === 'string'
+    && data.consentUrl.startsWith('https://dexter.cash/')
+  ) {
+    return sanitizeOpenX402IntentResult({
+      ok: false,
+      intentId,
+      status: 'authorization_required',
+      authorizationRequired: true,
+      consentUrl: data.consentUrl,
+      retry,
+      reason: typeof data.error === 'string' ? data.error : 'authorization_required',
+      retryable: false,
+      retryWithSameIntentOnly: true,
+    });
+  }
+  return sanitizeOpenX402IntentResult({
+    ok: false,
+    intentId,
+    status: 'authorization_required',
+    authorizationRequired: true,
+    error: 'hosted_consent_unavailable',
+    reason: typeof data?.error === 'string'
+      ? data.error
+      : 'governed_principal_required',
+    retry,
+    retryable: false,
+    retryWithSameIntentOnly: true,
+  });
+}
+
+async function x402IntentFetch({ intentId, maxAmountAtomic }, extra) {
+  const session = await resolveIntentSession(extra);
+  if (!session.sessionId || !session.authenticated) {
+    if (session.lookupFailed) {
+      return sanitizeOpenX402IntentResult({
+        ok: false,
+        intentId,
+        status: 'binding_unavailable',
+        error: 'vault_state_unavailable',
+        retryable: false,
+        retryWithSameIntentOnly: true,
+      });
+    }
+    return sanitizeOpenX402IntentResult({
+      ok: false,
+      intentId,
+      status: 'authentication_required',
+      authorizationRequired: true,
+      error: 'authentication_required',
+      reason: 'no_vault_bound',
+      retryable: false,
+      retryWithSameIntentOnly: true,
+    });
+  }
+  const response = await callOpenX402IntentApi('fetch', {
+    sessionId: session.sessionId,
+    intentId,
+    maxAmountAtomic,
+  });
+  if (isOpenX402AuthorityRequired(response.data)) {
+    return intentConsentResult({
+      tool: 'x402_fetch',
+      intentId,
+      maxAmountAtomic,
+      data: response.data,
+    });
+  }
+  return sanitizeOpenX402IntentResult(response.data, {
+    intentId,
+    httpStatus: response.httpStatus,
+  });
+}
+
+async function x402IntentStatus({ intentId }, extra) {
+  const session = await resolveIntentSession(extra);
+  if (!session.sessionId || !session.authenticated) {
+    if (session.lookupFailed) {
+      return sanitizeOpenX402IntentResult({
+        ok: false,
+        intentId,
+        status: 'binding_unavailable',
+        error: 'vault_state_unavailable',
+        retryable: false,
+        retryWithSameIntentOnly: true,
+      });
+    }
+    return sanitizeOpenX402IntentResult({
+      ok: false,
+      intentId,
+      status: 'authentication_required',
+      authorizationRequired: true,
+      error: 'authentication_required',
+      reason: 'no_vault_bound',
+      retryable: false,
+      retryWithSameIntentOnly: true,
+    });
+  }
+  const response = await callOpenX402IntentApi('status', {
+    sessionId: session.sessionId,
+    intentId,
+  });
+  if (isOpenX402AuthorityRequired(response.data)) {
+    return intentConsentResult({
+      tool: 'x402_status',
+      intentId,
+      data: response.data,
+    });
+  }
+  return sanitizeOpenX402IntentResult(response.data, {
+    intentId,
+    httpStatus: response.httpStatus,
+    includeData: false,
+  });
+}
+
 async function x402Fetch(
   { url, method, body, multipart, sessionToken, sessionKey, tab, maxAmountAtomic, purchase },
   extra,
@@ -883,7 +1038,7 @@ async function x402Fetch(
       }
 
       // JSON branch — original /v2/pay/anon/x402/fetch.
-      const anonRes = await fetchInternalApi('/v2/pay/anon/x402/fetch', {
+      const anonRes = await fetchInternalApi(OPEN_X402_INTENT_API_PATHS.fetch, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1728,65 +1883,139 @@ function createOpenMcpServer() {
 
   registerOpenTool(server, 'x402_fetch', {
     title: 'x402 Fetch',
-    description: "Call an x402-protected API once after a fresh x402_check and current user instruction or delegated authority covers the exact URL, method, body, seller terms, and maxAmountAtomic ceiling. Pass the same URL/method/body plus the approved ceiling. The backend rechecks the seller immediately before execution and may use an eligible native or CrossPay route. Never automatically retry an ambiguous or post-dispatch outcome.",
+    description: 'Execute one API-custodied purchase intent. Pass only the opaque intentId from an authenticated x402_check and the exact maxAmountAtomic ceiling approved by the user or delegated policy. Never pass URL, body, seller terms, route data, or a prepared purchase. Never automatically retry an ambiguous or post-dispatch outcome; use x402_status on the same intent.',
     inputSchema: {
-      url: z.string().url().describe('The x402 resource URL to call'),
-      method: z.enum(['GET', 'POST', 'PUT', 'DELETE']).default('GET').describe('HTTP method'),
-      body: z.string().optional().describe('JSON request body for POST/PUT — the RAW payload the seller expects, e.g. {"q":"latest news"}. NEVER send a schema descriptor (anything shaped like {"type":"http","method":...,"bodyType":...,"body":{...}}) — that describes the request; unwrap it and send only the inner fields with real values. Field names come from the search result\'s inputSchema or x402_check.'),
-      maxAmountAtomic: z.string().regex(MAX_AMOUNT_ATOMIC_RE).describe('Required user-approved maximum charge in USDC atomic units (positive 1-20 digit decimal string). Pass the exact approved quote ceiling; the payment is rejected if the current quote exceeds it.'),
-      multipart: z.object({
-        files: z.array(z.object({
-          fieldName: z.string().describe('Form field name expected by the x402 endpoint.'),
-          path: z.string().describe('Absolute filesystem path to the file to upload.'),
-          filename: z.string().optional().describe('Filename to send (defaults to basename of path).'),
-          contentType: z.string().optional().describe('MIME type (defaults to application/octet-stream).'),
-        })).describe('Files to upload as multipart parts.'),
-        fields: z.record(z.string()).optional().describe('Extra text fields to include in the multipart body.'),
-      }).optional().describe('Pass to upload files to a multipart x402 endpoint (image-gen, transcription, document processing). Vault-paid, Solana-only.'),
-      tab: z.boolean().optional().describe('Legacy display compatibility only. It does not select a settlement route. Omit for new calls.'),
+      intentId: z.string().min(1).max(256).describe('Opaque server-owned purchase-intent handle returned by the authenticated x402_check. Do not parse, reconstruct, or replace it.'),
+      maxAmountAtomic: z.string().regex(MAX_AMOUNT_ATOMIC_RE).describe('Required approved maximum charge in USDC atomic units (positive 1-20 digit decimal string). The API binds it to this intent and rejects a different or larger charge.'),
     },
     annotations: { destructiveHint: true },
     _meta: FETCH_META,
   }, async (args, extra) => {
     try {
-      const result = await x402Fetch(args, extra);
-      // Echo the call coordinates back into structuredContent so the
-      // widget can show the user what was called without parsing the
-      // tool input (which it doesn't see).
-      result.url = args.url;
-      result.method = (args.method || 'GET').toUpperCase();
-      // Strip sessionToken from session object so model never sees it
+      const result = await x402IntentFetch(args, extra);
       const meta = { ...FETCH_META };
       if (isVaultAuthenticationRequired(result)) {
         return vaultAuthenticationResult(result, meta);
       }
-      if (result.session?.sessionToken) {
-        meta.sessionToken = result.session.sessionToken;
-        const { sessionToken: _drop, ...cleanSession } = result.session;
-        result.session = cleanSession;
-      }
-      return buildAnonVaultToolResult(result, meta);
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        structuredContent: result,
+        isError: Number(result.httpStatus) >= 400,
+        _meta: meta,
+      };
     } catch (err) {
-      const msg = err.cause?.code === 'ENOTFOUND' ? `Could not reach ${args.url}` : err.message || String(err);
-      const data = { status: 500, error: msg, url: args.url, method: (args.method || 'GET').toUpperCase() };
+      console.warn(
+        `[x402_fetch] intent API failed (${safeErrorLabel(err)}) `
+        + `intentRef=${logRef(args.intentId)}`,
+      );
+      const data = {
+        status: 503,
+        intentId: args.intentId,
+        error: 'x402_intent_fetch_unavailable',
+        reason: 'internal_api_unavailable',
+        retryable: false,
+        retryWithSameIntentOnly: true,
+      };
       return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }], structuredContent: data, isError: true, _meta: FETCH_META };
+    }
+  });
+
+  registerOpenTool(server, 'x402_status', {
+    title: 'x402 Status',
+    description: 'Inspect the same server-owned purchase intent without creating a purchase, changing routes, redispatching the provider request, or rebroadcasting a transaction. Pass only intentId.',
+    inputSchema: {
+      intentId: z.string().min(1).max(256).describe('Opaque server-owned purchase-intent handle returned by x402_check. Do not parse or replace it.'),
+    },
+    annotations: { readOnlyHint: true },
+    _meta: STATUS_META,
+  }, async (args, extra) => {
+    try {
+      const result = await x402IntentStatus(args, extra);
+      if (isVaultAuthenticationRequired(result)) {
+        return vaultAuthenticationResult(result, STATUS_META);
+      }
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        structuredContent: result,
+        isError: Number(result.httpStatus) >= 400,
+        _meta: STATUS_META,
+      };
+    } catch (err) {
+      console.warn(
+        `[x402_status] intent API failed (${safeErrorLabel(err)}) `
+        + `intentRef=${logRef(args.intentId)}`,
+      );
+      const data = {
+        status: 503,
+        intentId: args.intentId,
+        error: 'x402_intent_status_unavailable',
+        reason: 'internal_api_unavailable',
+        retryable: false,
+        retryWithSameIntentOnly: true,
+      };
+      return {
+        content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
+        structuredContent: data,
+        isError: true,
+        _meta: STATUS_META,
+      };
     }
   });
 
   registerOpenTool(server, 'x402_check', {
     title: 'x402 Check',
-    description: 'Probe the exact endpoint and request shape before paying. Read current paymentOptions for seller amount, asset, network, payee, and expiry. For input-dependent pricing, pass sampleInputBody for the exact non-GET request. The supported next step is one x402_fetch with the same URL/method/raw body and approved maxAmountAtomic. A check does not authorize payment, and a non-GET probe may mutate the provider.',
+    description: 'Probe the exact endpoint and request shape before paying. For a non-GET request, pass body as the exact raw JSON string to preserve lexical bytes. Anonymous calls return quote-only pricing. Authenticated calls ask Dexter to custody the exact request and seller terms and return an opaque intentId for x402_fetch and x402_status. A check never authorizes payment, and a non-GET probe may mutate the provider.',
     inputSchema: {
       url: z.string().url().describe('The URL to check'),
       method: z.enum(['GET', 'POST', 'PUT', 'DELETE']).default('GET').describe('HTTP method to probe with'),
-      sampleInputBody: z.record(z.unknown()).optional().describe('Optional request body to probe with (input-dependent pricing). When set on a non-GET method, the endpoint is priced for THIS exact request instead of an empty {} body.'),
+      body: z.string().optional().describe('Exact raw JSON request-body string for POST, PUT, or DELETE. OpenDexter does not parse, canonicalize, or reserialize this string before intent custody.'),
     },
     annotations: { readOnlyHint: true },
     _meta: CHECK_META,
-  }, async (args) => {
+  }, async (args, extra) => {
     try {
-      // Live probe (authoritative for pricing).
-      const result = await checkEndpointPricing(args);
+      const session = await resolveIntentSession(extra);
+      let result;
+      if (session.authenticated && session.sessionId) {
+        const checked = await callOpenX402IntentApi('check', {
+          sessionId: session.sessionId,
+          url: args.url,
+          method: args.method || 'GET',
+          ...(Object.prototype.hasOwnProperty.call(args, 'body')
+            ? { body: args.body }
+            : {}),
+        });
+        result = { ...checked.data, httpStatus: checked.httpStatus };
+        if (
+          result.paymentRequired === true
+          && !Array.isArray(result.paymentOptions)
+          && typeof result.amountAtomic === 'string'
+        ) {
+          const numeric = Number(result.amountAtomic);
+          result.paymentOptions = [{
+            amountAtomic: result.amountAtomic,
+            network: result.network ?? null,
+            asset: result.asset ?? null,
+            payTo: result.payTo ?? null,
+            price: Number.isFinite(numeric) ? numeric / 1_000_000 : null,
+            priceFormatted: Number.isFinite(numeric)
+              ? `$${(numeric / 1_000_000).toFixed(6).replace(/0+$/, '').replace(/\.$/, '')}`
+              : null,
+            expiresAt: Number.isSafeInteger(result.expiresAtUnixMs)
+              ? new Date(result.expiresAtUnixMs).toISOString()
+              : null,
+          }];
+        }
+      } else {
+        // Quote-only fallback. The shared helper preserves a raw string exactly.
+        result = await checkEndpointPricing({
+          url: args.url,
+          method: args.method || 'GET',
+          ...(Object.prototype.hasOwnProperty.call(args, 'body')
+            ? { sampleInputBody: args.body }
+            : {}),
+        });
+      }
       if (result?.inputSchema) result.inputSchema = unwrapEnvelopeSchema(result.inputSchema);
 
       // Best-effort DB enrichment. We never fail the tool call if this misses;
@@ -1824,11 +2053,8 @@ function createOpenMcpServer() {
         checkResult: result,
         url: args.url,
         method: args.method || 'GET',
-        sampleInputBody: args.sampleInputBody,
-        sampleInputBodyProvided: Object.prototype.hasOwnProperty.call(
-          args,
-          'sampleInputBody',
-        ),
+        rawBody: args.body,
+        rawBodyProvided: Object.prototype.hasOwnProperty.call(args, 'body'),
         enrichment,
         enrichmentSource,
       });
@@ -1964,7 +2190,13 @@ function createOpenMcpServer() {
   // Physics, not vigilance: if the served instructions ever name a tool this
   // connector doesn't register, refuse to boot (drift register R1).
   assertInstructionRosterParity(SERVER_INSTRUCTIONS, ALL_TOOLS);
-  finalizeOpenToolContracts(server);
+  finalizeOpenToolContracts(server, {
+    listedToolNames: (_request, extra) => (
+      isVaultBound(sessionMeta.get(extractMcpSessionId(extra)))
+        ? OPEN_TOOL_NAMES
+        : OPEN_ANONYMOUS_TOOL_NAMES
+    ),
+  });
 
   return server;
 }
@@ -2650,54 +2882,71 @@ const httpServer = http.createServer(async (req, res) => {
       const protectedCall = findVaultProtectedToolCall(parsedBody);
       const bearer = extractBearer(req);
       let hasValidVaultBearer = false;
-      if (shouldVerifyVaultBearer({
+      const requiresVaultBearer = shouldVerifyVaultBearer({
         protectedCall,
         sessionMeta: sessionMeta.get(sessionId),
         bearerPresent: Boolean(bearer),
         hasValidAccountBinding: Boolean(incomingBinding),
-      })) {
+      });
+      const acceptsOptionalVaultBearer = shouldAcceptOptionalVaultBearer({
+        protectedCall,
+        sessionMeta: sessionMeta.get(sessionId),
+        bearerPresent: Boolean(bearer),
+      });
+      if (requiresVaultBearer || acceptsOptionalVaultBearer) {
         const verification = await verifyOpenVaultBearer(bearer, {
           verificationKey: DEXTER_JWKS,
           audience: OPEN_MCP_VAULT_AUDIENCE,
         });
         if (!verification.ok) {
-          const challenge = oauthChallengeForVerification(verification);
           console.warn(
             `[open-mcp] rejected vault Bearer (${verification.reason}) for `
-            + `${protectedCall?.name || 'protected tool'} sessionRef=${logRef(sessionId)}`,
+            + `${protectedCall?.name || 'optional OAuth promotion'} `
+            + `sessionRef=${logRef(sessionId)}`,
           );
-          writeVaultChallenge(res, challenge);
-          return;
+          if (requiresVaultBearer) {
+            const challenge = oauthChallengeForVerification(verification);
+            writeVaultChallenge(res, challenge);
+            return;
+          }
+          if (sessionMeta.get(sessionId)?.vaultAuthMode === VAULT_AUTH_MODE_OAUTH) {
+            clearSessionVaultBinding(sessionId);
+          }
         }
-
-        const identityStatus = oauthVaultIdentityStatus(
-          sessionMeta.get(sessionId),
-          verification.identity,
-        );
-        if (identityStatus === 'mismatch') {
-          clearSessionVaultBinding(sessionId);
-          console.warn(
-            `[open-mcp] rejected vault Bearer identity switch for `
-            + `${protectedCall?.name || 'protected tool'} sessionRef=${logRef(sessionId)}`,
-          );
-          writeVaultChallenge(res, {
-            error: 'invalid_token',
-            errorDescription:
-              'This OpenDexter authorization belongs to a different session identity; connect again',
-          });
-          return;
-        }
-        if (identityStatus === 'unpinned') {
-          pinSessionOAuthIdentity(sessionId, verification.identity);
-        }
-        hasValidVaultBearer = true;
-        if (!isVaultBound(sessionMeta.get(sessionId))) {
-          await seedOAuthVaultBinding(
-            bearer,
-            verification.payload,
+        if (verification.ok) {
+          const identityStatus = oauthVaultIdentityStatus(
+            sessionMeta.get(sessionId),
             verification.identity,
-            sessionId,
           );
+          if (identityStatus === 'mismatch') {
+            clearSessionVaultBinding(sessionId);
+            console.warn(
+              `[open-mcp] rejected vault Bearer identity switch for `
+              + `${protectedCall?.name || 'optional OAuth promotion'} `
+              + `sessionRef=${logRef(sessionId)}`,
+            );
+            if (requiresVaultBearer) {
+              writeVaultChallenge(res, {
+                error: 'invalid_token',
+                errorDescription:
+                  'This OpenDexter authorization belongs to a different session identity; connect again',
+              });
+              return;
+            }
+          } else {
+            if (identityStatus === 'unpinned') {
+              pinSessionOAuthIdentity(sessionId, verification.identity);
+            }
+            hasValidVaultBearer = true;
+            if (!isVaultBound(sessionMeta.get(sessionId))) {
+              await seedOAuthVaultBinding(
+                bearer,
+                verification.payload,
+                verification.identity,
+                sessionId,
+              );
+            }
+          }
         }
       }
 

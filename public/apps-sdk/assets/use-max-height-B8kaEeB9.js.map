@@ -1,0 +1,1 @@
+{"version":3,"file":"use-max-height-B8kaEeB9.js","sources":["../../../apps-sdk/ui/src/sdk/use-max-height.ts"],"sourcesContent":["import { useOpenAIGlobal } from './use-openai-global';\n\nexport function useMaxHeight(): number | null {\n  return useOpenAIGlobal('maxHeight');\n}\n"],"names":[],"mappings":";AAEO,SAAS,eAA8B;AAC5C,SAAO,gBAAgB,WAAW;AACpC;"}
