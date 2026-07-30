@@ -116,3 +116,19 @@ test('free and provider-authenticated quote states keep only typed public scalar
   assert.equal(structuredContent.authMode, 'unprotected');
   assert.equal(Object.hasOwn(structuredContent, 'unusedBoolean'), false);
 });
+
+test('authenticated checks do not expose backend route names through errors', () => {
+  const structuredContent = buildHostedCheckModelResult({
+    checkResult: {
+      ok: false,
+      error: 'native_tab_execution_disabled',
+      message: 'Selected gateway credit rail is unavailable.',
+    },
+    url: 'https://seller.example/paid',
+    method: 'GET',
+  });
+
+  assert.equal(structuredContent.error, 'purchase_unavailable');
+  assert.equal(Object.hasOwn(structuredContent, 'message'), false);
+  assert.doesNotMatch(JSON.stringify(structuredContent), /native|gateway|rail/i);
+});

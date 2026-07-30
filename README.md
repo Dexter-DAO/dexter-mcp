@@ -94,6 +94,13 @@ not retry the purchase; it checks status and reconciliation on that intent.
 Internal settlement-rail choice remains API-owned and is not a public tool or
 mode menu.
 
+The hosted check/fetch/status adapter also requires
+`NATIVE_EXACT_MCP_SERVICE_HMAC_SECRET` (32 bytes or longer), configured to the
+same value in Dexter API and this MCP service. Every internal request signs its
+timestamp, method, exact route, and exact serialized body. Missing or weak
+configuration fails closed before the request leaves MCP; the secret is never
+part of a tool argument or result.
+
 **How wallet identity works.** OAuth authorizes the stable
 `https://open.dexter.cash/mcp` connector. Protected wallet and portfolio calls
 resolve the durable wallet binding for that authenticated MCP session and the
