@@ -126,6 +126,25 @@ test('service proof binds exact path, method, and serialized request bytes', () 
   );
 });
 
+test('service proof normalizes configured secret whitespace like dexter-api', () => {
+  const common = {
+    path: OPEN_X402_INTENT_API_PATHS.fetch,
+    method: 'POST',
+    body: '{"intentId":"intent-1"}',
+    timestamp: String(PROOF_NOW),
+  };
+  assert.deepEqual(
+    buildOpenX402ServiceProofHeaders({
+      ...common,
+      secret: `  ${SERVICE_SECRET}\n`,
+    }),
+    buildOpenX402ServiceProofHeaders({
+      ...common,
+      secret: SERVICE_SECRET,
+    }),
+  );
+});
+
 test('intent calls fail closed when the MCP service secret is absent or weak', async () => {
   await assert.rejects(
     callOpenX402IntentApi('status', {
