@@ -6,6 +6,7 @@ import {
   buildOpenX402IntentRequest,
   callOpenX402IntentApi,
   isOpenX402AuthorityRequired,
+  readOpenX402ConsentUrl,
   sanitizeOpenX402IntentResult,
 } from '../lib/open-x402-intent-api.mjs';
 
@@ -142,8 +143,49 @@ test('intent calls fail closed when the MCP service secret is absent or weak', a
 
 test('authority refusals are classified without changing the intent', () => {
   assert.equal(isOpenX402AuthorityRequired({ error: 'governed_principal_required' }), true);
+  assert.equal(isOpenX402AuthorityRequired({ error: 'approval_required' }), true);
   assert.equal(isOpenX402AuthorityRequired({ error: 'native_exact_agent_authorization_unavailable' }), false);
   assert.equal(isOpenX402AuthorityRequired({ error: 'new_check_required' }), false);
+});
+
+test('native owner approval becomes one safe hosted-consent continuation', () => {
+  const consentUrl =
+    'https://dexter.cash/wallet/approvals/x402/018f47dd-1f5f-7abc-8def-0123456789ab?maxAmountAtomic=250';
+  const source = {
+    ok: false,
+    intentId: 'intent-1',
+    error: 'approval_required',
+    approval: {
+      namespace: 'dexter-native-exact-owner-consent-link/v1',
+      consentUrl,
+      approvalIntentHash: 'private',
+      approvedCeilingAtomic: '250',
+    },
+  };
+
+  assert.equal(readOpenX402ConsentUrl(source), consentUrl);
+  assert.deepEqual(sanitizeOpenX402IntentResult(source), {
+    ok: false,
+    intentId: 'intent-1',
+    error: 'approval_required',
+    consentUrl,
+  });
+  assert.equal(
+    Object.hasOwn(sanitizeOpenX402IntentResult(source), 'approval'),
+    false,
+  );
+});
+
+test('hosted consent rejects lookalike origins and unknown nested contracts', () => {
+  assert.equal(readOpenX402ConsentUrl({
+    consentUrl: 'https://dexter.cash.evil.example/wallet/approvals/x402/intent-1',
+  }), undefined);
+  assert.equal(readOpenX402ConsentUrl({
+    approval: {
+      namespace: 'untrusted-consent-link/v1',
+      consentUrl: 'https://dexter.cash/wallet/approvals/x402/intent-1',
+    },
+  }), undefined);
 });
 
 test('public lifecycle results cannot leak route, challenge, or replay material', () => {

@@ -48,6 +48,7 @@ import {
   OPEN_X402_INTENT_API_PATHS,
   callOpenX402IntentApi,
   isOpenX402AuthorityRequired,
+  readOpenX402ConsentUrl,
   sanitizeOpenX402IntentResult,
 } from './lib/open-x402-intent-api.mjs';
 import {
@@ -616,16 +617,14 @@ function intentConsentResult({ intentId, maxAmountAtomic, data }) {
     intentId,
     ...(maxAmountAtomic ? { maxAmountAtomic } : {}),
   };
-  if (
-    typeof data?.consentUrl === 'string'
-    && data.consentUrl.startsWith('https://dexter.cash/')
-  ) {
+  const consentUrl = readOpenX402ConsentUrl(data);
+  if (consentUrl) {
     return sanitizeOpenX402IntentResult({
       ok: false,
       intentId,
       status: 'authorization_required',
       authorizationRequired: true,
-      consentUrl: data.consentUrl,
+      consentUrl,
       retry,
       reason: typeof data.error === 'string' ? data.error : 'authorization_required',
       retryable: false,
