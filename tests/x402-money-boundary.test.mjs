@@ -53,6 +53,8 @@ test('public check accepts an exact raw body string and no prepared purchase', (
   assert.match(schema, /body:\s*z\.string\(\)\.optional\(\)/);
   assert.doesNotMatch(schema, /sampleInputBody|preparedPurchase|purchaseOptions|challenge/);
   assert.match(source, /Object\.prototype\.hasOwnProperty\.call\(args, 'body'\)/);
+  assert.match(source, /const requestId = randomUUID\(\)/);
+  assert.match(source, /sessionId: session\.sessionId,\s*requestId,/);
 });
 
 test('provisional API paths occur only in the centralized intent adapter', () => {

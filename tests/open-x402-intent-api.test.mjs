@@ -18,6 +18,7 @@ test('check preserves the exact caller body string without parsing or canonicali
   const raw = '{\n  "z": 1, "a": [ 2, 3 ]\n}\n';
   const request = buildOpenX402IntentRequest('check', {
     sessionId: SESSION,
+    requestId: '6d321ab4-1434-46f3-ad0c-38629b077f4a',
     url: 'https://seller.example/resource',
     method: 'post',
     body: raw,
@@ -27,10 +28,37 @@ test('check preserves the exact caller body string without parsing or canonicali
     'body',
     'mcp_session_id',
     'method',
+    'requestId',
     'url',
   ]);
+  assert.equal(request.requestId, '6d321ab4-1434-46f3-ad0c-38629b077f4a');
   assert.equal(request.body, raw);
   assert.equal(request.method, 'POST');
+});
+
+test('check requires one bounded API-compatible request identity', () => {
+  const common = {
+    sessionId: SESSION,
+    url: 'https://seller.example/resource',
+  };
+  assert.throws(
+    () => buildOpenX402IntentRequest('check', common),
+    /invalid_x402_check_request_id/,
+  );
+  assert.throws(
+    () => buildOpenX402IntentRequest('check', {
+      ...common,
+      requestId: ' request-id',
+    }),
+    /invalid_x402_check_request_id/,
+  );
+  assert.throws(
+    () => buildOpenX402IntentRequest('check', {
+      ...common,
+      requestId: `r${'x'.repeat(128)}`,
+    }),
+    /invalid_x402_check_request_id/,
+  );
 });
 
 test('fetch and status accept only the opaque handle plus their required public fields', () => {

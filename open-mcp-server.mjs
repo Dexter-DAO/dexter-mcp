@@ -1976,8 +1976,13 @@ function createOpenMcpServer() {
       const session = await resolveIntentSession(extra);
       let result;
       if (session.authenticated && session.sessionId) {
+        // One fresh, HMAC-bound economic identity per explicit check. Keep it
+        // stable for this one internal HTTP attempt only; fetch and status use
+        // the opaque intent returned by the API and never accept it back.
+        const requestId = randomUUID();
         const checked = await callOpenX402IntentApi('check', {
           sessionId: session.sessionId,
+          requestId,
           url: args.url,
           method: args.method || 'GET',
           ...(Object.prototype.hasOwnProperty.call(args, 'body')
