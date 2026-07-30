@@ -1,6 +1,7 @@
 import { j as jsxRuntimeExports } from "./adapter-B3ynKBmf.js";
 const CHAIN_MAP = {
   solana: { name: "Solana", slug: "solana" },
+  "solana:mainnet": { name: "Solana", slug: "solana" },
   "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp": { name: "Solana", slug: "solana" },
   base: { name: "Base", slug: "base" },
   "eip155:8453": { name: "Base", slug: "base" },

@@ -36,15 +36,12 @@ test('approved ceiling survives backend payloads and auth retries', () => {
   );
 });
 
-test('prepared purchase identity survives backend payloads and auth retries', () => {
-  assert.equal(
-    (
-      serverSource.match(
-        /purchase:\s*PREPARED_PURCHASE_SCHEMA\.optional\(\)/g,
-      ) || []
-    ).length,
-    1,
+test('the prepared candidate remains internal and is absent from the public tool schema', () => {
+  assert.doesNotMatch(
+    serverSource,
+    /purchase:\s*PREPARED_PURCHASE_SCHEMA\.optional\(\)/,
   );
+  assert.doesNotMatch(serverSource, /const PREPARED_PURCHASE_SCHEMA\s*=/);
   assert.match(
     serverSource,
     /const requestId = validatedPurchase\?\.preparedId \|\| randomUUID\(\)/,

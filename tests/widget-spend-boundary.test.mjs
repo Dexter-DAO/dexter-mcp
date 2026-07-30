@@ -15,8 +15,15 @@ test('pricing widget continues in chat instead of invoking a money tool', async 
   ]);
   assert.doesNotMatch(pricing, /callTool\(\s*['"]x402_(?:fetch|pay)['"]/);
   assert.match(pricing, /useAdaptiveSendFollowUp/);
-  assert.match(pricing, /ask for my confirmation before paying/);
-  assert.match(action, /Continue in chat/);
+  assert.match(pricing, /Exact request:/);
+  assert.match(pricing, /maxAmountAtomic/);
+  assert.match(pricing, /call x402_fetch once/);
+  assert.doesNotMatch(
+    pricing,
+    /preparedPurchase|purchaseOptions|purchase mode|omit purchase/i,
+  );
+  assert.match(action, /Review payment/);
+  assert.match(action, /Review request/);
 });
 
 test('funding widget requests a fresh approval in chat instead of retrying payment', async () => {

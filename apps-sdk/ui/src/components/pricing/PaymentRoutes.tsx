@@ -1,9 +1,5 @@
-import { Badge } from '@openai/apps-sdk-ui/components/Badge';
 import { ChainIcon, getChain } from '../x402';
-import {
-  purchaseModeLabel,
-  type PreparedPurchaseOption,
-} from '../x402/purchase-model';
+import type { X402PaymentRoute } from '../x402/check-result-model';
 import { formatAssetLabel } from '../x402/search/utils';
 
 function shortRecipient(value: string): string {
@@ -12,120 +8,57 @@ function shortRecipient(value: string): string {
     : `${value.slice(0, 6)}…${value.slice(-4)}`;
 }
 
-function availabilityCopy(option: PreparedPurchaseOption): string | null {
-  switch (option.availability.state) {
-    case 'ready':
-      return null;
-    case 'request_required':
-      return 'Price the exact request first';
-    case 'integration_required':
-      return 'Not connected on this surface yet';
-    case 'unavailable':
-      return 'Seller does not offer this route';
-  }
+function priceLabel(route: X402PaymentRoute): string {
+  return route.priceFormatted || `${route.amountAtomic ?? 'Unknown'} atomic`;
 }
 
-function priceLabel(option: PreparedPurchaseOption): string {
-  return (
-    option.display.priceFormatted
-    ?? `${option.preparedPurchase.route.sellerOffer.amountAtomic} atomic`
-  );
+function schemeLabel(value: string | null): string {
+  if (!value) return 'x402';
+  return value.replaceAll('_', ' ').replace(/\b\w/g, (letter) =>
+    letter.toUpperCase());
 }
 
-type RowProps = {
-  option: PreparedPurchaseOption;
-  featured: boolean;
-  selected: boolean;
-  onSelect: (option: PreparedPurchaseOption) => void;
-};
-
-function PurchaseRouteRow({
-  option,
-  featured,
-  selected,
-  onSelect,
-}: RowProps) {
-  const offer = option.preparedPurchase.route.sellerOffer;
-  const { name: chainName } = getChain(offer.network);
-  const unavailable = availabilityCopy(option);
+function PaymentTermRow({ route }: { route: X402PaymentRoute }) {
+  const { name: chainName } = getChain(route.network);
   return (
-    <label
-      className={[
-        'dx-pricing__route',
-        featured ? 'dx-pricing__route--best' : '',
-        selected ? 'dx-pricing__route--selected' : '',
-        unavailable ? 'dx-pricing__route--disabled' : '',
-      ].filter(Boolean).join(' ')}
-    >
-      <input
-        type="radio"
-        name="purchase-mode"
-        value={option.preparedPurchase.preparedId}
-        checked={selected}
-        disabled={Boolean(unavailable)}
-        onChange={() => onSelect(option)}
-        aria-label={`${purchaseModeLabel(option.mode)} via ${chainName} using ${formatAssetLabel(offer.asset)}`}
-      />
+    <div className="dx-pricing__route dx-pricing__route--terms">
       <div className="dx-pricing__route-chain">
-        <ChainIcon network={offer.network} size={20} />
+        <ChainIcon network={route.network} size={20} />
         <div className="dx-pricing__route-chain-text">
           <div className="dx-pricing__route-chain-line">
             <span className="dx-pricing__route-chain-name">
-              {purchaseModeLabel(option.mode)}
+              {schemeLabel(route.scheme)}
             </span>
-            {selected ? (
-              <Badge color="success" size="sm">Selected</Badge>
-            ) : featured ? (
-              <Badge color="secondary" size="sm">Lowest price</Badge>
-            ) : null}
           </div>
           <span className="dx-pricing__route-chain-asset">
-            {formatAssetLabel(offer.asset)} · {chainName}
+            {formatAssetLabel(route.asset)} · {chainName}
+            {route.amountAtomic ? ` · ${route.amountAtomic} atomic` : ''}
           </span>
-          {unavailable ? (
-            <span className="dx-pricing__route-chain-asset">{unavailable}</span>
-          ) : null}
         </div>
       </div>
-      <div className="dx-pricing__route-payto">
-        <span className="dx-pricing__route-payto-addr">
-          to {shortRecipient(offer.payTo)}
-        </span>
-      </div>
-      <span className="dx-pricing__route-price">{priceLabel(option)}</span>
-    </label>
+      {route.payTo ? (
+        <div className="dx-pricing__route-payto">
+          <span className="dx-pricing__route-payto-addr">
+            to {shortRecipient(route.payTo)}
+          </span>
+        </div>
+      ) : null}
+      <span className="dx-pricing__route-price">{priceLabel(route)}</span>
+    </div>
   );
 }
 
-type Props = {
-  options: PreparedPurchaseOption[];
-  featuredPreparedId: string | null;
-  selectedPreparedId: string | null;
-  onSelect: (option: PreparedPurchaseOption) => void;
-};
-
 export function PaymentRoutes({
   options,
-  featuredPreparedId,
-  selectedPreparedId,
-  onSelect,
-}: Props) {
+}: {
+  options: readonly X402PaymentRoute[];
+}) {
   return (
     <section className="dx-pricing__routes">
-      <h2 className="dx-pricing__section-title">Choose how to buy</h2>
+      <h2 className="dx-pricing__section-title">Current seller terms</h2>
       <div className="dx-pricing__routes-list">
-        {options.map((option) => (
-          <PurchaseRouteRow
-            key={option.preparedPurchase.preparedId}
-            option={option}
-            featured={
-              option.preparedPurchase.preparedId === featuredPreparedId
-            }
-            selected={
-              option.preparedPurchase.preparedId === selectedPreparedId
-            }
-            onSelect={onSelect}
-          />
+        {options.map((route) => (
+          <PaymentTermRow key={route.routeKey} route={route} />
         ))}
       </div>
     </section>

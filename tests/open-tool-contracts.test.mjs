@@ -56,6 +56,20 @@ test('contract is exactly the canonical hosted six', () => {
   }
 });
 
+test('hosted paid guidance uses one supported check-then-fetch path', () => {
+  const fetchDescription = OPEN_TOOL_CONTRACTS.x402_fetch.description;
+  const checkDescription = OPEN_TOOL_CONTRACTS.x402_check.description;
+
+  assert.match(fetchDescription, /fresh x402_check/);
+  assert.match(fetchDescription, /maxAmountAtomic/);
+  assert.match(fetchDescription, /CrossPay/);
+  assert.doesNotMatch(fetchDescription, /preparedPurchase|purchase mode|omit purchase/i);
+
+  assert.match(checkDescription, /paymentOptions/);
+  assert.match(checkDescription, /one x402_fetch/);
+  assert.doesNotMatch(checkDescription, /prepared seller-route|purchase-mode choices|omit purchase/i);
+});
+
 test('portfolio top-level output refuses undeclared fields', () => {
   assert.equal(
     OPEN_TOOL_CONTRACTS.dexter_portfolio.outputSchema.safeParse({
@@ -371,6 +385,24 @@ test('real SDK tools/list exposes executable schemas, OAuth, annotations, and me
     assert.deepEqual(listed.annotations, toolContract.annotations);
     assert.deepEqual(listed._meta.securitySchemes, toolContract.securitySchemes);
     assert.equal(listed._meta.preservedWidgetSideChannel, true);
+    if (listed.name === 'x402_fetch') {
+      assert.equal(
+        Object.hasOwn(listed.inputSchema.properties ?? {}, 'purchase'),
+        false,
+      );
+    }
+    if (listed.name === 'x402_check') {
+      for (const candidateField of [
+        'purchaseContractVersion',
+        'preparedPayload',
+        'purchaseOptions',
+      ]) {
+        assert.equal(
+          Object.hasOwn(listed.outputSchema.properties ?? {}, candidateField),
+          false,
+        );
+      }
+    }
   }
   for (const listed of wireTools) {
     const toolContract = OPEN_TOOL_CONTRACTS[listed.name];

@@ -31,9 +31,10 @@ import type {
   HistoryRow,
 } from '../components/pricing';
 import {
-  normalizePreparedPurchaseOptions,
-  purchaseModeLabel,
-} from '../components/x402/purchase-model';
+  normalizeX402PaymentRoutes,
+  type X402PaymentRoute,
+} from '../components/x402/check-result-model';
+import { formatAssetLabel } from '../components/x402/search/utils';
 
 const WORDMARK_URL = 'https://dexter.cash/wordmarks/dexter-wordmark.svg';
 
@@ -60,6 +61,89 @@ function unavailableMessage(payload: PricingPayload): string {
     (typeof payload.error === 'string' ? payload.error : undefined) ||
     'No payment options are currently available for this endpoint.'
   );
+}
+
+const POSITIVE_ATOMIC_AMOUNT = /^[1-9]\d{0,19}$/;
+
+function canonicalMethod(method: string | null | undefined): string {
+  return String(method || 'GET').toUpperCase();
+}
+
+type CheckedPaymentRequest = Readonly<{
+  url: string;
+  method: string;
+  body: string | null;
+  requestBound: boolean;
+}>;
+
+function checkedPaymentRequest(
+  payload: PricingPayload,
+  input: PricingInput | null | undefined,
+): CheckedPaymentRequest {
+  const method = canonicalMethod(payload.checkedRequest?.method ?? input?.method);
+  const sampleBodyProvided = Boolean(
+    input
+    && Object.prototype.hasOwnProperty.call(input, 'sampleInputBody'),
+  );
+  return {
+    url: payload.checkedRequest?.url || input?.url || '',
+    method,
+    body:
+      method === 'GET'
+        ? null
+        : payload.checkedRequest?.body
+          ?? (sampleBodyProvided
+            ? JSON.stringify(input?.sampleInputBody ?? {})
+            : null),
+    requestBound:
+      payload.checkedRequest?.requestBound
+      ?? (method === 'GET' || sampleBodyProvided),
+  };
+}
+
+function exactCeilingRoute(
+  routes: readonly X402PaymentRoute[],
+): X402PaymentRoute | null {
+  return routes.reduce<X402PaymentRoute | null>((best, route) => {
+    if (
+      typeof route.amountAtomic !== 'string'
+      || !POSITIVE_ATOMIC_AMOUNT.test(route.amountAtomic)
+    ) {
+      return best;
+    }
+    return !best || route.price < best.price ? route : best;
+  }, null);
+}
+
+function sellerTerms(route: X402PaymentRoute): string {
+  const asset = formatAssetLabel(route.asset);
+  const network = route.network || 'the listed network';
+  const recipient = route.payTo ? ` to ${route.payTo}` : '';
+  return `${route.amountAtomic} atomic units of ${asset} on ${network}${recipient}`;
+}
+
+function paidContinuationPrompt(
+  request: CheckedPaymentRequest,
+  routes: readonly X402PaymentRoute[],
+): string {
+  if (!request.requestBound) {
+    return `Form the exact raw JSON request body for ${request.url} using ${request.method}, then run x402_check again with sampleInputBody before asking me to approve a payment. Do not pay from this indicative quote.`;
+  }
+
+  const route = exactCeilingRoute(routes);
+  if (!route?.amountAtomic) {
+    return `Run x402_check again for the exact ${request.method} request to ${request.url} and obtain a current positive atomic amount before asking me to approve a payment. Do not pay from this incomplete quote.`;
+  }
+
+  const bodyDescription = request.body === null
+    ? 'no request body'
+    : `raw JSON body ${request.body}`;
+  const fetchBody = request.body === null ? 'no body' : `body ${request.body}`;
+  return `Review payment for ${request.url}. Exact request: ${request.method} with ${bodyDescription}. `
+    + `Current seller terms: ${sellerTerms(route)}. `
+    + `The approval ceiling is maxAmountAtomic ${route.amountAtomic}. Ask for my confirmation before paying. `
+    + `After I confirm, call x402_fetch once with url ${request.url}, method ${request.method}, ${fetchBody}, and maxAmountAtomic ${route.amountAtomic}. `
+    + 'Do not retry automatically if the outcome is ambiguous or the request was dispatched.';
 }
 
 /** Returns seconds elapsed while `pending` is true, resetting to 0 otherwise. */
@@ -126,12 +210,15 @@ function PricingCheck() {
   const maxHeight = useMaxHeight();
   const containerRef = useIntrinsicHeight();
   const loadingElapsed = useElapsedSeconds(!toolOutput);
-  const purchaseOptions = useMemo(
-    () => normalizePreparedPurchaseOptions(toolOutput?.purchaseOptions),
-    [toolOutput?.purchaseOptions],
+  const paymentOptions = useMemo(
+    () => normalizeX402PaymentRoutes(toolOutput?.paymentOptions),
+    [toolOutput?.paymentOptions],
   );
-  const [selectedPreparedId, setSelectedPreparedId] = useState<string | null>(
-    null,
+  const checkedRequest = useMemo(
+    () => toolOutput
+      ? checkedPaymentRequest(toolOutput, toolInput)
+      : null,
+    [toolInput, toolOutput],
   );
   const [continueState, setContinueState] = useState<
     { status: 'idle' | 'sending' | 'sent' | 'error'; message?: string }
@@ -143,19 +230,9 @@ function PricingCheck() {
   }, [theme]);
 
   useEffect(() => {
-    setSelectedPreparedId((current) =>
-      purchaseOptions.some(
-        (option) => option.preparedPurchase.preparedId === current,
-      )
-        ? current
-        : null,
-    );
-  }, [purchaseOptions]);
-
-  useEffect(() => {
     continuationInFlight.current = false;
     setContinueState({ status: 'idle' });
-  }, [selectedPreparedId, toolOutput]);
+  }, [toolOutput]);
 
   // Live-first-render flag drives entrance choreography on the verdict block.
   // useMemo so it locks in at first render — no flicker on re-renders.
@@ -262,25 +339,11 @@ function PricingCheck() {
   }
 
   // Paid — happy path
-  const readyOptions = purchaseOptions.filter(
-    (option) => option.availability.state === 'ready',
-  );
-  const featuredOption = readyOptions.reduce<
-    (typeof readyOptions)[number] | null
-  >((best, option) => {
-    if (!best) return option;
-    const currentPrice = option.display.price;
-    const bestPrice = best.display.price;
-    if (currentPrice === null) return best;
-    if (bestPrice === null || currentPrice < bestPrice) return option;
-    return best;
-  }, null);
-  const selectedOption =
-    purchaseOptions.find(
-      (option) =>
-        option.preparedPurchase.preparedId === selectedPreparedId,
-    ) ?? null;
-  const selectedPrice = selectedOption?.display.priceFormatted ?? null;
+  const ceilingRoute = exactCeilingRoute(paymentOptions);
+  const displayedPrice = ceilingRoute?.priceFormatted
+    ?? paymentOptions[0]?.priceFormatted
+    ?? null;
+  const requestBound = checkedRequest?.requestBound ?? false;
 
   const enrichment = toolOutput.enrichment ?? null;
   const recent: HistoryRow[] = enrichment?.history?.recent ?? [];
@@ -298,25 +361,19 @@ function PricingCheck() {
 
   const handleContinue = async () => {
     if (
-      !toolInput?.url
+      !checkedRequest?.url
       || !sendFollowUp
-      || !selectedOption
       || continuationInFlight.current
       || continueState.status === 'sending'
       || continueState.status === 'sent'
     ) {
       return;
     }
-    const offer = selectedOption.preparedPurchase.route.sellerOffer;
     continuationInFlight.current = true;
     setContinueState({ status: 'sending' });
     try {
       await sendFollowUp(
-        `I selected ${purchaseModeLabel(selectedOption.mode)} for ${toolInput.url} with ${toolInput.method || 'GET'}. ` +
-        `The seller quote is ${selectedPrice || `${offer.amountAtomic} atomic units`} on ${offer.network} using ${offer.asset}. ` +
-        `Preserve this prepared purchase exactly: ${JSON.stringify(selectedOption.preparedPurchase)}. ` +
-        `Preserve this prepared request body exactly: ${toolOutput.preparedPayload ?? 'none'}. ` +
-        'Show me the exact request and atomic-unit ceiling, then ask for my confirmation before paying. Only call x402_fetch after that explicit confirmation. Do not change the seller offer, route, or purchase mode.',
+        paidContinuationPrompt(checkedRequest, paymentOptions),
       );
       setContinueState({ status: 'sent' });
     } catch {
@@ -343,24 +400,13 @@ function PricingCheck() {
 
       {fixText ? <DoctorDexterCard fixText={fixText} animate={animate} /> : null}
 
-      {purchaseOptions.length ? (
-        <PaymentRoutes
-          options={purchaseOptions}
-          featuredPreparedId={
-            featuredOption?.preparedPurchase.preparedId ?? null
-          }
-          selectedPreparedId={selectedPreparedId}
-          onSelect={(option) => {
-            if (option.availability.state === 'ready') {
-              setSelectedPreparedId(option.preparedPurchase.preparedId);
-            }
-          }}
-        />
+      {paymentOptions.length ? (
+        <PaymentRoutes options={paymentOptions} />
       ) : (
         <Alert
           color="warning"
-          title="Prepare this purchase again"
-          description="This quote predates route-bound purchase modes. Run x402_check again before paying."
+          title="Current seller terms unavailable"
+          description="Run x402_check again before asking for payment approval."
         />
       )}
 
@@ -370,17 +416,14 @@ function PricingCheck() {
         sizeBytes={enrichment?.resource?.response_size_bytes ?? null}
       />
 
-      {toolInput?.url && sendFollowUp ? (
+      {checkedRequest?.url && sendFollowUp ? (
         <>
           <FetchAction
-            selectedPrice={selectedPrice}
-            selectedMode={
-              selectedOption ? purchaseModeLabel(selectedOption.mode) : null
-            }
+            price={displayedPrice}
+            requestBound={requestBound}
             status={continueState.status}
             disabled={
-              !selectedOption
-              || continueState.status === 'sending'
+              continueState.status === 'sending'
               || continueState.status === 'sent'
             }
             onFetch={handleContinue}

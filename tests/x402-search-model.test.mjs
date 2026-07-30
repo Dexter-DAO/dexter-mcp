@@ -137,9 +137,9 @@ test('same-network routes stay distinguishable by asset', () => {
   assert.equal(new Set(routeSummaries).size, 2);
 });
 
-test('search checks stay indicative until an exact request is prepared', () => {
-  assert.equal(isSearchCheckRequestBound('GET'), false);
-  assert.equal(isSearchCheckRequestBound('get'), false);
+test('search checks bind exact GET URLs while non-GET requests still need a body', () => {
+  assert.equal(isSearchCheckRequestBound('GET'), true);
+  assert.equal(isSearchCheckRequestBound('get'), true);
   assert.equal(isSearchCheckRequestBound('HEAD'), false);
   assert.equal(isSearchCheckRequestBound('POST'), false);
 });

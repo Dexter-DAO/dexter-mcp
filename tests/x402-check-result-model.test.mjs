@@ -5,6 +5,9 @@ import {
   normalizeX402CheckResult,
   normalizeX402PaymentRoutes,
 } from '../apps-sdk/ui/src/components/x402/check-result-model.ts';
+import {
+  isSearchCheckRequestBound,
+} from '../apps-sdk/ui/src/components/x402/search/utils.ts';
 
 const baseRoute = {
   price: 0.01,
@@ -21,6 +24,13 @@ test('classifies a paid quote without implying that payment occurred', () => {
     statusCode: 402,
     authMode: 'paid',
     paymentOptions: [baseRoute],
+    purchaseOptions: [{ preparedPurchase: { preparedId: 'legacy' } }],
+    checkedRequest: {
+      url: 'https://merchant.example/quote',
+      method: 'get',
+      body: null,
+      requestBound: true,
+    },
   });
 
   assert.equal(state.classification, 'paid');
@@ -29,6 +39,21 @@ test('classifies a paid quote without implying that payment occurred', () => {
   assert.equal(state.nextStep, 'review-payment');
   assert.equal(state.paymentStatus, 'not_attempted');
   assert.equal(state.paymentOccurred, false);
+  assert.equal('purchaseOptions' in state, false);
+  assert.deepEqual(state.checkedRequest, {
+    url: 'https://merchant.example/quote',
+    method: 'GET',
+    body: null,
+    requestBound: true,
+  });
+});
+
+test('search checks bind GET URLs but require a body before binding non-GET requests', () => {
+  assert.equal(isSearchCheckRequestBound('GET'), true);
+  assert.equal(isSearchCheckRequestBound(undefined), true);
+  assert.equal(isSearchCheckRequestBound('POST'), false);
+  assert.equal(isSearchCheckRequestBound('PUT'), false);
+  assert.equal(isSearchCheckRequestBound('DELETE'), false);
 });
 
 test('preserves routes that differ by any route-identity field', () => {

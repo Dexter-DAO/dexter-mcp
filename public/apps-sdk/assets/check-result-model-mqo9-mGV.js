@@ -44,8 +44,8 @@ function formatAssetLabel(asset, assetName) {
   }
   return name || identifier || "Asset not listed";
 }
-function isSearchCheckRequestBound(_method) {
-  return false;
+function isSearchCheckRequestBound(method) {
+  return String(method || "GET").toUpperCase() === "GET";
 }
 const LOGO_URL = "https://dexter.cash/assets/pokedexter/dexter-logo.svg";
 function DexterAvatar({ role, tone }) {
@@ -434,15 +434,15 @@ function ProfessorDexterCard({ run, passesOfRecent, animate }) {
     ] })
   ] });
 }
-function ProseReveal({ text: text2, animate }) {
+function ProseReveal({ text, animate }) {
   if (!animate) {
-    return /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "dx-pricing__verdict-prose", children: text2 });
+    return /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "dx-pricing__verdict-prose", children: text });
   }
-  const tokens = text2.split(/(\s+)/);
+  const tokens = text.split(/(\s+)/);
   let visibleIdx = 0;
   const visibleCount = tokens.filter((t) => t.trim().length > 0).length;
   const perWord = Math.min(0.04, 1.4 / Math.max(1, visibleCount));
-  return /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "dx-pricing__verdict-prose dx-pricing__verdict-prose--reveal", "aria-label": text2, children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { "aria-hidden": true, children: tokens.map((tok, i) => {
+  return /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "dx-pricing__verdict-prose dx-pricing__verdict-prose--reveal", "aria-label": text, children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { "aria-hidden": true, children: tokens.map((tok, i) => {
     if (!tok.trim().length) return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: tok }, i);
     const idx = visibleIdx++;
     return /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -514,134 +514,198 @@ function DoctorDexterCard({ fixText, animate }) {
     ] })
   ] });
 }
-const PURCHASE_CONTRACT_VERSION = "opendexter.purchase.v1";
 function isRecord(value) {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
-function text(value) {
-  return typeof value === "string" && value.trim() ? value.trim() : null;
+function nullableString(value) {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed || null;
 }
-function mode(value) {
+function nullableFiniteNumber(value) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+function nullableInteger(value) {
+  const number = nullableFiniteNumber(value);
+  return number !== null && Number.isInteger(number) ? number : null;
+}
+function normalizeCheckedRequest(value) {
+  if (!isRecord(value)) return null;
+  return {
+    url: typeof value.url === "string" && value.url.length > 0 ? value.url : null,
+    method: nullableString(value.method)?.toUpperCase() ?? null,
+    body: typeof value.body === "string" ? value.body : null,
+    requestBound: typeof value.requestBound === "boolean" ? value.requestBound : null
+  };
+}
+function canonicalAuthMode(value) {
   switch (value) {
-    case "direct_exact":
-    case "native_tab":
-    case "gateway_cash":
-    case "gateway_credit":
+    case "paid":
+    case "siwx":
+    case "apiKey":
+    case "apiKey+paid":
+    case "unprotected":
+    case "unknown":
       return value;
     default:
       return null;
   }
 }
-function availabilityState(value) {
-  switch (value) {
-    case "ready":
-    case "integration_required":
-    case "request_required":
-    case "unavailable":
-      return value;
-    default:
-      return null;
-  }
+function fallbackPriceLabel(price) {
+  if (Number.isInteger(price)) return `$${price.toFixed(2)}`;
+  return `$${price.toFixed(6).replace(/0+$/, "").replace(/\.$/, "")}`;
 }
-function method(value) {
-  switch (value) {
-    case "GET":
-    case "POST":
-    case "PUT":
-    case "DELETE":
-      return value;
-    default:
-      return null;
-  }
+function routeKey(route) {
+  return JSON.stringify([
+    route.network,
+    route.asset,
+    route.scheme,
+    route.payTo,
+    route.amountAtomic ?? route.price,
+    route.facilitator ?? null
+  ]);
 }
-function normalizePreparedPurchaseOptions(value) {
+function normalizeX402PaymentRoutes(value) {
   if (!Array.isArray(value)) return [];
-  const out = [];
+  const routes = [];
   const seen = /* @__PURE__ */ new Set();
   for (const candidate of value) {
     if (!isRecord(candidate)) continue;
-    const selectedMode = mode(candidate.mode);
-    const availability = isRecord(candidate.availability) ? candidate.availability : null;
-    const state = availabilityState(availability?.state);
-    const prepared = isRecord(candidate.preparedPurchase) ? candidate.preparedPurchase : null;
-    const route = isRecord(prepared?.route) ? prepared.route : null;
-    const offer = isRecord(route?.sellerOffer) ? route.sellerOffer : null;
-    const selectedMethod = method(route?.method);
-    const preparedId = text(prepared?.preparedId);
-    const routeId = text(route?.routeId);
-    const offerId = text(offer?.offerId);
-    const amountAtomic = text(offer?.amountAtomic);
-    if (!selectedMode || !state || !prepared || prepared.contractVersion !== PURCHASE_CONTRACT_VERSION || prepared.state !== "prepared" || prepared.mode !== selectedMode || !preparedId || !route || !routeId || !selectedMethod || !offer || !offerId || !amountAtomic || !/^[1-9]\d*$/.test(amountAtomic)) {
-      continue;
-    }
-    const network = text(offer.network);
-    const asset = text(offer.asset);
-    const scheme = text(offer.scheme);
-    const payTo = text(offer.payTo);
-    const resourceUrl = text(route.resourceUrl);
-    const resolvedUrl = text(route.resolvedUrl);
-    const payloadSha256 = text(route.payloadSha256);
-    const rawAcceptSha256 = text(offer.rawAcceptSha256);
-    const x402Version = offer.x402Version === 1 || offer.x402Version === 2 ? offer.x402Version : null;
-    const preparedExpiry = text(prepared.expiresAt);
-    const offerExpiry = text(offer.expiresAt);
-    if (!network || !asset || !scheme || !payTo || !resourceUrl || !resolvedUrl || !payloadSha256 || !/^[a-f0-9]{64}$/.test(payloadSha256) || !rawAcceptSha256 || !/^[a-f0-9]{64}$/.test(rawAcceptSha256) || !x402Version || preparedExpiry !== offerExpiry || seen.has(preparedId)) {
-      continue;
-    }
-    const display = isRecord(candidate.display) ? candidate.display : {};
-    seen.add(preparedId);
-    out.push({
-      mode: selectedMode,
-      availability: {
-        state,
-        reason: text(availability?.reason)
-      },
-      display: {
-        price: typeof display.price === "number" && Number.isFinite(display.price) ? display.price : null,
-        priceFormatted: text(display.priceFormatted)
-      },
-      preparedPurchase: {
-        contractVersion: PURCHASE_CONTRACT_VERSION,
-        preparedId,
-        state: "prepared",
-        preparedAt: text(prepared.preparedAt) ?? "",
-        expiresAt: preparedExpiry,
-        mode: selectedMode,
-        route: {
-          routeId,
-          resourceUrl,
-          resolvedUrl,
-          method: selectedMethod,
-          payloadSha256,
-          sellerOffer: {
-            offerId,
-            x402Version,
-            scheme,
-            network,
-            asset,
-            amountAtomic,
-            payTo,
-            facilitator: text(offer.facilitator),
-            expiresAt: offerExpiry,
-            rawAcceptSha256
-          }
-        }
-      }
-    });
+    const price = nullableFiniteNumber(candidate.price);
+    if (price === null || price < 0) continue;
+    const route = {
+      price,
+      priceFormatted: nullableString(candidate.priceFormatted) ?? fallbackPriceLabel(price),
+      network: nullableString(candidate.network),
+      scheme: nullableString(candidate.scheme),
+      asset: nullableString(candidate.asset),
+      payTo: nullableString(candidate.payTo),
+      amountAtomic: nullableString(candidate.amountAtomic),
+      decimals: nullableInteger(candidate.decimals),
+      facilitator: nullableString(candidate.facilitator),
+      expiresAt: nullableString(candidate.expiresAt)
+    };
+    const key = routeKey(route);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    routes.push({ ...route, routeKey: key });
   }
-  return out;
+  return routes;
 }
-function purchaseModeLabel(mode2) {
-  switch (mode2) {
-    case "direct_exact":
-      return "Pay now";
-    case "native_tab":
-      return "Use seller tab";
-    case "gateway_cash":
-      return "Gateway cash";
-    case "gateway_credit":
-      return "Gateway credit";
+function hasReportedError(payload) {
+  return payload.error === true || nullableString(payload.error) !== null;
+}
+function classify(payload, authMode, routes, statusCode) {
+  if (authMode === "apiKey") return "apiKey";
+  if (authMode === "siwx") return "siwx";
+  if (authMode === "apiKey+paid") {
+    return routes.length > 0 ? "hybrid" : "error";
   }
+  if (authMode === "paid") {
+    return !hasReportedError(payload) && routes.length > 0 ? "paid" : "error";
+  }
+  if (authMode === "unprotected") {
+    return hasReportedError(payload) ? "error" : "free";
+  }
+  if (authMode === "unknown") return "error";
+  const requiresPayment = payload.requiresPayment === true;
+  const authRequired = payload.authRequired === true || statusCode === 401 || statusCode === 403;
+  if (authRequired && requiresPayment && routes.length > 0) return "hybrid";
+  if (authRequired) return "apiKey";
+  if (hasReportedError(payload)) return "error";
+  if (requiresPayment && routes.length > 0) return "paid";
+  if (payload.free === true) return "free";
+  if (payload.requiresPayment === false && statusCode !== null && statusCode >= 200 && statusCode < 300) {
+    return "free";
+  }
+  return "error";
+}
+function conciseMessage(value) {
+  const message = nullableString(value);
+  if (!message) return null;
+  const singleLine = message.replace(/\s+/g, " ");
+  return singleLine.length <= 180 ? singleLine : `${singleLine.slice(0, 177)}…`;
+}
+function errorMessage(payload) {
+  return conciseMessage(payload.message) ?? (typeof payload.error === "string" ? conciseMessage(payload.error) : null);
+}
+function quoteDescription(routes) {
+  if (routes.length === 0) return "no usable payment route";
+  if (routes.length === 1) {
+    const [route] = routes;
+    return route.network ? `${route.priceFormatted} on ${route.network}` : route.priceFormatted;
+  }
+  const sorted = [...routes].sort((a, b) => a.price - b.price);
+  const lowest = sorted[0];
+  const highest = sorted[sorted.length - 1];
+  const routeLabel = `${routes.length} payment routes`;
+  return lowest.price === highest.price ? `${lowest.priceFormatted} across ${routeLabel}` : `${routeLabel} from ${lowest.priceFormatted} to ${highest.priceFormatted}`;
+}
+function readerCopy(classification, routes, failure) {
+  const noPayment = "This check made no payment.";
+  switch (classification) {
+    case "paid":
+      return {
+        title: "Payment required",
+        summary: `Current quote: ${quoteDescription(routes)}. ${noPayment}`,
+        nextStep: "review-payment"
+      };
+    case "free":
+      return {
+        title: "No payment required",
+        summary: `This endpoint is currently unprotected. ${noPayment}`,
+        nextStep: "use-without-payment"
+      };
+    case "siwx":
+      return {
+        title: "Wallet sign-in required",
+        summary: `This endpoint requires wallet identity, not a payment quote. ${noPayment}`,
+        nextStep: "sign-in"
+      };
+    case "apiKey":
+      return {
+        title: "Provider authentication required",
+        summary: `Authenticate with the provider before x402 access can be checked. ${noPayment}`,
+        nextStep: "authenticate"
+      };
+    case "hybrid":
+      return {
+        title: "Authentication and payment required",
+        summary: `Authenticate first; the current quote is ${quoteDescription(routes)}. ${noPayment}`,
+        nextStep: "authenticate-then-review-payment"
+      };
+    case "error":
+      return {
+        title: "Pricing unavailable",
+        summary: `Current pricing could not be verified${failure ? `: ${failure}` : ""}. ${noPayment}`,
+        nextStep: "retry-check"
+      };
+  }
+}
+function normalizeX402CheckResult(value) {
+  const payload = isRecord(value) ? value : {};
+  const routes = normalizeX402PaymentRoutes(payload.paymentOptions);
+  const authMode = canonicalAuthMode(payload.authMode);
+  const statusCode = nullableInteger(payload.statusCode);
+  const classification = classify(payload, authMode, routes, statusCode);
+  const failure = classification === "error" ? errorMessage(payload) : null;
+  const copy = readerCopy(classification, routes, failure);
+  return {
+    classification,
+    ...copy,
+    authMode,
+    statusCode,
+    x402Version: nullableInteger(payload.x402Version),
+    requiresPayment: classification === "paid" || classification === "hybrid" ? true : classification === "free" || classification === "siwx" ? false : null,
+    paymentStatus: "not_attempted",
+    paymentOccurred: false,
+    routes,
+    checkedRequest: normalizeCheckedRequest(payload.checkedRequest),
+    inputSchema: payload.inputSchema ?? null,
+    outputSchema: payload.outputSchema ?? null,
+    resource: payload.resource ?? null,
+    errorMessage: failure
+  };
 }
 export {
   DoctorDexterCard as D,
@@ -649,12 +713,12 @@ export {
   formatAssetLabel as a,
   formatHitCount as b,
   formatBytes as c,
-  pickPrimaryRun as d,
+  normalizeX402PaymentRoutes as d,
   pickFixInstructions as e,
   formatListedPrice as f,
   hostLabel as h,
   isSearchCheckRequestBound as i,
-  normalizePreparedPurchaseOptions as n,
-  purchaseModeLabel as p,
+  normalizeX402CheckResult as n,
+  pickPrimaryRun as p,
   resourceIconUrl as r
 };

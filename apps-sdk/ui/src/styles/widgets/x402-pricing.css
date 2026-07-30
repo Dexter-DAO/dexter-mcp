@@ -577,6 +577,11 @@
     background var(--dx-duration-base) var(--dx-ease-standard);
 }
 
+.dx-pricing__route--terms {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  cursor: default;
+}
+
 .dx-pricing__route--best {
   border-color: color-mix(in srgb, var(--dx-accent) 50%, var(--dx-border));
   background: color-mix(in srgb, var(--dx-accent) 5%, var(--dx-bg-quiet));
@@ -674,6 +679,10 @@
 @media (max-width: 560px) {
   .dx-pricing__route {
     grid-template-columns: 18px minmax(0, 1fr) auto;
+  }
+
+  .dx-pricing__route--terms {
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 
   .dx-pricing__route-payto {

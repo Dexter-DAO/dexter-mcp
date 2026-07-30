@@ -3,7 +3,7 @@ import { u as useDisplayMode, a as useRequestDisplayMode } from "./use-request-d
 import { u as useMaxHeight } from "./use-max-height-DF742X4T.js";
 /* empty css             */
 import { c as clientExports } from "./client-CGLDWKLD.js";
-import { g as getChain } from "./ChainIcon-Dy4uVkQR.js";
+import { g as getChain } from "./ChainIcon-BgpFhKs9.js";
 import { u as useIntrinsicHeight } from "./useIntrinsicHeight-CaBDxNwZ.js";
 import { D as DebugPanel } from "./DebugPanel-CV1cXidT.js";
 import "./portfolioModel-yEMSOUo4.js";

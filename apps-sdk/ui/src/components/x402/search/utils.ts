@@ -67,12 +67,12 @@ export function formatAssetLabel(
 }
 
 /**
- * Search results provide only a catalog URL and method. They do not prove that
- * a future body or query string is identical to the probe, so a search-level
- * check is always indicative until an exact request is prepared and repriced.
+ * A GET check binds the complete catalog URL, including its query string, and
+ * has no request body. Non-GET search results still need the exact raw body
+ * before their price can be treated as approval-ready.
  */
 export function isSearchCheckRequestBound(
-  _method: string | null | undefined,
+  method: string | null | undefined,
 ): boolean {
-  return false;
+  return String(method || 'GET').toUpperCase() === 'GET';
 }

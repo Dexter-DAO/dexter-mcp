@@ -37,15 +37,15 @@ import {
 import { SearchComparisonPanel } from '../components/x402/search/SearchComparisonPanel';
 import { SearchQuotePanel } from '../components/x402/search/SearchQuotePanel';
 import type { SearchResource } from '../components/x402/search/types';
-import { isSearchCheckRequestBound } from '../components/x402/search/utils';
+import {
+  formatAssetLabel,
+  isSearchCheckRequestBound,
+} from '../components/x402/search/utils';
 import {
   normalizeX402CheckResult,
   type X402CheckState,
+  type X402PaymentRoute,
 } from '../components/x402/check-result-model';
-import {
-  purchaseModeLabel,
-  type PreparedPurchaseOption,
-} from '../components/x402/purchase-model';
 import {
   SEARCH_WIDGET_BUILD,
   findSelectedResource,
@@ -89,6 +89,68 @@ function toolResultPayload(result: {
   } catch {
     return { error: true, message: result.result };
   }
+}
+
+const POSITIVE_ATOMIC_AMOUNT = /^[1-9]\d{0,19}$/;
+
+function canonicalMethod(method: string | null | undefined): string {
+  return String(method || 'GET').toUpperCase();
+}
+
+function exactCeilingRoute(
+  routes: readonly X402PaymentRoute[],
+): X402PaymentRoute | null {
+  return routes.reduce<X402PaymentRoute | null>((best, route) => {
+    if (
+      typeof route.amountAtomic !== 'string'
+      || !POSITIVE_ATOMIC_AMOUNT.test(route.amountAtomic)
+    ) {
+      return best;
+    }
+    return !best || route.price < best.price ? route : best;
+  }, null);
+}
+
+function sellerTerms(route: X402PaymentRoute): string {
+  const asset = formatAssetLabel(route.asset);
+  const network = route.network || 'the listed network';
+  const recipient = route.payTo ? ` to ${route.payTo}` : '';
+  return `${route.amountAtomic} atomic units of ${asset} on ${network}${recipient}`;
+}
+
+function paidContinuationPrompt(
+  resource: SearchResource,
+  quote: X402CheckState,
+): string {
+  const checkedUrl = quote.checkedRequest?.url ?? resource.url;
+  const method = canonicalMethod(
+    quote.checkedRequest?.method ?? resource.method,
+  );
+  const requestBound =
+    quote.checkedRequest?.requestBound
+    ?? isSearchCheckRequestBound(resource.method);
+  if (!requestBound) {
+    return `Form the exact raw JSON request body for ${resource.name} at ${checkedUrl} using ${method}, then run x402_check again with that body before asking me to approve a payment. Do not pay from this indicative quote.`;
+  }
+
+  const route = exactCeilingRoute(quote.routes);
+  if (!route?.amountAtomic) {
+    return `Run x402_check again for the exact ${method} request to ${checkedUrl} and obtain a current positive atomic amount before asking me to approve a payment. Do not pay from this incomplete quote.`;
+  }
+
+  const body = method === 'GET' ? null : quote.checkedRequest?.body ?? null;
+  const bodyDescription = body === null
+    ? 'no request body'
+    : `raw JSON body ${body}`;
+  const fetchBody = body === null ? 'no body' : `body ${body}`;
+  const reviewLead = quote.classification === 'hybrid'
+    ? `Connect the provider access required for ${resource.name}, then review`
+    : 'Review';
+  return `${reviewLead} payment for ${resource.name} at ${checkedUrl}. `
+    + `Exact request: ${method} with ${bodyDescription}. Current seller terms: ${sellerTerms(route)}. `
+    + `The approval ceiling is maxAmountAtomic ${route.amountAtomic}. Ask for my confirmation before paying. `
+    + `After I confirm, call x402_fetch once with url ${checkedUrl}, method ${method}, ${fetchBody}, and maxAmountAtomic ${route.amountAtomic}. `
+    + 'Do not retry automatically if the outcome is ambiguous or the request was dispatched.';
 }
 
 function useCompactViewport() {
@@ -221,22 +283,26 @@ function MarketplaceSearch() {
           structuredContent: {
             checkedResource: {
               name: resource.name,
-              url: resource.url,
-              method: resource.method || 'GET',
+              url: quote.checkedRequest?.url ?? resource.url,
+              method:
+                quote.checkedRequest?.method
+                ?? canonicalMethod(resource.method),
+              body: quote.checkedRequest?.body ?? null,
               classification: quote.classification,
-              requestBound: isSearchCheckRequestBound(resource.method),
+              requestBound:
+                quote.checkedRequest?.requestBound
+                ?? isSearchCheckRequestBound(resource.method),
               paymentOptions: quote.routes.map((route) => ({
                 network: route.network,
                 asset: route.asset,
                 scheme: route.scheme,
+                payTo: route.payTo,
+                amountAtomic: route.amountAtomic,
+                decimals: route.decimals,
+                facilitator: route.facilitator,
+                expiresAt: route.expiresAt,
                 price: route.price,
                 priceFormatted: route.priceFormatted,
-              })),
-              purchaseOptions: quote.purchaseOptions.map((option) => ({
-                mode: option.mode,
-                availability: option.availability,
-                display: option.display,
-                preparedPurchase: option.preparedPurchase,
               })),
             },
           },
@@ -377,9 +443,7 @@ function MarketplaceSearch() {
             }
           : { status: 'idle' };
 
-  const continueFromQuote = useCallback(async (
-    selection: PreparedPurchaseOption | null,
-  ) => {
+  const continueFromQuote = useCallback(async () => {
     if (
       !sendFollowUp
       || !activeResource
@@ -392,17 +456,6 @@ function MarketplaceSearch() {
     }
     const requestId = ++continuationRequestId.current;
     const { classification } = activeQuote.quote;
-    const requestBound = isSearchCheckRequestBound(activeResource.method);
-    const selectedPurchase = selection
-      ? activeQuote.quote.purchaseOptions.find(
-          (option) =>
-            option.preparedPurchase.preparedId
-            === selection.preparedPurchase.preparedId
-            && option.availability.state === 'ready',
-        ) ?? null
-      : null;
-    const selectedOffer =
-      selectedPurchase?.preparedPurchase.route.sellerOffer ?? null;
     const prompt =
       classification === 'free'
         ? `Use ${activeResource.name} at ${activeResource.url} for my request.`
@@ -411,14 +464,7 @@ function MarketplaceSearch() {
           : classification === 'apiKey'
             ? `Help me connect the provider access required for ${activeResource.name}.`
             : classification === 'paid' || classification === 'hybrid'
-              ? selectedPurchase && selectedOffer
-                ? `I selected ${purchaseModeLabel(selectedPurchase.mode)} for ${activeResource.name} at ${activeResource.url}. ` +
-                  `Preserve this prepared purchase exactly: ${JSON.stringify(selectedPurchase.preparedPurchase)}. ` +
-                  `The selected seller offer is ${selectedOffer.amountAtomic} atomic units of ${selectedOffer.asset} on ${selectedOffer.network}. ` +
-                  'Show me the exact request and atomic-unit ceiling, then ask for my confirmation before paying. Only execute after that explicit confirmation. Do not change the seller offer, route, or purchase mode.'
-                : requestBound
-                  ? `Check the current payment options for ${activeResource.name} at ${activeResource.url} again and let me choose a route. Do not pay until I explicitly approve.`
-                : `Prepare the exact request for ${activeResource.name} at ${activeResource.url} and confirm its current payment options. Do not pay until I explicitly approve.`
+              ? paidContinuationPrompt(activeResource, activeQuote.quote)
               : `Retry the current terms check for ${activeResource.name}.`;
     continuationInFlight.current = true;
     setQuoteContinuation({ status: 'sending' });
@@ -548,8 +594,8 @@ function MarketplaceSearch() {
                 void confirmCurrentTerms(activeResource).catch(() => {});
               }}
               onContinue={sendFollowUp
-                ? (selection) => {
-                    void continueFromQuote(selection);
+                ? () => {
+                    void continueFromQuote();
                   }
                 : undefined}
               continueStatus={quoteContinuation.status}

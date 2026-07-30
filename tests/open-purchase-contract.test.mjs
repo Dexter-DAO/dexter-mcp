@@ -524,16 +524,29 @@ test('known pre-dispatch continuation preserves only the same prepared identity'
   assert.equal(result.purchaseReceipt.sellerSettlement.state, 'not_dispatched');
 });
 
-test('hosted tool output schemas expose the prepared contract and receipt union', () => {
+test('hosted check schema exposes only the supported request path while receipts stay typed', () => {
   const prepared = options('hosted')[0];
   const checkOutput = OPEN_TOOL_CONTRACTS.x402_check.outputSchema.safeParse({
     requiresPayment: true,
     statusCode: 402,
-    purchaseContractVersion: PURCHASE_CONTRACT_VERSION,
-    preparedPayload: fixture.payload,
-    purchaseOptions: [prepared],
+    checkedRequest: {
+      url: fixture.resourceUrl,
+      method: fixture.method,
+      body: fixture.payload,
+      requestBound: true,
+    },
+    executionGuidance: {
+      supportedPath: 'check_then_fetch',
+      readyForFetch: true,
+      requiredCeilingField: 'maxAmountAtomic',
+      dispatchAtMostOnce: true,
+    },
   });
   assert.equal(checkOutput.success, true);
+  const checkShape = OPEN_TOOL_CONTRACTS.x402_check.outputSchema.shape;
+  assert.equal(Object.hasOwn(checkShape, 'purchaseContractVersion'), false);
+  assert.equal(Object.hasOwn(checkShape, 'preparedPayload'), false);
+  assert.equal(Object.hasOwn(checkShape, 'purchaseOptions'), false);
 
   const purchase = {
     ...prepared.preparedPurchase,

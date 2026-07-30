@@ -1,6 +1,6 @@
 import { j as jsxRuntimeExports, r as reactExports, h as addWidgetBreadcrumb, c as captureWidgetException, u as useToolOutput, i as useToolInput, g as useAdaptiveTheme, k as useAdaptiveHostContext, l as useAdaptiveHostCapabilities, m as useAdaptiveMaxHeight, n as useAdaptiveDisplayMode, p as useAdaptiveRequestDisplayMode, q as useAdaptiveUpdateModelContext, e as useAdaptiveSendFollowUp, s as useAdaptiveCallToolFn } from "./adapter-B3ynKBmf.js";
 /* empty css             */
-import { r as resourceIconUrl, f as formatListedPrice, a as formatAssetLabel, P as ProfessorDexterCard, D as DoctorDexterCard, h as hostLabel, i as isSearchCheckRequestBound, p as purchaseModeLabel, n as normalizePreparedPurchaseOptions } from "./purchase-model-ajjP35yn.js";
+import { r as resourceIconUrl, f as formatListedPrice, a as formatAssetLabel, P as ProfessorDexterCard, D as DoctorDexterCard, h as hostLabel, i as isSearchCheckRequestBound, n as normalizeX402CheckResult } from "./check-result-model-mqo9-mGV.js";
 /* empty css                        */
 import { c as clientExports } from "./client-CGLDWKLD.js";
 import { E as EmptyMessage } from "./EmptyMessage-C1UnmQDI.js";
@@ -9,7 +9,7 @@ import { W as Warning } from "./Warning-BlUVe1mr.js";
 import { D as DexterLoading } from "./DexterLoading-Cur2rtol.js";
 import { B as Button } from "./Button-B7uq752z.js";
 import { C as CopyButton } from "./CopyButton-BckYW53F.js";
-import { C as ChainIcon, g as getChain } from "./ChainIcon-Dy4uVkQR.js";
+import { C as ChainIcon, g as getChain } from "./ChainIcon-BgpFhKs9.js";
 import "./portfolioModel-yEMSOUo4.js";
 import "./Check-1vL_MH1D.js";
 import "./Copy-BYEHp3zd.js";
@@ -886,27 +886,9 @@ function SearchQuotePanel({
   continueError = null
 }) {
   const panelRef = reactExports.useRef(null);
-  const requestBound = isSearchCheckRequestBound(resource.method);
-  const copy = getQuoteCopy(quote.classification);
+  const requestBound = quote.checkedRequest?.requestBound ?? isSearchCheckRequestBound(resource.method);
+  const copy = getQuoteCopy(quote.classification, requestBound);
   const routes = [...quote.routes].sort((a, b) => a.price - b.price);
-  const purchaseOptions = reactExports.useMemo(
-    () => [...quote.purchaseOptions].sort((a, b) => {
-      const left = a.display.price;
-      const right = b.display.price;
-      if (left === null && right === null) return 0;
-      if (left === null) return 1;
-      if (right === null) return -1;
-      return left - right;
-    }),
-    [quote.purchaseOptions]
-  );
-  const [selectedPreparedId, setSelectedPreparedId] = reactExports.useState(
-    null
-  );
-  const selectedPurchase = purchaseOptions.find(
-    (option) => option.preparedPurchase.preparedId === selectedPreparedId && option.availability.state === "ready"
-  ) ?? null;
-  const requiresPurchaseSelection = requestBound;
   const routeDisplayCounts = routes.reduce((counts, route) => {
     const key = routeDisplayKey(route);
     counts.set(key, (counts.get(key) ?? 0) + 1);
@@ -918,20 +900,13 @@ function SearchQuotePanel({
     minute: "2-digit",
     timeZone
   }).format(checkedAt);
-  const actionLabel = getContinueLabel(quote.classification);
+  const actionLabel = getContinueLabel(quote.classification, requestBound);
   reactExports.useEffect(() => {
     const frame = requestAnimationFrame(() => {
       panelRef.current?.focus({ preventScroll: true });
     });
     return () => cancelAnimationFrame(frame);
   }, [quote.classification, resource.url]);
-  reactExports.useEffect(() => {
-    setSelectedPreparedId(
-      (current) => purchaseOptions.some(
-        (option) => option.preparedPurchase.preparedId === current && option.availability.state === "ready"
-      ) ? current : null
-    );
-  }, [purchaseOptions, resource.url]);
   return /* @__PURE__ */ jsxRuntimeExports.jsxs(
     "section",
     {
@@ -958,51 +933,11 @@ function SearchQuotePanel({
             ] })
           ] }),
           /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "dx-search-quote__body", children: quote.classification === "error" && quote.errorMessage ? quote.errorMessage : copy.body }),
-          purchaseOptions.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("fieldset", { className: "dx-search-quote__purchase-choices", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("legend", { children: "Choose how to buy" }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("ul", { children: purchaseOptions.map((option) => {
-              const offer = option.preparedPurchase.route.sellerOffer;
-              const disabled = option.availability.state !== "ready";
-              return /* @__PURE__ */ jsxRuntimeExports.jsx("li", { children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
-                "label",
-                {
-                  className: [
-                    "dx-search-quote__purchase-choice",
-                    selectedPreparedId === option.preparedPurchase.preparedId ? "dx-search-quote__purchase-choice--selected" : "",
-                    disabled ? "dx-search-quote__purchase-choice--disabled" : ""
-                  ].filter(Boolean).join(" "),
-                  children: [
-                    /* @__PURE__ */ jsxRuntimeExports.jsx(
-                      "input",
-                      {
-                        type: "radio",
-                        name: "search-purchase-mode",
-                        checked: selectedPreparedId === option.preparedPurchase.preparedId,
-                        disabled,
-                        onChange: () => setSelectedPreparedId(
-                          option.preparedPurchase.preparedId
-                        )
-                      }
-                    ),
-                    /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "dx-search-quote__purchase-copy", children: [
-                      /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: purchaseModeLabel(option.mode) }),
-                      /* @__PURE__ */ jsxRuntimeExports.jsxs("small", { children: [
-                        formatAssetLabel(offer.asset),
-                        " · ",
-                        formatNetwork(offer.network),
-                        disabled ? ` · ${availabilityLabel(option)}` : ""
-                      ] })
-                    ] }),
-                    /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-search-quote__purchase-price", children: option.display.priceFormatted ?? `${offer.amountAtomic} atomic` })
-                  ]
-                }
-              ) }, option.preparedPurchase.preparedId);
-            }) })
-          ] }) : routes.length > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("details", { className: "dx-search-quote__routes", children: [
+          routes.length > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("details", { className: "dx-search-quote__routes", children: [
             /* @__PURE__ */ jsxRuntimeExports.jsxs("summary", { children: [
               routes.length,
-              " ways to pay",
-              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "View options" })
+              " current seller terms",
+              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "View terms" })
             ] }),
             /* @__PURE__ */ jsxRuntimeExports.jsx("ul", { children: routes.map((route) => /* @__PURE__ */ jsxRuntimeExports.jsxs("li", { children: [
               /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "dx-search-quote__route-name", children: [
@@ -1032,9 +967,9 @@ function SearchQuotePanel({
               color: "primary",
               variant: "solid",
               size: "sm",
-              onClick: () => onContinue(selectedPurchase),
-              disabled: continueStatus === "sending" || continueStatus === "sent" || requiresPurchaseSelection,
-              children: continueStatus === "sending" ? "Opening review…" : continueStatus === "sent" ? "Opened in chat" : selectedPurchase ? `Review ${purchaseModeLabel(selectedPurchase.mode)}` : actionLabel
+              onClick: onContinue,
+              disabled: continueStatus === "sending" || continueStatus === "sent",
+              children: continueStatus === "sending" ? "Opening review…" : continueStatus === "sent" ? "Opened in chat" : actionLabel
             }
           ) : null }),
           !onContinue && actionLabel && quote.classification !== "error" && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "dx-search-quote__handoff", children: "Ask Dexter in chat to continue with this checked service." }),
@@ -1044,22 +979,10 @@ function SearchQuotePanel({
     }
   );
 }
-function availabilityLabel(option) {
-  switch (option.availability.state) {
-    case "ready":
-      return "Available";
-    case "request_required":
-      return "Price the exact request first";
-    case "integration_required":
-      return "Connection pending";
-    case "unavailable":
-      return "Not offered";
-  }
-}
 function getContinueLabel(classification, requestBound) {
   switch (classification) {
     case "paid":
-      return "Review request";
+      return requestBound ? "Review payment" : "Review request";
     case "free":
       return "Use it now";
     case "siwx":
@@ -1067,13 +990,13 @@ function getContinueLabel(classification, requestBound) {
     case "apiKey":
       return "Review access";
     case "hybrid":
-      return "Review request";
+      return requestBound ? "Review access and payment" : "Review request";
     case "error":
       return null;
   }
 }
 function getQuoteCopy(classification, requestBound) {
-  if (classification === "paid" || classification === "hybrid") {
+  if (!requestBound && (classification === "paid" || classification === "hybrid")) {
     return {
       eyebrow: "Price estimate",
       title: "Price estimate available",
@@ -1099,9 +1022,9 @@ function routeDisplayKey(route) {
 }
 function formatRouteDetail(route, needsDiscriminator) {
   const asset = formatAssetLabel(route.asset);
-  if (!needsDiscriminator) return asset;
   const details = [
-    route.scheme?.trim() || null,
+    route.amountAtomic ? `${route.amountAtomic} atomic` : null,
+    needsDiscriminator ? route.scheme?.trim() || null : null,
     route.payTo ? `to ${shortRecipient(route.payTo)}` : null
   ].filter((value) => Boolean(value));
   return details.length ? `${asset} · ${details.join(" · ")}` : asset;
@@ -1109,193 +1032,6 @@ function formatRouteDetail(route, needsDiscriminator) {
 function shortRecipient(value) {
   const trimmed = value.trim();
   return trimmed.length <= 12 ? trimmed : `${trimmed.slice(0, 6)}…${trimmed.slice(-4)}`;
-}
-function isRecord(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-function nullableString(value) {
-  if (typeof value !== "string") return null;
-  const trimmed = value.trim();
-  return trimmed || null;
-}
-function nullableFiniteNumber(value) {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
-function nullableInteger(value) {
-  const number = nullableFiniteNumber(value);
-  return number !== null && Number.isInteger(number) ? number : null;
-}
-function canonicalAuthMode(value) {
-  switch (value) {
-    case "paid":
-    case "siwx":
-    case "apiKey":
-    case "apiKey+paid":
-    case "unprotected":
-    case "unknown":
-      return value;
-    default:
-      return null;
-  }
-}
-function fallbackPriceLabel(price) {
-  if (Number.isInteger(price)) return `$${price.toFixed(2)}`;
-  return `$${price.toFixed(6).replace(/0+$/, "").replace(/\.$/, "")}`;
-}
-function routeKey(route) {
-  return JSON.stringify([
-    route.network,
-    route.asset,
-    route.scheme,
-    route.payTo,
-    route.amountAtomic ?? route.price,
-    route.facilitator ?? null
-  ]);
-}
-function normalizeX402PaymentRoutes(value) {
-  if (!Array.isArray(value)) return [];
-  const routes = [];
-  const seen = /* @__PURE__ */ new Set();
-  for (const candidate of value) {
-    if (!isRecord(candidate)) continue;
-    const price = nullableFiniteNumber(candidate.price);
-    if (price === null || price < 0) continue;
-    const route = {
-      price,
-      priceFormatted: nullableString(candidate.priceFormatted) ?? fallbackPriceLabel(price),
-      network: nullableString(candidate.network),
-      scheme: nullableString(candidate.scheme),
-      asset: nullableString(candidate.asset),
-      payTo: nullableString(candidate.payTo),
-      amountAtomic: nullableString(candidate.amountAtomic),
-      decimals: nullableInteger(candidate.decimals),
-      facilitator: nullableString(candidate.facilitator),
-      expiresAt: nullableString(candidate.expiresAt)
-    };
-    const key = routeKey(route);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    routes.push({ ...route, routeKey: key });
-  }
-  return routes;
-}
-function hasReportedError(payload) {
-  return payload.error === true || nullableString(payload.error) !== null;
-}
-function classify(payload, authMode, routes, statusCode) {
-  if (authMode === "apiKey") return "apiKey";
-  if (authMode === "siwx") return "siwx";
-  if (authMode === "apiKey+paid") {
-    return routes.length > 0 ? "hybrid" : "error";
-  }
-  if (authMode === "paid") {
-    return !hasReportedError(payload) && routes.length > 0 ? "paid" : "error";
-  }
-  if (authMode === "unprotected") {
-    return hasReportedError(payload) ? "error" : "free";
-  }
-  if (authMode === "unknown") return "error";
-  const requiresPayment = payload.requiresPayment === true;
-  const authRequired = payload.authRequired === true || statusCode === 401 || statusCode === 403;
-  if (authRequired && requiresPayment && routes.length > 0) return "hybrid";
-  if (authRequired) return "apiKey";
-  if (hasReportedError(payload)) return "error";
-  if (requiresPayment && routes.length > 0) return "paid";
-  if (payload.free === true) return "free";
-  if (payload.requiresPayment === false && statusCode !== null && statusCode >= 200 && statusCode < 300) {
-    return "free";
-  }
-  return "error";
-}
-function conciseMessage(value) {
-  const message = nullableString(value);
-  if (!message) return null;
-  const singleLine = message.replace(/\s+/g, " ");
-  return singleLine.length <= 180 ? singleLine : `${singleLine.slice(0, 177)}…`;
-}
-function errorMessage(payload) {
-  return conciseMessage(payload.message) ?? (typeof payload.error === "string" ? conciseMessage(payload.error) : null);
-}
-function quoteDescription(routes) {
-  if (routes.length === 0) return "no usable payment route";
-  if (routes.length === 1) {
-    const [route] = routes;
-    return route.network ? `${route.priceFormatted} on ${route.network}` : route.priceFormatted;
-  }
-  const sorted = [...routes].sort((a, b) => a.price - b.price);
-  const lowest = sorted[0];
-  const highest = sorted[sorted.length - 1];
-  const routeLabel = `${routes.length} payment routes`;
-  return lowest.price === highest.price ? `${lowest.priceFormatted} across ${routeLabel}` : `${routeLabel} from ${lowest.priceFormatted} to ${highest.priceFormatted}`;
-}
-function readerCopy(classification, routes, failure) {
-  const noPayment = "This check made no payment.";
-  switch (classification) {
-    case "paid":
-      return {
-        title: "Payment required",
-        summary: `Current quote: ${quoteDescription(routes)}. ${noPayment}`,
-        nextStep: "review-payment"
-      };
-    case "free":
-      return {
-        title: "No payment required",
-        summary: `This endpoint is currently unprotected. ${noPayment}`,
-        nextStep: "use-without-payment"
-      };
-    case "siwx":
-      return {
-        title: "Wallet sign-in required",
-        summary: `This endpoint requires wallet identity, not a payment quote. ${noPayment}`,
-        nextStep: "sign-in"
-      };
-    case "apiKey":
-      return {
-        title: "Provider authentication required",
-        summary: `Authenticate with the provider before x402 access can be checked. ${noPayment}`,
-        nextStep: "authenticate"
-      };
-    case "hybrid":
-      return {
-        title: "Authentication and payment required",
-        summary: `Authenticate first; the current quote is ${quoteDescription(routes)}. ${noPayment}`,
-        nextStep: "authenticate-then-review-payment"
-      };
-    case "error":
-      return {
-        title: "Pricing unavailable",
-        summary: `Current pricing could not be verified${failure ? `: ${failure}` : ""}. ${noPayment}`,
-        nextStep: "retry-check"
-      };
-  }
-}
-function normalizeX402CheckResult(value) {
-  const payload = isRecord(value) ? value : {};
-  const routes = normalizeX402PaymentRoutes(payload.paymentOptions);
-  const purchaseOptions = normalizePreparedPurchaseOptions(
-    payload.purchaseOptions
-  );
-  const authMode = canonicalAuthMode(payload.authMode);
-  const statusCode = nullableInteger(payload.statusCode);
-  const classification = classify(payload, authMode, routes, statusCode);
-  const failure = classification === "error" ? errorMessage(payload) : null;
-  const copy = readerCopy(classification, routes, failure);
-  return {
-    classification,
-    ...copy,
-    authMode,
-    statusCode,
-    x402Version: nullableInteger(payload.x402Version),
-    requiresPayment: classification === "paid" || classification === "hybrid" ? true : classification === "free" || classification === "siwx" ? false : null,
-    paymentStatus: "not_attempted",
-    paymentOccurred: false,
-    routes,
-    purchaseOptions,
-    inputSchema: payload.inputSchema ?? null,
-    outputSchema: payload.outputSchema ?? null,
-    resource: payload.resource ?? null,
-    errorMessage: failure
-  };
 }
 const SEARCH_WIDGET_BUILD = "2026-07-25.3";
 function getSearchGuidance(payload) {
@@ -1377,6 +1113,43 @@ function toolResultPayload(result) {
   } catch {
     return { error: true, message: result.result };
   }
+}
+const POSITIVE_ATOMIC_AMOUNT = /^[1-9]\d{0,19}$/;
+function canonicalMethod(method) {
+  return String(method || "GET").toUpperCase();
+}
+function exactCeilingRoute(routes) {
+  return routes.reduce((best, route) => {
+    if (typeof route.amountAtomic !== "string" || !POSITIVE_ATOMIC_AMOUNT.test(route.amountAtomic)) {
+      return best;
+    }
+    return !best || route.price < best.price ? route : best;
+  }, null);
+}
+function sellerTerms(route) {
+  const asset = formatAssetLabel(route.asset);
+  const network = route.network || "the listed network";
+  const recipient = route.payTo ? ` to ${route.payTo}` : "";
+  return `${route.amountAtomic} atomic units of ${asset} on ${network}${recipient}`;
+}
+function paidContinuationPrompt(resource, quote) {
+  const checkedUrl = quote.checkedRequest?.url ?? resource.url;
+  const method = canonicalMethod(
+    quote.checkedRequest?.method ?? resource.method
+  );
+  const requestBound = quote.checkedRequest?.requestBound ?? isSearchCheckRequestBound(resource.method);
+  if (!requestBound) {
+    return `Form the exact raw JSON request body for ${resource.name} at ${checkedUrl} using ${method}, then run x402_check again with that body before asking me to approve a payment. Do not pay from this indicative quote.`;
+  }
+  const route = exactCeilingRoute(quote.routes);
+  if (!route?.amountAtomic) {
+    return `Run x402_check again for the exact ${method} request to ${checkedUrl} and obtain a current positive atomic amount before asking me to approve a payment. Do not pay from this incomplete quote.`;
+  }
+  const body = method === "GET" ? null : quote.checkedRequest?.body ?? null;
+  const bodyDescription = body === null ? "no request body" : `raw JSON body ${body}`;
+  const fetchBody = body === null ? "no body" : `body ${body}`;
+  const reviewLead = quote.classification === "hybrid" ? `Connect the provider access required for ${resource.name}, then review` : "Review";
+  return `${reviewLead} payment for ${resource.name} at ${checkedUrl}. Exact request: ${method} with ${bodyDescription}. Current seller terms: ${sellerTerms(route)}. The approval ceiling is maxAmountAtomic ${route.amountAtomic}. Ask for my confirmation before paying. After I confirm, call x402_fetch once with url ${checkedUrl}, method ${method}, ${fetchBody}, and maxAmountAtomic ${route.amountAtomic}. Do not retry automatically if the outcome is ambiguous or the request was dispatched.`;
 }
 function useCompactViewport() {
   const [isCompact, setIsCompact] = reactExports.useState(false);
@@ -1494,22 +1267,22 @@ function MarketplaceSearch() {
           structuredContent: {
             checkedResource: {
               name: resource.name,
-              url: resource.url,
-              method: resource.method || "GET",
+              url: quote.checkedRequest?.url ?? resource.url,
+              method: quote.checkedRequest?.method ?? canonicalMethod(resource.method),
+              body: quote.checkedRequest?.body ?? null,
               classification: quote.classification,
-              requestBound: isSearchCheckRequestBound(resource.method),
+              requestBound: quote.checkedRequest?.requestBound ?? isSearchCheckRequestBound(resource.method),
               paymentOptions: quote.routes.map((route) => ({
                 network: route.network,
                 asset: route.asset,
                 scheme: route.scheme,
+                payTo: route.payTo,
+                amountAtomic: route.amountAtomic,
+                decimals: route.decimals,
+                facilitator: route.facilitator,
+                expiresAt: route.expiresAt,
                 price: route.price,
                 priceFormatted: route.priceFormatted
-              })),
-              purchaseOptions: quote.purchaseOptions.map((option) => ({
-                mode: option.mode,
-                availability: option.availability,
-                display: option.display,
-                preparedPurchase: option.preparedPurchase
               }))
             }
           }
@@ -1625,18 +1398,13 @@ function MarketplaceSearch() {
     resourceUrl: checkFlow.resourceUrl,
     message: checkFlow.message
   } : { status: "idle" };
-  const continueFromQuote = reactExports.useCallback(async (selection) => {
+  const continueFromQuote = reactExports.useCallback(async () => {
     if (!sendFollowUp || !activeResource || !activeQuote || continuationInFlight.current || quoteContinuation.status === "sending" || quoteContinuation.status === "sent") {
       return;
     }
     const requestId = ++continuationRequestId.current;
     const { classification } = activeQuote.quote;
-    isSearchCheckRequestBound(activeResource.method);
-    const selectedPurchase = selection ? activeQuote.quote.purchaseOptions.find(
-      (option) => option.preparedPurchase.preparedId === selection.preparedPurchase.preparedId && option.availability.state === "ready"
-    ) ?? null : null;
-    const selectedOffer = selectedPurchase?.preparedPurchase.route.sellerOffer ?? null;
-    const prompt = classification === "free" ? `Use ${activeResource.name} at ${activeResource.url} for my request.` : classification === "siwx" ? `Help me sign in to ${activeResource.name} with my wallet. Do not make a payment.` : classification === "apiKey" ? `Help me connect the provider access required for ${activeResource.name}.` : classification === "paid" || classification === "hybrid" ? selectedPurchase && selectedOffer ? `I selected ${purchaseModeLabel(selectedPurchase.mode)} for ${activeResource.name} at ${activeResource.url}. Preserve this prepared purchase exactly: ${JSON.stringify(selectedPurchase.preparedPurchase)}. The selected seller offer is ${selectedOffer.amountAtomic} atomic units of ${selectedOffer.asset} on ${selectedOffer.network}. Show me the exact request and atomic-unit ceiling, then ask for my confirmation before paying. Only execute after that explicit confirmation. Do not change the seller offer, route, or purchase mode.` : `Prepare the exact request for ${activeResource.name} at ${activeResource.url} and confirm its current payment options. Do not pay until I explicitly approve.` : `Retry the current terms check for ${activeResource.name}.`;
+    const prompt = classification === "free" ? `Use ${activeResource.name} at ${activeResource.url} for my request.` : classification === "siwx" ? `Help me sign in to ${activeResource.name} with my wallet. Do not make a payment.` : classification === "apiKey" ? `Help me connect the provider access required for ${activeResource.name}.` : classification === "paid" || classification === "hybrid" ? paidContinuationPrompt(activeResource, activeQuote.quote) : `Retry the current terms check for ${activeResource.name}.`;
     continuationInFlight.current = true;
     setQuoteContinuation({ status: "sending" });
     try {
@@ -1745,8 +1513,8 @@ function MarketplaceSearch() {
                           void confirmCurrentTerms(activeResource).catch(() => {
                           });
                         },
-                        onContinue: sendFollowUp ? (selection) => {
-                          void continueFromQuote(selection);
+                        onContinue: sendFollowUp ? () => {
+                          void continueFromQuote();
                         } : void 0,
                         continueStatus: quoteContinuation.status,
                         continueError: quoteContinuation.status === "error" ? quoteContinuation.message : null

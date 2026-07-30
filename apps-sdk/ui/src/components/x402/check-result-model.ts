@@ -2,10 +2,6 @@ import type {
   CheckResult,
   PaymentOption,
 } from '../../../../../packages/x402-core/src/check.js';
-import {
-  normalizePreparedPurchaseOptions,
-  type PreparedPurchaseOption,
-} from './purchase-model.ts';
 
 /**
  * Reader-facing classifications for an x402_check result.
@@ -39,6 +35,13 @@ export type X402PaymentRoute = Readonly<PaymentOption & {
   routeKey: string;
 }>;
 
+export type X402CheckedRequest = Readonly<{
+  url: string | null;
+  method: string | null;
+  body: string | null;
+  requestBound: boolean | null;
+}>;
+
 export type X402CheckState = Readonly<{
   classification: X402CheckClassification;
   title: string;
@@ -51,7 +54,7 @@ export type X402CheckState = Readonly<{
   paymentStatus: 'not_attempted';
   paymentOccurred: false;
   routes: readonly X402PaymentRoute[];
-  purchaseOptions: readonly PreparedPurchaseOption[];
+  checkedRequest: X402CheckedRequest | null;
   inputSchema: unknown | null;
   outputSchema: unknown | null;
   resource: unknown | null;
@@ -77,6 +80,21 @@ function nullableFiniteNumber(value: unknown): number | null {
 function nullableInteger(value: unknown): number | null {
   const number = nullableFiniteNumber(value);
   return number !== null && Number.isInteger(number) ? number : null;
+}
+
+function normalizeCheckedRequest(value: unknown): X402CheckedRequest | null {
+  if (!isRecord(value)) return null;
+
+  return {
+    url:
+      typeof value.url === 'string' && value.url.length > 0
+        ? value.url
+        : null,
+    method: nullableString(value.method)?.toUpperCase() ?? null,
+    body: typeof value.body === 'string' ? value.body : null,
+    requestBound:
+      typeof value.requestBound === 'boolean' ? value.requestBound : null,
+  };
 }
 
 function canonicalAuthMode(value: unknown): CanonicalAuthMode | null {
@@ -297,9 +315,6 @@ function readerCopy(
 export function normalizeX402CheckResult(value: unknown): X402CheckState {
   const payload = isRecord(value) ? value : {};
   const routes = normalizeX402PaymentRoutes(payload.paymentOptions);
-  const purchaseOptions = normalizePreparedPurchaseOptions(
-    payload.purchaseOptions,
-  );
   const authMode = canonicalAuthMode(payload.authMode);
   const statusCode = nullableInteger(payload.statusCode);
   const classification = classify(payload, authMode, routes, statusCode);
@@ -321,7 +336,7 @@ export function normalizeX402CheckResult(value: unknown): X402CheckState {
     paymentStatus: 'not_attempted',
     paymentOccurred: false,
     routes,
-    purchaseOptions,
+    checkedRequest: normalizeCheckedRequest(payload.checkedRequest),
     inputSchema: payload.inputSchema ?? null,
     outputSchema: payload.outputSchema ?? null,
     resource: payload.resource ?? null,

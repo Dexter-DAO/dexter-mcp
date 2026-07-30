@@ -1,6 +1,6 @@
 import { j as jsxRuntimeExports, r as reactExports, u as useToolOutput, i as useToolInput, e as useAdaptiveSendFollowUp, g as useAdaptiveTheme } from "./adapter-B3ynKBmf.js";
 /* empty css             */
-import { b as formatHitCount, p as purchaseModeLabel, a as formatAssetLabel, c as formatBytes, n as normalizePreparedPurchaseOptions, d as pickPrimaryRun, e as pickFixInstructions, P as ProfessorDexterCard, D as DoctorDexterCard } from "./purchase-model-ajjP35yn.js";
+import { b as formatHitCount, a as formatAssetLabel, c as formatBytes, d as normalizeX402PaymentRoutes, p as pickPrimaryRun, e as pickFixInstructions, P as ProfessorDexterCard, D as DoctorDexterCard } from "./check-result-model-mqo9-mGV.js";
 import { c as clientExports } from "./client-CGLDWKLD.js";
 import { B as Badge } from "./index-C6nCFUwa.js";
 import { A as Alert } from "./Alert-driVTOE8.js";
@@ -9,7 +9,7 @@ import { u as useIntrinsicHeight } from "./useIntrinsicHeight-CaBDxNwZ.js";
 import { D as DebugPanel } from "./DebugPanel-CV1cXidT.js";
 import "./portfolioModel-yEMSOUo4.js";
 import { B as Button } from "./Button-B7uq752z.js";
-import { g as getChain, C as ChainIcon } from "./ChainIcon-Dy4uVkQR.js";
+import { g as getChain, C as ChainIcon } from "./ChainIcon-BgpFhKs9.js";
 import "./Warning-BlUVe1mr.js";
 import "./use-openai-global-BY612iuq.js";
 function ResourceIdentity({ resource, fallbackUrl, resourceRef }) {
@@ -92,94 +92,41 @@ function ResourceDescription({ description }) {
 function shortRecipient(value) {
   return value.length <= 12 ? value : `${value.slice(0, 6)}…${value.slice(-4)}`;
 }
-function availabilityCopy(option) {
-  switch (option.availability.state) {
-    case "ready":
-      return null;
-    case "request_required":
-      return "Price the exact request first";
-    case "integration_required":
-      return "Not connected on this surface yet";
-    case "unavailable":
-      return "Seller does not offer this route";
-  }
+function priceLabel(route) {
+  return route.priceFormatted || `${route.amountAtomic ?? "Unknown"} atomic`;
 }
-function priceLabel(option) {
-  return option.display.priceFormatted ?? `${option.preparedPurchase.route.sellerOffer.amountAtomic} atomic`;
+function schemeLabel(value) {
+  if (!value) return "x402";
+  return value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
-function PurchaseRouteRow({
-  option,
-  featured,
-  selected,
-  onSelect
-}) {
-  const offer = option.preparedPurchase.route.sellerOffer;
-  const { name: chainName } = getChain(offer.network);
-  const unavailable = availabilityCopy(option);
-  return /* @__PURE__ */ jsxRuntimeExports.jsxs(
-    "label",
-    {
-      className: [
-        "dx-pricing__route",
-        featured ? "dx-pricing__route--best" : "",
-        selected ? "dx-pricing__route--selected" : "",
-        unavailable ? "dx-pricing__route--disabled" : ""
-      ].filter(Boolean).join(" "),
-      children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "input",
-          {
-            type: "radio",
-            name: "purchase-mode",
-            value: option.preparedPurchase.preparedId,
-            checked: selected,
-            disabled: Boolean(unavailable),
-            onChange: () => onSelect(option),
-            "aria-label": `${purchaseModeLabel(option.mode)} via ${chainName} using ${formatAssetLabel(offer.asset)}`
-          }
-        ),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-pricing__route-chain", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx(ChainIcon, { network: offer.network, size: 20 }),
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-pricing__route-chain-text", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-pricing__route-chain-line", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-pricing__route-chain-name", children: purchaseModeLabel(option.mode) }),
-              selected ? /* @__PURE__ */ jsxRuntimeExports.jsx(Badge, { color: "success", size: "sm", children: "Selected" }) : featured ? /* @__PURE__ */ jsxRuntimeExports.jsx(Badge, { color: "secondary", size: "sm", children: "Lowest price" }) : null
-            ] }),
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "dx-pricing__route-chain-asset", children: [
-              formatAssetLabel(offer.asset),
-              " · ",
-              chainName
-            ] }),
-            unavailable ? /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-pricing__route-chain-asset", children: unavailable }) : null
-          ] })
-        ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "dx-pricing__route-payto", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "dx-pricing__route-payto-addr", children: [
-          "to ",
-          shortRecipient(offer.payTo)
-        ] }) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-pricing__route-price", children: priceLabel(option) })
-      ]
-    }
-  );
+function PaymentTermRow({ route }) {
+  const { name: chainName } = getChain(route.network);
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-pricing__route dx-pricing__route--terms", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-pricing__route-chain", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx(ChainIcon, { network: route.network, size: 20 }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-pricing__route-chain-text", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "dx-pricing__route-chain-line", children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-pricing__route-chain-name", children: schemeLabel(route.scheme) }) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "dx-pricing__route-chain-asset", children: [
+          formatAssetLabel(route.asset),
+          " · ",
+          chainName,
+          route.amountAtomic ? ` · ${route.amountAtomic} atomic` : ""
+        ] })
+      ] })
+    ] }),
+    route.payTo ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "dx-pricing__route-payto", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "dx-pricing__route-payto-addr", children: [
+      "to ",
+      shortRecipient(route.payTo)
+    ] }) }) : null,
+    /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-pricing__route-price", children: priceLabel(route) })
+  ] });
 }
 function PaymentRoutes({
-  options,
-  featuredPreparedId,
-  selectedPreparedId,
-  onSelect
+  options
 }) {
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("section", { className: "dx-pricing__routes", children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { className: "dx-pricing__section-title", children: "Choose how to buy" }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "dx-pricing__routes-list", children: options.map((option) => /* @__PURE__ */ jsxRuntimeExports.jsx(
-      PurchaseRouteRow,
-      {
-        option,
-        featured: option.preparedPurchase.preparedId === featuredPreparedId,
-        selected: option.preparedPurchase.preparedId === selectedPreparedId,
-        onSelect
-      },
-      option.preparedPurchase.preparedId
-    )) })
+    /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { className: "dx-pricing__section-title", children: "Current seller terms" }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "dx-pricing__routes-list", children: options.map((route) => /* @__PURE__ */ jsxRuntimeExports.jsx(PaymentTermRow, { route }, route.routeKey)) })
   ] });
 }
 function ResponseShape({ run, contentType, sizeBytes }) {
@@ -263,16 +210,16 @@ function prettyJson(raw) {
   }
 }
 function FetchAction({
-  selectedPrice,
-  selectedMode,
+  price,
+  requestBound,
   disabled = false,
   status = "idle",
   onFetch
 }) {
-  const label = status === "sending" ? "Opening review…" : status === "sent" ? "Review opened in chat" : selectedMode ? `Continue in chat · ${selectedMode}` : "Choose a purchase mode";
+  const label = status === "sending" ? "Opening review…" : status === "sent" ? "Review opened in chat" : requestBound ? "Review payment" : "Review request";
   return /* @__PURE__ */ jsxRuntimeExports.jsxs(Button, { color: "primary", block: true, onClick: onFetch, disabled, children: [
     label,
-    selectedPrice && status !== "sent" ? ` · ${selectedPrice}` : ""
+    price && status !== "sent" ? ` · ${price}` : ""
   ] });
 }
 const WORDMARK_URL = "https://dexter.cash/wordmarks/dexter-wordmark.svg";
@@ -289,6 +236,48 @@ function isPricingUnavailable(payload) {
 }
 function unavailableMessage(payload) {
   return payload.message || (typeof payload.error === "string" ? payload.error : void 0) || "No payment options are currently available for this endpoint.";
+}
+const POSITIVE_ATOMIC_AMOUNT = /^[1-9]\d{0,19}$/;
+function canonicalMethod(method) {
+  return String(method || "GET").toUpperCase();
+}
+function checkedPaymentRequest(payload, input) {
+  const method = canonicalMethod(payload.checkedRequest?.method ?? input?.method);
+  const sampleBodyProvided = Boolean(
+    input && Object.prototype.hasOwnProperty.call(input, "sampleInputBody")
+  );
+  return {
+    url: payload.checkedRequest?.url || input?.url || "",
+    method,
+    body: method === "GET" ? null : payload.checkedRequest?.body ?? (sampleBodyProvided ? JSON.stringify(input?.sampleInputBody ?? {}) : null),
+    requestBound: payload.checkedRequest?.requestBound ?? (method === "GET" || sampleBodyProvided)
+  };
+}
+function exactCeilingRoute(routes) {
+  return routes.reduce((best, route) => {
+    if (typeof route.amountAtomic !== "string" || !POSITIVE_ATOMIC_AMOUNT.test(route.amountAtomic)) {
+      return best;
+    }
+    return !best || route.price < best.price ? route : best;
+  }, null);
+}
+function sellerTerms(route) {
+  const asset = formatAssetLabel(route.asset);
+  const network = route.network || "the listed network";
+  const recipient = route.payTo ? ` to ${route.payTo}` : "";
+  return `${route.amountAtomic} atomic units of ${asset} on ${network}${recipient}`;
+}
+function paidContinuationPrompt(request, routes) {
+  if (!request.requestBound) {
+    return `Form the exact raw JSON request body for ${request.url} using ${request.method}, then run x402_check again with sampleInputBody before asking me to approve a payment. Do not pay from this indicative quote.`;
+  }
+  const route = exactCeilingRoute(routes);
+  if (!route?.amountAtomic) {
+    return `Run x402_check again for the exact ${request.method} request to ${request.url} and obtain a current positive atomic amount before asking me to approve a payment. Do not pay from this incomplete quote.`;
+  }
+  const bodyDescription = request.body === null ? "no request body" : `raw JSON body ${request.body}`;
+  const fetchBody = request.body === null ? "no body" : `body ${request.body}`;
+  return `Review payment for ${request.url}. Exact request: ${request.method} with ${bodyDescription}. Current seller terms: ${sellerTerms(route)}. The approval ceiling is maxAmountAtomic ${route.amountAtomic}. Ask for my confirmation before paying. After I confirm, call x402_fetch once with url ${request.url}, method ${request.method}, ${fetchBody}, and maxAmountAtomic ${route.amountAtomic}. Do not retry automatically if the outcome is ambiguous or the request was dispatched.`;
 }
 function useElapsedSeconds(pending) {
   const [elapsed, setElapsed] = reactExports.useState(0);
@@ -334,12 +323,13 @@ function PricingCheck() {
   const maxHeight = useMaxHeight();
   const containerRef = useIntrinsicHeight();
   const loadingElapsed = useElapsedSeconds(!toolOutput);
-  const purchaseOptions = reactExports.useMemo(
-    () => normalizePreparedPurchaseOptions(toolOutput?.purchaseOptions),
-    [toolOutput?.purchaseOptions]
+  const paymentOptions = reactExports.useMemo(
+    () => normalizeX402PaymentRoutes(toolOutput?.paymentOptions),
+    [toolOutput?.paymentOptions]
   );
-  const [selectedPreparedId, setSelectedPreparedId] = reactExports.useState(
-    null
+  const checkedRequest = reactExports.useMemo(
+    () => toolOutput ? checkedPaymentRequest(toolOutput, toolInput) : null,
+    [toolInput, toolOutput]
   );
   const [continueState, setContinueState] = reactExports.useState({ status: "idle" });
   const continuationInFlight = reactExports.useRef(false);
@@ -347,16 +337,9 @@ function PricingCheck() {
     document.documentElement.setAttribute("data-theme", theme);
   }, [theme]);
   reactExports.useEffect(() => {
-    setSelectedPreparedId(
-      (current) => purchaseOptions.some(
-        (option) => option.preparedPurchase.preparedId === current
-      ) ? current : null
-    );
-  }, [purchaseOptions]);
-  reactExports.useEffect(() => {
     continuationInFlight.current = false;
     setContinueState({ status: "idle" });
-  }, [selectedPreparedId, toolOutput]);
+  }, [toolOutput]);
   const animate = reactExports.useMemo(() => true, []);
   if (!toolOutput) {
     return /* @__PURE__ */ jsxRuntimeExports.jsx(StateFrame, { theme, maxHeight, variant: "loading", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "dx-pricing__state", children: /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: loadingElapsed < 5 ? "Checking pricing…" : "Still probing endpoint — hang tight." }) }) });
@@ -433,21 +416,9 @@ function PricingCheck() {
       ] }) })
     ] });
   }
-  const readyOptions = purchaseOptions.filter(
-    (option) => option.availability.state === "ready"
-  );
-  const featuredOption = readyOptions.reduce((best, option) => {
-    if (!best) return option;
-    const currentPrice = option.display.price;
-    const bestPrice = best.display.price;
-    if (currentPrice === null) return best;
-    if (bestPrice === null || currentPrice < bestPrice) return option;
-    return best;
-  }, null);
-  const selectedOption = purchaseOptions.find(
-    (option) => option.preparedPurchase.preparedId === selectedPreparedId
-  ) ?? null;
-  const selectedPrice = selectedOption?.display.priceFormatted ?? null;
+  const ceilingRoute = exactCeilingRoute(paymentOptions);
+  const displayedPrice = ceilingRoute?.priceFormatted ?? paymentOptions[0]?.priceFormatted ?? null;
+  const requestBound = checkedRequest?.requestBound ?? false;
   const enrichment = toolOutput.enrichment ?? null;
   const recent = enrichment?.history?.recent ?? [];
   const primaryRun = pickPrimaryRun(recent);
@@ -457,15 +428,14 @@ function PricingCheck() {
     total: recent.length
   } : null;
   const handleContinue = async () => {
-    if (!toolInput?.url || !sendFollowUp || !selectedOption || continuationInFlight.current || continueState.status === "sending" || continueState.status === "sent") {
+    if (!checkedRequest?.url || !sendFollowUp || continuationInFlight.current || continueState.status === "sending" || continueState.status === "sent") {
       return;
     }
-    const offer = selectedOption.preparedPurchase.route.sellerOffer;
     continuationInFlight.current = true;
     setContinueState({ status: "sending" });
     try {
       await sendFollowUp(
-        `I selected ${purchaseModeLabel(selectedOption.mode)} for ${toolInput.url} with ${toolInput.method || "GET"}. The seller quote is ${selectedPrice || `${offer.amountAtomic} atomic units`} on ${offer.network} using ${offer.asset}. Preserve this prepared purchase exactly: ${JSON.stringify(selectedOption.preparedPurchase)}. Preserve this prepared request body exactly: ${toolOutput.preparedPayload ?? "none"}. Show me the exact request and atomic-unit ceiling, then ask for my confirmation before paying. Only call x402_fetch after that explicit confirmation. Do not change the seller offer, route, or purchase mode.`
+        paidContinuationPrompt(checkedRequest, paymentOptions)
       );
       setContinueState({ status: "sent" });
     } catch {
@@ -488,24 +458,12 @@ function PricingCheck() {
     /* @__PURE__ */ jsxRuntimeExports.jsx(ResourceDescription, { description: enrichment?.resource?.description ?? null }),
     primaryRun ? /* @__PURE__ */ jsxRuntimeExports.jsx(ProfessorDexterCard, { run: primaryRun, passesOfRecent, animate }) : null,
     fixText ? /* @__PURE__ */ jsxRuntimeExports.jsx(DoctorDexterCard, { fixText, animate }) : null,
-    purchaseOptions.length ? /* @__PURE__ */ jsxRuntimeExports.jsx(
-      PaymentRoutes,
-      {
-        options: purchaseOptions,
-        featuredPreparedId: featuredOption?.preparedPurchase.preparedId ?? null,
-        selectedPreparedId,
-        onSelect: (option) => {
-          if (option.availability.state === "ready") {
-            setSelectedPreparedId(option.preparedPurchase.preparedId);
-          }
-        }
-      }
-    ) : /* @__PURE__ */ jsxRuntimeExports.jsx(
+    paymentOptions.length ? /* @__PURE__ */ jsxRuntimeExports.jsx(PaymentRoutes, { options: paymentOptions }) : /* @__PURE__ */ jsxRuntimeExports.jsx(
       Alert,
       {
         color: "warning",
-        title: "Prepare this purchase again",
-        description: "This quote predates route-bound purchase modes. Run x402_check again before paying."
+        title: "Current seller terms unavailable",
+        description: "Run x402_check again before asking for payment approval."
       }
     ),
     /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -516,14 +474,14 @@ function PricingCheck() {
         sizeBytes: enrichment?.resource?.response_size_bytes ?? null
       }
     ),
-    toolInput?.url && sendFollowUp ? /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+    checkedRequest?.url && sendFollowUp ? /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx(
         FetchAction,
         {
-          selectedPrice,
-          selectedMode: selectedOption ? purchaseModeLabel(selectedOption.mode) : null,
+          price: displayedPrice,
+          requestBound,
           status: continueState.status,
-          disabled: !selectedOption || continueState.status === "sending" || continueState.status === "sent",
+          disabled: continueState.status === "sending" || continueState.status === "sent",
           onFetch: handleContinue
         }
       ),

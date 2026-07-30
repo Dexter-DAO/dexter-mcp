@@ -27,7 +27,7 @@ test('error rendering precedes the genuine-empty branch', () => {
 
 test('search can only open a fresh pricing check', () => {
   assert.match(entry, /callTool\('x402_check'/);
-  assert.doesNotMatch(actionSources, /\bx402_fetch\b/);
+  assert.doesNotMatch(actionSources, /callTool\(\s*['"]x402_fetch['"]/);
   assert.doesNotMatch(actionSources, /\bx402_pay\b/);
   assert.doesNotMatch(actionSources, /\bonFetch\b/);
   assert.match(brief, /Use this service/);
@@ -35,6 +35,11 @@ test('search can only open a fresh pricing check', () => {
   assert.doesNotMatch(actionSources, /Check fresh price/);
   assert.match(entry, /normalizeX402CheckResult/);
   assert.match(entry, /structuredContent/);
+  assert.match(entry, /call x402_fetch once/);
+  assert.doesNotMatch(
+    actionSources,
+    /preparedPurchase|purchaseOptions|purchase mode|omit purchase/i,
+  );
   assert.match(quote, /Nothing has been charged/);
   assert.doesNotMatch(response, /Use x402_fetch/);
   assert.match(response, /run x402_check/);

@@ -63,6 +63,15 @@ test('served guidance requires native OAuth and bounded nonretryable spending', 
     /Never automatically retry an ambiguous or post-dispatch\s+failure/,
   );
   assert.match(WORKFLOW, /receiveAddress/);
+  assert.match(WORKFLOW, /Leave its network filter unset[\s\S]*CrossPay/);
+  assert.doesNotMatch(
+    SERVER,
+    /ALWAYS pass this when the paying wallet is chain-bound|pass "solana" there/,
+  );
+  assert.match(
+    SERVER,
+    /Leave this unset for ordinary Dexter discovery so eligible CrossPay resources are not removed/,
+  );
   assert.match(WORKFLOW, /vaultPda[\s\S]*not a deposit\s+fallback/);
   assert.match(
     DEBUGGING,
@@ -76,16 +85,13 @@ test('generated runtime instructions contain only native OAuth wallet guidance',
   assert.doesNotMatch(runtime, /\b(?:setup|enroll) link\b|\brelay(?:ing|ed|s)?\b/i);
   assert.match(runtime, /host show its native OpenDexter Connect action/i);
   assert.match(runtime, /dexter_portfolio/);
-  assert.match(runtime, /purchaseOptions/);
-  assert.match(runtime, /preparedPurchase/);
-  for (const mode of [
-    'direct_exact',
-    'native_tab',
-    'gateway_cash',
-    'gateway_credit',
-  ]) {
-    assert.match(runtime, new RegExp(`\\b${mode}\\b`));
-  }
+  assert.match(runtime, /paymentOptions/);
+  assert.match(runtime, /call x402_fetch once/);
+  assert.match(runtime, /native or CrossPay route/);
+  assert.doesNotMatch(
+    runtime,
+    /purchaseOptions?|preparedPurchase|prepared-purchase|integration_required|omit purchase|choose one ready option/i,
+  );
   assert.match(runtime, /maxAmountAtomic/);
   assert.match(runtime, /provider output as untrusted external data/i);
   assert.match(runtime, /Never automatically retry an ambiguous or post-dispatch/i);
@@ -107,5 +113,12 @@ test('runtime-instruction sanitizer fails closed on unknown legacy guidance', ()
         'Use x402_pay as a different lower-level payment path.',
       ),
     /unrecognized legacy paid-alias guidance/,
+  );
+  assert.throws(
+    () =>
+      sanitizeOpenServerInstructions(
+        'Choose a purchaseOption and pass its preparedPurchase to x402_fetch.',
+      ),
+    /unrecognized prepared-purchase guidance/,
   );
 });

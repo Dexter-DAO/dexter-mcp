@@ -41,9 +41,9 @@ import {
   PURCHASE_MODES,
   attachPurchaseReceipt,
   buildPurchaseIntegrationRequired,
-  buildPurchaseOptions,
   validatePurchaseExecution,
 } from './lib/open-purchase-contract.mjs';
+import { buildHostedCheckModelResult } from './lib/open-check-result.mjs';
 import {
   fetchSessionPortfolio,
   modelSafePortfolioSnapshot,
@@ -563,34 +563,6 @@ function buildVaultPaymentTransportError(requestId = null) {
 // (no silent downgrade to handle mode). Mirror of dexter-api's SESSION_ID_RE.
 const PAY_SESSION_ID_RE = /^[A-Za-z0-9_.\-]{1,256}$/;
 const MAX_AMOUNT_ATOMIC_RE = /^[1-9]\d{0,19}$/;
-const PREPARED_PURCHASE_SCHEMA = z.object({
-  contractVersion: z.literal(PURCHASE_CONTRACT_VERSION),
-  preparedId: z.string().min(8).max(128),
-  state: z.literal('prepared'),
-  preparedAt: z.string(),
-  expiresAt: z.string().nullable(),
-  mode: z.enum(PURCHASE_MODES),
-  route: z.object({
-    routeId: z.string().min(8),
-    resourceUrl: z.string().url(),
-    resolvedUrl: z.string().url(),
-    method: z.enum(['GET', 'POST', 'PUT', 'DELETE']),
-    payloadSha256: z.string().regex(/^[a-f0-9]{64}$/),
-    sellerOffer: z.object({
-      offerId: z.string().min(8),
-      x402Version: z.union([z.literal(1), z.literal(2)]),
-      scheme: z.string().min(1),
-      network: z.string().min(1),
-      asset: z.string().min(1),
-      amountAtomic: z.string().regex(/^[1-9]\d*$/),
-      payTo: z.string().min(1),
-      facilitator: z.string().nullable(),
-      expiresAt: z.string().nullable(),
-      rawAcceptSha256: z.string().regex(/^[a-f0-9]{64}$/),
-    }),
-  }),
-});
-
 // Internal-auth headers for dexter-api's HMAC-gated lookups (same scheme as
 // /pair/link-token/bind: HMAC-SHA256 over `${ts}.${value}` with the shared
 // INTERNAL_DEXTERCARD_HMAC_SECRET). Returns {} when the secret is absent so
@@ -1736,7 +1708,7 @@ function createOpenMcpServer() {
     description: 'Semantic capability search over the x402 marketplace across Solana and EVM chains. Pass a natural-language query and get back two tiers: strongResults (high-confidence capability hits) and relatedResults (adjacent services that cleared the similarity floor). The ranker handles synonym expansion and alternate phrasings internally — do NOT pre-filter by chain or category. The top strong results are reordered by a cross-encoder LLM rerank unless rerank:false is passed. Use the searchMeta.mode field to distinguish a direct hit (strong matches present) from related_only (only adjacencies) or empty (nothing in the index). Multi-chain resources expose every payment option they accept via each result\'s chains[] field.',
     inputSchema: {
       query: z.string().describe('Natural-language description of the capability you want. e.g. "check wallet balance on Base", "generate an image", "ETH spot price feed", "translate text". Broad terms are valid — the ranker handles breadth internally. Do NOT pre-filter by category; the search layer handles that semantically.'),
-      network: z.string().optional().describe('Hard payability filter: only return endpoints payable on this network ("solana", "base", "ethereum", "polygon", "arbitrum", "optimism", "avalanche", or a CAIP-2 id). ALWAYS pass this when the paying wallet is chain-bound — Dexter passkey vaults (phone calls, connectors) pay on Solana only, so pass "solana" there. Results that cannot be paid on the given network are removed after ranking.'),
+      network: z.string().optional().describe('Optional hard seller-network filter ("solana", "base", "ethereum", "polygon", "arbitrum", "optimism", "avalanche", or a CAIP-2 id). Leave this unset for ordinary Dexter discovery so eligible CrossPay resources are not removed merely because the wallet settles natively on Solana. Set it only when the user explicitly requires a seller on that network.'),
       limit: z.number().min(1).max(50).optional().default(20).describe('Max results across strong + related tiers combined (1-50, default 20)'),
       unverified: z.boolean().optional().describe('Include unverified resources (default false). Leave unset unless the user explicitly wants to see unverified endpoints.'),
       testnets: z.boolean().optional().describe('Include testnet-only resources (default false). Testnets are excluded by default to keep the marketplace view clean.'),
@@ -1756,13 +1728,12 @@ function createOpenMcpServer() {
 
   registerOpenTool(server, 'x402_fetch', {
     title: 'x402 Fetch',
-    description: "Call an x402-protected API after x402_check and explicit user approval. Preserve the check's exact preparedPurchase as purchase and pass the approved atomic-unit ceiling as maxAmountAtomic. purchase.mode selects direct_exact, native_tab, gateway_cash, or gateway_credit; the server never silently changes modes. In this hosted candidate, every explicit-mode call stops before payment with integration_required until the durable backend contract is connected.",
+    description: "Call an x402-protected API once after a fresh x402_check and current user instruction or delegated authority covers the exact URL, method, body, seller terms, and maxAmountAtomic ceiling. Pass the same URL/method/body plus the approved ceiling. The backend rechecks the seller immediately before execution and may use an eligible native or CrossPay route. Never automatically retry an ambiguous or post-dispatch outcome.",
     inputSchema: {
       url: z.string().url().describe('The x402 resource URL to call'),
       method: z.enum(['GET', 'POST', 'PUT', 'DELETE']).default('GET').describe('HTTP method'),
       body: z.string().optional().describe('JSON request body for POST/PUT — the RAW payload the seller expects, e.g. {"q":"latest news"}. NEVER send a schema descriptor (anything shaped like {"type":"http","method":...,"bodyType":...,"body":{...}}) — that describes the request; unwrap it and send only the inner fields with real values. Field names come from the search result\'s inputSchema or x402_check.'),
       maxAmountAtomic: z.string().regex(MAX_AMOUNT_ATOMIC_RE).describe('Required user-approved maximum charge in USDC atomic units (positive 1-20 digit decimal string). Pass the exact approved quote ceiling; the payment is rejected if the current quote exceeds it.'),
-      purchase: PREPARED_PURCHASE_SCHEMA.optional().describe('Exact prepared purchase returned by x402_check. When present, URL, method, body digest, seller offer, route, mode, and prepared identity are pinned; a mismatch fails before dispatch. Omit only for legacy clients that have not adopted opendexter.purchase.v1.'),
       multipart: z.object({
         files: z.array(z.object({
           fieldName: z.string().describe('Form field name expected by the x402 endpoint.'),
@@ -1772,7 +1743,7 @@ function createOpenMcpServer() {
         })).describe('Files to upload as multipart parts.'),
         fields: z.record(z.string()).optional().describe('Extra text fields to include in the multipart body.'),
       }).optional().describe('Pass to upload files to a multipart x402 endpoint (image-gen, transcription, document processing). Vault-paid, Solana-only.'),
-      tab: z.boolean().optional().describe('Legacy compatibility only. It controls whether an old API tab invitation is displayed; it does not select a purchase mode. New calls select native_tab or direct_exact through purchase.mode.'),
+      tab: z.boolean().optional().describe('Legacy display compatibility only. It does not select a settlement route. Omit for new calls.'),
     },
     annotations: { destructiveHint: true },
     _meta: FETCH_META,
@@ -1804,7 +1775,7 @@ function createOpenMcpServer() {
 
   registerOpenTool(server, 'x402_check', {
     title: 'x402 Check',
-    description: 'Probe an endpoint for x402 payment requirements without paying. Returns lossless seller terms and explicit purchaseOptions for direct_exact, native_tab, gateway_cash, and gateway_credit, including each mode\'s current availability. Every prepared option pins the URL, method, request digest, seller offer, route, network, asset, atomic amount, and prepared identity. Also returns input/output schema and catalog quality evidence when available. For input-dependent pricing, pass sampleInputBody for the exact non-GET request; otherwise its options are request_required and cannot execute.',
+    description: 'Probe the exact endpoint and request shape before paying. Read current paymentOptions for seller amount, asset, network, payee, and expiry. For input-dependent pricing, pass sampleInputBody for the exact non-GET request. The supported next step is one x402_fetch with the same URL/method/raw body and approved maxAmountAtomic. A check does not authorize payment, and a non-GET probe may mutate the provider.',
     inputSchema: {
       url: z.string().url().describe('The URL to check'),
       method: z.enum(['GET', 'POST', 'PUT', 'DELETE']).default('GET').describe('HTTP method to probe with'),
@@ -1849,43 +1820,31 @@ function createOpenMcpServer() {
         enrichmentSource = `error:${enrichErr?.name || 'unknown'}`;
       }
 
-      const preparedPayload =
-        (args.method || 'GET') === 'GET'
-          ? null
-          : JSON.stringify(args.sampleInputBody ?? {});
-      const merged = {
-        ...result,
-        purchaseContractVersion: PURCHASE_CONTRACT_VERSION,
-        preparedPayload,
-        purchaseOptions: buildPurchaseOptions({
-          checkResult: result,
-          url: args.url,
-          method: args.method || 'GET',
-          payload: preparedPayload,
-          requestBound:
-            (args.method || 'GET') === 'GET'
-            || Object.prototype.hasOwnProperty.call(args, 'sampleInputBody'),
-          surface: 'hosted',
-        }),
+      const modelResult = buildHostedCheckModelResult({
+        checkResult: result,
+        url: args.url,
+        method: args.method || 'GET',
+        sampleInputBody: args.sampleInputBody,
+        sampleInputBodyProvided: Object.prototype.hasOwnProperty.call(
+          args,
+          'sampleInputBody',
+        ),
         enrichment,
-        enrichment_source: enrichmentSource,
-      };
+        enrichmentSource,
+      });
       // Keep the text content LEAN — the widget reads structuredContent, the
       // LLM reads text. Dumping the full enriched payload (with embedded
       // response_preview JSON-in-JSON strings) into text was tripping the
       // Anthropic proxy's content validator and breaking the widget render.
-      // The structuredContent still carries everything the widget needs.
+      // structuredContent is model-visible in ChatGPT and Hermes. Keep it on
+      // the supported request-and-ceiling path; never expose the unintegrated
+      // caller-carried prepared-purchase candidate here.
       return {
         content: [{
           type: 'text',
-          text: JSON.stringify({
-            ...result,
-            purchaseContractVersion: merged.purchaseContractVersion,
-            preparedPayload: merged.preparedPayload,
-            purchaseOptions: merged.purchaseOptions,
-          }, null, 2),
+          text: JSON.stringify(modelResult, null, 2),
         }],
-        structuredContent: merged,
+        structuredContent: modelResult,
         _meta: CHECK_META,
       };
     } catch (err) {

@@ -146,6 +146,8 @@ const CHECK_TOOL_RESULT = {
         asset: 'USDC',
         scheme: 'exact',
         payTo: '0xfixture',
+        amountAtomic: '10000',
+        decimals: 6,
       },
       {
         price: 0.01,
@@ -154,8 +156,16 @@ const CHECK_TOOL_RESULT = {
         asset: 'PYUSD',
         scheme: 'exact',
         payTo: '0xfixture',
+        amountAtomic: '10000',
+        decimals: 6,
       },
     ],
+    checkedRequest: {
+      url: 'https://fixture.example/beacon',
+      method: 'POST',
+      body: null,
+      requestBound: false,
+    },
   },
   content: [
     {
@@ -167,85 +177,7 @@ const CHECK_TOOL_RESULT = {
   isError: false,
 };
 
-const PREPARED_AT = '2026-07-25T12:34:00.000Z';
-const PREPARED_EXPIRES_AT = '2026-07-25T12:39:00.000Z';
-const EMPTY_PAYLOAD_SHA256 =
-  'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
-
-function purchaseOption({
-  mode,
-  scheme,
-  state,
-  reason = null,
-}) {
-  const suffix = mode.replaceAll('_', '-');
-  return {
-    mode,
-    availability: { state, reason },
-    display: {
-      price: 0.008,
-      priceFormatted: '$0.008',
-    },
-    preparedPurchase: {
-      contractVersion: 'opendexter.purchase.v1',
-      preparedId: `prepared-atlas-${suffix}`,
-      state: 'prepared',
-      preparedAt: PREPARED_AT,
-      expiresAt: PREPARED_EXPIRES_AT,
-      mode,
-      route: {
-        routeId: `route-atlas-${scheme}`,
-        resourceUrl: 'https://fixture.example/atlas',
-        resolvedUrl: 'https://fixture.example/atlas',
-        method: 'GET',
-        payloadSha256: EMPTY_PAYLOAD_SHA256,
-        sellerOffer: {
-          offerId: `offer-atlas-${scheme}`,
-          x402Version: 2,
-          scheme,
-          network: 'solana:mainnet',
-          asset: 'USDC',
-          amountAtomic: '8000',
-          payTo: '0xatlas',
-          facilitator: 'https://fixture.example/facilitator',
-          expiresAt: PREPARED_EXPIRES_AT,
-          rawAcceptSha256:
-            scheme === 'tab' ? 'b'.repeat(64) : 'a'.repeat(64),
-        },
-      },
-    },
-  };
-}
-
-const PURCHASE_READY_OPTIONS = [
-  purchaseOption({
-    mode: 'direct_exact',
-    scheme: 'exact',
-    state: 'ready',
-  }),
-  purchaseOption({
-    mode: 'native_tab',
-    scheme: 'tab',
-    state: 'ready',
-  }),
-  purchaseOption({
-    mode: 'gateway_cash',
-    scheme: 'exact',
-    state: 'integration_required',
-    reason: 'gateway_cash_adapter_required',
-  }),
-  purchaseOption({
-    mode: 'gateway_credit',
-    scheme: 'exact',
-    state: 'integration_required',
-    reason: 'gateway_credit_adapter_required',
-  }),
-];
-
-// Renderer-only contract fixture for the future state after A3 supplies the
-// durable hosted execution adapters. The current server correctly returns
-// integration_required for every hosted mode.
-const FUTURE_PURCHASE_READY_CHECK_TOOL_RESULT = {
+const EXACT_GET_CHECK_TOOL_RESULT = {
   structuredContent: {
     requiresPayment: true,
     statusCode: 402,
@@ -260,23 +192,32 @@ const FUTURE_PURCHASE_READY_CHECK_TOOL_RESULT = {
         scheme: 'exact',
         payTo: '0xatlas',
         amountAtomic: '8000',
+        decimals: 6,
+        expiresAt: '2026-07-25T12:39:00.000Z',
       },
       {
         price: 0.008,
         priceFormatted: '$0.008',
-        network: 'solana:mainnet',
+        network: 'eip155:8453',
         asset: 'USDC',
-        scheme: 'tab',
+        scheme: 'exact',
         payTo: '0xatlas',
         amountAtomic: '8000',
+        decimals: 6,
+        expiresAt: '2026-07-25T12:39:00.000Z',
       },
     ],
-    purchaseOptions: PURCHASE_READY_OPTIONS,
+    checkedRequest: {
+      url: 'https://fixture.example/atlas',
+      method: 'GET',
+      body: null,
+      requestBound: true,
+    },
   },
   content: [
     {
       type: 'text',
-      text: 'Fresh quote: Direct Exact and Native Tab are ready.',
+      text: 'Fresh GET quote: two current seller terms at 8000 atomic units.',
     },
   ],
   _meta: { fixture: true },
@@ -768,7 +709,7 @@ async function exerciseSearchFlow({
   ).waitFor();
   await surface.getByLabel('Checked at 12:34 PM').waitFor();
 
-  const routeSummary = surface.getByText('2 ways to pay', { exact: false });
+  const routeSummary = surface.getByText('2 current seller terms', { exact: false });
   await routeSummary.click();
   const routeRows = surface.locator('.dx-search-quote__routes li');
   assert.equal(
@@ -932,10 +873,12 @@ function assertSearchHostCalls(hostName, calls, kind, expectedToolCalls = 1) {
     : followUpCall.params?.content?.find((item) => item.type === 'text')?.text;
   assert.equal(
     followUpText,
-    'Prepare the exact request for Beacon Price Feed at '
-      + 'https://fixture.example/beacon and confirm its current payment options. '
-      + 'Do not pay until I explicitly approve.',
+    'Form the exact raw JSON request body for Beacon Price Feed at '
+      + 'https://fixture.example/beacon using POST, then run x402_check again '
+      + 'with that body before asking me to approve a payment. Do not pay from '
+      + 'this indicative quote.',
   );
+  assert.doesNotMatch(followUpText, /preparedPurchase|purchaseOptions|purchase mode/i);
 
   const displayCall = kind === 'chatgpt'
     ? calls.find((call) => call.kind === 'requestDisplayMode')
@@ -947,49 +890,36 @@ function assertSearchHostCalls(hostName, calls, kind, expectedToolCalls = 1) {
   );
 }
 
-async function exercisePreparedPurchaseHandoff({
+async function exerciseExactPaymentHandoff({
   hostName,
   surface,
 }) {
   await surface.getByRole('button', { name: 'Use this service' }).click();
   await surface.getByRole(
     'heading',
-    { name: 'Price estimate available' },
+    { name: 'Ready for your approval' },
   ).waitFor();
 
-  const purchaseChoices = surface.locator(
-    '.dx-search-quote__purchase-choices li',
-  );
   assert.equal(
-    await purchaseChoices.count(),
-    4,
-    `${hostName}: all four explicit modes must remain visible`,
+    await surface.getByRole('radio').count(),
+    0,
+    `${hostName}: current seller terms must not become a settlement-mode chooser`,
   );
-
-  const direct = surface.getByRole('radio', { name: /Pay now/ });
-  const nativeTab = surface.getByRole('radio', { name: /Use seller tab/ });
-  const gatewayCash = surface.getByRole('radio', { name: /Gateway cash/ });
-  const gatewayCredit = surface.getByRole('radio', { name: /Gateway credit/ });
-  assert.equal(await direct.isEnabled(), true);
-  assert.equal(await nativeTab.isEnabled(), true);
-  assert.equal(await gatewayCash.isDisabled(), true);
-  assert.equal(await gatewayCredit.isDisabled(), true);
-
-  await nativeTab.check();
-  const review = surface.getByRole(
-    'button',
-    { name: 'Review Use seller tab' },
-  );
+  const currentTerms = surface.getByText('2 current seller terms', {
+    exact: false,
+  });
+  await currentTerms.waitFor();
+  const review = surface.getByRole('button', { name: 'Review payment' });
   await review.click();
   const sent = surface.getByRole('button', { name: 'Opened in chat' });
   assert.equal(
     await sent.isDisabled(),
     true,
-    `${hostName}: the prepared handoff must not submit twice`,
+    `${hostName}: the payment-review handoff must not submit twice`,
   );
 }
 
-function assertPreparedPurchaseHostCalls(hostName, calls, kind) {
+function assertExactPaymentHostCalls(hostName, calls, kind) {
   const toolCalls = kind === 'chatgpt'
     ? calls.filter((call) => call.kind === 'callTool')
     : calls.filter((call) => call.method === 'tools/call');
@@ -1000,30 +930,47 @@ function assertPreparedPurchaseHostCalls(hostName, calls, kind) {
         ? call.name === 'x402_check'
         : call.params?.name === 'x402_check'
     )),
-    `${hostName}: the purchase-mode fixture must only check current terms`,
+    `${hostName}: the exact-payment fixture must only check current terms`,
   );
 
   const followUpCall = kind === 'chatgpt'
     ? calls.find((call) => call.kind === 'sendFollowUpMessage')
     : calls.find((call) => call.method === 'ui/message');
-  assert.ok(followUpCall, `${hostName}: selected mode must return to chat`);
+  assert.ok(followUpCall, `${hostName}: payment review must return to chat`);
   const followUpText = kind === 'chatgpt'
     ? followUpCall.args?.prompt
     : followUpCall.params?.content?.find((item) => item.type === 'text')?.text;
-  const selected = PURCHASE_READY_OPTIONS.find(
-    (option) => option.mode === 'native_tab',
-  );
-  assert.ok(selected);
   assert.equal(
     followUpText,
-    'I selected Use seller tab for Atlas Price Feed at '
-      + 'https://fixture.example/atlas. Preserve this prepared purchase '
-      + `exactly: ${JSON.stringify(selected.preparedPurchase)}. `
-      + 'The selected seller offer is 8000 atomic units of USDC on '
-      + 'solana:mainnet. Show me the exact request and atomic-unit ceiling, then '
-      + 'ask for my confirmation before paying. Only execute after that '
-      + 'explicit confirmation. Do not change the seller offer, route, or '
-      + 'purchase mode.',
+    'Review payment for Atlas Price Feed at https://fixture.example/atlas. '
+      + 'Exact request: GET with no request body. Current seller terms: 8000 '
+      + 'atomic units of USDC on solana:mainnet to 0xatlas. The approval ceiling '
+      + 'is maxAmountAtomic 8000. Ask for my confirmation before paying. After I '
+      + 'confirm, call x402_fetch once with url https://fixture.example/atlas, '
+      + 'method GET, no body, and maxAmountAtomic 8000. Do not '
+      + 'retry automatically if the outcome is ambiguous or the request was dispatched.',
+  );
+  assert.doesNotMatch(followUpText, /preparedPurchase|purchaseOptions|purchase mode/i);
+
+  const contextCall = kind === 'chatgpt'
+    ? calls.find((call) => (
+        call.kind === 'updateModelContext'
+        && call.args?.structuredContent?.checkedResource
+      ))
+    : calls.find((call) => (
+        call.method === 'ui/update-model-context'
+        && call.params?.structuredContent?.checkedResource
+      ));
+  assert.ok(contextCall, `${hostName}: current seller terms must update model context`);
+  const contextArgs = kind === 'chatgpt' ? contextCall.args : contextCall.params;
+  assert.equal(contextArgs.structuredContent.checkedResource.requestBound, true);
+  assert.equal(
+    contextArgs.structuredContent.checkedResource.paymentOptions[0].amountAtomic,
+    '8000',
+  );
+  assert.doesNotMatch(
+    JSON.stringify(contextArgs.structuredContent),
+    /preparedPurchase|purchaseOptions/i,
   );
 
   const forbiddenPaymentCalls = toolCalls.filter((call) => {
@@ -1033,7 +980,7 @@ function assertPreparedPurchaseHostCalls(hostName, calls, kind) {
   assert.equal(
     forbiddenPaymentCalls.length,
     0,
-    `${hostName}: mode selection must not dispatch a payment`,
+    `${hostName}: payment review must not dispatch from the widget`,
   );
 }
 
@@ -1148,42 +1095,42 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
       await page.close();
     });
 
-    await t.test('ChatGPT preserves a ready prepared mode in its chat handoff', async () => {
+    await t.test('ChatGPT hands exact GET seller terms back for one payment review', async () => {
       const page = await context.newPage();
       const pageErrors = [];
       page.on('pageerror', (error) => pageErrors.push(error.message));
       await page.addInitScript(installChatGptHost, {
         searchOutput: SEARCH_OUTPUT,
-        checkToolResult: FUTURE_PURCHASE_READY_CHECK_TOOL_RESULT,
+        checkToolResult: EXACT_GET_CHECK_TOOL_RESULT,
       });
       await page.goto(widgetUrl);
 
-      await exercisePreparedPurchaseHandoff({
-        hostName: 'ChatGPT prepared purchase',
+      await exerciseExactPaymentHandoff({
+        hostName: 'ChatGPT exact payment',
         surface: page,
       });
 
       const calls = await page.evaluate(() => window.__hostCalls);
-      assertPreparedPurchaseHostCalls(
-        'ChatGPT prepared purchase',
+      assertExactPaymentHostCalls(
+        'ChatGPT exact payment',
         calls,
         'chatgpt',
       );
       assert.deepEqual(
         pageErrors,
         [],
-        'ChatGPT prepared purchase: no uncaught browser errors',
+        'ChatGPT exact payment: no uncaught browser errors',
       );
       await page.close();
     });
 
-    await t.test('ChatGPT search coalesces rapid purchase follow-ups', async () => {
+    await t.test('ChatGPT search coalesces rapid payment-review follow-ups', async () => {
       const page = await context.newPage();
       const pageErrors = [];
       page.on('pageerror', (error) => pageErrors.push(error.message));
       await page.addInitScript(installChatGptHost, {
         searchOutput: SEARCH_OUTPUT,
-        checkToolResult: FUTURE_PURCHASE_READY_CHECK_TOOL_RESULT,
+        checkToolResult: EXACT_GET_CHECK_TOOL_RESULT,
         deferFollowUp: true,
       });
       await page.goto(widgetUrl);
@@ -1191,13 +1138,9 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
       await page.getByRole('button', { name: 'Use this service' }).click();
       await page.getByRole(
         'heading',
-        { name: 'Price estimate available' },
+        { name: 'Ready for your approval' },
       ).waitFor();
-      await page.getByRole('radio', { name: /Use seller tab/ }).check();
-      const review = page.getByRole(
-        'button',
-        { name: 'Review Use seller tab' },
-      );
+      const review = page.getByRole('button', { name: 'Review payment' });
       await review.evaluate((button) => {
         button.click();
         button.click();
@@ -1221,13 +1164,13 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
       await page.close();
     });
 
-    await t.test('ChatGPT pricing coalesces rapid purchase follow-ups', async () => {
+    await t.test('ChatGPT pricing coalesces rapid payment-review follow-ups', async () => {
       const page = await context.newPage();
       const pageErrors = [];
       page.on('pageerror', (error) => pageErrors.push(error.message));
       await page.addInitScript(installChatGptHost, {
-        searchOutput: FUTURE_PURCHASE_READY_CHECK_TOOL_RESULT.structuredContent,
-        checkToolResult: FUTURE_PURCHASE_READY_CHECK_TOOL_RESULT,
+        searchOutput: EXACT_GET_CHECK_TOOL_RESULT.structuredContent,
+        checkToolResult: EXACT_GET_CHECK_TOOL_RESULT,
         toolInput: {
           url: 'https://fixture.example/atlas',
           method: 'GET',
@@ -1238,13 +1181,9 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
       });
       await page.goto(pricingWidgetUrl);
 
-      await page.getByRole(
-        'radio',
-        { name: /Use seller tab/ },
-      ).check();
       const continueButton = page.getByRole(
         'button',
-        { name: /Continue in chat · Use seller tab/ },
+        { name: /Review payment/ },
       );
       await continueButton.evaluate((button) => {
         button.click();
@@ -1260,6 +1199,16 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
         calls.filter((call) => call.kind === 'sendFollowUpMessage').length,
         1,
         'ChatGPT pricing: a rapid double click must emit one follow-up',
+      );
+      const pricingPrompt = calls.find(
+        (call) => call.kind === 'sendFollowUpMessage',
+      )?.args?.prompt;
+      assert.match(pricingPrompt, /Exact request: GET with no request body/);
+      assert.match(pricingPrompt, /maxAmountAtomic 8000/);
+      assert.match(pricingPrompt, /call x402_fetch once/);
+      assert.doesNotMatch(
+        pricingPrompt,
+        /preparedPurchase|purchaseOptions|purchase mode|omit purchase/i,
       );
       assert.deepEqual(
         pageErrors,
@@ -1356,7 +1305,7 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
       const page = await context.newPage();
       await page.addInitScript(installChatGptHost, {
         searchOutput: SEARCH_OUTPUT,
-        checkToolResult: CHECK_TOOL_RESULT,
+        checkToolResult: EXACT_GET_CHECK_TOOL_RESULT,
         allowFollowUp: false,
         allowDisplayMode: false,
       });
@@ -1365,7 +1314,7 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
       await page.getByRole('button', { name: 'Use this service' }).click();
       await page.getByRole(
         'heading',
-        { name: 'Price estimate available' },
+        { name: 'Ready for your approval' },
       ).waitFor();
       await page.getByText(
         'Ask Dexter in chat to continue with this checked service.',
@@ -1381,7 +1330,7 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
           call.kind === 'updateModelContext'
           && call.args?.structuredContent?.checkedResource?.url
             === 'https://fixture.example/atlas'
-          && call.args?.structuredContent?.checkedResource?.requestBound === false
+          && call.args?.structuredContent?.checkedResource?.requestBound === true
         )),
       );
       await page.close();
@@ -1533,7 +1482,7 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
       await page.close();
     });
 
-    await t.test('MCP Apps preserves a ready prepared mode in its chat handoff', async () => {
+    await t.test('MCP Apps hands exact GET seller terms back for one payment review', async () => {
       const page = await context.newPage();
       await page.setViewportSize({
         width: 390,
@@ -1548,7 +1497,7 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
           + '</body></html>',
       );
       await page.evaluate(setupMcpParentHost, {
-        checkToolResult: FUTURE_PURCHASE_READY_CHECK_TOOL_RESULT,
+        checkToolResult: EXACT_GET_CHECK_TOOL_RESULT,
         initResult: MCP_INIT_RESULT,
         searchToolResult: SEARCH_TOOL_RESULT,
         widgetUrl,
@@ -1557,23 +1506,23 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
       const frame = await page.locator('#widget').contentFrame();
       assert.ok(
         frame,
-        'MCP Apps prepared purchase: fixture iframe must expose a content frame',
+        'MCP Apps exact payment: fixture iframe must expose a content frame',
       );
-      await exercisePreparedPurchaseHandoff({
-        hostName: 'MCP Apps prepared purchase',
+      await exerciseExactPaymentHandoff({
+        hostName: 'MCP Apps exact payment',
         surface: frame,
       });
 
       const calls = await page.evaluate(() => window.__hostCalls);
-      assertPreparedPurchaseHostCalls(
-        'MCP Apps prepared purchase',
+      assertExactPaymentHostCalls(
+        'MCP Apps exact payment',
         calls,
         'mcp-apps',
       );
       assert.deepEqual(
         pageErrors,
         [],
-        'MCP Apps prepared purchase: no uncaught browser errors',
+        'MCP Apps exact payment: no uncaught browser errors',
       );
       await page.close();
     });

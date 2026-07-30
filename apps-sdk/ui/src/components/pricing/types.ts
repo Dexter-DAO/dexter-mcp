@@ -4,8 +4,6 @@
  * by open-mcp-server.mjs after merging the live probe with /api/x402/resource.
  */
 
-import type { PreparedPurchaseOption } from '../x402/purchase-model';
-
 export type PaymentOption = {
   price: number;
   priceFormatted: string;
@@ -120,9 +118,12 @@ export type PricingPayload = {
   statusCode?: number;
   x402Version?: number;
   paymentOptions?: PaymentOption[];
-  purchaseContractVersion?: string;
-  preparedPayload?: string | null;
-  purchaseOptions?: PreparedPurchaseOption[];
+  checkedRequest?: {
+    url?: string;
+    method?: string;
+    body?: string | null;
+    requestBound?: boolean;
+  };
   free?: boolean;
   authRequired?: boolean;
   message?: string;
