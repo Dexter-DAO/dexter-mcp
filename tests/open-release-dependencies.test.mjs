@@ -5,7 +5,7 @@ import { resolve } from 'node:path';
 import test from 'node:test';
 import {
   inspectInstalledRelease,
-  inspectPeerClosure,
+  inspectProductionClosure,
   inspectRegistryLock,
   inspectRuntimeNode,
   inspectSourceTrain,
@@ -193,7 +193,7 @@ test('registry lock rejects registry packages without integrity', async () => {
   }
 });
 
-test('installed closure ignores unrelated dev tooling but rejects a broken release package', async () => {
+test('installed closure ignores missing dev tooling but rejects any broken production dependency', async () => {
   const fixture = await mkdtemp(resolve(tmpdir(), 'opendexter-installed-'));
   try {
     await mkdir(resolve(fixture, 'node_modules/release-package'), {
@@ -214,7 +214,7 @@ test('installed closure ignores unrelated dev tooling but rejects a broken relea
     );
 
     assert.deepEqual(
-      await inspectPeerClosure(fixture, ['release-package']),
+      await inspectProductionClosure(fixture),
       [],
     );
 
@@ -223,7 +223,7 @@ test('installed closure ignores unrelated dev tooling but rejects a broken relea
       force: true,
     });
     assert.notDeepEqual(
-      await inspectPeerClosure(fixture, ['release-package']),
+      await inspectProductionClosure(fixture),
       [],
     );
   } finally {

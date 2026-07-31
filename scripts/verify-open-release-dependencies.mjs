@@ -172,9 +172,14 @@ async function inspectInstalledPackage({
   return issues;
 }
 
-export async function inspectPeerClosure(runtimeRoot, packageNames = []) {
+export async function inspectPeerClosure(
+  runtimeRoot,
+  packageNames = [],
+  { omitDev = false } = {},
+) {
   const args = [
     'ls',
+    ...(omitDev ? ['--omit=dev'] : []),
     ...packageNames,
     '--all',
     '--json',
@@ -208,6 +213,10 @@ export async function inspectPeerClosure(runtimeRoot, packageNames = []) {
       : ['npm ls rejected the installed dependency graph'];
   }
   return [];
+}
+
+export async function inspectProductionClosure(runtimeRoot) {
+  return inspectPeerClosure(runtimeRoot, [], { omitDev: true });
 }
 
 async function inspectIsolatedTooling(hostedRoot, manifest) {
@@ -305,10 +314,10 @@ export async function inspectSourceTrain({
 
   issues.push(...(await inspectIsolatedTooling(hostedRoot, manifest)));
   issues.push(
-    ...(await inspectPeerClosure(runtimeRoot, [
-      ...manifest.sourcePackages,
-      ...manifest.runtimePackages,
-    ].map(({ name }) => name))),
+    ...(await inspectPeerClosure(
+      runtimeRoot,
+      releaseClosurePackageNames(manifest),
+    )),
   );
   return { ready: issues.length === 0, issues };
 }
@@ -392,7 +401,6 @@ export async function inspectInstalledRelease(hostedRoot) {
   const manifest = await readJson(
     resolve(hostedRoot, 'release/opendexter-dependency-train.json'),
   );
-  const releasePackageNames = releaseClosurePackageNames(manifest);
   const issues = [];
   for (const expected of manifest.sourcePackages) {
     issues.push(
@@ -417,7 +425,7 @@ export async function inspectInstalledRelease(hostedRoot) {
     );
   }
   issues.push(...(await inspectIsolatedTooling(hostedRoot, manifest)));
-  issues.push(...(await inspectPeerClosure(hostedRoot, releasePackageNames)));
+  issues.push(...(await inspectProductionClosure(hostedRoot)));
   return { ready: issues.length === 0, issues };
 }
 
