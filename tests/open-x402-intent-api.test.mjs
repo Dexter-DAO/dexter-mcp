@@ -195,15 +195,17 @@ test('authority refusals are classified without changing the intent', () => {
   assert.equal(isOpenX402AuthorityRequired({ error: 'new_check_required' }), false);
 });
 
-test('native owner approval becomes one safe hosted-consent continuation', () => {
+test('rail-neutral owner approval becomes one safe hosted-consent continuation', () => {
   const consentUrl =
-    'https://dexter.cash/wallet/approvals/x402/018f47dd-1f5f-7abc-8def-0123456789ab?maxAmountAtomic=250';
+    'https://dexter.cash/wallet/approvals/x402/018f47dd-1f5f-7abc-8def-0123456789ab';
   const source = {
     ok: false,
     intentId: 'intent-1',
     error: 'approval_required',
     approval: {
-      namespace: 'dexter-native-exact-owner-consent-link/v1',
+      namespace: 'dexter-gateway-owner-consent-link/v1',
+      approvalRequestId: '018f47dd-1f5f-7abc-8def-0123456789ab',
+      subjectKind: 'gateway_cash',
       consentUrl,
       approvalIntentHash: 'private',
       approvedCeilingAtomic: '250',
@@ -232,6 +234,17 @@ test('hosted consent rejects lookalike origins and unknown nested contracts', ()
       namespace: 'untrusted-consent-link/v1',
       consentUrl: 'https://dexter.cash/wallet/approvals/x402/intent-1',
     },
+  }), undefined);
+  assert.equal(readOpenX402ConsentUrl({
+    approval: {
+      namespace: 'dexter-gateway-owner-consent-link/v1',
+      consentUrl:
+        'https://dexter.cash/wallet/approvals/x402/018f47dd-1f5f-7abc-8def-0123456789ab?maxAmountAtomic=250',
+    },
+  }), undefined);
+  assert.equal(readOpenX402ConsentUrl({
+    consentUrl:
+      'https://dexter.cash/wallet/approvals/x402/018f47dd-1f5f-7abc-8def-0123456789ab?next=https%3A%2F%2Fevil.example',
   }), undefined);
 });
 
