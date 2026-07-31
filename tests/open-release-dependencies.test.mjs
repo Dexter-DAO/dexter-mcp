@@ -5,10 +5,12 @@ import { resolve } from 'node:path';
 import test from 'node:test';
 import {
   inspectInstalledRelease,
+  inspectPeerClosure,
   inspectRegistryLock,
   inspectRuntimeNode,
   inspectSourceTrain,
   isSupportedNodeRuntime,
+  releaseClosurePackageNames,
   versionAtLeast,
 } from '../scripts/verify-open-release-dependencies.mjs';
 
@@ -125,6 +127,14 @@ test('hosted source declares one exact internal dependency train', async () => {
     '49805e9cd7894e982d8e6227af1e98e0ccd1d05e',
   );
   assert.equal(manifest.registryLock.requiredBeforeDeploy, true);
+  assert.deepEqual(
+    releaseClosurePackageNames(manifest),
+    [
+      ...manifest.sourcePackages,
+      ...manifest.runtimePackages,
+    ].map(({ name }) => name),
+  );
+  assert.equal(releaseClosurePackageNames(manifest).includes('vite'), false);
 });
 
 test('registry deployment gate fails closed without a real npm lock', async () => {
@@ -178,6 +188,44 @@ test('registry lock rejects registry packages without integrity', async () => {
     const result = await inspectRegistryLock(fixture);
     assert.equal(result.ready, false);
     assert.match(result.issues.join('\n'), /sha512 integrity is missing/);
+  } finally {
+    await rm(fixture, { recursive: true, force: true });
+  }
+});
+
+test('installed closure ignores unrelated dev tooling but rejects a broken release package', async () => {
+  const fixture = await mkdtemp(resolve(tmpdir(), 'opendexter-installed-'));
+  try {
+    await mkdir(resolve(fixture, 'node_modules/release-package'), {
+      recursive: true,
+    });
+    await writeFile(
+      resolve(fixture, 'package.json'),
+      JSON.stringify({
+        name: 'installed-closure-fixture',
+        version: '1.0.0',
+        dependencies: { 'release-package': '1.0.0' },
+        devDependencies: { 'missing-dev-tool': '1.0.0' },
+      }),
+    );
+    await writeFile(
+      resolve(fixture, 'node_modules/release-package/package.json'),
+      JSON.stringify({ name: 'release-package', version: '1.0.0' }),
+    );
+
+    assert.deepEqual(
+      await inspectPeerClosure(fixture, ['release-package']),
+      [],
+    );
+
+    await rm(resolve(fixture, 'node_modules/release-package'), {
+      recursive: true,
+      force: true,
+    });
+    assert.notDeepEqual(
+      await inspectPeerClosure(fixture, ['release-package']),
+      [],
+    );
   } finally {
     await rm(fixture, { recursive: true, force: true });
   }

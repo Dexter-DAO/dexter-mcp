@@ -46,6 +46,13 @@ export function isSupportedNodeRuntime(version) {
   );
 }
 
+export function releaseClosurePackageNames(manifest) {
+  return [
+    ...manifest.sourcePackages,
+    ...manifest.runtimePackages,
+  ].map(({ name }) => name);
+}
+
 export async function inspectRuntimeNode(
   hostedRoot,
   runtimeVersion = process.versions.node,
@@ -165,7 +172,7 @@ async function inspectInstalledPackage({
   return issues;
 }
 
-async function inspectPeerClosure(runtimeRoot, packageNames = []) {
+export async function inspectPeerClosure(runtimeRoot, packageNames = []) {
   const args = [
     'ls',
     ...packageNames,
@@ -385,6 +392,7 @@ export async function inspectInstalledRelease(hostedRoot) {
   const manifest = await readJson(
     resolve(hostedRoot, 'release/opendexter-dependency-train.json'),
   );
+  const releasePackageNames = releaseClosurePackageNames(manifest);
   const issues = [];
   for (const expected of manifest.sourcePackages) {
     issues.push(
@@ -409,7 +417,7 @@ export async function inspectInstalledRelease(hostedRoot) {
     );
   }
   issues.push(...(await inspectIsolatedTooling(hostedRoot, manifest)));
-  issues.push(...(await inspectPeerClosure(hostedRoot)));
+  issues.push(...(await inspectPeerClosure(hostedRoot, releasePackageNames)));
   return { ready: issues.length === 0, issues };
 }
 
