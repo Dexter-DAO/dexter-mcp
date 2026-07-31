@@ -93,6 +93,7 @@ import {
   isOpenMcpProtectedResourceMetadataPath,
   isVaultAuthenticationRequired,
   registerOpenTool,
+  vaultAuthenticationReason,
   vaultAuthenticationResult,
 } from './lib/open-tool-auth.mjs';
 import {
@@ -1488,8 +1489,6 @@ async function x402Wallet(_args, extra) {
   }
   if (state?.status === 'ready' && state.vault && sessionId) {
     markSessionVaultBound(sessionId);
-  } else if (state && sessionId) {
-    clearSessionVaultBinding(sessionId);
   }
 
   // No identity at all — no session id to resolve a binding from.
@@ -1507,8 +1506,9 @@ async function x402Wallet(_args, extra) {
   // Only a session the binding table confirms is NOT bound falls through to the
   // host challenge below. If that second lookup also fails, binding truth stays
   // unknown and we return a read error rather than inventing either state.
+  let binding = null;
   if (stateReadFailed && sessionId) {
-    const binding = await checkSessionVaultBinding(sessionId);
+    binding = await checkSessionVaultBinding(sessionId);
     if (binding.bound) {
       markSessionVaultBound(sessionId);
       return buildVaultReadError({ userBound: true });
@@ -1523,9 +1523,18 @@ async function x402Wallet(_args, extra) {
   // authorize through the host. Do not create another vpair: a new pending
   // pairing can shadow the completed binding and strand the active chat.
   if (!state || state.status !== 'ready' || !state.vault) {
+    if (!binding && sessionId) {
+      binding = await checkSessionVaultBinding(sessionId);
+      if (!binding.ok) return buildVaultReadError();
+      if (binding.bound) markSessionVaultBound(sessionId);
+      else clearSessionVaultBinding(sessionId);
+    }
     return buildVaultAuthenticationRequired({
       tool: 'x402_wallet',
-      reason: stateReadFailed ? 'vault_lookup_failed' : (state?.status || 'not_enrolled'),
+      reason: vaultAuthenticationReason({
+        bindingConfirmed: binding?.bound === true,
+        vaultStatus: state?.status,
+      }),
     });
   }
 
@@ -1782,15 +1791,21 @@ async function dexterPortfolio(_args, extra) {
     clearSessionVaultBinding(sessionId);
     return buildVaultAuthenticationRequired({
       tool: 'dexter_portfolio',
-      reason: 'vault_binding_not_found',
+      reason: vaultAuthenticationReason(),
     });
   }
 
   if (state?.status !== 'ready' || !state.vault) {
-    clearSessionVaultBinding(sessionId);
+    const binding = await checkSessionVaultBinding(sessionId);
+    if (!binding.ok) return buildPortfolioReadError({ userBound: null });
+    if (binding.bound) markSessionVaultBound(sessionId);
+    else clearSessionVaultBinding(sessionId);
     return buildVaultAuthenticationRequired({
       tool: 'dexter_portfolio',
-      reason: state?.status || 'not_enrolled',
+      reason: vaultAuthenticationReason({
+        bindingConfirmed: binding.bound,
+        vaultStatus: state?.status,
+      }),
     });
   }
   markSessionVaultBound(sessionId);

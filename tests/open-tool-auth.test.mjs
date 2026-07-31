@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
@@ -20,6 +21,7 @@ import {
   projectCanonicalSecuritySchemes,
   projectCanonicalSecuritySchemesOnMessage,
   registerOpenTool,
+  vaultAuthenticationReason,
   vaultAuthenticationResult,
   withOpenToolAuth,
 } from '../lib/open-tool-auth.mjs';
@@ -237,11 +239,11 @@ test('both protected-resource metadata routes serve the same corrected issuer', 
 test('runtime challenge is host-native and contains no legacy pairing path', () => {
   const data = buildVaultAuthenticationRequired({
     tool: 'x402_wallet',
-    reason: 'not_enrolled',
   });
   assert.equal(isVaultAuthenticationRequired(data), true);
   assert.equal(data.next_action, 'connect_opendexter');
   assert.equal(data.user_bound, false);
+  assert.equal(data.reason, 'vault_oauth_required');
   assert.equal('next_tool' in data, false);
   assert.equal('enroll_url' in data, false);
   assert.equal('pairing_url' in data, false);
@@ -254,6 +256,95 @@ test('runtime challenge is host-native and contains no legacy pairing path', () 
   assert.match(VAULT_WWW_AUTHENTICATE, /scope="vault"/);
   assert.match(VAULT_WWW_AUTHENTICATE, /error="insufficient_scope"/);
   assert.match(VAULT_WWW_AUTHENTICATE, /error_description="[^"]+"/);
+});
+
+test('unbound state cannot turn a synthetic not_enrolled lookup into wallet truth', () => {
+  assert.equal(
+    vaultAuthenticationReason({
+      bindingConfirmed: false,
+      vaultStatus: 'not_enrolled',
+    }),
+    'vault_oauth_required',
+  );
+  assert.equal(
+    vaultAuthenticationReason({
+      bindingConfirmed: true,
+      vaultStatus: 'not_enrolled',
+    }),
+    'not_enrolled',
+  );
+});
+
+test('wallet and portfolio emit the same raw SDK OAuth challenge without enrollment claims', async () => {
+  const server = new McpServer({ name: 'auth-result-test', version: '1.0.0' });
+  for (const tool of ['x402_wallet', 'dexter_portfolio']) {
+    registerOpenTool(server, tool, { inputSchema: {} }, async () => {
+      const reason = vaultAuthenticationReason({
+        bindingConfirmed: false,
+        vaultStatus: 'not_enrolled',
+      });
+      return vaultAuthenticationResult(
+        buildVaultAuthenticationRequired({ tool, reason }),
+      );
+    });
+  }
+
+  const client = new Client({ name: 'auth-result-client', version: '1.0.0' });
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  await Promise.all([
+    server.connect(serverTransport),
+    client.connect(clientTransport),
+  ]);
+
+  try {
+    for (const tool of ['x402_wallet', 'dexter_portfolio']) {
+      const result = await client.callTool({ name: tool, arguments: {} });
+      assert.equal(result.isError, true, tool);
+      assert.equal(result.structuredContent.mode, 'authentication_required', tool);
+      assert.equal(result.structuredContent.reason, 'vault_oauth_required', tool);
+      assert.equal(result.structuredContent.user_bound, false, tool);
+      assert.deepEqual(
+        result._meta['mcp/www_authenticate'],
+        [VAULT_WWW_AUTHENTICATE],
+        tool,
+      );
+      const text = JSON.parse(result.content[0].text);
+      assert.equal(text.reason, 'vault_oauth_required', tool);
+      assert.doesNotMatch(JSON.stringify(result), /not_enrolled/, tool);
+    }
+  } finally {
+    await client.close();
+    await server.close();
+  }
+});
+
+test('wallet and portfolio handlers require durable binding evidence before preserving enrollment state', async () => {
+  const source = await readFile(
+    new URL('../open-mcp-server.mjs', import.meta.url),
+    'utf8',
+  );
+  const wallet = source.slice(
+    source.indexOf('async function x402Wallet'),
+    source.indexOf('function buildPortfolioReadError'),
+  );
+  const portfolio = source.slice(
+    source.indexOf('async function dexterPortfolio'),
+    source.indexOf('// ─── MCP Server Setup'),
+  );
+
+  for (const [tool, implementation] of [
+    ['x402_wallet', wallet],
+    ['dexter_portfolio', portfolio],
+  ]) {
+    assert.match(implementation, /checkSessionVaultBinding\(sessionId\)/, tool);
+    assert.match(implementation, /vaultAuthenticationReason\(\{/, tool);
+    assert.match(implementation, /bindingConfirmed:/, tool);
+    assert.doesNotMatch(
+      implementation,
+      /reason:\s*state\?\.status\s*\|\|\s*['"]not_enrolled['"]/,
+      tool,
+    );
+  }
 });
 
 test('opaque-intent authentication challenges without confusing hosted consent', () => {
