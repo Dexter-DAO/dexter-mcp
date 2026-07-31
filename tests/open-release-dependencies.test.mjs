@@ -104,6 +104,7 @@ test('hosted source declares one exact internal dependency train', async () => {
     manifest.runtimePackages.map(({ name, version }) =>
       `${name}@${version}`),
     [
+      '@dexterai/vault@0.43.0',
       '@modelcontextprotocol/sdk@1.29.0',
       '@modelcontextprotocol/ext-apps@1.6.0',
       'zod@3.25.76',

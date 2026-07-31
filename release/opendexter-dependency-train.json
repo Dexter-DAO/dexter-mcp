@@ -59,6 +59,11 @@
   ],
   "runtimePackages": [
     {
+      "name": "@dexterai/vault",
+      "version": "0.43.0",
+      "rootSpecifier": "0.43.0"
+    },
+    {
       "name": "@modelcontextprotocol/sdk",
       "version": "1.29.0",
       "rootSpecifier": "1.29.0"

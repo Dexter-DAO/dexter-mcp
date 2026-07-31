@@ -31,9 +31,10 @@ train recorded in
 Its release runtime is Node `^20.19.0 || >=22.12.0`, matching the pinned Vite
 toolchain; `npm run verify:release:runtime` checks that boundary before install
 or build.
-Until those exact versions are published, there is deliberately no registry
-lock and `deploy:mcp` fails its lock gate. An isolated local source train and
-its installed dependency graph can be checked without deploying:
+The exact internal versions are published and this candidate carries a
+registry-resolved lock. `deploy:mcp` still fails closed if either the lock or
+installed graph drifts from the recorded train. An isolated local source train
+and its installed dependency graph can be checked without deploying:
 
 ```bash
 OPENDXTER_IDE_SOURCE=/absolute/path/to/opendexter-ide-candidate \

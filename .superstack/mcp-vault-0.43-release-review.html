@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MCP Vault 0.43 release-graph review</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+    body { margin: 0; background: #090b10; color: #edf1f7; }
+    main { max-width: 920px; margin: 0 auto; padding: 48px 24px 72px; }
+    h1, h2 { letter-spacing: -0.03em; }
+    h1 { font-size: 42px; margin: 0 0 8px; }
+    h2 { margin-top: 36px; }
+    p, li, td { line-height: 1.55; color: #c8d0dc; }
+    code { color: #afffc9; }
+    .sub { color: #8f9bab; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .card { border: 1px solid #27303c; border-radius: 14px; padding: 18px; background: #11151d; }
+    .grade { font-size: 30px; font-weight: 750; color: #afffc9; }
+    .label { color: #8f9bab; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; }
+    table { width: 100%; border-collapse: collapse; background: #11151d; }
+    th, td { text-align: left; vertical-align: top; padding: 13px 14px; border-bottom: 1px solid #27303c; }
+    th { color: #8f9bab; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
+    .clear { color: #afffc9; font-weight: 700; }
+    .gate { color: #ffd88a; font-weight: 700; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="sub">PREPARE-only · corrected registry closure · 2026-07-31</p>
+  <h1>MCP → Vault 0.43.0</h1>
+  <p>
+    The earlier MCP receipt was incorrect: its source and lock still resolved
+    Vault 0.37.3. This corrected candidate pins, locks, installs, and verifies
+    the exact published Vault 0.43.0 artifact used by the coordinated train.
+  </p>
+
+  <div class="grid">
+    <div class="card"><div class="label">Graph integrity</div><div class="grade">Exact</div></div>
+    <div class="card"><div class="label">Hosted tests</div><div class="grade">349</div></div>
+    <div class="card"><div class="label">Release gates</div><div class="grade">Green</div></div>
+    <div class="card"><div class="label">Production</div><div class="grade">Unchanged</div></div>
+  </div>
+
+  <h2>Exact dependency evidence</h2>
+  <table>
+    <thead><tr><th>Surface</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td>Root dependency</td><td><code>@dexterai/vault: 0.43.0</code></td></tr>
+      <tr><td>Release manifest</td><td><code>@dexterai/vault@0.43.0</code></td></tr>
+      <tr><td>Registry lock</td><td><code>vault-0.43.0.tgz</code></td></tr>
+      <tr><td>Registry SRI</td><td><code>sha512-WJVc4hjVMY+xGUhs1Yct2Hin8LiPccX/Og6jP6+NDuWqopj8bEAU/7iVgAljqFDXkM3BTNFXuXalaSmCZvBeYA==</code></td></tr>
+      <tr><td>Installed peer closure</td><td>Root and <code>@dexterai/x402</code> deduplicate to Vault 0.43.0.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Evidence</h2>
+  <ul>
+    <li>Runtime, registry-lock, and installed-runtime gates passed.</li>
+    <li>Hosted suite: <code>350 total; 349 passed; 1 skipped; 0 failed</code>.</li>
+    <li>Workspace suites: <code>52 + 16 + 3 passed</code>.</li>
+    <li>Strict typecheck, x402-core build, and local Apps SDK production build passed.</li>
+    <li>Diff and generated-output cleanliness are required before commit and push.</li>
+  </ul>
+
+  <h2>Tracked release boundary</h2>
+  <p class="gate">
+    npm reports inherited advisories in existing dependencies. They require a
+    separate compatibility-qualified modernization; forced audit rewrites are
+    not part of this exact money-path recut.
+  </p>
+  <p class="sub">
+    No package was published, service deployed, PM2 process changed,
+    production transaction signed, or money moved.
+  </p>
+</main>
+</body>
+</html>
