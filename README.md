@@ -102,6 +102,12 @@ timestamp, method, exact route, and exact serialized body. Missing or weak
 configuration fails closed before the request leaves MCP; the secret is never
 part of a tool argument or result.
 
+Production runs both hosted processes from `ecosystem.production.cjs`. Set
+`DEXTER_MCP_ENV_FILE` to one absolute, service-owned mode-0600 regular file
+before asking PM2 to load that config. The launcher rejects symlinks, hard
+links, foreign ownership, permissive modes, and inherited Node loader controls;
+the immutable release itself contains no credential file.
+
 **How wallet identity works.** OAuth authorizes the stable
 `https://open.dexter.cash/mcp` connector. Protected wallet and portfolio calls
 resolve the durable wallet binding for that authenticated MCP session and the
