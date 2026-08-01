@@ -2,7 +2,16 @@
 
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { access, lstat, readFile, realpath } from 'node:fs/promises';
+import {
+  access,
+  lstat,
+  mkdir,
+  mkdtemp,
+  readFile,
+  realpath,
+  rm,
+} from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -87,16 +96,52 @@ export function gitTreeSpec(commit, packagePath) {
   return packagePath === '.' ? `${commit}^{tree}` : `${commit}:${packagePath}`;
 }
 
-export async function readPackedSourceArtifact(packageRoot) {
+export const NPM_PACK_LIFECYCLE_HOOKS = Object.freeze([
+  'prepack',
+  'prepare',
+  'postpack',
+]);
+
+export function inspectPackLifecycleScripts(pkg, packageName = pkg?.name) {
+  const scripts = pkg?.scripts;
+  if (scripts === undefined) return [];
+  if (!scripts || typeof scripts !== 'object' || Array.isArray(scripts)) {
+    return [`${packageName}: package scripts must be an object`];
+  }
+  const hooks = NPM_PACK_LIFECYCLE_HOOKS.filter((hook) =>
+    Object.prototype.hasOwnProperty.call(scripts, hook));
+  return hooks.length === 0
+    ? []
+    : [
+      `${packageName}: forbidden npm pack lifecycle hooks: ${hooks.join(', ')}`,
+    ];
+}
+
+function packageManagerVersion(packageManager) {
+  const match = String(packageManager).match(/^npm@(\d+\.\d+\.\d+)$/);
+  if (!match) {
+    throw new Error(`package manager must pin exact npm, found ${packageManager}`);
+  }
+  return match[1];
+}
+
+async function readPackedArtifactReport(
+  packageRoot,
+  runCommand = execFileAsync,
+) {
   let stdout;
   try {
-    ({ stdout } = await execFileAsync(
+    ({ stdout } = await runCommand(
       'npm',
       ['pack', '--ignore-scripts', '--dry-run', '--json'],
       {
         cwd: packageRoot,
         encoding: 'utf8',
         maxBuffer: 16 * 1024 * 1024,
+        env: {
+          ...process.env,
+          npm_config_ignore_scripts: 'true',
+        },
       },
     ));
   } catch (error) {
@@ -127,15 +172,8 @@ export async function readPackedSourceArtifact(packageRoot) {
   };
 }
 
-export async function inspectPackedSourceArtifact(packageRoot, expected) {
+export function comparePackedArtifact(actual, expected) {
   const issues = [];
-  let actual;
-  try {
-    actual = await readPackedSourceArtifact(packageRoot);
-  } catch (error) {
-    return [`${expected.name}: ${error.message}`];
-  }
-
   if (actual.name !== expected.name || actual.version !== expected.version) {
     issues.push(
       `${expected.name}: npm pack reported ${actual.name}@${actual.version}`,
@@ -158,10 +196,20 @@ export async function inspectPackedSourceArtifact(packageRoot, expected) {
   return issues;
 }
 
-async function inspectPackageSource(base, expected, repository, { requireBuild }) {
+export async function inspectPackageSourcePreflight(
+  base,
+  expected,
+  repository,
+  { requireBuild },
+) {
   const packageRoot = resolve(base, expected.path);
-  const pkg = await readJson(resolve(packageRoot, 'package.json'));
   const issues = [];
+  let pkg;
+  try {
+    pkg = await readJson(resolve(packageRoot, 'package.json'));
+  } catch (error) {
+    return [`${expected.name}: cannot read source package: ${error.message}`];
+  }
 
   if (pkg.name !== expected.name) {
     issues.push(`${expected.path}: expected ${expected.name}, found ${pkg.name}`);
@@ -171,19 +219,46 @@ async function inspectPackageSource(base, expected, repository, { requireBuild }
       `${expected.name}: expected ${expected.version}, found ${pkg.version}`,
     );
   }
-  if (requireBuild && !(await exists(resolve(packageRoot, expected.entrypoint)))) {
+  if (
+    requireBuild
+    && !expected.packedArtifact
+    && !(await exists(resolve(packageRoot, expected.entrypoint)))
+  ) {
     issues.push(`${expected.name}: missing built ${expected.entrypoint}`);
   }
   if (expected.packedArtifact) {
-    issues.push(
-      ...(await inspectPackedSourceArtifact(packageRoot, expected)),
-    );
+    issues.push(...inspectPackLifecycleScripts(pkg, expected.name));
+    const buildScript = expected.packedArtifact.buildScript;
+    if (
+      typeof buildScript !== 'string'
+      || typeof pkg.scripts?.[buildScript] !== 'string'
+      || pkg.scripts[buildScript].trim() === ''
+    ) {
+      issues.push(`${expected.name}: reviewed build script is unavailable`);
+    }
   }
 
   try {
     const remote = await git(base, 'remote', 'get-url', 'origin');
     if (remote !== repository.remote) {
       issues.push(`${expected.name}: source remote is ${remote}`);
+    }
+    const recordedCommit = await git(
+      base,
+      'rev-parse',
+      `${repository.provenanceCommit}^{commit}`,
+    );
+    if (recordedCommit !== repository.provenanceCommit) {
+      issues.push(
+        `${expected.name}: provenance commit resolves to ${recordedCommit}`,
+      );
+    }
+    const head = await git(base, 'rev-parse', 'HEAD');
+    if (expected.source !== 'hosted' && head !== repository.provenanceCommit) {
+      issues.push(
+        `${expected.name}: source HEAD is ${head}, `
+          + `expected ${repository.provenanceCommit}`,
+      );
     }
     const recordedTree = await git(
       base,
@@ -207,15 +282,175 @@ async function inspectPackageSource(base, expected, repository, { requireBuild }
           `expected ${expected.treeHash}`,
       );
     }
-    const dirty = await git(base, 'status', '--porcelain', '--', expected.path);
+    const dirty = expected.source === 'hosted'
+      ? await git(
+        base,
+        'status',
+        '--porcelain',
+        '--untracked-files=all',
+        '--',
+        expected.path,
+      )
+      : await git(base, 'status', '--porcelain', '--untracked-files=all');
     if (dirty) {
-      issues.push(`${expected.name}: source package path has uncommitted changes`);
+      issues.push(
+        expected.source === 'hosted'
+          ? `${expected.name}: source package path has uncommitted changes`
+          : `${expected.name}: source repository has uncommitted changes`,
+      );
     }
   } catch (error) {
     issues.push(`${expected.name}: cannot verify Git provenance: ${error.message}`);
   }
 
   return issues;
+}
+
+export async function rebuildPackedSourceArtifact({
+  sourceRoot,
+  expected,
+  repository,
+  packageManager,
+  runCommand = execFileAsync,
+}) {
+  const expectedNpmVersion = packageManagerVersion(packageManager);
+  const buildScript = expected.packedArtifact?.buildScript;
+  if (!buildScript) {
+    throw new Error(`${expected.name}: packed artifact lacks a build script`);
+  }
+
+  const disposableRoot = await mkdtemp(
+    resolve(tmpdir(), 'opendexter-source-pack-'),
+  );
+  const archivePath = resolve(disposableRoot, 'source.tar');
+  const archiveRoot = resolve(disposableRoot, 'source');
+  try {
+    await mkdir(archiveRoot, { recursive: true });
+    await runCommand(
+      'git',
+      [
+        '-C',
+        sourceRoot,
+        'archive',
+        '--format=tar',
+        '--output',
+        archivePath,
+        repository.provenanceCommit,
+      ],
+      { encoding: 'utf8' },
+    );
+    await runCommand(
+      'tar',
+      ['-xf', archivePath, '-C', archiveRoot],
+      { encoding: 'utf8' },
+    );
+
+    const packageRoot = resolve(archiveRoot, expected.path);
+    const archivedPackage = await readJson(resolve(packageRoot, 'package.json'));
+    if (
+      archivedPackage.name !== expected.name
+      || archivedPackage.version !== expected.version
+    ) {
+      throw new Error(
+        `${expected.name}: archived package identity is `
+          + `${archivedPackage.name}@${archivedPackage.version}`,
+      );
+    }
+    const lifecycleIssues = inspectPackLifecycleScripts(
+      archivedPackage,
+      expected.name,
+    );
+    if (lifecycleIssues.length > 0) {
+      throw new Error(lifecycleIssues.join('; '));
+    }
+    if (
+      typeof archivedPackage.scripts?.[buildScript] !== 'string'
+      || archivedPackage.scripts[buildScript].trim() === ''
+    ) {
+      throw new Error(`${expected.name}: archived build script is unavailable`);
+    }
+    if (!(await exists(resolve(packageRoot, 'package-lock.json')))) {
+      throw new Error(`${expected.name}: archived package-lock.json is absent`);
+    }
+
+    const { stdout: npmVersionOutput } = await runCommand(
+      'npm',
+      ['--version'],
+      { encoding: 'utf8' },
+    );
+    const npmVersion = npmVersionOutput.trim();
+    if (npmVersion !== expectedNpmVersion) {
+      throw new Error(
+        `${expected.name}: npm is ${npmVersion}, expected ${expectedNpmVersion}`,
+      );
+    }
+
+    const npmEnvironment = {
+      ...process.env,
+      npm_config_audit: 'false',
+      npm_config_fund: 'false',
+      npm_config_ignore_scripts: 'true',
+    };
+    await runCommand(
+      'npm',
+      ['ci', '--ignore-scripts', '--no-audit', '--no-fund'],
+      {
+        cwd: packageRoot,
+        encoding: 'utf8',
+        maxBuffer: 16 * 1024 * 1024,
+        env: npmEnvironment,
+      },
+    );
+    await runCommand(
+      'npm',
+      ['run', buildScript],
+      {
+        cwd: packageRoot,
+        encoding: 'utf8',
+        maxBuffer: 16 * 1024 * 1024,
+        env: npmEnvironment,
+      },
+    );
+    const builtPackage = await readJson(resolve(packageRoot, 'package.json'));
+    if (
+      builtPackage.name !== expected.name
+      || builtPackage.version !== expected.version
+    ) {
+      throw new Error(
+        `${expected.name}: build changed package identity to `
+          + `${builtPackage.name}@${builtPackage.version}`,
+      );
+    }
+    const postBuildLifecycleIssues = inspectPackLifecycleScripts(
+      builtPackage,
+      expected.name,
+    );
+    if (postBuildLifecycleIssues.length > 0) {
+      throw new Error(
+        `build introduced ${postBuildLifecycleIssues.join('; ')}`,
+      );
+    }
+    if (!(await exists(resolve(packageRoot, expected.entrypoint)))) {
+      throw new Error(
+        `${expected.name}: rebuild did not create ${expected.entrypoint}`,
+      );
+    }
+    return await readPackedArtifactReport(packageRoot, runCommand);
+  } catch (error) {
+    throw new Error(`${expected.name}: isolated source rebuild failed: ${error.message}`);
+  } finally {
+    await rm(disposableRoot, { recursive: true, force: true });
+  }
+}
+
+export async function inspectRebuiltSourceArtifact(options) {
+  const { expected } = options;
+  try {
+    const actual = await rebuildPackedSourceArtifact(options);
+    return comparePackedArtifact(actual, expected);
+  } catch (error) {
+    return [error.message];
+  }
 }
 
 async function inspectInstalledPackage({
@@ -329,6 +564,8 @@ export async function inspectSourceTrain({
   vaultRoot,
   runtimeRoot,
   requireBuild = true,
+  rebuildPackedArtifact = inspectRebuiltSourceArtifact,
+  inspectPeerGraph = inspectPeerClosure,
 }) {
   if (!runtimeRoot) {
     throw new Error('runtimeRoot is required for source dependency verification');
@@ -359,6 +596,7 @@ export async function inspectSourceTrain({
     'opendexter-ide': ideRoot,
     'vault-sdk': vaultRoot,
   };
+  const packedSources = [];
   for (const expected of manifest.sourcePackages) {
     const sourceRoot = sourceRoots[expected.source];
     if (!sourceRoot) {
@@ -367,10 +605,13 @@ export async function inspectSourceTrain({
     }
     const repository = manifest.repositories[expected.source];
     issues.push(
-      ...(await inspectPackageSource(sourceRoot, expected, repository, {
+      ...(await inspectPackageSourcePreflight(sourceRoot, expected, repository, {
         requireBuild,
       })),
     );
+    if (expected.packedArtifact) {
+      packedSources.push({ sourceRoot, expected, repository });
+    }
     if (hostedPackage.dependencies?.[expected.name] !== expected.rootSpecifier) {
       issues.push(
         `${expected.name}: hosted dependency is ` +
@@ -407,8 +648,24 @@ export async function inspectSourceTrain({
   }
 
   issues.push(...(await inspectIsolatedTooling(hostedRoot, manifest)));
+
+  // Every source, filesystem, and Git assertion must pass before npm is
+  // allowed to run. This keeps an untrusted or dirty source from reaching
+  // npm's lifecycle machinery, including npm 10's prepare-on-pack behavior.
+  if (issues.length > 0) return { ready: false, issues };
+
+  for (const packedSource of packedSources) {
+    issues.push(
+      ...(await rebuildPackedArtifact({
+        ...packedSource,
+        packageManager: manifest.packageManager,
+      })),
+    );
+  }
+  if (issues.length > 0) return { ready: false, issues };
+
   issues.push(
-    ...(await inspectPeerClosure(
+    ...(await inspectPeerGraph(
       runtimeRoot,
       releaseClosurePackageNames(manifest),
     )),

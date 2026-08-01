@@ -1,26 +1,134 @@
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import {
+  access,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import test from 'node:test';
+import { promisify } from 'node:util';
 import {
+  NPM_PACK_LIFECYCLE_HOOKS,
+  comparePackedArtifact,
   inspectInstalledRelease,
-  inspectPackedSourceArtifact,
+  inspectPackageSourcePreflight,
+  inspectPackLifecycleScripts,
   inspectProductionClosure,
   inspectRegistryLock,
   inspectRuntimeNode,
   inspectSourceTrain,
   gitTreeSpec,
   isSupportedNodeRuntime,
-  readPackedSourceArtifact,
+  rebuildPackedSourceArtifact,
   releaseClosurePackageNames,
   versionAtLeast,
 } from '../scripts/verify-open-release-dependencies.mjs';
 
+const execFileAsync = promisify(execFile);
 const hostedRoot = new URL('..', import.meta.url).pathname;
 const ideRoot = process.env.OPENDXTER_IDE_SOURCE;
 const vaultRoot = process.env.DEXTER_VAULT_SDK_SOURCE;
 const runtimeRoot = process.env.OPENDXTER_RUNTIME_ROOT;
+
+async function git(root, ...args) {
+  const { stdout } = await execFileAsync('git', ['-C', root, ...args], {
+    encoding: 'utf8',
+  });
+  return stdout.trim();
+}
+
+async function packedSourceFixture({ lifecycleHook } = {}) {
+  const repositoryRoot = await mkdtemp(
+    resolve(tmpdir(), 'opendexter-packed-source-'),
+  );
+  const packagePath = 'packages/vault';
+  const packageRoot = resolve(repositoryRoot, packagePath);
+  const scripts = {
+    build: 'node build.mjs',
+  };
+  if (lifecycleHook) {
+    scripts[lifecycleHook] =
+      'node -e "require(\'node:fs\').writeFileSync(\'.prepare-ran\', \'ran\')"';
+  }
+  await mkdir(packageRoot, { recursive: true });
+  await writeFile(
+    resolve(repositoryRoot, '.gitignore'),
+    'packages/vault/dist/\npackages/vault/node_modules/\n',
+  );
+  await writeFile(
+    resolve(packageRoot, 'package.json'),
+    JSON.stringify({
+      name: '@dexterai/fixture-vault',
+      version: '1.0.0',
+      type: 'module',
+      files: ['dist'],
+      scripts,
+    }, null, 2),
+  );
+  await writeFile(
+    resolve(packageRoot, 'package-lock.json'),
+    JSON.stringify({
+      name: '@dexterai/fixture-vault',
+      version: '1.0.0',
+      lockfileVersion: 3,
+      requires: true,
+      packages: {
+        '': {
+          name: '@dexterai/fixture-vault',
+          version: '1.0.0',
+        },
+      },
+    }, null, 2),
+  );
+  await writeFile(
+    resolve(packageRoot, 'build.mjs'),
+    "import { mkdir, writeFile } from 'node:fs/promises';\n"
+      + "await mkdir(new URL('./dist/', import.meta.url), { recursive: true });\n"
+      + "await writeFile(new URL('./dist/index.js', import.meta.url), "
+      + "'export const value = 1;\\n');\n",
+  );
+  await git(repositoryRoot, 'init');
+  await git(repositoryRoot, 'config', 'user.email', 'fixture@example.test');
+  await git(repositoryRoot, 'config', 'user.name', 'Fixture');
+  await git(
+    repositoryRoot,
+    'remote',
+    'add',
+    'origin',
+    'https://example.test/dexter-vault-sdk.git',
+  );
+  await git(repositoryRoot, 'add', '.');
+  await git(repositoryRoot, 'commit', '-m', 'fixture');
+  const provenanceCommit = await git(repositoryRoot, 'rev-parse', 'HEAD');
+  const treeHash = await git(
+    repositoryRoot,
+    'rev-parse',
+    `${provenanceCommit}:${packagePath}`,
+  );
+  return {
+    repositoryRoot,
+    packageRoot,
+    expected: {
+      name: '@dexterai/fixture-vault',
+      version: '1.0.0',
+      source: 'vault-sdk',
+      path: packagePath,
+      entrypoint: 'dist/index.js',
+      treeHash,
+      packedArtifact: { buildScript: 'build' },
+      install: { source: 'registry', release: 'registry' },
+    },
+    repository: {
+      remote: 'https://example.test/dexter-vault-sdk.git',
+      provenanceCommit,
+    },
+  };
+}
 
 async function registryLockFixture(mutator = () => {}) {
   const fixture = await mkdtemp(resolve(tmpdir(), 'opendexter-lock-'));
@@ -125,6 +233,7 @@ test('hosted source declares one exact internal dependency train', async () => {
     ],
   );
   assert.equal(manifest.schemaVersion, 2);
+  assert.equal(manifest.packageManager, 'npm@10.9.3');
   assert.equal(manifest.node, '^20.19.0 || >=22.12.0');
   assert.deepEqual(
     manifest.sourcePackages.map(({ install }) => install),
@@ -154,6 +263,7 @@ test('hosted source declares one exact internal dependency train', async () => {
       entrypoint: 'dist/index.js',
       treeHash: 'cafe641da3821f765708e55b59374be5cfac05f8',
       packedArtifact: {
+        buildScript: 'build',
         integrity: 'sha512-WJVc4hjVMY+xGUhs1Yct2Hin8LiPccX/Og6jP6+NDuWqopj8bEAU/7iVgAljqFDXkM3BTNFXuXalaSmCZvBeYA==',
         shasum: 'b2d6ffa85da429d006fcfd86ce910db219f88690',
         size: 584781,
@@ -247,34 +357,190 @@ test('registry lock rejects a Vault artifact outside the reviewed source pack', 
   }
 });
 
-test('source pack verification fails closed on any artifact mismatch', async () => {
-  const fixture = await mkdtemp(resolve(tmpdir(), 'opendexter-pack-source-'));
-  try {
-    await writeFile(
-      resolve(fixture, 'package.json'),
-      JSON.stringify({
+test('every npm pack lifecycle hook is rejected before npm can run', async () => {
+  assert.deepEqual(NPM_PACK_LIFECYCLE_HOOKS, [
+    'prepack',
+    'prepare',
+    'postpack',
+  ]);
+  for (const hook of NPM_PACK_LIFECYCLE_HOOKS) {
+    assert.match(
+      inspectPackLifecycleScripts({
         name: '@dexterai/fixture',
+        scripts: { [hook]: 'hostile-command' },
+      }).join('\n'),
+      new RegExp(`forbidden npm pack lifecycle hooks: ${hook}`),
+    );
+  }
+});
+
+test('hostile prepare is rejected without executing its marker', async () => {
+  const fixture = await packedSourceFixture({ lifecycleHook: 'prepare' });
+  try {
+    const issues = await inspectPackageSourcePreflight(
+      fixture.repositoryRoot,
+      fixture.expected,
+      fixture.repository,
+      { requireBuild: true },
+    );
+    assert.match(
+      issues.join('\n'),
+      /forbidden npm pack lifecycle hooks: prepare/,
+    );
+    await assert.rejects(access(resolve(fixture.packageRoot, '.prepare-ran')));
+  } finally {
+    await rm(fixture.repositoryRoot, { recursive: true, force: true });
+  }
+});
+
+test('dirty external source fails before rebuild or peer npm inspection', async () => {
+  const fixture = await packedSourceFixture();
+  const hosted = await mkdtemp(resolve(tmpdir(), 'opendexter-source-hosted-'));
+  const runtime = await mkdtemp(resolve(tmpdir(), 'opendexter-source-runtime-'));
+  let rebuildCalled = false;
+  let peerCalled = false;
+  try {
+    const manifest = {
+      schemaVersion: 2,
+      packageManager: 'npm@10.9.3',
+      node: '^20.19.0 || >=22.12.0',
+      hostedPackage: { name: 'fixture-hosted', version: '1.0.0' },
+      repositories: { 'vault-sdk': fixture.repository },
+      sourcePackages: [{
+        ...fixture.expected,
+        rootSpecifier: '1.0.0',
+      }],
+      runtimePackages: [],
+      isolatedTooling: [],
+    };
+    await mkdir(resolve(hosted, 'release'), { recursive: true });
+    await writeFile(
+      resolve(hosted, 'release/opendexter-dependency-train.json'),
+      JSON.stringify(manifest),
+    );
+    await writeFile(
+      resolve(hosted, 'package.json'),
+      JSON.stringify({
+        name: 'fixture-hosted',
         version: '1.0.0',
-        files: ['index.js'],
+        packageManager: 'npm@10.9.3',
+        engines: { node: '^20.19.0 || >=22.12.0' },
+        dependencies: { '@dexterai/fixture-vault': '1.0.0' },
       }),
     );
-    await writeFile(resolve(fixture, 'index.js'), 'export const value = 1;\n');
-    const packedArtifact = await readPackedSourceArtifact(fixture);
-    const expected = {
-      name: '@dexterai/fixture',
-      version: '1.0.0',
-      packedArtifact,
-    };
+    const installedRoot = resolve(
+      runtime,
+      'node_modules/@dexterai/fixture-vault',
+    );
+    await mkdir(installedRoot, { recursive: true });
+    await writeFile(
+      resolve(installedRoot, 'package.json'),
+      JSON.stringify({ name: '@dexterai/fixture-vault', version: '1.0.0' }),
+    );
+    await writeFile(resolve(fixture.packageRoot, 'dirty.txt'), 'dirty\n');
+
+    const result = await inspectSourceTrain({
+      hostedRoot: hosted,
+      ideRoot: hosted,
+      vaultRoot: fixture.repositoryRoot,
+      runtimeRoot: runtime,
+      requireBuild: false,
+      rebuildPackedArtifact: async () => {
+        rebuildCalled = true;
+        return [];
+      },
+      inspectPeerGraph: async () => {
+        peerCalled = true;
+        return [];
+      },
+    });
+    assert.equal(result.ready, false);
+    assert.match(result.issues.join('\n'), /source repository has uncommitted/);
+    assert.equal(rebuildCalled, false);
+    assert.equal(peerCalled, false);
+  } finally {
+    await rm(fixture.repositoryRoot, { recursive: true, force: true });
+    await rm(hosted, { recursive: true, force: true });
+    await rm(runtime, { recursive: true, force: true });
+  }
+});
+
+test('external source requires exact remote and HEAD even when its package tree matches', async () => {
+  const fixture = await packedSourceFixture();
+  try {
+    await writeFile(resolve(fixture.repositoryRoot, 'README.md'), 'later\n');
+    await git(fixture.repositoryRoot, 'add', 'README.md');
+    await git(fixture.repositoryRoot, 'commit', '-m', 'later outside package');
+    await git(
+      fixture.repositoryRoot,
+      'remote',
+      'set-url',
+      'origin',
+      'https://example.test/unreviewed.git',
+    );
+    const issues = await inspectPackageSourcePreflight(
+      fixture.repositoryRoot,
+      fixture.expected,
+      fixture.repository,
+      { requireBuild: true },
+    );
+    assert.match(issues.join('\n'), /source remote is .*unreviewed\.git/);
+    assert.match(issues.join('\n'), /source HEAD is .* expected/);
+    assert.doesNotMatch(issues.join('\n'), /current source tree is/);
+  } finally {
+    await rm(fixture.repositoryRoot, { recursive: true, force: true });
+  }
+});
+
+test('source artifact is rebuilt from pinned archive, not ignored checkout output', async () => {
+  const fixture = await packedSourceFixture();
+  try {
+    const ignoredOutput = resolve(fixture.packageRoot, 'dist/index.js');
+    await mkdir(resolve(fixture.packageRoot, 'dist'), { recursive: true });
+    await writeFile(ignoredOutput, 'malicious ignored output\n');
     assert.deepEqual(
-      await inspectPackedSourceArtifact(fixture, expected),
+      await inspectPackageSourcePreflight(
+        fixture.repositoryRoot,
+        fixture.expected,
+        fixture.repository,
+        { requireBuild: true },
+      ),
       [],
     );
 
-    await writeFile(resolve(fixture, 'index.js'), 'export const value = 2;\n');
-    const result = await inspectPackedSourceArtifact(fixture, expected);
-    assert.match(result.join('\n'), /source pack integrity is .* expected/);
+    const first = await rebuildPackedSourceArtifact({
+      sourceRoot: fixture.repositoryRoot,
+      expected: fixture.expected,
+      repository: fixture.repository,
+      packageManager: 'npm@10.9.3',
+    });
+    await writeFile(ignoredOutput, 'different malicious ignored output\n');
+    const second = await rebuildPackedSourceArtifact({
+      sourceRoot: fixture.repositoryRoot,
+      expected: fixture.expected,
+      repository: fixture.repository,
+      packageManager: 'npm@10.9.3',
+    });
+    assert.deepEqual(second, first);
+    assert.equal(
+      await readFile(ignoredOutput, 'utf8'),
+      'different malicious ignored output\n',
+    );
+
+    const expected = {
+      ...fixture.expected,
+      packedArtifact: {
+        ...fixture.expected.packedArtifact,
+        ...first,
+        integrity: 'sha512-intentionally-wrong',
+      },
+    };
+    assert.match(
+      comparePackedArtifact(first, expected).join('\n'),
+      /source pack integrity is .* expected/,
+    );
   } finally {
-    await rm(fixture, { recursive: true, force: true });
+    await rm(fixture.repositoryRoot, { recursive: true, force: true });
   }
 });
 

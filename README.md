@@ -45,9 +45,13 @@ OPENDXTER_RUNTIME_ROOT=/absolute/path/to/disposable-installed-graph \
 
 The source gate verifies the current Node runtime, package Git provenance,
 exact installed versions, source-link destinations, built entrypoints, and npm
-peer closure. It also rebuilds the reviewed Vault SDK package inventory and
-requires its packed bytes to match the registry artifact exactly. The release
-path separately verifies the Node runtime and
+peer closure. Before npm can run, it rejects dirty or unpinned external source
+repositories and any npm pack lifecycle hook. It exports the reviewed Vault
+SDK commit into a disposable directory, performs an exact-lock scripts-disabled
+install and the explicit reviewed build with npm 10.9.3, then requires the
+packed bytes to match the registry artifact exactly. It never uses or changes
+the source checkout's ignored `dist/` or `node_modules/`. The release path
+separately verifies the Node runtime and
 registry lock, performs `npm ci`, builds the hosted workspace package, and
 rejects any installed graph that differs from the recorded train.
 

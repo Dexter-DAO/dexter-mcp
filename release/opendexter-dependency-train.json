@@ -69,6 +69,7 @@
       "entrypoint": "dist/index.js",
       "treeHash": "cafe641da3821f765708e55b59374be5cfac05f8",
       "packedArtifact": {
+        "buildScript": "build",
         "integrity": "sha512-WJVc4hjVMY+xGUhs1Yct2Hin8LiPccX/Og6jP6+NDuWqopj8bEAU/7iVgAljqFDXkM3BTNFXuXalaSmCZvBeYA==",
         "shasum": "b2d6ffa85da429d006fcfd86ce910db219f88690",
         "size": 584781,
