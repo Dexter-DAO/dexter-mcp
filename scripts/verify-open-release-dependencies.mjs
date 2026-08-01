@@ -83,6 +83,81 @@ async function git(rootPath, ...args) {
   return stdout.trim();
 }
 
+export function gitTreeSpec(commit, packagePath) {
+  return packagePath === '.' ? `${commit}^{tree}` : `${commit}:${packagePath}`;
+}
+
+export async function readPackedSourceArtifact(packageRoot) {
+  let stdout;
+  try {
+    ({ stdout } = await execFileAsync(
+      'npm',
+      ['pack', '--ignore-scripts', '--dry-run', '--json'],
+      {
+        cwd: packageRoot,
+        encoding: 'utf8',
+        maxBuffer: 16 * 1024 * 1024,
+      },
+    ));
+  } catch (error) {
+    throw new Error(
+      `npm pack could not inspect ${packageRoot}: ${error.message}`,
+    );
+  }
+
+  let report;
+  try {
+    report = JSON.parse(stdout);
+  } catch {
+    throw new Error(`npm pack did not return readable JSON for ${packageRoot}`);
+  }
+  if (!Array.isArray(report) || report.length !== 1) {
+    throw new Error(`npm pack returned an unexpected report for ${packageRoot}`);
+  }
+  const packed = report[0];
+  return {
+    id: packed.id,
+    name: packed.name,
+    version: packed.version,
+    integrity: packed.integrity,
+    shasum: packed.shasum,
+    size: packed.size,
+    unpackedSize: packed.unpackedSize,
+    entryCount: packed.entryCount,
+  };
+}
+
+export async function inspectPackedSourceArtifact(packageRoot, expected) {
+  const issues = [];
+  let actual;
+  try {
+    actual = await readPackedSourceArtifact(packageRoot);
+  } catch (error) {
+    return [`${expected.name}: ${error.message}`];
+  }
+
+  if (actual.name !== expected.name || actual.version !== expected.version) {
+    issues.push(
+      `${expected.name}: npm pack reported ${actual.name}@${actual.version}`,
+    );
+  }
+  for (const field of [
+    'integrity',
+    'shasum',
+    'size',
+    'unpackedSize',
+    'entryCount',
+  ]) {
+    if (actual[field] !== expected.packedArtifact[field]) {
+      issues.push(
+        `${expected.name}: source pack ${field} is ${actual[field]}, `
+          + `expected ${expected.packedArtifact[field]}`,
+      );
+    }
+  }
+  return issues;
+}
+
 async function inspectPackageSource(base, expected, repository, { requireBuild }) {
   const packageRoot = resolve(base, expected.path);
   const pkg = await readJson(resolve(packageRoot, 'package.json'));
@@ -99,6 +174,11 @@ async function inspectPackageSource(base, expected, repository, { requireBuild }
   if (requireBuild && !(await exists(resolve(packageRoot, expected.entrypoint)))) {
     issues.push(`${expected.name}: missing built ${expected.entrypoint}`);
   }
+  if (expected.packedArtifact) {
+    issues.push(
+      ...(await inspectPackedSourceArtifact(packageRoot, expected)),
+    );
+  }
 
   try {
     const remote = await git(base, 'remote', 'get-url', 'origin');
@@ -108,7 +188,7 @@ async function inspectPackageSource(base, expected, repository, { requireBuild }
     const recordedTree = await git(
       base,
       'rev-parse',
-      `${repository.provenanceCommit}:${expected.path}`,
+      gitTreeSpec(repository.provenanceCommit, expected.path),
     );
     if (recordedTree !== expected.treeHash) {
       issues.push(
@@ -116,7 +196,11 @@ async function inspectPackageSource(base, expected, repository, { requireBuild }
           `expected ${expected.treeHash}`,
       );
     }
-    const currentTree = await git(base, 'rev-parse', `HEAD:${expected.path}`);
+    const currentTree = await git(
+      base,
+      'rev-parse',
+      gitTreeSpec('HEAD', expected.path),
+    );
     if (currentTree !== expected.treeHash) {
       issues.push(
         `${expected.name}: current source tree is ${currentTree}, ` +
@@ -242,6 +326,7 @@ async function inspectIsolatedTooling(hostedRoot, manifest) {
 export async function inspectSourceTrain({
   hostedRoot,
   ideRoot,
+  vaultRoot,
   runtimeRoot,
   requireBuild = true,
 }) {
@@ -269,8 +354,17 @@ export async function inspectSourceTrain({
   const runtime = await inspectRuntimeNode(hostedRoot);
   issues.push(...runtime.issues);
 
+  const sourceRoots = {
+    hosted: hostedRoot,
+    'opendexter-ide': ideRoot,
+    'vault-sdk': vaultRoot,
+  };
   for (const expected of manifest.sourcePackages) {
-    const sourceRoot = expected.source === 'hosted' ? hostedRoot : ideRoot;
+    const sourceRoot = sourceRoots[expected.source];
+    if (!sourceRoot) {
+      issues.push(`${expected.name}: source root ${expected.source} is missing`);
+      continue;
+    }
     const repository = manifest.repositories[expected.source];
     issues.push(
       ...(await inspectPackageSource(sourceRoot, expected, repository, {
@@ -338,6 +432,14 @@ function inspectRegistryEntry(entry, expected, label) {
     || !entry.integrity.startsWith('sha512-')
   ) {
     issues.push(`${label}: registry resolution or sha512 integrity is missing`);
+  }
+  if (
+    expected.packedArtifact
+    && entry?.integrity !== expected.packedArtifact.integrity
+  ) {
+    issues.push(
+      `${label}: registry integrity does not match the reviewed source pack`,
+    );
   }
   return issues;
 }
@@ -457,16 +559,19 @@ async function main() {
   }
   if (mode === '--source') {
     const ideRoot = process.env.OPENDXTER_IDE_SOURCE;
+    const vaultRoot = process.env.DEXTER_VAULT_SDK_SOURCE;
     const runtimeRoot = process.env.OPENDXTER_RUNTIME_ROOT;
-    if (!ideRoot || !runtimeRoot) {
+    if (!ideRoot || !vaultRoot || !runtimeRoot) {
       throw new Error(
-        'OPENDXTER_IDE_SOURCE and OPENDXTER_RUNTIME_ROOT must point to the ' +
-          'exact source and installed-runtime candidates',
+        'OPENDXTER_IDE_SOURCE, DEXTER_VAULT_SDK_SOURCE, and ' +
+          'OPENDXTER_RUNTIME_ROOT must point to the exact source and ' +
+          'installed-runtime candidates',
       );
     }
     const result = await inspectSourceTrain({
       hostedRoot: root,
       ideRoot: resolve(ideRoot),
+      vaultRoot: resolve(vaultRoot),
       runtimeRoot: resolve(runtimeRoot),
     });
     if (!result.ready) return fail('OpenDexter source dependency gate', result);

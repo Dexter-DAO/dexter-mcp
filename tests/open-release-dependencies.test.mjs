@@ -5,17 +5,21 @@ import { resolve } from 'node:path';
 import test from 'node:test';
 import {
   inspectInstalledRelease,
+  inspectPackedSourceArtifact,
   inspectProductionClosure,
   inspectRegistryLock,
   inspectRuntimeNode,
   inspectSourceTrain,
+  gitTreeSpec,
   isSupportedNodeRuntime,
+  readPackedSourceArtifact,
   releaseClosurePackageNames,
   versionAtLeast,
 } from '../scripts/verify-open-release-dependencies.mjs';
 
 const hostedRoot = new URL('..', import.meta.url).pathname;
 const ideRoot = process.env.OPENDXTER_IDE_SOURCE;
+const vaultRoot = process.env.DEXTER_VAULT_SDK_SOURCE;
 const runtimeRoot = process.env.OPENDXTER_RUNTIME_ROOT;
 
 async function registryLockFixture(mutator = () => {}) {
@@ -50,7 +54,7 @@ async function registryLockFixture(mutator = () => {}) {
     packages[`node_modules/${expected.name}`] = {
       version: expected.version,
       resolved: `https://registry.example/${expected.name}.tgz`,
-      integrity: 'sha512-fixture',
+      integrity: expected.packedArtifact?.integrity ?? 'sha512-fixture',
     };
   }
   const lock = { lockfileVersion: 3, packages };
@@ -69,6 +73,14 @@ test('release dependency versions compare deterministically', () => {
   assert.equal(versionAtLeast('1.29.0', '1.24.0'), true);
   assert.equal(versionAtLeast('1.23.9', '1.24.0'), false);
   assert.throws(() => versionAtLeast('latest', '1.24.0'));
+});
+
+test('Git tree provenance supports repository-root and nested packages', () => {
+  assert.equal(gitTreeSpec('abc123', '.'), 'abc123^{tree}');
+  assert.equal(
+    gitTreeSpec('abc123', 'packages/vault'),
+    'abc123:packages/vault',
+  );
 });
 
 test('release runtime enforces the pinned Vite Node floor', async () => {
@@ -100,13 +112,13 @@ test('hosted source declares one exact internal dependency train', async () => {
       '@dexterai/x402-core@1.5.0',
       '@dexterai/mcp-instructions@2.4.0',
       '@dexterai/x402-mcp-tools@0.8.0',
+      '@dexterai/vault@0.43.0',
     ],
   );
   assert.deepEqual(
     manifest.runtimePackages.map(({ name, version }) =>
       `${name}@${version}`),
     [
-      '@dexterai/vault@0.43.0',
       '@modelcontextprotocol/sdk@1.29.0',
       '@modelcontextprotocol/ext-apps@1.6.0',
       'zod@3.25.76',
@@ -120,11 +132,36 @@ test('hosted source declares one exact internal dependency train', async () => {
       { source: 'workspace', release: 'workspace' },
       { source: 'linked-source', release: 'registry' },
       { source: 'linked-source', release: 'registry' },
+      { source: 'registry', release: 'registry' },
     ],
   );
   assert.equal(
     manifest.repositories['opendexter-ide'].provenanceCommit,
     '49805e9cd7894e982d8e6227af1e98e0ccd1d05e',
+  );
+  assert.deepEqual(manifest.repositories['vault-sdk'], {
+    remote: 'https://github.com/Dexter-DAO/dexter-vault-sdk.git',
+    provenanceCommit: 'dac9a9384f181341370c8fa776b1832279911a30',
+  });
+  assert.deepEqual(
+    manifest.sourcePackages.find(({ name }) => name === '@dexterai/vault'),
+    {
+      name: '@dexterai/vault',
+      version: '0.43.0',
+      rootSpecifier: '0.43.0',
+      source: 'vault-sdk',
+      path: '.',
+      entrypoint: 'dist/index.js',
+      treeHash: 'cafe641da3821f765708e55b59374be5cfac05f8',
+      packedArtifact: {
+        integrity: 'sha512-WJVc4hjVMY+xGUhs1Yct2Hin8LiPccX/Og6jP6+NDuWqopj8bEAU/7iVgAljqFDXkM3BTNFXuXalaSmCZvBeYA==',
+        shasum: 'b2d6ffa85da429d006fcfd86ce910db219f88690',
+        size: 584781,
+        unpackedSize: 2860999,
+        entryCount: 91,
+      },
+      install: { source: 'registry', release: 'registry' },
+    },
   );
   assert.equal(manifest.registryLock.requiredBeforeDeploy, true);
   assert.deepEqual(
@@ -193,6 +230,54 @@ test('registry lock rejects registry packages without integrity', async () => {
   }
 });
 
+test('registry lock rejects a Vault artifact outside the reviewed source pack', async () => {
+  const fixture = await registryLockFixture((lock) => {
+    lock.packages['node_modules/@dexterai/vault'].integrity =
+      'sha512-unreviewed-artifact';
+  });
+  try {
+    const result = await inspectRegistryLock(fixture);
+    assert.equal(result.ready, false);
+    assert.match(
+      result.issues.join('\n'),
+      /registry integrity does not match the reviewed source pack/,
+    );
+  } finally {
+    await rm(fixture, { recursive: true, force: true });
+  }
+});
+
+test('source pack verification fails closed on any artifact mismatch', async () => {
+  const fixture = await mkdtemp(resolve(tmpdir(), 'opendexter-pack-source-'));
+  try {
+    await writeFile(
+      resolve(fixture, 'package.json'),
+      JSON.stringify({
+        name: '@dexterai/fixture',
+        version: '1.0.0',
+        files: ['index.js'],
+      }),
+    );
+    await writeFile(resolve(fixture, 'index.js'), 'export const value = 1;\n');
+    const packedArtifact = await readPackedSourceArtifact(fixture);
+    const expected = {
+      name: '@dexterai/fixture',
+      version: '1.0.0',
+      packedArtifact,
+    };
+    assert.deepEqual(
+      await inspectPackedSourceArtifact(fixture, expected),
+      [],
+    );
+
+    await writeFile(resolve(fixture, 'index.js'), 'export const value = 2;\n');
+    const result = await inspectPackedSourceArtifact(fixture, expected);
+    assert.match(result.join('\n'), /source pack integrity is .* expected/);
+  } finally {
+    await rm(fixture, { recursive: true, force: true });
+  }
+});
+
 test('installed closure ignores missing dev tooling but rejects any broken production dependency', async () => {
   const fixture = await mkdtemp(resolve(tmpdir(), 'opendexter-installed-'));
   try {
@@ -246,6 +331,7 @@ test('release scripts require lock, clean install, build, and installed closure'
     inspectSourceTrain({
       hostedRoot,
       ideRoot: ideRoot || hostedRoot,
+      vaultRoot: vaultRoot || hostedRoot,
     }),
     /runtimeRoot is required/,
   );
@@ -254,11 +340,12 @@ test('release scripts require lock, clean install, build, and installed closure'
 
 test(
   'exact local source train and installed runtime can be validated',
-  { skip: !ideRoot || !runtimeRoot },
+  { skip: !ideRoot || !vaultRoot || !runtimeRoot },
   async () => {
     const result = await inspectSourceTrain({
       hostedRoot,
       ideRoot,
+      vaultRoot,
       runtimeRoot,
     });
     assert.deepEqual(result, { ready: true, issues: [] });

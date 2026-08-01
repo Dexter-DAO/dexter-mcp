@@ -14,6 +14,10 @@
     "opendexter-ide": {
       "remote": "https://github.com/Dexter-DAO/dexter-cursor.git",
       "provenanceCommit": "49805e9cd7894e982d8e6227af1e98e0ccd1d05e"
+    },
+    "vault-sdk": {
+      "remote": "https://github.com/Dexter-DAO/dexter-vault-sdk.git",
+      "provenanceCommit": "dac9a9384f181341370c8fa776b1832279911a30"
     }
   },
   "sourcePackages": [
@@ -55,14 +59,29 @@
         "source": "linked-source",
         "release": "registry"
       }
-    }
-  ],
-  "runtimePackages": [
+    },
     {
       "name": "@dexterai/vault",
       "version": "0.43.0",
-      "rootSpecifier": "0.43.0"
-    },
+      "rootSpecifier": "0.43.0",
+      "source": "vault-sdk",
+      "path": ".",
+      "entrypoint": "dist/index.js",
+      "treeHash": "cafe641da3821f765708e55b59374be5cfac05f8",
+      "packedArtifact": {
+        "integrity": "sha512-WJVc4hjVMY+xGUhs1Yct2Hin8LiPccX/Og6jP6+NDuWqopj8bEAU/7iVgAljqFDXkM3BTNFXuXalaSmCZvBeYA==",
+        "shasum": "b2d6ffa85da429d006fcfd86ce910db219f88690",
+        "size": 584781,
+        "unpackedSize": 2860999,
+        "entryCount": 91
+      },
+      "install": {
+        "source": "registry",
+        "release": "registry"
+      }
+    }
+  ],
+  "runtimePackages": [
     {
       "name": "@modelcontextprotocol/sdk",
       "version": "1.29.0",

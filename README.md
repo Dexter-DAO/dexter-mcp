@@ -38,13 +38,16 @@ and its installed dependency graph can be checked without deploying:
 
 ```bash
 OPENDXTER_IDE_SOURCE=/absolute/path/to/opendexter-ide-candidate \
+DEXTER_VAULT_SDK_SOURCE=/absolute/path/to/dexter-vault-sdk-candidate \
 OPENDXTER_RUNTIME_ROOT=/absolute/path/to/disposable-installed-graph \
   npm run verify:release:source
 ```
 
 The source gate verifies the current Node runtime, package Git provenance,
 exact installed versions, source-link destinations, built entrypoints, and npm
-peer closure. The release path separately verifies the Node runtime and
+peer closure. It also rebuilds the reviewed Vault SDK package inventory and
+requires its packed bytes to match the registry artifact exactly. The release
+path separately verifies the Node runtime and
 registry lock, performs `npm ci`, builds the hosted workspace package, and
 rejects any installed graph that differs from the recorded train.
 
