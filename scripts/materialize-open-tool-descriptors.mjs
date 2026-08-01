@@ -5,6 +5,7 @@ import {
   readFileSync,
   writeFileSync,
 } from 'node:fs';
+import { createHash } from 'node:crypto';
 import {
   access,
   mkdir,
@@ -33,6 +34,17 @@ export const OPEN_TOOL_DESCRIPTOR_PATH = resolve(
   repositoryRoot,
   'release/open-tool-descriptors.json',
 );
+export const OPENDEXTER_SOURCE_CONTRACTS_PATH = resolve(
+  repositoryRoot,
+  'release/opendexter-source-contracts.json',
+);
+
+const SOURCE_CONTRACTS_KIND = 'opendexter-source-contracts/v1';
+const DESCRIPTOR_KIND = 'opendexter-hosted-tool-descriptors/v2';
+const API_REPOSITORY = 'https://github.com/Dexter-DAO/dexter-api';
+const MCP_REPOSITORY = 'https://github.com/Dexter-DAO/dexter-mcp';
+const RECONCILE_FIXTURE_PATH =
+  'tests/fixtures/governed-agent-reconcile-advanced-final-c3e32885.json';
 
 async function readJson(path) {
   return JSON.parse(await readFile(path, 'utf8'));
@@ -48,6 +60,87 @@ async function requirePath(path, label) {
   }
 }
 
+function exactKeys(value, expected) {
+  return value
+    && typeof value === 'object'
+    && !Array.isArray(value)
+    && JSON.stringify(Object.keys(value).sort())
+      === JSON.stringify([...expected].sort());
+}
+
+function exactSourceContractsShape(sourceContracts) {
+  const api = sourceContracts?.api;
+  const mcp = sourceContracts?.mcp;
+  const fixture = api?.consumerFixture;
+  return sourceContracts?.schemaVersion === 1
+    && sourceContracts?.kind === SOURCE_CONTRACTS_KIND
+    && exactKeys(sourceContracts, ['schemaVersion', 'kind', 'api', 'mcp'])
+    && exactKeys(api, ['repository', 'commit', 'tree', 'consumerFixture'])
+    && exactKeys(fixture, [
+      'path', 'sha256', 'canonicalBodyDigest',
+    ])
+    && exactKeys(mcp, [
+      'repository', 'commit', 'tree', 'toolContractPath', 'authContractPath',
+    ])
+    && api.repository === API_REPOSITORY
+    && mcp.repository === MCP_REPOSITORY
+    && fixture.path === RECONCILE_FIXTURE_PATH
+    && mcp.toolContractPath === 'lib/open-tool-contracts.mjs'
+    && mcp.authContractPath === 'lib/open-tool-auth.mjs'
+    && /^[0-9a-f]{40}$/.test(api.commit)
+    && /^[0-9a-f]{40}$/.test(api.tree)
+    && /^[0-9a-f]{40}$/.test(mcp.commit)
+    && /^[0-9a-f]{40}$/.test(mcp.tree)
+    && /^[0-9a-f]{64}$/.test(fixture.sha256)
+    && /^[0-9a-f]{64}$/.test(fixture.canonicalBodyDigest);
+}
+
+export async function readOpenDexterSourceContracts({
+  sourceRoot = repositoryRoot,
+} = {}) {
+  const sourceContractsPath = resolve(
+    sourceRoot,
+    'release/opendexter-source-contracts.json',
+  );
+  const sourceContracts = await readJson(sourceContractsPath);
+  if (!exactSourceContractsShape(sourceContracts)) {
+    throw new Error('OpenDexter source-contract manifest is invalid');
+  }
+
+  const fixturePath = resolve(sourceRoot, RECONCILE_FIXTURE_PATH);
+  const fixtureBytes = await readFile(fixturePath);
+  const fixtureSha256 = createHash('sha256').update(fixtureBytes).digest('hex');
+  let fixture;
+  try {
+    fixture = JSON.parse(fixtureBytes.toString('utf8'));
+  } catch (error) {
+    throw new Error('OpenDexter governed API consumer fixture is invalid', {
+      cause: error,
+    });
+  }
+  if (
+    fixtureSha256 !== sourceContracts.api.consumerFixture.sha256
+    || fixture?.sourceCommit !== sourceContracts.api.commit
+    || fixture?.body?.digest
+      !== sourceContracts.api.consumerFixture.canonicalBodyDigest
+  ) {
+    throw new Error(
+      'OpenDexter governed API consumer fixture differs from its source pin',
+    );
+  }
+  await Promise.all([
+    requirePath(
+      resolve(sourceRoot, sourceContracts.mcp.toolContractPath),
+      'OpenDexter tool contract',
+    ),
+    requirePath(
+      resolve(sourceRoot, sourceContracts.mcp.authContractPath),
+      'OpenDexter auth contract',
+    ),
+  ]);
+  return sourceContracts;
+}
+
 function exactNpmVersion(packageManager) {
   const match = String(packageManager).match(/^npm@(\d+\.\d+\.\d+)$/);
   if (!match) {
@@ -59,8 +152,16 @@ function exactNpmVersion(packageManager) {
 async function parseDescriptor(stdout) {
   const descriptor = JSON.parse(stdout);
   if (
-    descriptor?.schemaVersion !== 1
-    || descriptor?.kind !== 'opendexter-hosted-tool-descriptors/v1'
+    descriptor?.schemaVersion !== 2
+    || descriptor?.kind !== DESCRIPTOR_KIND
+    || descriptor?.sourceContracts?.kind !== SOURCE_CONTRACTS_KIND
+    || descriptor?.oauth?.resource !== 'https://open.dexter.cash/mcp'
+    || typeof descriptor?.oauth?.authorizationServer !== 'string'
+    || typeof descriptor?.oauth?.authorizationServerMetadata !== 'string'
+    || typeof descriptor?.oauth?.tokenIssuer !== 'string'
+    || !Array.isArray(descriptor?.oauth?.protectedResourcePaths)
+    || !Array.isArray(descriptor?.oauth?.scopesSupported)
+    || !Array.isArray(descriptor?.oauth?.challengeRequiredParameters)
   ) {
     throw new Error('OpenDexter descriptor materializer returned invalid JSON');
   }
@@ -307,12 +408,50 @@ export async function materializeOpenToolDescriptors(options = {}) {
  * release write/check still go through the strict committed-archive function.
  */
 export async function materializeOpenToolDescriptorsFromRegistrations() {
-  const { buildHostedOpenToolDescriptor } = await import(
-    '../lib/open-tool-contracts.mjs'
-  );
-  const { createOpenMcpServer } = await import('../open-mcp-server.mjs');
+  const [
+    { buildHostedOpenToolDescriptor },
+    { createOpenMcpServer },
+    {
+      OPEN_MCP_AUTHORIZATION_SERVER,
+      OPEN_MCP_AUTHORIZATION_SERVER_METADATA,
+      OPEN_MCP_CHALLENGE_REQUIRED_PARAMETERS,
+      OPEN_MCP_PRM,
+      OPEN_MCP_PRM_URL,
+      OPEN_MCP_PROTECTED_RESOURCE_PATHS,
+      OPEN_MCP_TOKEN_ISSUER,
+    },
+    sourceContracts,
+  ] = await Promise.all([
+    import('../lib/open-tool-contracts.mjs'),
+    import('../open-mcp-server.mjs'),
+    import('../lib/open-tool-auth.mjs'),
+    readOpenDexterSourceContracts(),
+  ]);
   const server = createOpenMcpServer({ includeResources: false });
-  return buildHostedOpenToolDescriptor(server);
+  const {
+    schemaVersion: _schemaVersion,
+    kind: _kind,
+    ...hostedTools
+  } = buildHostedOpenToolDescriptor(server);
+  return {
+    schemaVersion: 2,
+    kind: DESCRIPTOR_KIND,
+    sourceContracts,
+    oauth: {
+      mode: 'mixed',
+      resource: OPEN_MCP_PRM.resource,
+      protectedResourceMetadata: OPEN_MCP_PRM_URL,
+      protectedResourcePaths: [...OPEN_MCP_PROTECTED_RESOURCE_PATHS],
+      authorizationServer: OPEN_MCP_AUTHORIZATION_SERVER,
+      authorizationServerMetadata: OPEN_MCP_AUTHORIZATION_SERVER_METADATA,
+      tokenIssuer: OPEN_MCP_TOKEN_ISSUER,
+      scopesSupported: [...OPEN_MCP_PRM.scopes_supported],
+      challengeRequiredParameters: [
+        ...OPEN_MCP_CHALLENGE_REQUIRED_PARAMETERS,
+      ],
+    },
+    ...hostedTools,
+  };
 }
 
 export function serializeOpenToolDescriptors(descriptor) {

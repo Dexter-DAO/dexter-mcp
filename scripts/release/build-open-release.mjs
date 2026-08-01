@@ -148,8 +148,17 @@ function parseDescriptor(stdout) {
     'OpenDexter tools/list descriptor',
   );
   if (
-    descriptor?.schemaVersion !== 1
-    || descriptor?.kind !== 'opendexter-hosted-tool-descriptors/v1'
+    descriptor?.schemaVersion !== 2
+    || descriptor?.kind !== 'opendexter-hosted-tool-descriptors/v2'
+    || descriptor?.sourceContracts?.kind
+      !== 'opendexter-source-contracts/v1'
+    || descriptor?.oauth?.resource !== 'https://open.dexter.cash/mcp'
+    || typeof descriptor?.oauth?.authorizationServer !== 'string'
+    || typeof descriptor?.oauth?.authorizationServerMetadata !== 'string'
+    || typeof descriptor?.oauth?.tokenIssuer !== 'string'
+    || !Array.isArray(descriptor?.oauth?.protectedResourcePaths)
+    || !Array.isArray(descriptor?.oauth?.scopesSupported)
+    || !Array.isArray(descriptor?.oauth?.challengeRequiredParameters)
     || JSON.stringify(connected) !== JSON.stringify(toolNames)
   ) {
     throw new Error('archived OpenDexter materializer returned a mismatched roster');
@@ -593,11 +602,16 @@ export async function buildOpenRelease({
     ], { env: sourceEnvironment });
 
     const descriptorPath = join(candidate, 'release/open-tool-descriptors.json');
-    if (await exists(io, descriptorPath)) {
+    if (!(await exists(io, descriptorPath))) {
       throw new Error(
-        'generated OpenDexter descriptor must not be committed in source',
+        'committed OpenDexter descriptor is missing from source',
       );
     }
+    const descriptorStat = await io.lstat(descriptorPath);
+    if (!descriptorStat.isFile() || descriptorStat.isSymbolicLink()) {
+      throw new Error('committed OpenDexter descriptor is not a regular file');
+    }
+    const committedDescriptorBytes = await io.readFile(descriptorPath);
     const packageIdentity = await readPackageIdentity(io, candidate);
     await requireCandidateEntrypoints(io, candidate);
 
@@ -678,12 +692,17 @@ export async function buildOpenRelease({
       { cwd: candidate, env: materializerEnv },
     );
     const { descriptor, connected } = parseDescriptor(descriptorOutput);
-    await io.mkdir(dirname(descriptorPath), { recursive: true, mode: 0o700 });
     const descriptorBytes = serializeDescriptor(descriptor);
-    await io.writeFile(descriptorPath, descriptorBytes, {
-      flag: 'wx',
-      mode: 0o600,
-    });
+    const postBuildDescriptorBytes = await io.readFile(descriptorPath);
+    if (!committedDescriptorBytes.equals(postBuildDescriptorBytes)) {
+      throw new Error('release build changed the committed OpenDexter descriptor');
+    }
+    if (!committedDescriptorBytes.equals(descriptorBytes)) {
+      throw new Error(
+        'committed OpenDexter descriptor differs from the archived '
+        + 'finalized tools',
+      );
+    }
 
     const privateOutput = await runText(
       runCommand,

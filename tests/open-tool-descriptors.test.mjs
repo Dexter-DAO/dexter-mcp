@@ -145,7 +145,7 @@ test('--emit-json emits exactly one descriptor document and exits', () => {
     },
   });
   const descriptor = JSON.parse(output);
-  assert.equal(descriptor.kind, 'opendexter-hosted-tool-descriptors/v1');
+  assert.equal(descriptor.kind, 'opendexter-hosted-tool-descriptors/v2');
   assert.deepEqual(descriptor.tools.map(({ name }) => name), CONNECTED);
 });
 
@@ -284,8 +284,54 @@ test('source materializer emits one deterministic full hosted descriptor', async
   );
 
   const descriptor = first;
-  assert.equal(descriptor.schemaVersion, 1);
-  assert.equal(descriptor.kind, 'opendexter-hosted-tool-descriptors/v1');
+  assert.equal(descriptor.schemaVersion, 2);
+  assert.equal(descriptor.kind, 'opendexter-hosted-tool-descriptors/v2');
+  assert.deepEqual(descriptor.sourceContracts, JSON.parse(readFileSync(
+    new URL('../release/opendexter-source-contracts.json', import.meta.url),
+    'utf8',
+  )));
+  assert.equal(
+    descriptor.sourceContracts.api.commit,
+    'c3e32885cc39cdee47eca5a054c0fd7d8a0fdd8b',
+  );
+  assert.equal(
+    descriptor.sourceContracts.api.tree,
+    'b8a3bdd790379f82b959663e679960f213addb5b',
+  );
+  assert.equal(
+    descriptor.sourceContracts.mcp.commit,
+    'c54821778f016e5bfd4942852d31ec314828a8e5',
+  );
+  assert.equal(
+    execFileSync('git', [
+      'rev-parse', `${descriptor.sourceContracts.mcp.commit}^{tree}`,
+    ], {
+      cwd: fileURLToPath(new URL('..', import.meta.url)),
+      encoding: 'utf8',
+    }).trim(),
+    descriptor.sourceContracts.mcp.tree,
+  );
+  assert.deepEqual(descriptor.oauth, {
+    mode: 'mixed',
+    resource: 'https://open.dexter.cash/mcp',
+    protectedResourceMetadata:
+      'https://open.dexter.cash/.well-known/oauth-protected-resource/mcp',
+    protectedResourcePaths: [
+      '/.well-known/oauth-protected-resource',
+      '/.well-known/oauth-protected-resource/mcp',
+    ],
+    authorizationServer: 'https://mcp.dexter.cash/mcp',
+    authorizationServerMetadata:
+      'https://mcp.dexter.cash/.well-known/oauth-authorization-server/mcp',
+    tokenIssuer: 'https://dexter.cash',
+    scopesSupported: ['vault'],
+    challengeRequiredParameters: [
+      'resource_metadata',
+      'scope',
+      'error',
+      'error_description',
+    ],
+  });
   assert.deepEqual(descriptor.anonymousToolNames, ANONYMOUS);
   assert.deepEqual(descriptor.oauthPromotedToolNames, PROMOTED);
   assert.deepEqual(descriptor.connectedToolNames, CONNECTED);

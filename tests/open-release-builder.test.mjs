@@ -48,10 +48,56 @@ function sha256(value) {
   return createHash('sha256').update(value).digest('hex');
 }
 
-function descriptorFixture() {
+function sourceContractsFixture() {
   return {
     schemaVersion: 1,
-    kind: 'opendexter-hosted-tool-descriptors/v1',
+    kind: 'opendexter-source-contracts/v1',
+    api: {
+      repository: 'https://github.com/Dexter-DAO/dexter-api',
+      commit: 'a'.repeat(40),
+      tree: 'b'.repeat(40),
+      consumerFixture: {
+        path: 'tests/fixtures/governed-reconcile.json',
+        sha256: 'c'.repeat(64),
+        canonicalBodyDigest: 'd'.repeat(64),
+      },
+    },
+    mcp: {
+      repository: 'https://github.com/Dexter-DAO/dexter-mcp',
+      commit: 'e'.repeat(40),
+      tree: 'f'.repeat(40),
+      toolContractPath: 'lib/open-tool-contracts.mjs',
+      authContractPath: 'lib/open-tool-auth.mjs',
+    },
+  };
+}
+
+function descriptorFixture() {
+  return {
+    schemaVersion: 2,
+    kind: 'opendexter-hosted-tool-descriptors/v2',
+    sourceContracts: sourceContractsFixture(),
+    oauth: {
+      mode: 'mixed',
+      resource: 'https://open.dexter.cash/mcp',
+      protectedResourceMetadata:
+        'https://open.dexter.cash/.well-known/oauth-protected-resource/mcp',
+      protectedResourcePaths: [
+        '/.well-known/oauth-protected-resource',
+        '/.well-known/oauth-protected-resource/mcp',
+      ],
+      authorizationServer: 'https://mcp.dexter.cash/mcp',
+      authorizationServerMetadata:
+        'https://mcp.dexter.cash/.well-known/oauth-authorization-server/mcp',
+      tokenIssuer: 'https://dexter.cash',
+      scopesSupported: ['vault'],
+      challengeRequiredParameters: [
+        'resource_metadata',
+        'scope',
+        'error',
+        'error_description',
+      ],
+    },
     anonymousToolNames: ['x402_search'],
     oauthPromotedToolNames: ['dexter_prepare_asset_action'],
     connectedToolNames: CONNECTED,
@@ -132,6 +178,16 @@ function sourceFixture() {
     source,
     'scripts/materialize-open-tool-descriptors.mjs',
     '// intercepted by fixture runner\n',
+  );
+  writeFixtureFile(
+    source,
+    'release/opendexter-source-contracts.json',
+    `${JSON.stringify(sourceContractsFixture(), null, 2)}\n`,
+  );
+  writeFixtureFile(
+    source,
+    'release/open-tool-descriptors.json',
+    `${JSON.stringify(descriptorFixture(), null, 2)}\n`,
   );
   writeFixtureFile(source, '.agents/skills/pay/SKILL.md', '# Pay\n');
   mkdirSync(join(source, 'skills'), { recursive: true });
@@ -382,7 +438,13 @@ test('release builder constructs the same sealed candidate from the same Git HEA
     descriptorFixture(),
   );
   assert.doesNotThrow(() => readSealedOpenRelease(first.releaseDirectory));
-  assert.equal(existsSync(join(source, 'release/open-tool-descriptors.json')), false);
+  assert.deepEqual(
+    JSON.parse(readFileSync(
+      join(source, 'release/open-tool-descriptors.json'),
+      'utf8',
+    )),
+    descriptorFixture(),
+  );
   assert.equal(git(source, ['status', '--porcelain']), '');
 
   const npmCalls = calls
@@ -600,4 +662,60 @@ test('release builder refuses an existing commit destination before npm', async 
     /release destination already exists/,
   );
   assert.equal(calls.some(({ npmCall }) => npmCall), false);
+});
+
+test('release builder requires one committed descriptor', async () => {
+  await expectPreflightFailure({
+    mutate: async (source) => {
+      rmSync(join(source, 'release/open-tool-descriptors.json'));
+      git(source, ['add', '--all']);
+      git(source, ['commit', '-qm', 'remove descriptor']);
+    },
+    pattern: /committed OpenDexter descriptor is missing/,
+  });
+});
+
+test('release builder rejects committed descriptor drift', async () => {
+  await expectPreflightFailure({
+    mutate: async (source) => {
+      const descriptor = descriptorFixture();
+      descriptor.tools[0].description = 'stale committed description';
+      writeFixtureFile(
+        source,
+        'release/open-tool-descriptors.json',
+        `${JSON.stringify(descriptor, null, 2)}\n`,
+      );
+      git(source, ['add', 'release/open-tool-descriptors.json']);
+      git(source, ['commit', '-qm', 'drift descriptor']);
+    },
+    pattern: /committed OpenDexter descriptor differs from the archived/,
+  });
+});
+
+test('release builder rejects descriptor mutation during the build', async (t) => {
+  const source = sourceFixture();
+  const outputRoot = trustedOutputRoot();
+  t.after(() => {
+    removeTree(source);
+    removeTree(outputRoot);
+  });
+  const ordinaryRunner = fixtureRunner(source);
+  const runCommand = async (command, args, options) => {
+    const result = await ordinaryRunner(command, args, options);
+    if (
+      command === REVIEWED_NPM.command
+      && args[0] === REVIEWED_NPM.npmCli
+      && args.slice(1).join(' ') === 'run build:runtime-workspaces'
+    ) {
+      writeFileSync(
+        join(options.cwd, 'release/open-tool-descriptors.json'),
+        '{"mutated":true}\n',
+      );
+    }
+    return result;
+  };
+  await assert.rejects(
+    buildOpenRelease({ sourceRoot: source, outputRoot, runCommand }),
+    /release build changed the committed OpenDexter descriptor/,
+  );
 });

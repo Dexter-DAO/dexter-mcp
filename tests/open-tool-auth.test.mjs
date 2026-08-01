@@ -6,8 +6,12 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import {
   OPEN_MCP_AUTHORIZATION_SERVER,
+  OPEN_MCP_AUTHORIZATION_SERVER_METADATA,
+  OPEN_MCP_CHALLENGE_REQUIRED_PARAMETERS,
   OPEN_MCP_PRM,
   OPEN_MCP_PRM_URL,
+  OPEN_MCP_PROTECTED_RESOURCE_PATHS,
+  OPEN_MCP_TOKEN_ISSUER,
   OPEN_MCP_VAULT_AUDIENCE,
   OPEN_TOOL_SECURITY_SCHEMES,
   VAULT_WWW_AUTHENTICATE,
@@ -219,6 +223,21 @@ test('resource metadata names the actual authorization-server issuer', () => {
   assert.equal(OPEN_MCP_PRM.resource, OPEN_MCP_VAULT_AUDIENCE);
   assert.deepEqual(OPEN_MCP_PRM.authorization_servers, [OPEN_MCP_AUTHORIZATION_SERVER]);
   assert.equal(OPEN_MCP_AUTHORIZATION_SERVER, 'https://mcp.dexter.cash/mcp');
+  assert.equal(
+    OPEN_MCP_AUTHORIZATION_SERVER_METADATA,
+    'https://mcp.dexter.cash/.well-known/oauth-authorization-server/mcp',
+  );
+  assert.equal(OPEN_MCP_TOKEN_ISSUER, 'https://dexter.cash');
+  assert.deepEqual(OPEN_MCP_PROTECTED_RESOURCE_PATHS, [
+    '/.well-known/oauth-protected-resource',
+    '/.well-known/oauth-protected-resource/mcp',
+  ]);
+  assert.deepEqual(OPEN_MCP_CHALLENGE_REQUIRED_PARAMETERS, [
+    'resource_metadata',
+    'scope',
+    'error',
+    'error_description',
+  ]);
   assert.deepEqual(OPEN_MCP_PRM.scopes_supported, ['vault']);
 });
 

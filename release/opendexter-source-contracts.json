@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "kind": "opendexter-source-contracts/v1",
+  "api": {
+    "repository": "https://github.com/Dexter-DAO/dexter-api",
+    "commit": "c3e32885cc39cdee47eca5a054c0fd7d8a0fdd8b",
+    "tree": "b8a3bdd790379f82b959663e679960f213addb5b",
+    "consumerFixture": {
+      "path": "tests/fixtures/governed-agent-reconcile-advanced-final-c3e32885.json",
+      "sha256": "449fc6b5a253d6856ae9f0990932dc6cefb84871c981229afb603a6314efa798",
+      "canonicalBodyDigest": "48e77a936f06fe07b66fee7c2cb9126e8305d4e180c2c304513d5f0ea1636e16"
+    }
+  },
+  "mcp": {
+    "repository": "https://github.com/Dexter-DAO/dexter-mcp",
+    "commit": "c54821778f016e5bfd4942852d31ec314828a8e5",
+    "tree": "c750008a28e5bb01e7ac670c826e1049461637ce",
+    "toolContractPath": "lib/open-tool-contracts.mjs",
+    "authContractPath": "lib/open-tool-auth.mjs"
+  }
+}
