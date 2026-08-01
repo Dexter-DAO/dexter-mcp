@@ -2,44 +2,65 @@
 
 ```yaml
 review:
-  security_score: B
+  reviewed_commit: f83e5cb
+  security_score: A-
   quality_score: A
   ready_for_mainnet: false
   findings:
     - severity: resolved-critical
-      category: release-graph-integrity
-      description: The prior release receipt claimed Vault 0.43.0, but package.json and the registry lock still selected Vault 0.37.3.
-      fix: Pin the root dependency and release manifest to exact Vault 0.43.0, regenerate the npm lock from the published registry artifact, and require the lock and installed-runtime gates to prove that exact graph.
-    - severity: inherited-high
-      category: supply-chain
-      description: npm currently reports inherited advisories across the existing x402, Solana, wallet-connect, Apps SDK UI, and MCP SDK dependency trees; the Vault path includes bigint-buffer and Solana Web3 advisories.
-      fix: Keep this exact lock for the coordinated release, then separately upgrade MCP SDK to a compatible patched line and qualify newer x402, Solana, and wallet-connect dependency closures under the full money-path suite. Do not apply npm audit fix force to this release candidate.
+      category: release-activation
+      description: The former hosted deployment command rebuilt mutable checkout state and used PM2 startOrReload without an atomic two-service identity proof or exact rollback.
+      fix: Commit f83e5cb builds one sealed immutable candidate, deletes and starts the exact two named processes, proves PM2, kernel, health, roster, release, and saved state, and restores the exact prior pair on any mismatch.
+    - severity: resolved-high
+      category: supply-chain-provenance
+      description: Descriptor and dependency evidence previously consumed mutable checkout files and ignored node_modules after attesting only Git identity.
+      fix: Materialize from a disposable archive of the reachable canonical Git commit, use the exact lock and reviewed Node/npm build, reject dirty or hidden index state and loader/archive injection, and compare the complete finalized descriptor.
+    - severity: resolved-high
+      category: restart-and-rollback
+      description: Earlier saved-state proof did not bind every protected environment value or durable PM2 restart control and did not prove each prior service was independently restartable.
+      fix: Hash the complete declared environment, bind the complete durable PM2 definition, re-read the protected file before deletion and after candidate save, and prove both prior sealed releases, entrypoints, interpreters, environment files, saved definitions, and restored health.
+    - severity: operational-blocker
+      category: legacy-production-migration
+      description: The currently deployed legacy v1 PM2 pair lacks the v3 release and environment evidence required by the new independently-restartable-prior proof.
+      fix: Keep activation fail-closed. Under separate release authority, migrate the existing pair to a sealed, provably restorable v3 identity before attempting the new transactional cutover.
     - severity: release-gate
-      category: production-activation
-      description: Local source and installed closure do not prove immutable PM2 activation or live OAuth and payment health.
-      fix: The captain must install the exact committed lock into the immutable release, start it with the external owner-only env contract, verify both local health endpoints and exact process command lines, then save PM2 only after post-start checks.
+      category: paired-runtime-and-descriptor
+      description: Paired API candidate e41d77b is not independently accepted and the final hosted descriptor is deliberately absent.
+      fix: Accept the exact paired API contract first, generate and verify the descriptor from immutable source, then perform package, plugin, activation, and ordinary-language novice acceptance as separately authorized release steps.
 ```
 
 ## Scope reviewed
 
-- exact root and transitive closure for `@dexterai/vault@0.43.0`;
-- workspace-aware registry lock and installed dependency closure;
-- release manifest parity and fail-closed verifier regression;
-- hosted Node tests, workspace tests, strict release typecheck, runtime build,
-  and non-deploying Apps SDK build; and
-- production boundary: no publish, deployment, PM2 mutation, signing, or money
-  movement.
+- dedicated governed-money service secret and startup refusal;
+- immutable Git-archive descriptor and release construction;
+- exact dependency, source, runtime, and installed-graph provenance;
+- sealed release identity and full file-manifest verification;
+- transactional two-process PM2 activation, saved/live preservation, rollback,
+  and direct-autorestart proof; and
+- production boundary: no push, publish, install, deployment, PM2 mutation,
+  signing, live API call, or money movement.
 
 ## Current receipts
 
-- OpenDexter runtime, registry-lock, and installed-runtime gates passed.
-- Hosted Node suite: 350 tests, 349 passed, 1 skipped, 0 failed.
-- x402 skills: 9 files and 52 tests passed.
-- x402 core: 16 Vitest tests and 3 Node tests passed.
-- Strict open-release TypeScript check passed.
-- x402-core ESM/declaration build and local Apps SDK production build passed.
-- Installed closure deduplicates root and x402 peer use to exact Vault 0.43.0.
+- Independent behavioral review: accepted with no remaining P0/P1 objection.
+- Independent scope review: accepted with no unrelated bytes or exclusions.
+- Release-focused suite: 103 passed, 1 intentional external-source skip,
+  0 failed.
+- Full MCP suite: 467 passed, 1 intentional skip, 0 failed.
+- Strict open-release TypeScript, Node runtime, registry lock, installed graph,
+  syntax, and diff gates passed.
+- `release/open-tool-descriptors.json` remains absent pending paired API
+  acceptance.
 
-The corrected MCP candidate is locally coherent. It is not a production-state
-claim; publication is unnecessary because this repository is private, and
-immutable deployment remains owned by the captain.
+## Prior release-graph receipt retained
+
+The earlier Vault 0.43 review established the exact internal dependency-train
+pattern and identified inherited transitive advisories. Commit `fd07650` now
+removes the unused legacy x402 browser-wallet graph (455 packages removed, none
+added), while the remaining Solana/runtime transitive modernization stays a
+separate compatibility-qualified task rather than a forced audit rewrite.
+
+Commit `f83e5cb` is a clean source candidate, not a deployment or live-product
+claim. The next release step is the separately authorized legacy-to-provable
+PM2 migration, followed by paired API acceptance and immutable descriptor/package
+proof.

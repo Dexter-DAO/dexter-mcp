@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpenDexter release hardening review</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+    body { margin: 0; background: #090b10; color: #edf1f7; }
+    main { max-width: 940px; margin: 0 auto; padding: 48px 24px 72px; }
+    h1, h2 { letter-spacing: -.03em; }
+    h1 { font-size: 42px; margin: 0 0 8px; }
+    h2 { margin-top: 36px; }
+    p, li, td { line-height: 1.55; color: #c8d0dc; }
+    code { color: #afffc9; }
+    .sub { color: #8f9bab; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+    .card { border: 1px solid #27303c; border-radius: 14px; padding: 18px; background: #11151d; }
+    .grade { font-size: 28px; font-weight: 750; color: #afffc9; }
+    .label { color: #8f9bab; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
+    table { width: 100%; border-collapse: collapse; background: #11151d; }
+    th, td { text-align: left; vertical-align: top; padding: 13px 14px; border-bottom: 1px solid #27303c; }
+    th { color: #8f9bab; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
+    .clear { color: #afffc9; font-weight: 700; }
+    .gate { color: #ffd88a; font-weight: 700; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="sub">PREPARE-only · source commit f83e5cb · 2026-08-01 UTC</p>
+  <h1>OpenDexter release hardening</h1>
+  <p>
+    The hosted release path now builds immutable evidence and switches both MCP
+    services transactionally. Independent review found no remaining P0/P1 in
+    this source scope. Production remains unchanged.
+  </p>
+
+  <div class="grid">
+    <div class="card"><div class="label">Security</div><div class="grade">A−</div></div>
+    <div class="card"><div class="label">Quality</div><div class="grade">A</div></div>
+    <div class="card"><div class="label">Full tests</div><div class="grade">467</div></div>
+    <div class="card"><div class="label">Production</div><div class="grade">Unchanged</div></div>
+  </div>
+
+  <h2>Closed release failures</h2>
+  <table>
+    <thead><tr><th>Boundary</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>Source provenance</td><td>Canonical reachable Git commit, clean index, immutable archive, exact lock and reviewed build.</td></tr>
+      <tr><td>Descriptor</td><td>Actual finalized tools/list schemas materialized from the archive; mutable checkout and ignored dependencies are excluded.</td></tr>
+      <tr><td>Startup</td><td>Dedicated governed-money secret and sealed roster/release identity are required before either listener becomes reachable.</td></tr>
+      <tr><td>Activation</td><td>Exact delete/start replaces in-place reload; both PM2 and kernel identities, health, rosters, and release receipts are proved.</td></tr>
+      <tr><td>Rollback</td><td>Prior code, environment bytes, complete restart controls, saved state, and restored health are independently proved.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Evidence</h2>
+  <ul>
+    <li><code>103 passed; 1 intentional skip; 0 failed</code> in the release slice.</li>
+    <li><code>467 passed; 1 intentional skip; 0 failed</code> across the full MCP suite.</li>
+    <li>TypeScript, runtime, lock, installed graph, syntax, and diff gates passed.</li>
+    <li>Behavioral and scope reviewers both accepted the final source diff.</li>
+    <li>The final hosted descriptor remains intentionally absent pending paired API acceptance.</li>
+  </ul>
+
+  <h2>Remaining release boundary</h2>
+  <p class="gate">
+    The deployed legacy pair does not carry the v3 evidence needed to prove it
+    can be restored after deletion. The new activator therefore refuses safely.
+    A separately authorized migration must establish a sealed, restartable prior
+    pair before cutover.
+  </p>
+  <p class="sub">
+    No branch was pushed, package published, service installed, process changed,
+    API called live, transaction signed, or money moved.
+  </p>
+</main>
+</body>
+</html>
