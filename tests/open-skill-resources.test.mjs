@@ -55,6 +55,14 @@ test('hosted workflow names only the twelve connected product tools', () => {
   );
 });
 
+test('master skill preserves shared product truth without pretending every surface is identical', () => {
+  assert.match(WORKFLOW, /single master OpenDexter skill for this hosted surface/i);
+  assert.match(WORKFLOW, /share one product truth, safety model, and\s+user-outcome vocabulary/i);
+  assert.match(WORKFLOW, /surface-specific/i);
+  assert.match(WORKFLOW, /authentication, installation, tool namespaces, native\s+UI handoffs/i);
+  assert.match(WORKFLOW, /Do not copy another\s+surface byte-for-byte/i);
+});
+
 test('served guidance requires native OAuth and bounded nonretryable spending', () => {
   for (const content of [WORKFLOW, PROTOCOL, DEBUGGING]) {
     assert.doesNotMatch(
