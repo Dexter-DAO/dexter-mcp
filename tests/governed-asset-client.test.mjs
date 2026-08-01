@@ -212,7 +212,7 @@ function statusResponse() {
     confirmationCommitment: null,
     settlementFinalized: false,
     reconciliationRequired: true,
-    canReconcile: false,
+    canReconcile: true,
     reconciliationKind: null,
     reconciliationEvidenceDigest: null,
     refusalSource: null,
@@ -231,6 +231,7 @@ function reconcileResponse({
   phase = 'validator-reconciliation',
   mutated = false,
   stateVersionBefore = 2,
+  attemptId = ATTEMPT_ID,
   code = 'agent_reconciliation_still_uncertain',
   statusAfter = statusResponse(),
 } = {}) {
@@ -239,7 +240,7 @@ function reconcileResponse({
     outcome,
     phase,
     intentId: INTENT_ID,
-    attemptId: ATTEMPT_ID,
+    attemptId,
     mutated,
     stateVersionBefore,
     code,
@@ -256,7 +257,11 @@ function mutateReconcile(response, mutate) {
   return { ...identity, digest: canonicalHash(identity) };
 }
 
-function executeResponse() {
+function executeResponse(overrides = {}) {
+  const {
+    business: businessOverrides = {},
+    ...responseOverrides
+  } = overrides;
   return {
     namespace: 'dexter-governed-agent-execute/v1',
     status: 'confirmed',
@@ -273,9 +278,141 @@ function executeResponse() {
       settlement: 'landed',
       finality: 'finalized',
       executionSucceeded: true,
+      ...businessOverrides,
     }),
     evidenceDigest: 'e'.repeat(64),
+    ...responseOverrides,
   };
+}
+
+function canonicalExecuteVariants() {
+  return [
+    [200, executeResponse()],
+    [200, executeResponse({
+      executed: false,
+      code: 'landed_program_error',
+      explanation: 'The protected program reported an execution error.',
+      business: {
+        executionSucceeded: false,
+        programError: true,
+      },
+    })],
+    [202, executeResponse({
+      status: 'pending',
+      transactionSignature: null,
+      executed: false,
+      code: 'claimed_attempt_resume_adapter_required',
+      explanation: 'The claimed attempt requires the reviewed resume adapter.',
+      evidenceDigest: null,
+      business: {
+        lifecycle: 'claimed',
+        settlement: 'not-submitted',
+        finality: 'unknown',
+        executionSucceeded: null,
+        reconciliation: { required: true, availableToOwner: false },
+      },
+    })],
+    [202, executeResponse({
+      status: 'pending',
+      executed: false,
+      explanation: 'The signed attempt is durable but not yet submitted.',
+      evidenceDigest: null,
+      business: {
+        lifecycle: 'signed',
+        settlement: 'not-submitted',
+        finality: 'unknown',
+        executionSucceeded: null,
+        reconciliation: { required: true, availableToOwner: false },
+      },
+    })],
+    [202, executeResponse({
+      status: 'pending',
+      executed: false,
+      explanation: 'The submitted attempt awaits authoritative landing evidence.',
+      evidenceDigest: null,
+      business: {
+        lifecycle: 'submitted',
+        settlement: 'submission-pending',
+        finality: 'unknown',
+        executionSucceeded: null,
+        reconciliation: { required: true, availableToOwner: false },
+      },
+    })],
+    [503, executeResponse({
+      status: 'uncertain',
+      executed: false,
+      code: 'dispatch_outcome_ambiguous',
+      explanation: 'Dexter cannot yet prove whether the attempt landed.',
+      business: {
+        lifecycle: 'ambiguous',
+        settlement: 'unknown',
+        finality: 'unknown',
+        executionSucceeded: null,
+        ambiguity: { status: 'unresolved', retrySameRequestOnly: false },
+        reconciliation: { required: true, availableToOwner: false },
+      },
+    })],
+    [503, executeResponse({
+      status: 'uncertain',
+      attemptId: null,
+      transactionSignature: null,
+      executed: false,
+      code: 'durable_status_unavailable_after_executor_contact',
+      explanation: 'Dexter could not reread durable status after contact.',
+      evidenceDigest: null,
+      business: {
+        lifecycle: 'ambiguous',
+        settlement: 'unknown',
+        finality: 'unknown',
+        executionSucceeded: null,
+        ambiguity: { status: 'unresolved', retrySameRequestOnly: false },
+        reconciliation: { required: true, availableToOwner: false },
+      },
+    })],
+    [409, executeResponse({
+      status: 'refused',
+      attemptId: null,
+      transactionSignature: null,
+      executed: false,
+      code: 'owner_approval_required',
+      explanation: 'The owner must approve this exact action.',
+      evidenceDigest: null,
+      business: {
+        lifecycle: 'prepared',
+        settlement: 'not-submitted',
+        finality: 'not-final',
+        executionSucceeded: null,
+        refusalOrEscalationReasons: ['owner_approval_required'],
+      },
+    })],
+    [422, executeResponse({
+      status: 'refused',
+      executed: false,
+      code: 'definitively_not_landed',
+      explanation: 'Authoritative reconciliation proved non-landing.',
+      business: {
+        lifecycle: 'refused',
+        settlement: 'definitively-not-landed',
+        finality: 'not-final',
+        executionSucceeded: false,
+      },
+    })],
+    [422, executeResponse({
+      status: 'refused',
+      transactionSignature: null,
+      executed: false,
+      code: 'execution_refused',
+      explanation: 'The durable attempt refused before signing.',
+      evidenceDigest: null,
+      business: {
+        lifecycle: 'refused',
+        settlement: 'not-submitted',
+        finality: 'not-final',
+        executionSucceeded: false,
+        refusalOrEscalationReasons: ['execution_refused'],
+      },
+    })],
+  ];
 }
 
 test('canonical service proof matches the frozen governed-agent payload', () => {
@@ -659,6 +796,46 @@ test('execute, status, and history reject amounts and slots above u64', () => {
     }).success,
     false,
   );
+
+  const maximumSafeInteger = Number.MAX_SAFE_INTEGER;
+  const unsafeInteger = maximumSafeInteger + 1;
+  const safePrepared = preparedResponse();
+  safePrepared.attribution.grant.revision = maximumSafeInteger;
+  safePrepared.preview.quoteExpiresAtUnixMs = maximumSafeInteger;
+  assert.equal(
+    GOVERNED_ASSET_TOOL_OUTPUT_SCHEMAS.prepare.safeParse(safePrepared).success,
+    true,
+  );
+  safePrepared.attribution.grant.revision = unsafeInteger;
+  assert.equal(
+    GOVERNED_ASSET_TOOL_OUTPUT_SCHEMAS.prepare.safeParse(safePrepared).success,
+    false,
+  );
+  safePrepared.attribution.grant.revision = maximumSafeInteger;
+  safePrepared.preview.quoteExpiresAtUnixMs = unsafeInteger;
+  assert.equal(
+    GOVERNED_ASSET_TOOL_OUTPUT_SCHEMAS.prepare.safeParse(safePrepared).success,
+    false,
+  );
+
+  const safeStatus = statusResponse();
+  safeStatus.grantRevision = maximumSafeInteger;
+  safeStatus.stateVersion = maximumSafeInteger;
+  assert.equal(
+    GOVERNED_ASSET_TOOL_OUTPUT_SCHEMAS.status.safeParse(safeStatus).success,
+    true,
+  );
+  safeStatus.grantRevision = unsafeInteger;
+  assert.equal(
+    GOVERNED_ASSET_TOOL_OUTPUT_SCHEMAS.status.safeParse(safeStatus).success,
+    false,
+  );
+  safeStatus.grantRevision = maximumSafeInteger;
+  safeStatus.stateVersion = unsafeInteger;
+  assert.equal(
+    GOVERNED_ASSET_TOOL_OUTPUT_SCHEMAS.status.safeParse(safeStatus).success,
+    false,
+  );
 });
 
 test('prepare preserves exact reusable-mandate coverage and escalation states', async () => {
@@ -857,9 +1034,18 @@ test('reconcile accepts every exact runtime outcome envelope', async () => {
     landingProof: true,
     confirmationSlot: '123',
     confirmationCommitment: 'finalized',
+    executionSucceeded: true,
     settlementFinalized: true,
     reconciliationRequired: false,
     canReconcile: false,
+    reconciliationKind: 'landed_success',
+    reconciliationEvidenceDigest: 'e'.repeat(64),
+    receiptPhases: [
+      'dispatch_fenced',
+      'accepted',
+      'reconciled_confirmed',
+      'reconciled_finalized',
+    ],
   };
   const cases = [
     [200, reconcileResponse({
@@ -878,20 +1064,44 @@ test('reconcile accepts every exact runtime outcome envelope', async () => {
     [409, reconcileResponse({
       outcome: 'not-required',
       phase: 'none',
+      attemptId: null,
+      stateVersionBefore: null,
       code: 'reconciliation_not_required',
       statusAfter: {
         ...statusResponse(),
+        attemptId: null,
         status: 'prepared',
         ledgerState: 'prepared',
+        stateVersion: null,
         transactionSignature: null,
         submitted: false,
         reconciliationRequired: false,
+        canReconcile: false,
+        receiptPhases: [],
       },
     }), true],
     [409, reconcileResponse({
       outcome: 'unavailable',
       code: 'agent_reconciliation_adapter_required',
     }), true],
+    [200, reconcileResponse({
+      outcome: 'already-final',
+      phase: 'final',
+      code: null,
+      statusAfter: {
+        ...statusResponse(),
+        status: 'refused',
+        ledgerState: 'provably_not_landed',
+        submitted: false,
+        definitiveNonlandingProof: true,
+        executionSucceeded: false,
+        reconciliationRequired: false,
+        canReconcile: false,
+        reconciliationKind: 'validator_refused_before_contact',
+        reconciliationEvidenceDigest: 'f'.repeat(64),
+        receiptPhases: ['dispatch_fenced', 'refused_before_contact'],
+      },
+    }), false],
   ];
 
   for (const [httpStatus, responseBody, isError] of cases) {
@@ -909,6 +1119,55 @@ test('reconcile accepts every exact runtime outcome envelope', async () => {
   }
 });
 
+test('recovered confirmation does not require a lost initial validator outcome receipt', async () => {
+  const recoveredFinalStatus = {
+    ...statusResponse(),
+    status: 'confirmed',
+    ledgerState: 'confirmed',
+    landingProof: true,
+    confirmationSlot: '123',
+    confirmationCommitment: 'finalized',
+    executionSucceeded: true,
+    settlementFinalized: true,
+    reconciliationRequired: false,
+    canReconcile: false,
+    reconciliationKind: 'landed_success',
+    reconciliationEvidenceDigest: 'e'.repeat(64),
+    receiptPhases: [
+      'dispatch_fenced',
+      'reconciled_confirmed',
+      'reconciled_finalized',
+    ],
+  };
+  const cases = [
+    ['status', { intentId: INTENT_ID }, recoveredFinalStatus],
+    ['history', { limit: 25 }, {
+      namespace: 'dexter-governed-transaction-history/v1',
+      items: [recoveredFinalStatus],
+      nextCursor: null,
+    }],
+    ['reconcile', { intentId: INTENT_ID }, reconcileResponse({
+      outcome: 'already-final',
+      phase: 'final',
+      code: null,
+      statusAfter: recoveredFinalStatus,
+    })],
+  ];
+  for (const [operation, input, responseBody] of cases) {
+    const result = await callGovernedAssetBackend({
+      apiBase: 'https://api.dexter.test',
+      secret: SECRET,
+      operation,
+      input,
+      mcpSessionId: SESSION_ID,
+      now: NOW,
+      fetchImpl: async () => jsonResponse(200, responseBody),
+    });
+    assert.equal(result.isError, false, operation);
+    assert.deepEqual(result.body, responseBody, operation);
+  }
+});
+
 test('reconcile refuses substituted identity, version, mutation, finality, digest, or HTTP state', async () => {
   const pending = reconcileResponse();
   const finalStatus = {
@@ -918,9 +1177,18 @@ test('reconcile refuses substituted identity, version, mutation, finality, diges
     landingProof: true,
     confirmationSlot: '123',
     confirmationCommitment: 'finalized',
+    executionSucceeded: true,
     settlementFinalized: true,
     reconciliationRequired: false,
     canReconcile: false,
+    reconciliationKind: 'landed_success',
+    reconciliationEvidenceDigest: 'e'.repeat(64),
+    receiptPhases: [
+      'dispatch_fenced',
+      'accepted',
+      'reconciled_confirmed',
+      'reconciled_finalized',
+    ],
   };
   const hostile = [
     [202, mutateReconcile(pending, (body) => {
@@ -949,7 +1217,259 @@ test('reconcile refuses substituted identity, version, mutation, finality, diges
     [200, pending],
   ];
 
+  const validFinal = reconcileResponse({
+    outcome: 'already-final',
+    phase: 'final',
+    code: null,
+    statusAfter: finalStatus,
+  });
+  const contradictoryFinalStatus = [
+    (status) => { status.landingProof = false; },
+    (status) => { status.definitiveNonlandingProof = true; },
+    (status) => { status.executionSucceeded = null; },
+    (status) => { status.settlementFinalized = false; },
+    (status) => { status.reconciliationKind = 'landed_program_error'; },
+    (status) => { status.reconciliationEvidenceDigest = null; },
+    (status) => { status.transactionSignature = null; },
+    (status) => { status.confirmationSlot = null; },
+    (status) => { status.submitted = false; },
+    (status) => { status.ledgerState = 'broadcast'; },
+    (status) => { status.reconciliationRequired = true; },
+    (status) => { status.canReconcile = true; },
+    (status) => {
+      status.refusalSource = 'executor';
+      status.refusalCode = 'invented_refusal';
+    },
+    (status, body) => {
+      status.attemptId = null;
+      status.stateVersion = null;
+      body.attemptId = null;
+      body.stateVersionBefore = null;
+    },
+    (status) => {
+      status.actor = 'owner';
+      status.runtime = {
+        principalSource: 'authenticated-owner',
+        linkTokenId: null,
+        surfaceBindingDigest: null,
+      };
+      status.agentId = null;
+      status.grantId = null;
+      status.grantRevision = null;
+      status.grantRevisionDigest = null;
+      status.grantRuleId = null;
+    },
+    (status) => {
+      status.operationCeremony = {
+        kind: 'send',
+        operationMessageBytes: 506,
+        operationMessageDomain: 'OTS_GOVERNED_SEND_V1',
+        actionDiscriminator: 2,
+        evidenceNamespace: 'dexter-protected-owner-send-evidence/v1',
+      };
+      status.destinationOwner = ADDRESS;
+      status.protocolId = 'spl-transfer';
+    },
+    (status) => {
+      status.ownerDecision = {
+        required: true,
+        status: 'pending',
+        reason: null,
+        decidedAt: null,
+      };
+      status.policyDecision = 'approval_required';
+      status.escalationReasons = ['owner_approval_required'];
+    },
+    (status) => {
+      status.escalationReasons = ['invented_escalation'];
+    },
+    (status) => {
+      status.policyDecision = 'approval_required';
+      status.escalationReasons = ['z_reason', 'a_reason'];
+      status.ownerDecision = {
+        required: true,
+        status: 'approved',
+        reason: null,
+        decidedAt: '2026-08-01T00:00:30.000Z',
+      };
+    },
+    (status) => {
+      status.policyDecision = 'approval_required';
+      status.escalationReasons = ['same_reason', 'same_reason'];
+      status.ownerDecision = {
+        required: true,
+        status: 'approved',
+        reason: null,
+        decidedAt: '2026-08-01T00:00:30.000Z',
+      };
+    },
+    (status) => {
+      status.policyDecision = 'approval_required';
+      status.escalationReasons = ['owner_refused'];
+      status.ownerDecision = {
+        required: true,
+        status: 'refused',
+        reason: 'owner_refused',
+        decidedAt: '2026-08-01T00:00:30.000Z',
+      };
+    },
+    (status) => {
+      status.assetMint = 'native:SOL';
+    },
+    (status) => {
+      status.receiptPhases = [
+        'dispatch_fenced',
+        'refused_before_contact',
+      ];
+    },
+    (status) => {
+      status.lastActivityAt = '2025-07-31T23:59:59.000Z';
+    },
+    (status) => {
+      status.receiptPhases = ['accepted', 'accepted'];
+    },
+    (status) => {
+      status.receiptPhases = [
+        'accepted',
+        'reconciled_confirmed',
+        'reconciled_finalized',
+      ];
+    },
+    (status) => {
+      status.receiptPhases = [
+        'dispatch_fenced',
+        'accepted',
+        'uncertain',
+        'reconciled_confirmed',
+        'reconciled_finalized',
+      ];
+    },
+    (status) => {
+      status.receiptPhases = [
+        'dispatch_fenced',
+        'accepted',
+        'reconciled_finalized',
+      ];
+    },
+    (status) => {
+      status.receiptPhases = [
+        'accepted',
+        'dispatch_fenced',
+        'reconciled_confirmed',
+        'reconciled_finalized',
+      ];
+    },
+    (status) => {
+      status.receiptPhases = [
+        'reconciled_confirmed',
+        'reconciled_not_landed',
+      ];
+    },
+  ];
+  for (const mutateStatus of contradictoryFinalStatus) {
+    hostile.push([200, mutateReconcile(validFinal, (body) => {
+      mutateStatus(body.statusAfter, body);
+    })]);
+  }
+  hostile.push(
+    [202, mutateReconcile(pending, (body) => {
+      body.statusAfter.reconciliationKind = 'landed_success';
+      body.statusAfter.reconciliationEvidenceDigest = 'e'.repeat(64);
+    })],
+    [202, mutateReconcile(pending, (body) => {
+      body.phase = 'none';
+      body.attemptId = null;
+      body.stateVersionBefore = null;
+      body.statusAfter = {
+        ...body.statusAfter,
+        attemptId: null,
+        status: 'prepared',
+        ledgerState: 'prepared',
+        stateVersion: null,
+        transactionSignature: null,
+        submitted: false,
+        reconciliationRequired: false,
+        canReconcile: false,
+        receiptPhases: [],
+      };
+    })],
+    [409, mutateReconcile(pending, (body) => {
+      body.outcome = 'unavailable';
+      body.phase = 'none';
+      body.attemptId = null;
+      body.stateVersionBefore = null;
+      body.code = 'agent_reconciliation_adapter_required';
+      body.statusAfter = {
+        ...body.statusAfter,
+        attemptId: null,
+        status: 'prepared',
+        ledgerState: 'prepared',
+        stateVersion: null,
+        transactionSignature: null,
+        submitted: false,
+        reconciliationRequired: false,
+        canReconcile: false,
+        receiptPhases: [],
+      };
+    })],
+    [409, mutateReconcile(pending, (body) => {
+      body.outcome = 'unavailable';
+      body.code = 'agent_finality_adapter_required';
+    })],
+    [409, mutateReconcile(pending, (body) => {
+      body.outcome = 'unavailable';
+      body.phase = 'validator-reconciliation';
+      body.code = 'agent_reconciliation_adapter_required';
+      body.statusAfter = {
+        ...body.statusAfter,
+        status: 'claimed',
+        ledgerState: 'claimed',
+        transactionSignature: null,
+        submitted: false,
+        receiptPhases: [],
+      };
+    })],
+    [409, mutateReconcile(pending, (body) => {
+      body.outcome = 'unavailable';
+      body.phase = 'validator-reconciliation';
+      body.code = 'agent_reconciliation_adapter_required';
+      body.statusAfter = {
+        ...body.statusAfter,
+        status: 'signed',
+        ledgerState: 'signed',
+        submitted: false,
+        receiptPhases: [],
+      };
+    })],
+    [409, mutateReconcile(pending, (body) => {
+      body.outcome = 'not-required';
+      body.phase = 'none';
+      body.code = 'reconciliation_not_required';
+      body.statusAfter = {
+        ...finalStatus,
+        action: 'send',
+        operationCeremony: {
+          kind: 'send',
+          operationMessageBytes: 506,
+          operationMessageDomain: 'OTS_GOVERNED_SEND_V1',
+          actionDiscriminator: 2,
+          evidenceNamespace: 'dexter-protected-owner-send-evidence/v1',
+        },
+        destinationOwner: ADDRESS,
+        protocolId: 'spl-transfer',
+        confirmationCommitment: 'confirmed',
+        settlementFinalized: false,
+      };
+    })],
+  );
+
   for (const [httpStatus, responseBody] of hostile) {
+    assert.equal(
+      GOVERNED_ASSET_TOOL_OUTPUT_SCHEMAS.reconcile.safeParse(responseBody)
+        .success,
+      true,
+      'hostile envelope remains structurally valid before cross-field checks',
+    );
     const result = await callGovernedAssetBackend({
       apiBase: 'https://api.dexter.test',
       secret: SECRET,
@@ -1025,6 +1545,80 @@ test('invalid or oversized backend bodies fail closed without inventing evidence
     assert.equal(result.body.code, 'governed_backend_response_invalid');
     assert.equal('executed' in result.body, false);
     assert.equal('transactionSignature' in result.body, false);
+  }
+});
+
+test('execute accepts only the canonical durable API outcome variants', async () => {
+  for (const [httpStatus, responseBody] of canonicalExecuteVariants()) {
+    assert.equal(
+      GOVERNED_ASSET_TOOL_OUTPUT_SCHEMAS.execute.safeParse(responseBody).success,
+      true,
+      `${responseBody.status}:${responseBody.code ?? 'no-code'} fixture`,
+    );
+    const result = await callGovernedAssetBackend({
+      apiBase: 'https://api.dexter.test',
+      secret: SECRET,
+      operation: 'execute',
+      input: { operationId: OPERATION_ID, intentId: INTENT_ID },
+      mcpSessionId: SESSION_ID,
+      now: NOW,
+      fetchImpl: async () => jsonResponse(httpStatus, responseBody),
+    });
+    assert.deepEqual(result.body, responseBody);
+    assert.notEqual(result.body.code, 'governed_backend_response_invalid');
+  }
+});
+
+test('execute rejects structurally valid contradictory durable outcomes', async () => {
+  const variants = canonicalExecuteVariants();
+  const mutate = (index, change) => {
+    const [httpStatus, responseBody] = variants[index];
+    const hostile = structuredClone(responseBody);
+    change(hostile);
+    return [httpStatus, hostile];
+  };
+  const hostile = [
+    mutate(0, (body) => { body.attemptId = null; }),
+    mutate(0, (body) => { body.transactionSignature = null; }),
+    mutate(0, (body) => { body.evidenceDigest = null; }),
+    mutate(0, (body) => { body.executed = false; }),
+    mutate(0, (body) => { body.business.lifecycle = 'prepared'; }),
+    mutate(0, (body) => { body.business.action = 'send'; }),
+    mutate(0, (body) => { body.business.ambiguity.retrySameRequestOnly = true; }),
+    mutate(0, (body) => { body.attribution.grant.revision = 0; }),
+    [202, structuredClone(variants[0][1])],
+    mutate(2, (body) => { body.transactionSignature = '2'.repeat(64); }),
+    mutate(3, (body) => { body.transactionSignature = null; }),
+    mutate(4, (body) => { body.business.settlement = 'not-submitted'; }),
+    mutate(5, (body) => { body.attemptId = null; }),
+    mutate(6, (body) => { body.attemptId = ATTEMPT_ID; }),
+    mutate(7, (body) => {
+      body.business.refusalOrEscalationReasons = ['different_reason'];
+    }),
+    mutate(8, (body) => { body.evidenceDigest = null; }),
+    mutate(9, (body) => { body.transactionSignature = '3'.repeat(64); }),
+  ];
+
+  for (const [httpStatus, responseBody] of hostile) {
+    assert.equal(
+      GOVERNED_ASSET_TOOL_OUTPUT_SCHEMAS.execute.safeParse(responseBody).success,
+      true,
+      'hostile execute body remains structurally valid',
+    );
+    const result = await callGovernedAssetBackend({
+      apiBase: 'https://api.dexter.test',
+      secret: SECRET,
+      operation: 'execute',
+      input: { operationId: OPERATION_ID, intentId: INTENT_ID },
+      mcpSessionId: SESSION_ID,
+      now: NOW,
+      fetchImpl: async () => jsonResponse(httpStatus, responseBody),
+    });
+    assert.equal(result.isError, true);
+    assert.equal(result.body.code, 'governed_backend_response_invalid');
+    assert.equal('executed' in result.body, false);
+    assert.equal('transactionSignature' in result.body, false);
+    assert.equal('evidenceDigest' in result.body, false);
   }
 });
 
