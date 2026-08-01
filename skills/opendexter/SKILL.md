@@ -9,6 +9,11 @@ OpenDexter is Dexter's hosted financial-action layer. Use the stable connector
 configured by the host. Native MCP OAuth binds the current client session to
 the user's Dexter Wallet; no agent receives a private key or passkey.
 
+This is the single master OpenDexter skill for the whole product. Keep every
+live OpenDexter capability and complete user journey in this guide as the
+product grows. Feature sections below are parts of that one guide, not separate
+Buy, Sell, Send, credit, wallet, or recovery micro-skills.
+
 ## Public product tools
 
 | Intent | Tool | Surface |
