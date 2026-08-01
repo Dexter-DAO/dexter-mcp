@@ -577,6 +577,47 @@ test('governed result policy preserves valid opaque identities that resemble bea
   assert.equal(history.nextCursor, opaquePlan);
 });
 
+test('execute, status, and history reject amounts and slots above u64', () => {
+  const maximum = '18446744073709551615';
+  const overflow = '18446744073709551616';
+
+  const execute = executeResponse();
+  execute.business.amountAtomic = maximum;
+  assert.equal(
+    GOVERNED_ASSET_TOOL_OUTPUT_SCHEMAS.execute.safeParse(execute).success,
+    true,
+  );
+  execute.business.amountAtomic = overflow;
+  assert.equal(
+    GOVERNED_ASSET_TOOL_OUTPUT_SCHEMAS.execute.safeParse(execute).success,
+    false,
+  );
+
+  const status = statusResponse();
+  status.amountAtomic = maximum;
+  status.confirmationSlot = maximum;
+  assert.equal(
+    GOVERNED_ASSET_TOOL_OUTPUT_SCHEMAS.status.safeParse(status).success,
+    true,
+  );
+  status.confirmationSlot = overflow;
+  assert.equal(
+    GOVERNED_ASSET_TOOL_OUTPUT_SCHEMAS.status.safeParse(status).success,
+    false,
+  );
+
+  const historyStatus = statusResponse();
+  historyStatus.amountAtomic = overflow;
+  assert.equal(
+    GOVERNED_ASSET_TOOL_OUTPUT_SCHEMAS.history.safeParse({
+      namespace: 'dexter-governed-transaction-history/v1',
+      items: [historyStatus],
+      nextCursor: null,
+    }).success,
+    false,
+  );
+});
+
 test('prepare preserves exact reusable-mandate coverage and escalation states', async () => {
   const covered = preparedResponse();
   const coveredResult = await callGovernedAssetBackend({

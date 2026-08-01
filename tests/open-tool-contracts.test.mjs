@@ -154,6 +154,25 @@ test('portfolio output carries only canonical approved assetIds as action identi
       holdings: [{ ...holding, assetId: 'DISPLAY SYMBOL' }],
     },
   }).success, false);
+
+  const bearerShapedAsset = {
+    ...ready,
+    portfolio: {
+      ...ready.portfolio,
+      holdings: [{ ...holding, assetId: 'open_abcdefghijklmnop' }],
+    },
+  };
+  assert.equal(schema.safeParse(bearerShapedAsset).success, true);
+  const projected = applyOpenToolResultPolicy('dexter_portfolio', {
+    content: [{ type: 'text', text: JSON.stringify(bearerShapedAsset) }],
+    structuredContent: bearerShapedAsset,
+    isError: false,
+  });
+  assert.equal(schema.safeParse(projected.structuredContent).success, true);
+  assert.equal(
+    projected.structuredContent.portfolio.holdings[0].assetId,
+    'open_abcdefghijklmnop',
+  );
 });
 
 test('finalizer refuses any SDK-registered tool outside authoritative contracts', () => {
