@@ -56,6 +56,17 @@ import {
   modelSafePortfolioSnapshot,
   numericPortfolioSummary,
 } from './lib/session-portfolio.mjs';
+import {
+  callGovernedAssetBackend,
+} from './lib/governed-asset-client.mjs';
+import {
+  GOVERNED_ASSET_INPUT_SCHEMAS,
+  GOVERNED_ASSET_TOOL_NAMES,
+} from './lib/governed-asset-contract.mjs';
+import {
+  buildGovernedAssetToolResult,
+  buildGovernedAssetFailure,
+} from './lib/governed-asset-result.mjs';
 import { projectWalletResultForModel } from './lib/wallet-result-visibility.mjs';
 import {
   buildAnonVaultToolResult,
@@ -215,7 +226,7 @@ const STATUS_META = Object.freeze({
 });
 
 // Card and compatibility tools are retired from the hosted MCP. Every client
-// receives the same canonical seven through the strict contract finalizer.
+// receives the same canonical twelve through the strict contract finalizer.
 const ALL_TOOLS = OPEN_TOOL_NAMES;
 const OPEN_SESSION_HINT_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -1802,6 +1813,38 @@ async function dexterPortfolio(_args, extra) {
   };
 }
 
+async function governedAssetAction(operation, args, extra) {
+  const tool = GOVERNED_ASSET_TOOL_NAMES[operation];
+  const sessionId = extra ? extractMcpSessionId(extra) : null;
+  if (!sessionId) {
+    return vaultAuthenticationResult(buildVaultAuthenticationRequired({
+      tool,
+      reason: 'no_mcp_session',
+    }));
+  }
+
+  let result;
+  try {
+    result = await callGovernedAssetBackend({
+      apiBase: API_BASE_FALLBACK,
+      secret: INTERNAL_HMAC_SECRET,
+      operation,
+      input: args,
+      mcpSessionId: sessionId,
+    });
+  } catch (err) {
+    console.warn(
+      `[${tool}] governed backend call failed (${safeErrorLabel(err)})`,
+    );
+    result = buildGovernedAssetFailure({
+      operation,
+      input: args,
+      code: 'governed_backend_configuration_unavailable',
+    });
+  }
+  return buildGovernedAssetToolResult(result);
+}
+
 // ─── MCP Server Setup ───────────────────────────────────────────────────────
 
 // ─── Server instructions + skill resources ──────────────────────────────────
@@ -2137,7 +2180,7 @@ function createOpenMcpServer() {
   registerOpenTool(server, 'dexter_portfolio', {
     title: 'Dexter Portfolio',
     description:
-      'Read the governed asset portfolio bound to this authenticated MCP session. It accepts no identity or authority arguments and returns only canonical chain identities, exact quantities, bounded numeric valuation, and allowed action enums.',
+      'Read the governed asset portfolio bound to this authenticated MCP session. It accepts no identity or authority arguments. Approved holdings expose the canonical assetId accepted by governed Send, Buy, and Sell; unreviewed or blocked holdings expose null.',
     inputSchema: {},
     annotations: { readOnlyHint: true },
     _meta: PORTFOLIO_META,
@@ -2163,6 +2206,13 @@ function createOpenMcpServer() {
       };
     }
   });
+
+  for (const operation of ['prepare', 'execute', 'status', 'reconcile', 'history']) {
+    const tool = GOVERNED_ASSET_TOOL_NAMES[operation];
+    registerOpenTool(server, tool, {
+      inputSchema: GOVERNED_ASSET_INPUT_SCHEMAS[operation],
+    }, (args, extra) => governedAssetAction(operation, args, extra));
+  }
 
   // ─── Dextercard tools: REMOVED (owner ruling Jul 23; card-removal runbook,
   // opendexter-ide/docs/CARD-REMOVAL-RUNBOOK-2026-07-23.md). The card is a

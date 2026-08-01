@@ -64,7 +64,8 @@ identity-gated access, and the wallet and portfolio entrypoints. The latter
 two return the host-native Connect path rather than private data until the
 session has OAuth `scope=vault` and a durable wallet binding.
 
-OAuth promotes `x402_fetch` and `x402_status`, producing this exact seven-tool
+OAuth promotes `x402_fetch`, `x402_status`, and five governed-asset tools,
+producing this exact twelve-tool
 connected roster:
 
 1. `x402_search`
@@ -74,11 +75,17 @@ connected roster:
 5. `x402_access`
 6. `x402_wallet`
 7. `dexter_portfolio`
+8. `dexter_prepare_asset_action`
+9. `dexter_execute_asset_action`
+10. `dexter_asset_action_status`
+11. `dexter_reconcile_asset_action`
+12. `dexter_wallet_history`
 
 There are no hosted compatibility aliases, composed-skill, passkey-probe, or
 card tools. The anonymous roster is exactly `x402_search`, `x402_check`,
 `x402_access`, `x402_wallet`, and `dexter_portfolio`; it does not include fetch
-or status.
+or status, and it does not include any governed-asset mutation or history
+tool.
 
 Search never pays. `x402_check` accepts the endpoint URL, method, and optional
 exact raw request-body string. Anonymous checks are quote-only. An
@@ -94,6 +101,34 @@ the same intent. After any ambiguous or post-dispatch result, OpenDexter does
 not retry the purchase; it checks status and reconciliation on that intent.
 Internal settlement-rail choice remains API-owned and is not a public tool or
 mode menu.
+
+Governed Send, Buy, and Sell use one API-owned intent through five public
+tools. `dexter_prepare_asset_action` accepts one stable `operationId` plus the
+exact action fields and persists/evaluates the request without signing or
+submitting it. `assetId` is the canonical ID returned by `dexter_portfolio`,
+not a symbol or mint. The API resolves it through its approved registry and
+binds the exact network, mint, token program, decimals, capabilities, and
+identity digest into the intent and reusable mandate. For Buy, `amountAtomic`
+is the USDC budget in atomic units (6 decimals). For Sell and Send, it is the
+selected asset amount using the server-certified decimals. Send does not
+expose a memo.
+
+`dexter_execute_asset_action` accepts only `operationId` and the prepared
+`intentId`; the API request body is exactly `{}` and the operation ID becomes
+its Idempotency-Key. It accepts no action, attempt, plan, plan hash, approval,
+wallet, agent, or grant selector. `dexter_asset_action_status` reads durable
+receipt and finality evidence, `dexter_reconcile_asset_action` asks for the
+same-intent reconciliation result without automatic retry, and
+`dexter_wallet_history` reads cursor-paginated canonical status records.
+A covered request may execute autonomously under the reusable bounded mandate.
+No mandate, insufficient scope, or an unavailable signer fails closed for
+enrollment, extension, or owner escalation. Those ceremonies remain
+separately authenticated and are not model-callable OpenDexter tools.
+
+The MCP-to-API governed-action bridge uses
+`INTERNAL_DEXTERCARD_HMAC_SECRET` and signs the timestamp, authenticated MCP
+session, method, exact mounted URL including query, Idempotency-Key (or empty),
+and canonical request-body hash. It does not use the x402 service secret.
 
 The hosted check/fetch/status adapter also requires
 `NATIVE_EXACT_MCP_SERVICE_HMAC_SECRET` (32 bytes or longer), configured to the
@@ -120,7 +155,7 @@ spendable balance.
 versioned local stdio package for Codex, Claude Code, and other agents. It uses
 a user-controlled local signer instead of the hosted connector's OAuth and
 session binding. This hosted source contract does not assert that a published
-npm version has adopted the seven-tool opaque-intent boundary. Its package,
+npm version has adopted the twelve-tool hosted boundary. Its package,
 install guidance, and seller-side `opendexter audition <url>` command live in
 [Dexter-DAO/opendexter-ide](https://github.com/Dexter-DAO/opendexter-ide).
 
@@ -129,7 +164,7 @@ install guidance, and seller-side `opendexter audition <url>` command live in
 | Transport | Hosted HTTP MCP | Local stdio MCP |
 | Authorization | Mixed per-tool OAuth contract | Local process and signer |
 | Wallet identity | Durable passkey wallet bound to the authenticated MCP session | User-controlled local signer |
-| Executable roster | Five anonymous entry tools; seven after OAuth promotion | Independently versioned; verify the installed package |
+| Executable roster | Five anonymous entry tools; twelve after OAuth promotion | Independently versioned; verify the installed package |
 | Seller onboarding | Not exposed as a hosted tool | `opendexter audition <url>` |
 | Best for | ChatGPT, Claude, hosted agents | Codex, Claude Code, CLI agents |
 

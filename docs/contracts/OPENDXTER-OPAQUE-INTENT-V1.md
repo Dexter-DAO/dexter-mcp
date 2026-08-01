@@ -23,12 +23,17 @@ The anonymous roster is exactly:
 They surface the host-native Connect/OAuth path until the MCP session has
 `scope=vault` and a durable wallet binding.
 
-OAuth promotes exactly two tools:
+OAuth promotes exactly seven tools:
 
 1. `x402_fetch`
 2. `x402_status`
+3. `dexter_prepare_asset_action`
+4. `dexter_execute_asset_action`
+5. `dexter_asset_action_status`
+6. `dexter_reconcile_asset_action`
+7. `dexter_wallet_history`
 
-The connected roster is therefore exactly seven tools:
+The connected roster is therefore exactly twelve tools:
 
 1. `x402_search`
 2. `x402_check`
@@ -37,9 +42,15 @@ The connected roster is therefore exactly seven tools:
 5. `x402_access`
 6. `x402_wallet`
 7. `dexter_portfolio`
+8. `dexter_prepare_asset_action`
+9. `dexter_execute_asset_action`
+10. `dexter_asset_action_status`
+11. `dexter_reconcile_asset_action`
+12. `dexter_wallet_history`
 
 There are no public aliases, tab tools, purchase-mode selectors,
-`PreparedPurchase` inputs, card tools, or internal reconciliation tools.
+`PreparedPurchase` inputs, card tools, model-callable owner-decision tools, or
+public `dexter_authorize_asset_action` tool.
 
 ## Public purchase wire contract
 
@@ -104,6 +115,118 @@ Input is exactly:
 Status is a read of that intent's delivery, payment, reservation, and
 reconciliation state. It must not create another intent, redispatch the
 provider request, rebroadcast a transaction, change a route, or charge again.
+
+## Public governed Send, Buy, and Sell contract
+
+These tools use the API's governed-agent facade. The authenticated MCP session
+selects the current wallet, reusable bounded mandate, agent authority, grant
+revision, and policy on the server. No public argument may select or override
+those identities.
+
+The public asset selector is a canonical registry ID matching
+`^[a-z0-9][a-z0-9._:-]{0,127}$`. It must come from an approved holding returned
+by `dexter_portfolio`; it is not a display symbol or mint. The API resolves the
+ID through its authoritative approved registry and freezes the exact network,
+mint, token program, decimals, capabilities, and identity digest in the intent
+and grant. The MCP never supplies those authority fields.
+
+### `dexter_prepare_asset_action`
+
+Input is one of:
+
+```ts
+{
+  operationId: string; // exact Idempotency-Key, 8..128 canonical characters
+  action: "send";
+  assetId: string; // canonical approved registry ID
+  amountAtomic: string; // selected asset, using server-certified decimals
+  destinationOwner: string; // canonical Solana owner
+}
+
+{
+  operationId: string;
+  action: "buy";
+  assetId: string; // canonical approved registry ID for the asset being bought
+  amountAtomic: string; // canonical USDC input; 6 decimals
+  memo?: string | null;
+  maxSlippageBps?: number;
+  maxPriceImpactBps?: number;
+}
+
+{
+  operationId: string;
+  action: "sell";
+  assetId: string; // canonical approved registry ID
+  amountAtomic: string; // selected asset, using server-certified decimals
+  memo?: string | null;
+  maxSlippageBps?: number;
+  maxPriceImpactBps?: number;
+}
+```
+
+Send has no memo field because the canonical API refuses every non-null Send
+memo, including an empty string. Prepare persists and evaluates the exact
+request but does not sign or submit it. `operationId` is idempotency identity
+only and grants no authority.
+
+Mandate coverage is explicit:
+
+- `prepared` plus `approval.status=not-required` means the exact request is
+  covered and autonomous Execute is permitted.
+- `prepared` plus `approval.status=owner-approval-required` means the exact
+  request needs owner escalation before Execute may contact a signer.
+- `mandate_enrollment_required` means no usable child authority exists.
+- `mandate_extension_required` means a mandate exists but its asset, action,
+  amount, destination, venue, or expiry scope does not cover the request.
+- `delegated_authority_unavailable` means policy coverage exists but the live
+  signer or on-chain binding cannot be proved, so execution fails closed.
+
+### `dexter_execute_asset_action`
+
+Input is exactly:
+
+```ts
+{
+  operationId: string; // execute Idempotency-Key
+  intentId: string;
+}
+```
+
+The API body is exactly `{}`. The public tool accepts no `action`, `attemptId`,
+`planId`, `preparedPlanHash`, `authorizationId`, or authority selector. A lost
+execute response is ambiguous: do not execute again. Read status, then request
+reconciliation for the same intent.
+
+### `dexter_asset_action_status`
+
+Input is exactly `{ intentId: string }`. It returns the canonical
+`dexter-governed-transaction-status/v1` record, including the operation
+ceremony, wallet and bounded mandate authority, lifecycle, receipt phases,
+submission, landing, non-landing, finality, and replay rules. It never
+dispatches execution.
+
+### `dexter_reconcile_asset_action`
+
+Input is exactly `{ intentId: string }`. It returns the canonical
+`dexter-governed-agent-reconcile/v1` result. Reconciliation is status-gated
+and never expands mandate scope or creates a replacement intent. The MCP does
+not retry reconciliation automatically.
+
+### `dexter_wallet_history`
+
+Input is `{ limit?: 1..100, cursor?: string }`. It returns
+`dexter-governed-transaction-history/v1`, whose `items` are the same canonical
+status records and whose `nextCursor` is opaque. The caller cannot construct a
+wallet or authority filter.
+
+Mandate enrollment, extension, and owner escalation remain out-of-band on the
+separately authenticated owner ceremony. Models cannot call, emulate, or
+bypass it.
+
+The internal bridge signs `dexter-governed-agent-internal/v1` with
+`INTERNAL_DEXTERCARD_HMAC_SECRET`. The signature covers timestamp, MCP session,
+HTTP method, exact mounted URL including query, Idempotency-Key or empty, and
+the canonical hash of the parsed body or `null`.
 
 ### Public output boundary
 

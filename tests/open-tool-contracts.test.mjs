@@ -26,6 +26,11 @@ const EXPECTED_TOOLS = [
   'x402_access',
   'x402_wallet',
   'dexter_portfolio',
+  'dexter_prepare_asset_action',
+  'dexter_execute_asset_action',
+  'dexter_asset_action_status',
+  'dexter_reconcile_asset_action',
+  'dexter_wallet_history',
 ];
 
 const RETIRED_TOOLS = [
@@ -34,16 +39,27 @@ const RETIRED_TOOLS = [
   'promote_skill',
   'dexter_passkey_probe',
   'dexter_passkey',
+  'dexter_authorize_asset_action',
 ];
 
-test('contract is exactly the canonical hosted seven', () => {
+test('contract is exactly the canonical hosted twelve', () => {
   assert.deepEqual(OPEN_TOOL_NAMES, EXPECTED_TOOLS);
   assert.deepEqual(Object.keys(OPEN_TOOL_CONTRACTS).sort(), [...EXPECTED_TOOLS].sort());
   assert.doesNotMatch(OPEN_TOOL_NAMES.join(','), /card_/);
   for (const [name, toolContract] of Object.entries(OPEN_TOOL_CONTRACTS)) {
     assert.equal(
       toolContract.outputSchema?._def?.unknownKeys,
-      ['x402_check', 'x402_fetch', 'x402_status', 'dexter_portfolio'].includes(name)
+      [
+        'x402_check',
+        'x402_fetch',
+        'x402_status',
+        'dexter_portfolio',
+        'dexter_prepare_asset_action',
+        'dexter_execute_asset_action',
+        'dexter_asset_action_status',
+        'dexter_reconcile_asset_action',
+        'dexter_wallet_history',
+      ].includes(name)
         ? 'strict'
         : 'passthrough',
       name,
@@ -90,6 +106,54 @@ test('portfolio top-level output refuses undeclared fields', () => {
     }).success,
     false,
   );
+});
+
+test('portfolio output carries only canonical approved assetIds as action identity', () => {
+  const holding = {
+    assetId: 'approved-token-42',
+    mint: '11111111111111111111111111111111',
+    tokenAccount: '11111111111111111111111111111111',
+    tokenProgram: 'spl-token',
+    assetClass: 'token',
+    amountRaw: '1',
+    decimals: 0,
+    displayAmount: '1',
+    amountModel: 'raw-decimals',
+    accountState: 'initialized',
+    valueUsd: null,
+    priceUsd: null,
+    priceObservedAt: null,
+    approvalStatus: 'approved',
+    availableActions: ['view', 'send'],
+  };
+  const schema = OPEN_TOOL_CONTRACTS.dexter_portfolio.outputSchema;
+  const ready = {
+    portfolio_status: 'ready',
+    mode: 'portfolio_ready',
+    user_bound: true,
+    portfolio: {
+      contractVersion: 'opendexter.portfolio.v1',
+      network: 'solana-mainnet',
+      walletAddress: '11111111111111111111111111111111',
+      observedAt: '2026-08-01T00:00:00.000Z',
+      contextSlot: 1,
+      holdingsComplete: true,
+      omittedHoldings: 0,
+      pricedValueUsd: '0',
+      portfolioValueUsd: null,
+      pricedHoldings: 0,
+      unpricedHoldings: 1,
+      holdings: [holding],
+    },
+  };
+  assert.equal(schema.safeParse(ready).success, true);
+  assert.equal(schema.safeParse({
+    ...ready,
+    portfolio: {
+      ...ready.portfolio,
+      holdings: [{ ...holding, assetId: 'DISPLAY SYMBOL' }],
+    },
+  }).success, false);
 });
 
 test('finalizer refuses any SDK-registered tool outside authoritative contracts', () => {
@@ -167,7 +231,7 @@ test('both supported registration APIs close after finalization', () => {
   );
 });
 
-test('behavior annotations reflect the canonical seven operations', () => {
+test('behavior annotations reflect the canonical twelve operations', () => {
   assert.equal(OPEN_TOOL_CONTRACTS.x402_search.annotations.readOnlyHint, true);
   assert.equal(OPEN_TOOL_CONTRACTS.x402_wallet.annotations.readOnlyHint, false);
   assert.equal(OPEN_TOOL_CONTRACTS.x402_wallet.annotations.idempotentHint, false);
@@ -180,6 +244,27 @@ test('behavior annotations reflect the canonical seven operations', () => {
   assert.equal(OPEN_TOOL_CONTRACTS.x402_fetch.annotations.idempotentHint, false);
   assert.equal(OPEN_TOOL_CONTRACTS.x402_status.annotations.readOnlyHint, true);
   assert.equal(OPEN_TOOL_CONTRACTS.x402_status.annotations.idempotentHint, true);
+  assert.deepEqual(
+    OPEN_TOOL_CONTRACTS.dexter_prepare_asset_action.annotations,
+    {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+  );
+  assert.equal(
+    OPEN_TOOL_CONTRACTS.dexter_execute_asset_action.annotations.destructiveHint,
+    true,
+  );
+  for (const name of [
+    'dexter_asset_action_status',
+    'dexter_reconcile_asset_action',
+    'dexter_wallet_history',
+  ]) {
+    assert.equal(OPEN_TOOL_CONTRACTS[name].annotations.readOnlyHint, true, name);
+    assert.equal(OPEN_TOOL_CONTRACTS[name].annotations.idempotentHint, true, name);
+  }
 });
 
 test('retired compatibility names have no contract or output schema', () => {
@@ -352,7 +437,17 @@ test('real SDK tools/list exposes executable schemas, OAuth, annotations, and me
     assert.equal(listed.outputSchema.type, 'object');
     assert.equal(
       listed.outputSchema.additionalProperties,
-      ['x402_check', 'x402_fetch', 'x402_status', 'dexter_portfolio'].includes(listed.name)
+      [
+        'x402_check',
+        'x402_fetch',
+        'x402_status',
+        'dexter_portfolio',
+        'dexter_prepare_asset_action',
+        'dexter_execute_asset_action',
+        'dexter_asset_action_status',
+        'dexter_reconcile_asset_action',
+        'dexter_wallet_history',
+      ].includes(listed.name)
         ? false
         : true,
     );
@@ -396,7 +491,7 @@ test('real SDK tools/list exposes executable schemas, OAuth, annotations, and me
 });
 
 for (const clientName of ['Generic MCP', 'ChatGPT', 'Claude']) {
-  test(`${clientName} connected discovery receives the same raw seven and no retired calls`, async () => {
+  test(`${clientName} connected discovery receives the same raw twelve and no retired calls`, async () => {
     const server = new McpServer({
       name: 'host-discovery-test',
       version: '0.4.0',
@@ -480,5 +575,13 @@ test('tools/list promotes exactly fetch and status after OAuth binding', async (
     (await client.listTools()).tools.map((tool) => tool.name),
     OPEN_TOOL_NAMES,
   );
-  assert.deepEqual(OPEN_OAUTH_PROMOTED_TOOL_NAMES, ['x402_fetch', 'x402_status']);
+  assert.deepEqual(OPEN_OAUTH_PROMOTED_TOOL_NAMES, [
+    'x402_fetch',
+    'x402_status',
+    'dexter_prepare_asset_action',
+    'dexter_execute_asset_action',
+    'dexter_asset_action_status',
+    'dexter_reconcile_asset_action',
+    'dexter_wallet_history',
+  ]);
 });

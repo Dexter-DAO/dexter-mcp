@@ -20,12 +20,19 @@ the user's Dexter Wallet; no agent receives a private key or passkey.
 | Use wallet-proof or Sign-In-With-X access | `x402_access` | Anonymous |
 | Read wallet readiness, cash, deposit address, and activity | `x402_wallet` | Anonymous entry; OAuth data |
 | Read governed assets and currently allowed actions | `dexter_portfolio` | Anonymous entry; OAuth data |
+| Prepare an exact governed Send, Buy, or Sell | `dexter_prepare_asset_action` | OAuth promotion |
+| Execute one prepared governed intent | `dexter_execute_asset_action` | OAuth promotion |
+| Read durable governed intent status | `dexter_asset_action_status` | OAuth promotion |
+| Request same-intent reconciliation | `dexter_reconcile_asset_action` | OAuth promotion |
+| Read governed Send, Buy, and Sell history | `dexter_wallet_history` | OAuth promotion |
 
 The exact anonymous roster is `x402_search`, `x402_check`, `x402_access`,
 `x402_wallet`, and `dexter_portfolio`. Wallet and portfolio return the native
-Connect path, not private data, before authorization. OAuth promotes exactly
-`x402_fetch` and `x402_status`, making the connected roster exactly seven
-tools.
+Connect path, not private data, before authorization. OAuth promotes
+`x402_fetch`, `x402_status`, `dexter_prepare_asset_action`,
+`dexter_execute_asset_action`, `dexter_asset_action_status`,
+`dexter_reconcile_asset_action`, and `dexter_wallet_history`, making the
+connected roster exactly twelve tools.
 
 Deprecated compatibility and internal diagnostic endpoints are not user-facing
 product tools. Do not select them for a new request.
@@ -89,9 +96,43 @@ authority selector. Preserve quantity and value strings exactly. Partial or
 unavailable inventory is not zero, portfolio value is not spendable cash, and
 display metadata never grants an action.
 
-Hosted OpenDexter currently exposes portfolio viewing, not a generic shortcut
-around the governed action executor. Do not invent send, buy, sell, lend,
-borrow, or pay execution from an `availableActions` display field.
+An `availableActions` display field is still not execution authority. Use only
+the exact governed tools below for Send, Buy, or Sell; do not invent lend,
+borrow, or pay execution.
+
+## Governed Send, Buy, and Sell
+
+1. Use `dexter_portfolio` to identify the exact supported asset and confirm the
+   requested action is currently displayed as available. That display is
+   context, not authority. Pass only its non-null canonical `assetId`; never
+   substitute a symbol or send a mint, token program, network, or decimals as
+   authority.
+2. Call `dexter_prepare_asset_action` with one stable `operationId` and the
+   exact action fields. For Buy, `amountAtomic` is the USDC budget in atomic
+   units (6 decimals). For Sell and Send, it is the selected asset amount using
+   the server-certified decimals. Send has no memo.
+3. Read the returned `intentId`, policy result, approval state, expiry, and
+   preview. Prepare never signs or submits. `operationId` is only the
+   Idempotency-Key for an exact replay and grants no authority. A prepared
+   result with `approval.status=not-required` is covered by the reusable
+   mandate and may execute autonomously.
+4. If Prepare reports `owner-approval-required`,
+   `mandate_enrollment_required`, `mandate_extension_required`, or
+   `delegated_authority_unavailable`, do not call Execute. Explain the exact
+   enrollment, extension, escalation, or authority problem. The owner uses the
+   separate wallet ceremony when required. There is no public authorize tool;
+   never invent one or put authority data into Execute.
+5. Call `dexter_execute_asset_action` only with a new stable `operationId` and
+   the exact prepared `intentId`. Never pass action, attempt, plan, plan hash,
+   authorization, wallet, agent, or grant fields.
+6. After any timeout, uncertainty, pending state, or missing finality, call
+   `dexter_asset_action_status` with that same `intentId`. Do not call Execute
+   again automatically.
+7. When status says reconciliation is required, call
+   `dexter_reconcile_asset_action` once for the same intent. It cannot expand
+   mandate scope or create a replacement intent. Do not automatically retry it.
+8. Use `dexter_wallet_history` with only the server-issued opaque cursor to
+   list prior governed actions. Never construct a wallet or authority filter.
 
 ## Safety
 

@@ -32,6 +32,11 @@ const TOOL_ROSTER = [
   'x402_access',
   'x402_wallet',
   'dexter_portfolio',
+  'dexter_prepare_asset_action',
+  'dexter_execute_asset_action',
+  'dexter_asset_action_status',
+  'dexter_reconcile_asset_action',
+  'dexter_wallet_history',
 ];
 
 test('mixed auth policy covers the exact hosted roster', () => {
@@ -64,6 +69,23 @@ test('public, wallet, portfolio, and payment tools have exact schemes', () => {
     OPEN_TOOL_SECURITY_SCHEMES.x402_status,
     [{ type: 'oauth2', scopes: ['vault'] }],
   );
+  for (const name of [
+    'dexter_prepare_asset_action',
+    'dexter_execute_asset_action',
+    'dexter_asset_action_status',
+    'dexter_reconcile_asset_action',
+    'dexter_wallet_history',
+  ]) {
+    assert.deepEqual(
+      OPEN_TOOL_SECURITY_SCHEMES[name],
+      [{ type: 'oauth2', scopes: ['vault'] }],
+      name,
+    );
+  }
+  assert.equal(
+    OPEN_TOOL_SECURITY_SCHEMES.dexter_authorize_asset_action,
+    undefined,
+  );
 });
 
 test('protected-call classification follows the per-tool auth declaration', () => {
@@ -89,6 +111,14 @@ test('protected-call classification follows the per-tool auth declaration', () =
     name: 'x402_status',
     id: 1,
   });
+  assert.deepEqual(findVaultProtectedToolCall(call('dexter_execute_asset_action')), {
+    name: 'dexter_execute_asset_action',
+    id: 1,
+  });
+  assert.equal(
+    findVaultProtectedToolCall(call('dexter_authorize_asset_action')),
+    null,
+  );
   assert.equal(findVaultProtectedToolCall(call('x402_check')), null);
   assert.equal(findVaultProtectedToolCall(call('x402_search')), null);
   assert.equal(findVaultProtectedToolCall(call('x402_pay')), null);

@@ -12,8 +12,8 @@ import {
 
 const ROOT = new URL('../', import.meta.url);
 
-test('dexter_portfolio remains in the canonical seven and is strict OAuth read-only', () => {
-  assert.equal(OPEN_TOOL_NAMES.length, 7);
+test('dexter_portfolio remains in the canonical twelve and is strict OAuth read-only', () => {
+  assert.equal(OPEN_TOOL_NAMES.length, 12);
   assert.equal(OPEN_TOOL_NAMES.includes('dexter_portfolio'), true);
   assert.deepEqual(OPEN_TOOL_SECURITY_SCHEMES.dexter_portfolio, [
     { type: 'oauth2', scopes: ['vault'] },

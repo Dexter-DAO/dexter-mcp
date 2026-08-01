@@ -23,6 +23,11 @@ const EXPECTED_TOOLS = [
   'x402_access',
   'x402_wallet',
   'dexter_portfolio',
+  'dexter_prepare_asset_action',
+  'dexter_execute_asset_action',
+  'dexter_asset_action_status',
+  'dexter_reconcile_asset_action',
+  'dexter_wallet_history',
 ];
 
 test('hosted skill resources are loaded from this release checkout', () => {
@@ -33,7 +38,7 @@ test('hosted skill resources are loaded from this release checkout', () => {
   assert.doesNotMatch(SERVER, /opendexter-ide.*opendexter-plugin.*skills/s);
 });
 
-test('hosted workflow names only the seven connected product tools', () => {
+test('hosted workflow names only the twelve connected product tools', () => {
   for (const name of EXPECTED_TOOLS) {
     assert.match(WORKFLOW, new RegExp(`\\\`${name}\\\``));
   }
@@ -74,6 +79,15 @@ test('served guidance requires native OAuth and bounded nonretryable spending', 
     /Leave this unset for ordinary Dexter discovery so eligible CrossPay resources are not removed/,
   );
   assert.match(WORKFLOW, /vaultPda[\s\S]*not a deposit\s+fallback/);
+  assert.match(WORKFLOW, /canonical `assetId`/);
+  assert.match(WORKFLOW, /Buy[\s\S]*USDC budget[\s\S]*6\s+decimals/);
+  assert.match(WORKFLOW, /Sell and Send[\s\S]*selected asset amount/);
+  assert.match(WORKFLOW, /reusable\s+mandate[\s\S]*execute autonomously/i);
+  assert.match(WORKFLOW, /mandate_enrollment_required/);
+  assert.match(WORKFLOW, /mandate_extension_required/);
+  assert.match(WORKFLOW, /delegated_authority_unavailable/);
+  assert.match(WORKFLOW, /There is no public authorize tool/);
+  assert.match(WORKFLOW, /Do not call Execute\s+again automatically/);
   assert.match(DEBUGGING, /call `x402_status`[\s\S]*same `intentId`/);
   assert.match(DEBUGGING, /Never retry `x402_fetch` automatically/);
 });
@@ -84,6 +98,11 @@ test('generated runtime instructions contain only native OAuth wallet guidance',
   assert.doesNotMatch(runtime, /\b(?:setup|enroll) link\b|\brelay(?:ing|ed|s)?\b/i);
   assert.match(runtime, /host show its native OpenDexter Connect action/i);
   assert.match(runtime, /dexter_portfolio/);
+  assert.match(runtime, /dexter_prepare_asset_action/);
+  assert.match(runtime, /dexter_execute_asset_action accepts only operationId and the exact prepared intentId/);
+  assert.match(runtime, /non-null canonical assetId/);
+  assert.match(runtime, /reusable bounded mandate covers the request/);
+  assert.match(runtime, /There is no model-callable authorize tool/);
   assert.match(runtime, /paymentOptions/);
   assert.match(runtime, /call x402_fetch once with only intentId and maxAmountAtomic/);
   assert.match(runtime, /x402_status accepts only intentId/);

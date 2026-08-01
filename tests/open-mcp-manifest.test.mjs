@@ -13,7 +13,7 @@ import {
   OPEN_MCP_VAULT_AUDIENCE,
 } from '../lib/open-tool-auth.mjs';
 
-test('well-known manifest is generated from the five-to-seven OAuth contract', () => {
+test('well-known manifest is generated from the five-to-twelve OAuth contract', () => {
   const manifest = buildOpenMcpManifest();
   assert.equal(manifest.name, 'OpenDexter');
   assert.equal(manifest.namespace, 'opendexter');
@@ -25,13 +25,22 @@ test('well-known manifest is generated from the five-to-seven OAuth contract', (
     'x402_status',
     'x402_wallet',
     'dexter_portfolio',
+    'dexter_prepare_asset_action',
+    'dexter_execute_asset_action',
+    'dexter_asset_action_status',
+    'dexter_reconcile_asset_action',
+    'dexter_wallet_history',
   ]);
   assert.deepEqual(manifest.auth.conditionallyProtectedTools, ['x402_check']);
   assert.deepEqual(manifest.rosters.anonymous, OPEN_ANONYMOUS_TOOL_NAMES);
   assert.deepEqual(manifest.rosters.oauthPromotes, OPEN_OAUTH_PROMOTED_TOOL_NAMES);
   assert.deepEqual(manifest.rosters.connected, OPEN_TOOL_NAMES);
   assert.deepEqual(manifest.tools.map((tool) => tool.name), OPEN_TOOL_NAMES);
-  assert.equal(manifest.tools.length, 7);
+  assert.equal(manifest.tools.length, 12);
+  assert.equal(
+    manifest.tools.some((tool) => tool.name === 'dexter_authorize_asset_action'),
+    false,
+  );
   assert.doesNotMatch(JSON.stringify(manifest), /card_status|best funded chain/i);
 });
 
@@ -49,7 +58,7 @@ test('manifest, server identity, and package use one release version', async () 
     new URL('../open-mcp-server.mjs', import.meta.url),
     'utf8',
   );
-  assert.equal(OPEN_MCP_VERSION, '0.4.0');
+  assert.equal(OPEN_MCP_VERSION, '0.5.0');
   assert.equal(OPEN_MCP_VERSION, packageJson.version);
   assert.equal(OPEN_MCP_VERSION, dependencyTrain.hostedPackage.version);
   assert.equal(packageJson.packageManager, 'npm@10.9.3');
@@ -104,7 +113,7 @@ test('hosted source documentation states the current opaque-intent product contr
   for (const name of OPEN_TOOL_NAMES) {
     assert.ok(currentContract.includes(`\`${name}\``), name);
   }
-  assert.match(currentContract, /seven(?:-tool| tools)/i);
+  assert.match(currentContract, /twelve(?:-tool| tools)/i);
 
   for (const name of [
     'x402_search',
@@ -114,10 +123,15 @@ test('hosted source documentation states the current opaque-intent product contr
     'x402_access',
     'x402_wallet',
     'dexter_portfolio',
+    'dexter_prepare_asset_action',
+    'dexter_execute_asset_action',
+    'dexter_asset_action_status',
+    'dexter_reconcile_asset_action',
+    'dexter_wallet_history',
   ]) {
     assert.ok(readme.includes(`\`${name}\``), name);
   }
-  assert.match(readme, /exact seven-tool\s+connected roster/i);
+  assert.match(readme, /exact twelve-tool\s+connected roster/i);
   assert.doesNotMatch(
     readme,
     /\b(?:x402_pay|x402_compose_skill|promote_skill|dexter_passkey(?:_probe)?)\b/,

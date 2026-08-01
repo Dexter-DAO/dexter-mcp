@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   DEFERRED_GOVERNED_ASSET_TOOL_NAMES,
+  GOVERNED_ASSET_ID_SCHEMA,
   GOVERNED_ASSET_INPUT_SCHEMAS,
   GOVERNED_ASSET_TOOL_CONTRACTS,
   GOVERNED_ASSET_TOOL_NAMES,
@@ -10,36 +11,39 @@ import {
   assertNoGovernedAuthorityOverrides,
 } from '../lib/governed-asset-contract.mjs';
 import {
+  OPEN_OAUTH_PROMOTED_TOOL_NAMES,
   OPEN_TOOL_NAMES,
 } from '../lib/open-tool-contracts.mjs';
-import {
-  VAULT_WWW_AUTHENTICATE,
-  buildVaultAuthenticationRequired,
-  vaultAuthenticationResult,
-} from '../lib/open-tool-auth.mjs';
 
 const OPERATION_ID = '019f981c-9215-7141-84f2-d89ffe9cbece';
 const INTENT_ID = '119f981c-9215-4141-84f2-d89ffe9cbece';
-const AUTHORIZATION_ID = '219f981c-9215-4141-84f2-d89ffe9cbece';
+const ADDRESS = 'Vote111111111111111111111111111111111111111';
 
-test('governed mutation contracts stay implemented but unregistered', () => {
-  assert.deepEqual(REGISTERED_GOVERNED_ASSET_TOOL_NAMES, []);
+const PUBLIC_TOOLS = [
+  'dexter_prepare_asset_action',
+  'dexter_execute_asset_action',
+  'dexter_asset_action_status',
+  'dexter_reconcile_asset_action',
+  'dexter_wallet_history',
+];
+
+test('exactly five governed tools are public and owner authorize stays inaccessible', () => {
+  assert.deepEqual(REGISTERED_GOVERNED_ASSET_TOOL_NAMES, PUBLIC_TOOLS);
   assert.deepEqual(
     DEFERRED_GOVERNED_ASSET_TOOL_NAMES,
-    [
-      'dexter_prepare_asset_action',
-      'dexter_authorize_asset_action',
-      'dexter_execute_asset_action',
-    ],
+    ['dexter_authorize_asset_action'],
   );
-  for (const name of DEFERRED_GOVERNED_ASSET_TOOL_NAMES) {
-    assert.equal(OPEN_TOOL_NAMES.includes(name), false);
-    assert.equal(GOVERNED_ASSET_TOOL_CONTRACTS[name].registered, false);
+  assert.deepEqual(Object.keys(GOVERNED_ASSET_TOOL_CONTRACTS), PUBLIC_TOOLS);
+  for (const name of PUBLIC_TOOLS) {
+    assert.equal(OPEN_TOOL_NAMES.includes(name), true, name);
+    assert.equal(OPEN_OAUTH_PROMOTED_TOOL_NAMES.includes(name), true, name);
+    assert.equal(GOVERNED_ASSET_TOOL_CONTRACTS[name].registered, true, name);
   }
-  assert.equal(OPEN_TOOL_NAMES.includes('dexter_portfolio'), true);
+  assert.equal(OPEN_TOOL_NAMES.includes(GOVERNED_ASSET_TOOL_NAMES.authorize), false);
+  assert.equal(GOVERNED_ASSET_TOOL_CONTRACTS[GOVERNED_ASSET_TOOL_NAMES.authorize], undefined);
 });
 
-test('every governed descriptor carries strict canonical and mirrored OAuth', () => {
+test('every public governed descriptor carries strict mirrored OAuth', () => {
   for (const contract of Object.values(GOVERNED_ASSET_TOOL_CONTRACTS)) {
     assert.deepEqual(contract.securitySchemes, [
       { type: 'oauth2', scopes: ['vault'] },
@@ -50,70 +54,98 @@ test('every governed descriptor carries strict canonical and mirrored OAuth', ()
   }
 });
 
-test('truthful runtime challenge is available for every deferred governed tool', () => {
-  for (const tool of DEFERRED_GOVERNED_ASSET_TOOL_NAMES) {
-    const data = buildVaultAuthenticationRequired({ tool });
-    const result = vaultAuthenticationResult(data);
-    assert.equal(result.isError, true);
-    assert.deepEqual(
-      result._meta['mcp/www_authenticate'],
-      [VAULT_WWW_AUTHENTICATE],
-    );
+test('prepare accepts any canonical registry assetId and keeps denomination explicit', () => {
+  const send = GOVERNED_ASSET_INPUT_SCHEMAS.prepare.safeParse({
+    operationId: OPERATION_ID,
+    action: 'send',
+    assetId: 'dexter',
+    amountAtomic: '1000000',
+    destinationOwner: ADDRESS,
+  });
+  const buy = GOVERNED_ASSET_INPUT_SCHEMAS.prepare.safeParse({
+    operationId: OPERATION_ID,
+    action: 'buy',
+    assetId: 'approved-token-42',
+    amountAtomic: '1000000',
+    maxSlippageBps: 50,
+    maxPriceImpactBps: 100,
+  });
+  const sell = GOVERNED_ASSET_INPUT_SCHEMAS.prepare.safeParse({
+    operationId: OPERATION_ID,
+    action: 'sell',
+    assetId: 'dexter',
+    amountAtomic: '1000000',
+  });
+  assert.equal(send.success, true);
+  assert.equal(buy.success, true);
+  assert.equal(sell.success, true);
+  assert.equal(GOVERNED_ASSET_ID_SCHEMA.safeParse('syrup-usdc').success, true);
+  assert.equal(GOVERNED_ASSET_ID_SCHEMA.safeParse('equities:acme.v2').success, true);
+  for (const invalid of [
+    'DEXTER',
+    'display symbol',
+    'EfPoo4wWgxKVToit7yX5VtXXBrhao4G8L7vrbKy6pump',
+    `a${'b'.repeat(128)}`,
+  ]) {
+    assert.equal(GOVERNED_ASSET_ID_SCHEMA.safeParse(invalid).success, false, invalid);
+  }
+  assert.equal(GOVERNED_ASSET_INPUT_SCHEMAS.prepare.safeParse({
+    ...send.data,
+    memo: null,
+  }).success, false);
+
+  const options = GOVERNED_ASSET_INPUT_SCHEMAS.prepare._def.options;
+  const buySchema = options.find((schema) =>
+    schema.shape.action.safeParse('buy').success);
+  const sellSchema = options.find((schema) =>
+    schema.shape.action.safeParse('sell').success);
+  assert.match(buySchema.shape.amountAtomic.description, /USDC budget/i);
+  assert.match(buySchema.shape.amountAtomic.description, /6 decimals/i);
+  assert.match(sellSchema.shape.amountAtomic.description, /selected-asset amount/i);
+  assert.match(sellSchema.shape.amountAtomic.description, /server-certified decimals/i);
+});
+
+test('execute accepts only operationId and intentId', () => {
+  assert.equal(GOVERNED_ASSET_INPUT_SCHEMAS.execute.safeParse({
+    operationId: OPERATION_ID,
+    intentId: INTENT_ID,
+  }).success, true);
+  for (const field of [
+    'action',
+    'attemptId',
+    'planId',
+    'preparedPlanHash',
+    'authorizationId',
+  ]) {
+    assert.equal(GOVERNED_ASSET_INPUT_SCHEMAS.execute.safeParse({
+      operationId: OPERATION_ID,
+      intentId: INTENT_ID,
+      [field]: field === 'action' ? 'buy' : 'caller-selected',
+    }).success, false, field);
   }
 });
 
-test('prepare inputs require a UUID operation and exact action-specific terms', () => {
-  assert.equal(GOVERNED_ASSET_INPUT_SCHEMAS.prepare.safeParse({
-    operationId: OPERATION_ID,
-    action: 'send',
-    assetId: 'dexter',
-    amountAtomic: '1000',
-    destinationOwner: 'Vote111111111111111111111111111111111111111',
-  }).success, true);
-  assert.equal(GOVERNED_ASSET_INPUT_SCHEMAS.prepare.safeParse({
-    operationId: OPERATION_ID,
-    action: 'buy',
-    assetId: 'backpack-spcx',
-    amountAtomic: '1000',
-    maxSlippageBps: 50,
-    maxPriceImpactBps: 100,
-  }).success, true);
-  assert.equal(GOVERNED_ASSET_INPUT_SCHEMAS.prepare.safeParse({
-    operationId: 'same-order-today',
-    action: 'buy',
-    assetId: 'dexter',
-    amountAtomic: '1000',
-  }).success, false);
-  assert.equal(GOVERNED_ASSET_INPUT_SCHEMAS.prepare.safeParse({
-    operationId: OPERATION_ID,
-    action: 'send',
-    assetId: 'dexter',
-    amountAtomic: '1000',
-    destinationOwner: 'Vote111111111111111111111111111111111111111',
-    walletAddress: 'attacker-selected-wallet',
-  }).success, false);
-});
-
-test('authorize and execute accept only exact plan references, never identity', () => {
-  const authorize = {
-    operationId: OPERATION_ID,
-    action: 'sell',
+test('status, reconcile, and history expose only their exact read identities', () => {
+  assert.equal(GOVERNED_ASSET_INPUT_SCHEMAS.status.safeParse({
     intentId: INTENT_ID,
-    planId: 'plan_0123456789abcdef',
-    preparedPlanHash: 'a'.repeat(64),
-  };
-  assert.equal(GOVERNED_ASSET_INPUT_SCHEMAS.authorize.safeParse(authorize).success, true);
-  assert.equal(GOVERNED_ASSET_INPUT_SCHEMAS.execute.safeParse({
-    ...authorize,
-    authorizationId: AUTHORIZATION_ID,
   }).success, true);
-  assert.equal(GOVERNED_ASSET_INPUT_SCHEMAS.authorize.safeParse({
-    ...authorize,
-    agentId: 'attacker',
+  assert.equal(GOVERNED_ASSET_INPUT_SCHEMAS.reconcile.safeParse({
+    intentId: INTENT_ID,
+  }).success, true);
+  assert.equal(GOVERNED_ASSET_INPUT_SCHEMAS.history.safeParse({
+    limit: 100,
+    cursor: 'opaque-cursor',
+  }).success, true);
+  assert.equal(GOVERNED_ASSET_INPUT_SCHEMAS.history.safeParse({
+    limit: 101,
+  }).success, false);
+  assert.equal(GOVERNED_ASSET_INPUT_SCHEMAS.status.safeParse({
+    intentId: INTENT_ID,
+    operationId: OPERATION_ID,
   }).success, false);
 });
 
-test('authority override guard rejects nested aliases before transport', () => {
+test('authority override guard rejects nested identity aliases before transport', () => {
   for (const field of [
     'sessionId',
     'handle',
@@ -122,6 +154,7 @@ test('authority override guard rejects nested aliases before transport', () => {
     'actor',
     'agent_id',
     'grant',
+    'linkTokenId',
     'role',
     'authorityDigest',
   ]) {
@@ -136,24 +169,27 @@ test('authority override guard rejects nested aliases before transport', () => {
   }
 });
 
-test('operation identity is idempotency only and never substitutes for authority', () => {
+test('operation identity never substitutes for authority or owner approval', () => {
   assert.deepEqual(GOVERNED_OPERATION_SEMANTICS, {
-    operationIdRole: 'request_idempotency_identity_only',
-    sameOperationId: 'replay_exact_phase_and_request_only',
-    differentOperationId: 'distinct_requested_operation_not_authority',
-    authoritySource: 'independently_proven_owner_or_delegated_grant',
+    operationIdRole: 'idempotency_key_only',
+    prepareReplay: 'same_operation_and_exact_request_only',
+    executeReplay: 'same_operation_and_intent_only',
+    authoritySource: 'server_bound_reusable_agent_mandate',
+    coveredExecution: 'autonomous_within_exact_mandate_scope',
+    outsideScope: 'enrollment_extension_or_owner_escalation_required',
+    assetAuthority: 'server_registry_exact_identity_only',
+    ownerApproval: 'out_of_band_mandate_ceremony_only',
     backendAcceptanceRequired: true,
     automaticRetry: false,
-    ambiguousExecution: 'reconcile_only',
+    ambiguousExecution: 'status_then_reconcile_same_intent_only',
   });
-  const description =
-    GOVERNED_ASSET_TOOL_CONTRACTS.dexter_prepare_asset_action.description;
-  assert.match(description, /request and idempotency identity/);
-  assert.match(description, /exact same phase and request/);
-  assert.match(description, /authorizes nothing/);
-  assert.match(
-    description,
-    /independently proven owner or delegated-grant authority and backend acceptance/,
-  );
-  assert.doesNotMatch(description, /owner-authorized|new order/i);
+  const prepare = GOVERNED_ASSET_TOOL_CONTRACTS.dexter_prepare_asset_action.description;
+  const execute = GOVERNED_ASSET_TOOL_CONTRACTS.dexter_execute_asset_action.description;
+  assert.match(prepare, /Idempotency-Key/);
+  assert.match(prepare, /canonical assetId returned by dexter_portfolio/);
+  assert.match(prepare, /reusable bounded mandate/);
+  assert.match(prepare, /outside model-callable tools/);
+  assert.match(execute, /grants no authority/);
+  assert.match(execute, /covered by the bound reusable mandate may execute autonomously/);
+  assert.match(execute, /Never retry automatically/);
 });
