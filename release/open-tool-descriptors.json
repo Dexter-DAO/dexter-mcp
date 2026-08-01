@@ -1,0 +1,4178 @@
+{
+  "schemaVersion": 2,
+  "kind": "opendexter-hosted-tool-descriptors/v2",
+  "sourceContracts": {
+    "schemaVersion": 1,
+    "kind": "opendexter-source-contracts/v1",
+    "api": {
+      "repository": "https://github.com/Dexter-DAO/dexter-api",
+      "commit": "c3e32885cc39cdee47eca5a054c0fd7d8a0fdd8b",
+      "tree": "b8a3bdd790379f82b959663e679960f213addb5b",
+      "consumerFixture": {
+        "path": "tests/fixtures/governed-agent-reconcile-advanced-final-c3e32885.json",
+        "sha256": "449fc6b5a253d6856ae9f0990932dc6cefb84871c981229afb603a6314efa798",
+        "canonicalBodyDigest": "48e77a936f06fe07b66fee7c2cb9126e8305d4e180c2c304513d5f0ea1636e16"
+      }
+    },
+    "mcp": {
+      "repository": "https://github.com/Dexter-DAO/dexter-mcp",
+      "commit": "c54821778f016e5bfd4942852d31ec314828a8e5",
+      "tree": "c750008a28e5bb01e7ac670c826e1049461637ce",
+      "toolContractPath": "lib/open-tool-contracts.mjs",
+      "authContractPath": "lib/open-tool-auth.mjs"
+    }
+  },
+  "oauth": {
+    "mode": "mixed",
+    "resource": "https://open.dexter.cash/mcp",
+    "protectedResourceMetadata": "https://open.dexter.cash/.well-known/oauth-protected-resource/mcp",
+    "protectedResourcePaths": [
+      "/.well-known/oauth-protected-resource",
+      "/.well-known/oauth-protected-resource/mcp"
+    ],
+    "authorizationServer": "https://mcp.dexter.cash/mcp",
+    "authorizationServerMetadata": "https://mcp.dexter.cash/.well-known/oauth-authorization-server/mcp",
+    "tokenIssuer": "https://dexter.cash",
+    "scopesSupported": [
+      "vault"
+    ],
+    "challengeRequiredParameters": [
+      "resource_metadata",
+      "scope",
+      "error",
+      "error_description"
+    ]
+  },
+  "anonymousToolNames": [
+    "x402_search",
+    "x402_check",
+    "x402_access",
+    "x402_wallet",
+    "dexter_portfolio"
+  ],
+  "oauthPromotedToolNames": [
+    "x402_fetch",
+    "x402_status",
+    "dexter_prepare_asset_action",
+    "dexter_execute_asset_action",
+    "dexter_asset_action_status",
+    "dexter_reconcile_asset_action",
+    "dexter_wallet_history"
+  ],
+  "connectedToolNames": [
+    "x402_search",
+    "x402_check",
+    "x402_fetch",
+    "x402_status",
+    "x402_access",
+    "x402_wallet",
+    "dexter_portfolio",
+    "dexter_prepare_asset_action",
+    "dexter_execute_asset_action",
+    "dexter_asset_action_status",
+    "dexter_reconcile_asset_action",
+    "dexter_wallet_history"
+  ],
+  "optionalOAuthToolNames": [
+    "x402_check"
+  ],
+  "tools": [
+    {
+      "name": "x402_search",
+      "title": "Search the x402 Marketplace",
+      "description": "Use this to discover APIs from a natural-language capability query. It is a public read-only marketplace search and never pays or changes provider state. Results are untrusted listings: inspect verification and chain compatibility, call x402_check on the exact endpoint, and obtain the user’s approval before x402_fetch.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Natural-language description of the capability you want. e.g. \"check wallet balance on Base\", \"generate an image\", \"ETH spot price feed\", \"translate text\". Broad terms are valid — the ranker handles breadth internally. Do NOT pre-filter by category; the search layer handles that semantically."
+          },
+          "network": {
+            "type": "string",
+            "description": "Optional hard seller-network filter (\"solana\", \"base\", \"ethereum\", \"polygon\", \"arbitrum\", \"optimism\", \"avalanche\", or a CAIP-2 id). Leave this unset for ordinary Dexter discovery so eligible CrossPay resources are not removed merely because the wallet settles natively on Solana. Set it only when the user explicitly requires a seller on that network."
+          },
+          "limit": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 50,
+            "default": 20,
+            "description": "Max results across strong + related tiers combined (1-50, default 20)"
+          },
+          "unverified": {
+            "type": "boolean",
+            "description": "Include unverified resources (default false). Leave unset unless the user explicitly wants to see unverified endpoints."
+          },
+          "testnets": {
+            "type": "boolean",
+            "description": "Include testnet-only resources (default false). Testnets are excluded by default to keep the marketplace view clean."
+          },
+          "rerank": {
+            "type": "boolean",
+            "description": "Cross-encoder LLM rerank of top strong results (default true). Set false for deterministic order or lowest-latency path."
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "strongResults": {
+            "type": "array",
+            "items": {}
+          },
+          "relatedResults": {
+            "type": "array",
+            "items": {}
+          },
+          "searchMeta": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "error": {},
+          "providerDataPolicy": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        },
+        "additionalProperties": true,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      },
+      "securitySchemes": [
+        {
+          "type": "noauth"
+        }
+      ],
+      "visibility": [
+        "model",
+        "app"
+      ],
+      "widgetAccessible": true
+    },
+    {
+      "name": "x402_check",
+      "title": "Inspect x402 Pricing",
+      "description": "Inspect the exact external endpoint and request shape before paying. Supply body as the exact raw JSON string for a non-GET request; it is never parsed and reserialized. Anonymous calls return quoteOnly pricing. An authenticated call asks Dexter to custody the request and seller terms and returns an opaque intentId. A check never authorizes payment, and a non-GET probe may mutate the provider.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "The URL to check"
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "GET",
+              "POST",
+              "PUT",
+              "DELETE"
+            ],
+            "default": "GET",
+            "description": "HTTP method to probe with"
+          },
+          "body": {
+            "type": "string",
+            "description": "Exact raw JSON request-body string for POST, PUT, or DELETE. OpenDexter does not parse, canonicalize, or reserialize this string before intent custody."
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "free": {
+            "type": "boolean"
+          },
+          "authRequired": {
+            "type": "boolean"
+          },
+          "requiresPayment": {
+            "type": "boolean"
+          },
+          "statusCode": {
+            "type": "number"
+          },
+          "paymentOptions": {
+            "type": "array",
+            "items": {}
+          },
+          "intentId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "quoteOnly": {
+            "type": "boolean"
+          },
+          "checkedRequest": {
+            "type": "object",
+            "properties": {
+              "url": {
+                "type": "string",
+                "format": "uri"
+              },
+              "method": {
+                "type": "string",
+                "enum": [
+                  "GET",
+                  "POST",
+                  "PUT",
+                  "DELETE"
+                ]
+              },
+              "body": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "requestBound": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "url",
+              "method",
+              "body",
+              "requestBound"
+            ],
+            "additionalProperties": false
+          },
+          "executionGuidance": {
+            "type": "object",
+            "properties": {
+              "supportedPath": {
+                "type": "string",
+                "enum": [
+                  "fetch_by_intent",
+                  "connect_then_recheck",
+                  "form_body_then_recheck"
+                ]
+              },
+              "readyForFetch": {
+                "type": "boolean"
+              },
+              "intentRequired": {
+                "type": "boolean",
+                "const": true
+              },
+              "requiredCeilingField": {
+                "type": "string",
+                "const": "maxAmountAtomic"
+              },
+              "fetchArguments": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 2,
+                "items": [
+                  {
+                    "type": "string",
+                    "const": "intentId"
+                  },
+                  {
+                    "type": "string",
+                    "const": "maxAmountAtomic"
+                  }
+                ]
+              },
+              "dispatchAtMostOnce": {
+                "type": "boolean",
+                "const": true
+              }
+            },
+            "required": [
+              "supportedPath",
+              "readyForFetch",
+              "intentRequired",
+              "requiredCeilingField",
+              "fetchArguments",
+              "dispatchAtMostOnce"
+            ],
+            "additionalProperties": false
+          },
+          "enrichment": {},
+          "enrichment_source": {
+            "type": "string"
+          },
+          "authMode": {
+            "type": "string"
+          },
+          "inputSchema": {},
+          "outputSchema": {},
+          "error": {},
+          "message": {
+            "type": "string"
+          },
+          "providerDataPolicy": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      },
+      "securitySchemes": [
+        {
+          "type": "noauth"
+        },
+        {
+          "type": "oauth2",
+          "scopes": [
+            "vault"
+          ]
+        }
+      ],
+      "visibility": [
+        "model",
+        "app"
+      ],
+      "widgetAccessible": true
+    },
+    {
+      "name": "x402_fetch",
+      "title": "Call and Pay for an x402 API",
+      "description": "Execute one server-owned x402 purchase intent after approval. Accepts only the opaque intentId returned by an authenticated x402_check and maxAmountAtomic, the exact positive atomic ceiling approved by the user or delegated policy. URL, method, request body, seller offer, route, payee, network, asset, and challenge remain API-custodied. Never automatically retry an ambiguous or post-dispatch outcome; inspect the same intent with x402_status.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "intentId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "description": "Opaque server-owned purchase-intent handle returned by the authenticated x402_check. Do not parse, reconstruct, or replace it."
+          },
+          "maxAmountAtomic": {
+            "type": "string",
+            "pattern": "^[1-9]\\d{0,19}$",
+            "description": "Required approved maximum charge in USDC atomic units (positive 1-20 digit decimal string). The API binds it to this intent and rejects a different or larger charge."
+          }
+        },
+        "required": [
+          "intentId",
+          "maxAmountAtomic"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "intentId": {
+            "type": "string"
+          },
+          "status": {
+            "type": [
+              "string",
+              "number"
+            ]
+          },
+          "data": {},
+          "payment": {},
+          "delivery": {},
+          "reconciliation": {},
+          "reservationState": {
+            "type": "string"
+          },
+          "error": {},
+          "reason": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "retryWithSameIntentOnly": {
+            "type": "boolean"
+          },
+          "authorizationRequired": {
+            "type": "boolean"
+          },
+          "consentUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "retry": {
+            "type": "object",
+            "properties": {
+              "intentId": {
+                "type": "string"
+              },
+              "maxAmountAtomic": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "intentId"
+            ],
+            "additionalProperties": false
+          },
+          "httpStatus": {
+            "type": "integer"
+          },
+          "providerDataPolicy": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      },
+      "securitySchemes": [
+        {
+          "type": "oauth2",
+          "scopes": [
+            "vault"
+          ]
+        }
+      ],
+      "visibility": [
+        "model",
+        "app"
+      ],
+      "widgetAccessible": false
+    },
+    {
+      "name": "x402_status",
+      "title": "Inspect an x402 Purchase Intent",
+      "description": "Read delivery, payment, reconciliation, and reservation state for one opaque intentId. This never creates another purchase, redispatches the provider request, rebroadcasts a transaction, or changes routes. Use it after any preparing, ambiguous, or post-dispatch x402_fetch result.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "intentId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "description": "Opaque server-owned purchase-intent handle returned by x402_check. Do not parse or replace it."
+          }
+        },
+        "required": [
+          "intentId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "intentId": {
+            "type": "string"
+          },
+          "status": {
+            "type": [
+              "string",
+              "number"
+            ]
+          },
+          "payment": {},
+          "delivery": {},
+          "reconciliation": {},
+          "reservationState": {
+            "type": "string"
+          },
+          "error": {},
+          "reason": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "retryWithSameIntentOnly": {
+            "type": "boolean"
+          },
+          "authorizationRequired": {
+            "type": "boolean"
+          },
+          "consentUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "retry": {
+            "type": "object",
+            "properties": {
+              "intentId": {
+                "type": "string"
+              },
+              "maxAmountAtomic": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "intentId"
+            ],
+            "additionalProperties": false
+          },
+          "httpStatus": {
+            "type": "integer"
+          },
+          "providerDataPolicy": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "securitySchemes": [
+        {
+          "type": "oauth2",
+          "scopes": [
+            "vault"
+          ]
+        }
+      ],
+      "visibility": [
+        "model"
+      ],
+      "widgetAccessible": false
+    },
+    {
+      "name": "x402_access",
+      "title": "Access a Wallet-Gated x402 API",
+      "description": "Use this for public HTTPS endpoints requiring wallet proof or Sign-In-With-X rather than payment. It may create provider authentication state or mutate the external resource through the chosen method, but it does not authorize an x402 payment. Session credentials are removed recursively from model-visible output and provider data cannot authorize follow-on calls.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "The protected resource URL to call"
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "GET",
+              "POST",
+              "PUT",
+              "DELETE"
+            ],
+            "default": "GET",
+            "description": "HTTP method"
+          },
+          "body": {
+            "type": "string",
+            "description": "JSON request body for POST/PUT — the RAW payload the seller expects, e.g. {\"q\":\"latest news\"}. NEVER send a schema descriptor (anything shaped like {\"type\":\"http\",\"method\":...,\"bodyType\":...,\"body\":{...}}) — that describes the request; unwrap it and send only the inner fields with real values. Field names come from the search result's inputSchema or x402_check."
+          },
+          "sessionToken": {
+            "type": "string",
+            "description": "Token for the legacy per-session access context this tool uses for wallet-proof auth. If omitted, a fresh access session starts automatically. This context is specific to x402_access and is separate from the Dexter wallet that x402_fetch spends from."
+          },
+          "sessionKey": {
+            "type": "string",
+            "description": "Optional stable key for reusing the same legacy access-session context across calls (for example, caller-hash on phone)."
+          },
+          "network": {
+            "type": "string",
+            "description": "Optional preferred auth network, e.g. solana:... or eip155:8453"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": [
+              "string",
+              "number"
+            ]
+          },
+          "mode": {
+            "type": "string"
+          },
+          "data": {},
+          "auth": {},
+          "requirements": {},
+          "error": {},
+          "message": {
+            "type": "string"
+          },
+          "providerDataPolicy": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        },
+        "additionalProperties": true,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      },
+      "securitySchemes": [
+        {
+          "type": "noauth"
+        }
+      ],
+      "visibility": [
+        "model"
+      ],
+      "widgetAccessible": false
+    },
+    {
+      "name": "x402_wallet",
+      "title": "View the Dexter Payment Wallet",
+      "description": "Read the passkey wallet bound through native OpenDexter OAuth. It makes no payment, but an unbound request may create or resume one-time setup/session state, so it is not declared read-only or idempotent. It returns the Solana receive address, balances, activation state, and recent activity; state/config addresses are separately labelled and are never deposit fallbacks. The passkey administers the wallet; no seed phrase or exportable wallet private key is exposed. Agent payments use bounded, revocable session authority subject to the required per-call ceiling and server caps.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {}
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "vault_status": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "address": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "solanaAddress": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "receiveAddress": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "balances": {},
+          "vault": {},
+          "error": {}
+        },
+        "additionalProperties": true,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "securitySchemes": [
+        {
+          "type": "oauth2",
+          "scopes": [
+            "vault"
+          ]
+        }
+      ],
+      "visibility": [
+        "model",
+        "app"
+      ],
+      "widgetAccessible": false
+    },
+    {
+      "name": "dexter_portfolio",
+      "title": "View the Governed Asset Portfolio",
+      "description": "Read the portfolio bound to the current authenticated OpenDexter session. Inputs cannot select a handle, wallet, vault, actor, agent, grant, role, or authority. Approved holdings include the canonical assetId accepted by governed Send, Buy, and Sell; unreviewed or blocked holdings expose null. The result otherwise contains only verified chain identities, exact quantities, bounded numeric valuation, and allowed action enums; names, symbols, issuers, URLs, registry groups, and policy reasons are excluded.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {}
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "portfolio_status": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "read_error"
+            ]
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "portfolio_ready",
+              "portfolio_read_error",
+              "authentication_required"
+            ]
+          },
+          "user_bound": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "portfolio": {
+            "type": "object",
+            "properties": {
+              "contractVersion": {
+                "type": "string",
+                "const": "opendexter.portfolio.v1"
+              },
+              "network": {
+                "type": "string",
+                "const": "solana-mainnet"
+              },
+              "walletAddress": {
+                "type": "string"
+              },
+              "observedAt": {
+                "type": "string"
+              },
+              "contextSlot": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "holdingsComplete": {
+                "type": "boolean"
+              },
+              "omittedHoldings": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "pricedValueUsd": {
+                "type": "string"
+              },
+              "portfolioValueUsd": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "pricedHoldings": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "unpricedHoldings": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "holdings": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "assetId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128,
+                          "pattern": "^[a-z0-9][a-z0-9._:-]*$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "mint": {
+                      "type": "string"
+                    },
+                    "tokenAccount": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "tokenProgram": {
+                      "type": "string",
+                      "enum": [
+                        "native",
+                        "spl-token",
+                        "token-2022"
+                      ]
+                    },
+                    "assetClass": {
+                      "type": "string",
+                      "enum": [
+                        "cash",
+                        "yield",
+                        "token",
+                        "stock",
+                        "fund",
+                        "nft",
+                        "rwa"
+                      ]
+                    },
+                    "amountRaw": {
+                      "type": "string"
+                    },
+                    "decimals": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "displayAmount": {
+                      "type": "string"
+                    },
+                    "amountModel": {
+                      "type": "string",
+                      "enum": [
+                        "raw-decimals",
+                        "scaled-ui-amount",
+                        "unknown"
+                      ]
+                    },
+                    "accountState": {
+                      "type": "string",
+                      "enum": [
+                        "initialized",
+                        "frozen",
+                        "unknown"
+                      ]
+                    },
+                    "valueUsd": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "priceUsd": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "priceObservedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "approvalStatus": {
+                      "type": "string",
+                      "enum": [
+                        "approved",
+                        "unreviewed",
+                        "blocked"
+                      ]
+                    },
+                    "availableActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "view",
+                          "receive",
+                          "send",
+                          "buy",
+                          "sell",
+                          "earn",
+                          "lend",
+                          "borrow",
+                          "pay"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "assetId",
+                    "mint",
+                    "tokenAccount",
+                    "tokenProgram",
+                    "assetClass",
+                    "amountRaw",
+                    "decimals",
+                    "displayAmount",
+                    "amountModel",
+                    "accountState",
+                    "valueUsd",
+                    "priceUsd",
+                    "priceObservedAt",
+                    "approvalStatus",
+                    "availableActions"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "contractVersion",
+              "network",
+              "walletAddress",
+              "observedAt",
+              "contextSlot",
+              "holdingsComplete",
+              "omittedHoldings",
+              "pricedValueUsd",
+              "portfolioValueUsd",
+              "pricedHoldings",
+              "unpricedHoldings",
+              "holdings"
+            ],
+            "additionalProperties": false
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "error": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "number",
+            "const": 401
+          },
+          "paySource": {
+            "type": "string",
+            "const": "anon_vault"
+          },
+          "next_action": {
+            "type": "string",
+            "const": "connect_opendexter"
+          },
+          "vault_status": {
+            "type": "string",
+            "const": "authentication_required"
+          },
+          "retry": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "instructions": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "requirements": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "merchantSettlement": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "securitySchemes": [
+        {
+          "type": "oauth2",
+          "scopes": [
+            "vault"
+          ]
+        }
+      ],
+      "visibility": [
+        "model"
+      ],
+      "widgetAccessible": false
+    },
+    {
+      "name": "dexter_prepare_asset_action",
+      "title": "Prepare a Governed Send, Buy, or Sell",
+      "description": "Persist and evaluate one exact Send, Buy, or Sell without signing or submitting it. Pass only a canonical assetId returned by dexter_portfolio; Dexter resolves and binds its exact network, mint, token program, decimals, and supported actions. Buy amountAtomic is the USDC budget to spend; Sell and Send amountAtomic are selected-asset input. operationId is only the Idempotency-Key. The server resolves the wallet and reusable bounded mandate; enrollment, extension, or owner escalation happens outside model-callable tools only when the request is not already covered.",
+      "inputSchema": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "operationId": {
+                "type": "string",
+                "minLength": 8,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+                "description": "Stable idempotency identity for this exact request. Reuse it only for an exact replay of the same operation and arguments."
+              },
+              "action": {
+                "type": "string",
+                "const": "send"
+              },
+              "assetId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[a-z0-9][a-z0-9._:-]*$",
+                "description": "Canonical assetId returned by dexter_portfolio for a server-approved asset. This is not a symbol or mint; Dexter resolves it to one exact network, mint, token program, decimals, and capability record."
+              },
+              "amountAtomic": {
+                "type": "string",
+                "maxLength": 20,
+                "pattern": "^[1-9][0-9]*$",
+                "description": "Exact selected-asset amount in atomic units. Use the server-certified decimals returned for this asset; never infer decimals from its symbol."
+              },
+              "destinationOwner": {
+                "type": "string",
+                "minLength": 32,
+                "maxLength": 44,
+                "pattern": "^[1-9A-HJ-NP-Za-km-z]+$",
+                "description": "Canonical Solana base58 destination owner address."
+              }
+            },
+            "required": [
+              "operationId",
+              "action",
+              "assetId",
+              "amountAtomic",
+              "destinationOwner"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "operationId": {
+                "$ref": "#/anyOf/0/properties/operationId"
+              },
+              "action": {
+                "type": "string",
+                "const": "buy"
+              },
+              "assetId": {
+                "$ref": "#/anyOf/0/properties/assetId"
+              },
+              "amountAtomic": {
+                "$ref": "#/anyOf/0/properties/amountAtomic",
+                "description": "Exact USDC budget to spend, in atomic units. The canonical settlement asset uses 6 decimals, so 1000000 means 1 USDC; assetId identifies the asset being bought."
+              },
+              "memo": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 566
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Optional trade memo. Send does not support a memo and exposes no memo field."
+              },
+              "maxSlippageBps": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 10000
+              },
+              "maxPriceImpactBps": {
+                "$ref": "#/anyOf/1/properties/maxSlippageBps"
+              }
+            },
+            "required": [
+              "operationId",
+              "action",
+              "assetId",
+              "amountAtomic"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "operationId": {
+                "$ref": "#/anyOf/0/properties/operationId"
+              },
+              "action": {
+                "type": "string",
+                "const": "sell"
+              },
+              "assetId": {
+                "$ref": "#/anyOf/0/properties/assetId"
+              },
+              "amountAtomic": {
+                "$ref": "#/anyOf/0/properties/amountAtomic",
+                "description": "Exact selected-asset amount to sell, in atomic units. Use the server-certified decimals returned for this asset; never infer decimals from its symbol."
+              },
+              "memo": {
+                "$ref": "#/anyOf/1/properties/memo"
+              },
+              "maxSlippageBps": {
+                "$ref": "#/anyOf/1/properties/maxSlippageBps"
+              },
+              "maxPriceImpactBps": {
+                "$ref": "#/anyOf/1/properties/maxSlippageBps"
+              }
+            },
+            "required": [
+              "operationId",
+              "action",
+              "assetId",
+              "amountAtomic"
+            ],
+            "additionalProperties": false
+          }
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "namespace": {
+            "type": "string",
+            "const": "dexter-governed-agent-action/v1"
+          },
+          "requestId": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+          },
+          "executed": {
+            "type": "boolean",
+            "const": false
+          },
+          "attribution": {
+            "type": "object",
+            "properties": {
+              "actor": {
+                "type": "string",
+                "const": "agent"
+              },
+              "runtime": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "const": "mcp-link-token"
+                  },
+                  "agentId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "linkTokenId": {
+                    "$ref": "#/properties/attribution/properties/runtime/properties/agentId"
+                  },
+                  "surfaceBindingDigest": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "sessionBindingDigest": {
+                    "$ref": "#/properties/attribution/properties/runtime/properties/surfaceBindingDigest"
+                  }
+                },
+                "required": [
+                  "source",
+                  "agentId",
+                  "linkTokenId",
+                  "surfaceBindingDigest",
+                  "sessionBindingDigest"
+                ],
+                "additionalProperties": false
+              },
+              "wallet": {
+                "type": "object",
+                "properties": {
+                  "vaultPda": {
+                    "type": "string",
+                    "minLength": 32,
+                    "maxLength": 64
+                  },
+                  "swigAddress": {
+                    "$ref": "#/properties/attribution/properties/wallet/properties/vaultPda"
+                  },
+                  "walletAddress": {
+                    "$ref": "#/properties/attribution/properties/wallet/properties/vaultPda"
+                  }
+                },
+                "required": [
+                  "vaultPda",
+                  "swigAddress",
+                  "walletAddress"
+                ],
+                "additionalProperties": false
+              },
+              "grant": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "$ref": "#/properties/attribution/properties/runtime/properties/agentId"
+                  },
+                  "revision": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "revisionDigest": {
+                    "$ref": "#/properties/attribution/properties/runtime/properties/surfaceBindingDigest"
+                  },
+                  "ruleId": {
+                    "$ref": "#/properties/attribution/properties/runtime/properties/agentId"
+                  },
+                  "riskPolicyDigest": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/properties/attribution/properties/runtime/properties/surfaceBindingDigest"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "validFrom": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "expiresAt": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/properties/attribution/properties/grant/properties/validFrom"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "revision",
+                  "revisionDigest",
+                  "ruleId",
+                  "riskPolicyDigest",
+                  "validFrom",
+                  "expiresAt"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "actor",
+              "runtime",
+              "wallet",
+              "grant"
+            ],
+            "additionalProperties": false
+          },
+          "business": {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "enum": [
+                  "send",
+                  "buy",
+                  "sell"
+                ]
+              },
+              "assetId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[a-z0-9][a-z0-9._:-]*$",
+                "description": "Canonical assetId returned by dexter_portfolio for a server-approved asset. This is not a symbol or mint; Dexter resolves it to one exact network, mint, token program, decimals, and capability record."
+              },
+              "amountAtomic": {
+                "type": "string",
+                "maxLength": 20,
+                "pattern": "^[1-9][0-9]*$"
+              },
+              "destinationOwner": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/attribution/properties/wallet/properties/vaultPda"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "protocolId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[a-z0-9][a-z0-9._:-]*$"
+              },
+              "lifecycle": {
+                "type": "string",
+                "enum": [
+                  "not-created",
+                  "unknown",
+                  "prepared",
+                  "claimed",
+                  "signed",
+                  "submitted",
+                  "confirmed",
+                  "refused",
+                  "ambiguous",
+                  "reconciliation-required"
+                ]
+              },
+              "settlement": {
+                "type": "string",
+                "enum": [
+                  "not-submitted",
+                  "submission-pending",
+                  "landed",
+                  "definitively-not-landed",
+                  "unknown"
+                ]
+              },
+              "finality": {
+                "type": "string",
+                "enum": [
+                  "not-final",
+                  "confirmed",
+                  "finalized",
+                  "unknown"
+                ]
+              },
+              "executionSucceeded": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "programError": {
+                "type": "boolean"
+              },
+              "refusalOrEscalationReasons": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "maxItems": 32
+              },
+              "ambiguity": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "none",
+                      "unresolved"
+                    ]
+                  },
+                  "retrySameRequestOnly": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "status",
+                  "retrySameRequestOnly"
+                ],
+                "additionalProperties": false
+              },
+              "reconciliation": {
+                "type": "object",
+                "properties": {
+                  "required": {
+                    "type": "boolean"
+                  },
+                  "availableToOwner": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "required",
+                  "availableToOwner"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "action",
+              "assetId",
+              "amountAtomic",
+              "destinationOwner",
+              "protocolId",
+              "lifecycle",
+              "settlement",
+              "finality",
+              "executionSucceeded",
+              "programError",
+              "refusalOrEscalationReasons",
+              "ambiguity",
+              "reconciliation"
+            ],
+            "additionalProperties": false
+          },
+          "status": {
+            "type": "string",
+            "const": "prepared"
+          },
+          "intentId": {
+            "$ref": "#/properties/attribution/properties/runtime/properties/agentId"
+          },
+          "planId": {
+            "$ref": "#/properties/requestId"
+          },
+          "replayed": {
+            "type": "boolean"
+          },
+          "approval": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "const": "not-required"
+                  },
+                  "reasons": {
+                    "type": "array",
+                    "minItems": 0,
+                    "maxItems": 0,
+                    "items": []
+                  }
+                },
+                "required": [
+                  "status",
+                  "reasons"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "const": "owner-approval-required"
+                  },
+                  "reasons": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/properties/business/properties/refusalOrEscalationReasons/items"
+                    },
+                    "maxItems": 32
+                  }
+                },
+                "required": [
+                  "status",
+                  "reasons"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "effectiveExpiresAt": {
+            "$ref": "#/properties/attribution/properties/grant/properties/validFrom"
+          },
+          "riskEvidenceDigest": {
+            "$ref": "#/properties/attribution/properties/runtime/properties/surfaceBindingDigest"
+          },
+          "authoritySnapshotDigest": {
+            "$ref": "#/properties/attribution/properties/runtime/properties/surfaceBindingDigest"
+          },
+          "preview": {
+            "type": "object",
+            "properties": {
+              "action": {
+                "$ref": "#/properties/business/properties/action"
+              },
+              "assetId": {
+                "$ref": "#/properties/business/properties/assetId"
+              },
+              "symbol": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 32
+              },
+              "amountAtomic": {
+                "$ref": "#/properties/business/properties/amountAtomic"
+              },
+              "inputMint": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "const": "native:SOL"
+                  },
+                  {
+                    "$ref": "#/properties/attribution/properties/wallet/properties/vaultPda"
+                  }
+                ]
+              },
+              "outputMint": {
+                "$ref": "#/properties/preview/properties/inputMint"
+              },
+              "destinationOwner": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/attribution/properties/wallet/properties/vaultPda"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "expectedOutputAtomic": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 20,
+                    "pattern": "^(0|[1-9][0-9]*)$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "minimumOutputAtomic": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/preview/properties/expectedOutputAtomic/anyOf/0"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "slippageBps": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 10000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "priceImpactBps": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 10000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "quoteExpiresAtUnixMs": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "action",
+              "assetId",
+              "symbol",
+              "amountAtomic",
+              "inputMint",
+              "outputMint",
+              "destinationOwner",
+              "expectedOutputAtomic",
+              "minimumOutputAtomic",
+              "slippageBps",
+              "priceImpactBps",
+              "quoteExpiresAtUnixMs"
+            ],
+            "additionalProperties": false
+          },
+          "account": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "required",
+                          "already-funded",
+                          "reclaimable"
+                        ]
+                      },
+                      "rentLedgerState": {
+                        "type": "string",
+                        "enum": [
+                          "reserved",
+                          "funded",
+                          "reclaimable"
+                        ]
+                      },
+                      "tokenAccountAddress": {
+                        "$ref": "#/properties/attribution/properties/wallet/properties/vaultPda"
+                      },
+                      "ownerAddress": {
+                        "$ref": "#/properties/attribution/properties/wallet/properties/vaultPda"
+                      },
+                      "mint": {
+                        "$ref": "#/properties/attribution/properties/wallet/properties/vaultPda"
+                      },
+                      "tokenProgram": {
+                        "type": "string",
+                        "enum": [
+                          "spl-token",
+                          "token-2022"
+                        ]
+                      },
+                      "payerAddress": {
+                        "$ref": "#/properties/attribution/properties/wallet/properties/vaultPda"
+                      },
+                      "exactRentLamports": {
+                        "$ref": "#/properties/preview/properties/expectedOutputAtomic/anyOf/0"
+                      },
+                      "fundingPolicy": {
+                        "type": "string",
+                        "enum": [
+                          "vault-reclaimable",
+                          "user-funded-nonreclaimable",
+                          "sponsored-nonreclaimable"
+                        ]
+                      },
+                      "rentLedgerId": {
+                        "$ref": "#/properties/attribution/properties/runtime/properties/agentId"
+                      },
+                      "rentLedgerReplayed": {
+                        "type": "boolean"
+                      },
+                      "fundedLamports": {
+                        "anyOf": [
+                          {
+                            "$ref": "#/properties/preview/properties/expectedOutputAtomic/anyOf/0"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "status",
+                      "rentLedgerState",
+                      "tokenAccountAddress",
+                      "ownerAddress",
+                      "mint",
+                      "tokenProgram",
+                      "payerAddress",
+                      "exactRentLamports",
+                      "fundingPolicy",
+                      "rentLedgerId",
+                      "rentLedgerReplayed",
+                      "fundedLamports"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "status": {
+                        "type": "string",
+                        "const": "already-exists"
+                      },
+                      "tokenAccountAddress": {
+                        "$ref": "#/properties/attribution/properties/wallet/properties/vaultPda"
+                      }
+                    },
+                    "required": [
+                      "status",
+                      "tokenAccountAddress"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "execution": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "const": "not-executed"
+              },
+              "signed": {
+                "type": "boolean",
+                "const": false
+              },
+              "submitted": {
+                "type": "boolean",
+                "const": false
+              }
+            },
+            "required": [
+              "status",
+              "signed",
+              "submitted"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "namespace",
+          "requestId",
+          "executed",
+          "attribution",
+          "business",
+          "status",
+          "intentId",
+          "planId",
+          "replayed",
+          "approval",
+          "effectiveExpiresAt",
+          "riskEvidenceDigest",
+          "authoritySnapshotDigest",
+          "preview",
+          "account",
+          "execution"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      },
+      "securitySchemes": [
+        {
+          "type": "oauth2",
+          "scopes": [
+            "vault"
+          ]
+        }
+      ],
+      "visibility": [
+        "model"
+      ],
+      "widgetAccessible": false
+    },
+    {
+      "name": "dexter_execute_asset_action",
+      "title": "Execute a Prepared Governed Asset Action",
+      "description": "Ask the protected mandate executor to execute one exact intentId. A request covered by the bound reusable mandate may execute autonomously; an uncovered request fails closed for enrollment, extension, or owner escalation. operationId is only the Idempotency-Key and grants no authority. The tool accepts no plan, attempt, authorization, wallet, agent, grant, mint, or token-program fields. Never retry automatically after a timeout or uncertain result; inspect status and reconcile the same intent.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+            "description": "Stable idempotency identity for this exact request. Reuse it only for an exact replay of the same operation and arguments."
+          },
+          "intentId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Exact governed intentId returned by dexter_prepare_asset_action."
+          }
+        },
+        "required": [
+          "operationId",
+          "intentId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "namespace": {
+            "type": "string",
+            "const": "dexter-governed-agent-execute/v1"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "confirmed",
+              "uncertain",
+              "refused"
+            ]
+          },
+          "requestId": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+          },
+          "intentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "attemptId": {
+            "anyOf": [
+              {
+                "$ref": "#/properties/intentId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "transactionSignature": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 64,
+                "maxLength": 128
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "executed": {
+            "type": "boolean"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "explanation": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "attribution": {
+            "type": "object",
+            "properties": {
+              "actor": {
+                "type": "string",
+                "const": "agent"
+              },
+              "runtime": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "const": "mcp-link-token"
+                  },
+                  "agentId": {
+                    "$ref": "#/properties/intentId"
+                  },
+                  "linkTokenId": {
+                    "$ref": "#/properties/intentId"
+                  },
+                  "surfaceBindingDigest": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "sessionBindingDigest": {
+                    "$ref": "#/properties/attribution/properties/runtime/properties/surfaceBindingDigest"
+                  }
+                },
+                "required": [
+                  "source",
+                  "agentId",
+                  "linkTokenId",
+                  "surfaceBindingDigest",
+                  "sessionBindingDigest"
+                ],
+                "additionalProperties": false
+              },
+              "wallet": {
+                "type": "object",
+                "properties": {
+                  "vaultPda": {
+                    "type": "string",
+                    "minLength": 32,
+                    "maxLength": 64
+                  },
+                  "swigAddress": {
+                    "$ref": "#/properties/attribution/properties/wallet/properties/vaultPda"
+                  },
+                  "walletAddress": {
+                    "$ref": "#/properties/attribution/properties/wallet/properties/vaultPda"
+                  }
+                },
+                "required": [
+                  "vaultPda",
+                  "swigAddress",
+                  "walletAddress"
+                ],
+                "additionalProperties": false
+              },
+              "grant": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "$ref": "#/properties/intentId"
+                  },
+                  "revision": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "revisionDigest": {
+                    "$ref": "#/properties/attribution/properties/runtime/properties/surfaceBindingDigest"
+                  },
+                  "ruleId": {
+                    "$ref": "#/properties/intentId"
+                  },
+                  "riskPolicyDigest": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/properties/attribution/properties/runtime/properties/surfaceBindingDigest"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "validFrom": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "expiresAt": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/properties/attribution/properties/grant/properties/validFrom"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "revision",
+                  "revisionDigest",
+                  "ruleId",
+                  "riskPolicyDigest",
+                  "validFrom",
+                  "expiresAt"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "actor",
+              "runtime",
+              "wallet",
+              "grant"
+            ],
+            "additionalProperties": false
+          },
+          "business": {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "enum": [
+                  "send",
+                  "buy",
+                  "sell"
+                ]
+              },
+              "assetId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[a-z0-9][a-z0-9._:-]*$",
+                "description": "Canonical assetId returned by dexter_portfolio for a server-approved asset. This is not a symbol or mint; Dexter resolves it to one exact network, mint, token program, decimals, and capability record."
+              },
+              "amountAtomic": {
+                "type": "string",
+                "maxLength": 20,
+                "pattern": "^[1-9][0-9]*$"
+              },
+              "destinationOwner": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/attribution/properties/wallet/properties/vaultPda"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "protocolId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[a-z0-9][a-z0-9._:-]*$"
+              },
+              "lifecycle": {
+                "type": "string",
+                "enum": [
+                  "not-created",
+                  "unknown",
+                  "prepared",
+                  "claimed",
+                  "signed",
+                  "submitted",
+                  "confirmed",
+                  "refused",
+                  "ambiguous",
+                  "reconciliation-required"
+                ]
+              },
+              "settlement": {
+                "type": "string",
+                "enum": [
+                  "not-submitted",
+                  "submission-pending",
+                  "landed",
+                  "definitively-not-landed",
+                  "unknown"
+                ]
+              },
+              "finality": {
+                "type": "string",
+                "enum": [
+                  "not-final",
+                  "confirmed",
+                  "finalized",
+                  "unknown"
+                ]
+              },
+              "executionSucceeded": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "programError": {
+                "type": "boolean"
+              },
+              "refusalOrEscalationReasons": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/properties/code/anyOf/0"
+                },
+                "maxItems": 32
+              },
+              "ambiguity": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "none",
+                      "unresolved"
+                    ]
+                  },
+                  "retrySameRequestOnly": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "status",
+                  "retrySameRequestOnly"
+                ],
+                "additionalProperties": false
+              },
+              "reconciliation": {
+                "type": "object",
+                "properties": {
+                  "required": {
+                    "type": "boolean"
+                  },
+                  "availableToOwner": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "required",
+                  "availableToOwner"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "action",
+              "assetId",
+              "amountAtomic",
+              "destinationOwner",
+              "protocolId",
+              "lifecycle",
+              "settlement",
+              "finality",
+              "executionSucceeded",
+              "programError",
+              "refusalOrEscalationReasons",
+              "ambiguity",
+              "reconciliation"
+            ],
+            "additionalProperties": false
+          },
+          "evidenceDigest": {
+            "anyOf": [
+              {
+                "$ref": "#/properties/attribution/properties/runtime/properties/surfaceBindingDigest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "namespace",
+          "status",
+          "requestId",
+          "intentId",
+          "attemptId",
+          "transactionSignature",
+          "executed",
+          "code",
+          "explanation",
+          "attribution",
+          "business",
+          "evidenceDigest"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": true
+      },
+      "securitySchemes": [
+        {
+          "type": "oauth2",
+          "scopes": [
+            "vault"
+          ]
+        }
+      ],
+      "visibility": [
+        "model"
+      ],
+      "widgetAccessible": false
+    },
+    {
+      "name": "dexter_asset_action_status",
+      "title": "Check a Governed Asset Action",
+      "description": "Read the durable status, authority, receipts, submission, landing, finality, and retry-safety evidence for one exact intentId. This never dispatches or retries a transaction.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "intentId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Exact governed intentId returned by dexter_prepare_asset_action."
+          }
+        },
+        "required": [
+          "intentId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "namespace": {
+            "type": "string",
+            "const": "dexter-governed-transaction-status/v1"
+          },
+          "intentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "attemptId": {
+            "anyOf": [
+              {
+                "$ref": "#/properties/intentId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "requestId": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "send",
+              "buy",
+              "sell"
+            ]
+          },
+          "operationCeremony": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "trade",
+                  "send"
+                ]
+              },
+              "operationMessageBytes": {
+                "type": "number",
+                "enum": [
+                  506,
+                  589
+                ]
+              },
+              "operationMessageDomain": {
+                "type": "string",
+                "enum": [
+                  "OTS_GOVERNED_SWAP_V1",
+                  "OTS_GOVERNED_SEND_V1"
+                ]
+              },
+              "actionDiscriminator": {
+                "type": "number",
+                "enum": [
+                  0,
+                  1,
+                  2
+                ]
+              },
+              "evidenceNamespace": {
+                "type": "string",
+                "enum": [
+                  "dexter-protected-owner-trade-evidence/v2",
+                  "dexter-protected-owner-send-evidence/v1"
+                ]
+              }
+            },
+            "required": [
+              "kind",
+              "operationMessageBytes",
+              "operationMessageDomain",
+              "actionDiscriminator",
+              "evidenceNamespace"
+            ],
+            "additionalProperties": false
+          },
+          "assetId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[a-z0-9][a-z0-9._:-]*$",
+            "description": "Canonical assetId returned by dexter_portfolio for a server-approved asset. This is not a symbol or mint; Dexter resolves it to one exact network, mint, token program, decimals, and capability record."
+          },
+          "assetMint": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "native:SOL"
+              },
+              {
+                "type": "string",
+                "minLength": 32,
+                "maxLength": 64
+              }
+            ]
+          },
+          "tokenProgram": {
+            "type": "string",
+            "enum": [
+              "native",
+              "spl-token",
+              "token-2022"
+            ]
+          },
+          "amountAtomic": {
+            "type": "string",
+            "maxLength": 20,
+            "pattern": "^[1-9][0-9]*$"
+          },
+          "destinationOwner": {
+            "anyOf": [
+              {
+                "$ref": "#/properties/assetMint/anyOf/1"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "protocolId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-z0-9][a-z0-9._:-]*$"
+          },
+          "wallet": {
+            "type": "object",
+            "properties": {
+              "vaultPda": {
+                "$ref": "#/properties/assetMint/anyOf/1"
+              },
+              "swigAddress": {
+                "$ref": "#/properties/assetMint/anyOf/1"
+              },
+              "walletAddress": {
+                "$ref": "#/properties/assetMint/anyOf/1"
+              }
+            },
+            "required": [
+              "vaultPda",
+              "swigAddress",
+              "walletAddress"
+            ],
+            "additionalProperties": false
+          },
+          "actor": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "agent"
+            ]
+          },
+          "runtime": {
+            "type": "object",
+            "properties": {
+              "principalSource": {
+                "type": "string",
+                "enum": [
+                  "authenticated-owner",
+                  "mcp-link-token"
+                ]
+              },
+              "linkTokenId": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/intentId"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "surfaceBindingDigest": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "principalSource",
+              "linkTokenId",
+              "surfaceBindingDigest"
+            ],
+            "additionalProperties": false
+          },
+          "agentId": {
+            "anyOf": [
+              {
+                "$ref": "#/properties/intentId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "grantId": {
+            "anyOf": [
+              {
+                "$ref": "#/properties/intentId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "grantRevision": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "grantRevisionDigest": {
+            "anyOf": [
+              {
+                "$ref": "#/properties/runtime/properties/surfaceBindingDigest/anyOf/0"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "grantRuleId": {
+            "anyOf": [
+              {
+                "$ref": "#/properties/intentId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "policyDecision": {
+            "type": "string",
+            "enum": [
+              "allowed",
+              "approval_required"
+            ]
+          },
+          "escalationReasons": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "maxItems": 32
+          },
+          "authorityExpiresAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ownerDecision": {
+            "type": "object",
+            "properties": {
+              "required": {
+                "type": "boolean"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "not-required",
+                  "pending",
+                  "approved",
+                  "refused"
+                ]
+              },
+              "reason": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/escalationReasons/items"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "decidedAt": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/authorityExpiresAt/anyOf/0"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "required",
+              "status",
+              "reason",
+              "decidedAt"
+            ],
+            "additionalProperties": false
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "prepared",
+              "claimed",
+              "signed",
+              "submitted",
+              "confirmed",
+              "refused",
+              "ambiguous",
+              "reconciliation-required"
+            ]
+          },
+          "ledgerState": {
+            "type": "string",
+            "enum": [
+              "prepared",
+              "owner-refused",
+              "claimed",
+              "signed",
+              "broadcast",
+              "ambiguous",
+              "confirmed",
+              "provably_not_landed",
+              "refused"
+            ]
+          },
+          "stateVersion": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdAt": {
+            "$ref": "#/properties/authorityExpiresAt/anyOf/0"
+          },
+          "lastActivityAt": {
+            "$ref": "#/properties/authorityExpiresAt/anyOf/0"
+          },
+          "transactionSignature": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 64,
+                "maxLength": 128
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "submitted": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "landingProof": {
+            "type": "boolean"
+          },
+          "definitiveNonlandingProof": {
+            "type": "boolean"
+          },
+          "executionSucceeded": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "confirmationSlot": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20,
+                "pattern": "^(0|[1-9][0-9]*)$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "confirmationCommitment": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "confirmed",
+                  "finalized"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "settlementFinalized": {
+            "type": "boolean"
+          },
+          "reconciliationRequired": {
+            "type": "boolean"
+          },
+          "canReconcile": {
+            "type": "boolean"
+          },
+          "reconciliationKind": {
+            "anyOf": [
+              {
+                "$ref": "#/properties/escalationReasons/items"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reconciliationEvidenceDigest": {
+            "anyOf": [
+              {
+                "$ref": "#/properties/runtime/properties/surfaceBindingDigest/anyOf/0"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "refusalSource": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "owner",
+                  "executor"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "refusalCode": {
+            "anyOf": [
+              {
+                "$ref": "#/properties/escalationReasons/items"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "receiptPhases": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "dispatch_fenced",
+                "accepted",
+                "uncertain",
+                "refused_before_contact",
+                "reconciled_confirmed",
+                "reconciled_finalized",
+                "reconciled_not_landed"
+              ]
+            },
+            "maxItems": 32
+          },
+          "replay": {
+            "type": "object",
+            "properties": {
+              "statusReadSafe": {
+                "type": "boolean",
+                "const": true
+              },
+              "reconcileSameAttemptOnly": {
+                "type": "boolean",
+                "const": true
+              },
+              "executeFromStatusForbidden": {
+                "type": "boolean",
+                "const": true
+              }
+            },
+            "required": [
+              "statusReadSafe",
+              "reconcileSameAttemptOnly",
+              "executeFromStatusForbidden"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "namespace",
+          "intentId",
+          "attemptId",
+          "requestId",
+          "action",
+          "operationCeremony",
+          "assetId",
+          "assetMint",
+          "tokenProgram",
+          "amountAtomic",
+          "destinationOwner",
+          "protocolId",
+          "wallet",
+          "actor",
+          "runtime",
+          "agentId",
+          "grantId",
+          "grantRevision",
+          "grantRevisionDigest",
+          "grantRuleId",
+          "policyDecision",
+          "escalationReasons",
+          "authorityExpiresAt",
+          "ownerDecision",
+          "status",
+          "ledgerState",
+          "stateVersion",
+          "createdAt",
+          "lastActivityAt",
+          "transactionSignature",
+          "submitted",
+          "landingProof",
+          "definitiveNonlandingProof",
+          "executionSucceeded",
+          "confirmationSlot",
+          "confirmationCommitment",
+          "settlementFinalized",
+          "reconciliationRequired",
+          "canReconcile",
+          "reconciliationKind",
+          "reconciliationEvidenceDigest",
+          "refusalSource",
+          "refusalCode",
+          "receiptPhases",
+          "replay"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "securitySchemes": [
+        {
+          "type": "oauth2",
+          "scopes": [
+            "vault"
+          ]
+        }
+      ],
+      "visibility": [
+        "model"
+      ],
+      "widgetAccessible": false
+    },
+    {
+      "name": "dexter_reconcile_asset_action",
+      "title": "Reconcile a Governed Asset Action",
+      "description": "Request status-gated reconciliation for one exact intentId. It never creates a replacement intent, expands mandate scope, or automatically retries execution.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "intentId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Exact governed intentId returned by dexter_prepare_asset_action."
+          }
+        },
+        "required": [
+          "intentId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "namespace": {
+            "type": "string",
+            "const": "dexter-governed-agent-reconcile/v1"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "already-final",
+              "advanced",
+              "pending",
+              "not-required",
+              "unavailable"
+            ]
+          },
+          "phase": {
+            "type": "string",
+            "enum": [
+              "none",
+              "facilitator-reconciliation",
+              "validator-dispatch",
+              "validator-reconciliation",
+              "final"
+            ]
+          },
+          "intentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "attemptId": {
+            "anyOf": [
+              {
+                "$ref": "#/properties/intentId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "mutated": {
+            "type": "boolean"
+          },
+          "stateVersionBefore": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "agent_reconciliation_still_uncertain",
+                  "reconciliation_not_required",
+                  "agent_reconciliation_adapter_required",
+                  "agent_finality_adapter_required"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "explanation": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "statusAfter": {
+            "type": "object",
+            "properties": {
+              "namespace": {
+                "type": "string",
+                "const": "dexter-governed-transaction-status/v1"
+              },
+              "intentId": {
+                "$ref": "#/properties/intentId"
+              },
+              "attemptId": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/intentId"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "requestId": {
+                "type": "string",
+                "minLength": 8,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+              },
+              "action": {
+                "type": "string",
+                "enum": [
+                  "send",
+                  "buy",
+                  "sell"
+                ]
+              },
+              "operationCeremony": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "trade",
+                      "send"
+                    ]
+                  },
+                  "operationMessageBytes": {
+                    "type": "number",
+                    "enum": [
+                      506,
+                      589
+                    ]
+                  },
+                  "operationMessageDomain": {
+                    "type": "string",
+                    "enum": [
+                      "OTS_GOVERNED_SWAP_V1",
+                      "OTS_GOVERNED_SEND_V1"
+                    ]
+                  },
+                  "actionDiscriminator": {
+                    "type": "number",
+                    "enum": [
+                      0,
+                      1,
+                      2
+                    ]
+                  },
+                  "evidenceNamespace": {
+                    "type": "string",
+                    "enum": [
+                      "dexter-protected-owner-trade-evidence/v2",
+                      "dexter-protected-owner-send-evidence/v1"
+                    ]
+                  }
+                },
+                "required": [
+                  "kind",
+                  "operationMessageBytes",
+                  "operationMessageDomain",
+                  "actionDiscriminator",
+                  "evidenceNamespace"
+                ],
+                "additionalProperties": false
+              },
+              "assetId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[a-z0-9][a-z0-9._:-]*$",
+                "description": "Canonical assetId returned by dexter_portfolio for a server-approved asset. This is not a symbol or mint; Dexter resolves it to one exact network, mint, token program, decimals, and capability record."
+              },
+              "assetMint": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "const": "native:SOL"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 32,
+                    "maxLength": 64
+                  }
+                ]
+              },
+              "tokenProgram": {
+                "type": "string",
+                "enum": [
+                  "native",
+                  "spl-token",
+                  "token-2022"
+                ]
+              },
+              "amountAtomic": {
+                "type": "string",
+                "maxLength": 20,
+                "pattern": "^[1-9][0-9]*$"
+              },
+              "destinationOwner": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/statusAfter/properties/assetMint/anyOf/1"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "protocolId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[a-z0-9][a-z0-9._:-]*$"
+              },
+              "wallet": {
+                "type": "object",
+                "properties": {
+                  "vaultPda": {
+                    "$ref": "#/properties/statusAfter/properties/assetMint/anyOf/1"
+                  },
+                  "swigAddress": {
+                    "$ref": "#/properties/statusAfter/properties/assetMint/anyOf/1"
+                  },
+                  "walletAddress": {
+                    "$ref": "#/properties/statusAfter/properties/assetMint/anyOf/1"
+                  }
+                },
+                "required": [
+                  "vaultPda",
+                  "swigAddress",
+                  "walletAddress"
+                ],
+                "additionalProperties": false
+              },
+              "actor": {
+                "type": "string",
+                "enum": [
+                  "owner",
+                  "agent"
+                ]
+              },
+              "runtime": {
+                "type": "object",
+                "properties": {
+                  "principalSource": {
+                    "type": "string",
+                    "enum": [
+                      "authenticated-owner",
+                      "mcp-link-token"
+                    ]
+                  },
+                  "linkTokenId": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/properties/intentId"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "surfaceBindingDigest": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "principalSource",
+                  "linkTokenId",
+                  "surfaceBindingDigest"
+                ],
+                "additionalProperties": false
+              },
+              "agentId": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/intentId"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "grantId": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/intentId"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "grantRevision": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "grantRevisionDigest": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/statusAfter/properties/runtime/properties/surfaceBindingDigest/anyOf/0"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "grantRuleId": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/intentId"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "policyDecision": {
+                "type": "string",
+                "enum": [
+                  "allowed",
+                  "approval_required"
+                ]
+              },
+              "escalationReasons": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "maxItems": 32
+              },
+              "authorityExpiresAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "ownerDecision": {
+                "type": "object",
+                "properties": {
+                  "required": {
+                    "type": "boolean"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "not-required",
+                      "pending",
+                      "approved",
+                      "refused"
+                    ]
+                  },
+                  "reason": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/properties/statusAfter/properties/escalationReasons/items"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "decidedAt": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/properties/statusAfter/properties/authorityExpiresAt/anyOf/0"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "required",
+                  "status",
+                  "reason",
+                  "decidedAt"
+                ],
+                "additionalProperties": false
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "prepared",
+                  "claimed",
+                  "signed",
+                  "submitted",
+                  "confirmed",
+                  "refused",
+                  "ambiguous",
+                  "reconciliation-required"
+                ]
+              },
+              "ledgerState": {
+                "type": "string",
+                "enum": [
+                  "prepared",
+                  "owner-refused",
+                  "claimed",
+                  "signed",
+                  "broadcast",
+                  "ambiguous",
+                  "confirmed",
+                  "provably_not_landed",
+                  "refused"
+                ]
+              },
+              "stateVersion": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "createdAt": {
+                "$ref": "#/properties/statusAfter/properties/authorityExpiresAt/anyOf/0"
+              },
+              "lastActivityAt": {
+                "$ref": "#/properties/statusAfter/properties/authorityExpiresAt/anyOf/0"
+              },
+              "transactionSignature": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 64,
+                    "maxLength": 128
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "submitted": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "landingProof": {
+                "type": "boolean"
+              },
+              "definitiveNonlandingProof": {
+                "type": "boolean"
+              },
+              "executionSucceeded": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "confirmationSlot": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 20,
+                    "pattern": "^(0|[1-9][0-9]*)$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "confirmationCommitment": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "confirmed",
+                      "finalized"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "settlementFinalized": {
+                "type": "boolean"
+              },
+              "reconciliationRequired": {
+                "type": "boolean"
+              },
+              "canReconcile": {
+                "type": "boolean"
+              },
+              "reconciliationKind": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/statusAfter/properties/escalationReasons/items"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "reconciliationEvidenceDigest": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/statusAfter/properties/runtime/properties/surfaceBindingDigest/anyOf/0"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "refusalSource": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "owner",
+                      "executor"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "refusalCode": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/statusAfter/properties/escalationReasons/items"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "receiptPhases": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "dispatch_fenced",
+                    "accepted",
+                    "uncertain",
+                    "refused_before_contact",
+                    "reconciled_confirmed",
+                    "reconciled_finalized",
+                    "reconciled_not_landed"
+                  ]
+                },
+                "maxItems": 32
+              },
+              "replay": {
+                "type": "object",
+                "properties": {
+                  "statusReadSafe": {
+                    "type": "boolean",
+                    "const": true
+                  },
+                  "reconcileSameAttemptOnly": {
+                    "type": "boolean",
+                    "const": true
+                  },
+                  "executeFromStatusForbidden": {
+                    "type": "boolean",
+                    "const": true
+                  }
+                },
+                "required": [
+                  "statusReadSafe",
+                  "reconcileSameAttemptOnly",
+                  "executeFromStatusForbidden"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "namespace",
+              "intentId",
+              "attemptId",
+              "requestId",
+              "action",
+              "operationCeremony",
+              "assetId",
+              "assetMint",
+              "tokenProgram",
+              "amountAtomic",
+              "destinationOwner",
+              "protocolId",
+              "wallet",
+              "actor",
+              "runtime",
+              "agentId",
+              "grantId",
+              "grantRevision",
+              "grantRevisionDigest",
+              "grantRuleId",
+              "policyDecision",
+              "escalationReasons",
+              "authorityExpiresAt",
+              "ownerDecision",
+              "status",
+              "ledgerState",
+              "stateVersion",
+              "createdAt",
+              "lastActivityAt",
+              "transactionSignature",
+              "submitted",
+              "landingProof",
+              "definitiveNonlandingProof",
+              "executionSucceeded",
+              "confirmationSlot",
+              "confirmationCommitment",
+              "settlementFinalized",
+              "reconciliationRequired",
+              "canReconcile",
+              "reconciliationKind",
+              "reconciliationEvidenceDigest",
+              "refusalSource",
+              "refusalCode",
+              "receiptPhases",
+              "replay"
+            ],
+            "additionalProperties": false
+          },
+          "digest": {
+            "$ref": "#/properties/statusAfter/properties/runtime/properties/surfaceBindingDigest/anyOf/0"
+          }
+        },
+        "required": [
+          "namespace",
+          "outcome",
+          "phase",
+          "intentId",
+          "attemptId",
+          "mutated",
+          "stateVersionBefore",
+          "code",
+          "explanation",
+          "statusAfter",
+          "digest"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "securitySchemes": [
+        {
+          "type": "oauth2",
+          "scopes": [
+            "vault"
+          ]
+        }
+      ],
+      "visibility": [
+        "model"
+      ],
+      "widgetAccessible": false
+    },
+    {
+      "name": "dexter_wallet_history",
+      "title": "Read Governed Wallet History",
+      "description": "Read canonical governed Send, Buy, and Sell history for the wallet and reusable bounded mandate resolved from the current authenticated MCP session. Pagination uses only the server-issued opaque cursor.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "description": "Maximum number of governed transactions to return. The server default is 25."
+          },
+          "cursor": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": "Opaque nextCursor from a prior dexter_wallet_history response."
+          }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "namespace": {
+            "type": "string",
+            "const": "dexter-governed-transaction-history/v1"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "namespace": {
+                  "type": "string",
+                  "const": "dexter-governed-transaction-status/v1"
+                },
+                "intentId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "attemptId": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/properties/items/items/properties/intentId"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "requestId": {
+                  "type": "string",
+                  "minLength": 8,
+                  "maxLength": 128,
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+                },
+                "action": {
+                  "type": "string",
+                  "enum": [
+                    "send",
+                    "buy",
+                    "sell"
+                  ]
+                },
+                "operationCeremony": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "trade",
+                        "send"
+                      ]
+                    },
+                    "operationMessageBytes": {
+                      "type": "number",
+                      "enum": [
+                        506,
+                        589
+                      ]
+                    },
+                    "operationMessageDomain": {
+                      "type": "string",
+                      "enum": [
+                        "OTS_GOVERNED_SWAP_V1",
+                        "OTS_GOVERNED_SEND_V1"
+                      ]
+                    },
+                    "actionDiscriminator": {
+                      "type": "number",
+                      "enum": [
+                        0,
+                        1,
+                        2
+                      ]
+                    },
+                    "evidenceNamespace": {
+                      "type": "string",
+                      "enum": [
+                        "dexter-protected-owner-trade-evidence/v2",
+                        "dexter-protected-owner-send-evidence/v1"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "operationMessageBytes",
+                    "operationMessageDomain",
+                    "actionDiscriminator",
+                    "evidenceNamespace"
+                  ],
+                  "additionalProperties": false
+                },
+                "assetId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128,
+                  "pattern": "^[a-z0-9][a-z0-9._:-]*$",
+                  "description": "Canonical assetId returned by dexter_portfolio for a server-approved asset. This is not a symbol or mint; Dexter resolves it to one exact network, mint, token program, decimals, and capability record."
+                },
+                "assetMint": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "const": "native:SOL"
+                    },
+                    {
+                      "type": "string",
+                      "minLength": 32,
+                      "maxLength": 64
+                    }
+                  ]
+                },
+                "tokenProgram": {
+                  "type": "string",
+                  "enum": [
+                    "native",
+                    "spl-token",
+                    "token-2022"
+                  ]
+                },
+                "amountAtomic": {
+                  "type": "string",
+                  "maxLength": 20,
+                  "pattern": "^[1-9][0-9]*$"
+                },
+                "destinationOwner": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/properties/items/items/properties/assetMint/anyOf/1"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "protocolId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64,
+                  "pattern": "^[a-z0-9][a-z0-9._:-]*$"
+                },
+                "wallet": {
+                  "type": "object",
+                  "properties": {
+                    "vaultPda": {
+                      "$ref": "#/properties/items/items/properties/assetMint/anyOf/1"
+                    },
+                    "swigAddress": {
+                      "$ref": "#/properties/items/items/properties/assetMint/anyOf/1"
+                    },
+                    "walletAddress": {
+                      "$ref": "#/properties/items/items/properties/assetMint/anyOf/1"
+                    }
+                  },
+                  "required": [
+                    "vaultPda",
+                    "swigAddress",
+                    "walletAddress"
+                  ],
+                  "additionalProperties": false
+                },
+                "actor": {
+                  "type": "string",
+                  "enum": [
+                    "owner",
+                    "agent"
+                  ]
+                },
+                "runtime": {
+                  "type": "object",
+                  "properties": {
+                    "principalSource": {
+                      "type": "string",
+                      "enum": [
+                        "authenticated-owner",
+                        "mcp-link-token"
+                      ]
+                    },
+                    "linkTokenId": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/properties/items/items/properties/intentId"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "surfaceBindingDigest": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "principalSource",
+                    "linkTokenId",
+                    "surfaceBindingDigest"
+                  ],
+                  "additionalProperties": false
+                },
+                "agentId": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/properties/items/items/properties/intentId"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "grantId": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/properties/items/items/properties/intentId"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "grantRevision": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "grantRevisionDigest": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/properties/items/items/properties/runtime/properties/surfaceBindingDigest/anyOf/0"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "grantRuleId": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/properties/items/items/properties/intentId"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "policyDecision": {
+                  "type": "string",
+                  "enum": [
+                    "allowed",
+                    "approval_required"
+                  ]
+                },
+                "escalationReasons": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "maxItems": 32
+                },
+                "authorityExpiresAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "ownerDecision": {
+                  "type": "object",
+                  "properties": {
+                    "required": {
+                      "type": "boolean"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "not-required",
+                        "pending",
+                        "approved",
+                        "refused"
+                      ]
+                    },
+                    "reason": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/properties/items/items/properties/escalationReasons/items"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "decidedAt": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/properties/items/items/properties/authorityExpiresAt/anyOf/0"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "required",
+                    "status",
+                    "reason",
+                    "decidedAt"
+                  ],
+                  "additionalProperties": false
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "prepared",
+                    "claimed",
+                    "signed",
+                    "submitted",
+                    "confirmed",
+                    "refused",
+                    "ambiguous",
+                    "reconciliation-required"
+                  ]
+                },
+                "ledgerState": {
+                  "type": "string",
+                  "enum": [
+                    "prepared",
+                    "owner-refused",
+                    "claimed",
+                    "signed",
+                    "broadcast",
+                    "ambiguous",
+                    "confirmed",
+                    "provably_not_landed",
+                    "refused"
+                  ]
+                },
+                "stateVersion": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "createdAt": {
+                  "$ref": "#/properties/items/items/properties/authorityExpiresAt/anyOf/0"
+                },
+                "lastActivityAt": {
+                  "$ref": "#/properties/items/items/properties/authorityExpiresAt/anyOf/0"
+                },
+                "transactionSignature": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 64,
+                      "maxLength": 128
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "submitted": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "landingProof": {
+                  "type": "boolean"
+                },
+                "definitiveNonlandingProof": {
+                  "type": "boolean"
+                },
+                "executionSucceeded": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "confirmationSlot": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 20,
+                      "pattern": "^(0|[1-9][0-9]*)$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "confirmationCommitment": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "confirmed",
+                        "finalized"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "settlementFinalized": {
+                  "type": "boolean"
+                },
+                "reconciliationRequired": {
+                  "type": "boolean"
+                },
+                "canReconcile": {
+                  "type": "boolean"
+                },
+                "reconciliationKind": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/properties/items/items/properties/escalationReasons/items"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "reconciliationEvidenceDigest": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/properties/items/items/properties/runtime/properties/surfaceBindingDigest/anyOf/0"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "refusalSource": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "owner",
+                        "executor"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "refusalCode": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/properties/items/items/properties/escalationReasons/items"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "receiptPhases": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "dispatch_fenced",
+                      "accepted",
+                      "uncertain",
+                      "refused_before_contact",
+                      "reconciled_confirmed",
+                      "reconciled_finalized",
+                      "reconciled_not_landed"
+                    ]
+                  },
+                  "maxItems": 32
+                },
+                "replay": {
+                  "type": "object",
+                  "properties": {
+                    "statusReadSafe": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "reconcileSameAttemptOnly": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "executeFromStatusForbidden": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "statusReadSafe",
+                    "reconcileSameAttemptOnly",
+                    "executeFromStatusForbidden"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "namespace",
+                "intentId",
+                "attemptId",
+                "requestId",
+                "action",
+                "operationCeremony",
+                "assetId",
+                "assetMint",
+                "tokenProgram",
+                "amountAtomic",
+                "destinationOwner",
+                "protocolId",
+                "wallet",
+                "actor",
+                "runtime",
+                "agentId",
+                "grantId",
+                "grantRevision",
+                "grantRevisionDigest",
+                "grantRuleId",
+                "policyDecision",
+                "escalationReasons",
+                "authorityExpiresAt",
+                "ownerDecision",
+                "status",
+                "ledgerState",
+                "stateVersion",
+                "createdAt",
+                "lastActivityAt",
+                "transactionSignature",
+                "submitted",
+                "landingProof",
+                "definitiveNonlandingProof",
+                "executionSucceeded",
+                "confirmationSlot",
+                "confirmationCommitment",
+                "settlementFinalized",
+                "reconciliationRequired",
+                "canReconcile",
+                "reconciliationKind",
+                "reconciliationEvidenceDigest",
+                "refusalSource",
+                "refusalCode",
+                "receiptPhases",
+                "replay"
+              ],
+              "additionalProperties": false
+            },
+            "maxItems": 100
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "namespace",
+          "items",
+          "nextCursor"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "securitySchemes": [
+        {
+          "type": "oauth2",
+          "scopes": [
+            "vault"
+          ]
+        }
+      ],
+      "visibility": [
+        "model"
+      ],
+      "widgetAccessible": false
+    }
+  ]
+}
