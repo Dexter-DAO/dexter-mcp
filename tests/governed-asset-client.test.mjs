@@ -866,6 +866,10 @@ test('backend responses cannot substitute a different request, asset, or intent'
   wrongAsset.preview.assetId = 'approved-token-42';
   const wrongIntent = statusResponse();
   wrongIntent.intentId = 'a19f981c-9215-4141-84f2-d89ffe9cbece';
+  const wrongSlippage = preparedResponse();
+  wrongSlippage.preview.slippageBps = 51;
+  const wrongPriceImpact = preparedResponse();
+  wrongPriceImpact.preview.priceImpactBps = 11;
 
   for (const [operation, input, responseBody] of [
     ['prepare', {
@@ -874,6 +878,20 @@ test('backend responses cannot substitute a different request, asset, or intent'
       assetId: 'dexter',
       amountAtomic: '1000000',
     }, wrongAsset],
+    ['prepare', {
+      operationId: OPERATION_ID,
+      action: 'buy',
+      assetId: 'dexter',
+      amountAtomic: '1000000',
+      maxSlippageBps: 50,
+    }, wrongSlippage],
+    ['prepare', {
+      operationId: OPERATION_ID,
+      action: 'buy',
+      assetId: 'dexter',
+      amountAtomic: '1000000',
+      maxPriceImpactBps: 10,
+    }, wrongPriceImpact],
     ['status', { intentId: INTENT_ID }, wrongIntent],
   ]) {
     const result = await callGovernedAssetBackend({

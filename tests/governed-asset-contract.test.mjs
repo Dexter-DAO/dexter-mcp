@@ -94,6 +94,20 @@ test('prepare accepts any canonical registry assetId and keeps denomination expl
     ...send.data,
     memo: null,
   }).success, false);
+  assert.equal(GOVERNED_ASSET_INPUT_SCHEMAS.prepare.safeParse({
+    operationId: OPERATION_ID,
+    action: 'buy',
+    assetId: 'approved-token-42',
+    amountAtomic: '9'.repeat(4 * 1024 * 1024),
+  }).success, false);
+  assert.equal(GOVERNED_ASSET_INPUT_SCHEMAS.prepare.safeParse({
+    ...buy.data,
+    amountAtomic: '18446744073709551615',
+  }).success, true);
+  assert.equal(GOVERNED_ASSET_INPUT_SCHEMAS.prepare.safeParse({
+    ...buy.data,
+    amountAtomic: '18446744073709551616',
+  }).success, false);
 
   const options = GOVERNED_ASSET_INPUT_SCHEMAS.prepare._def.options;
   const buySchema = options.find((schema) =>
