@@ -32,7 +32,7 @@ Its release runtime is Node `^20.19.0 || >=22.12.0`, matching the pinned Vite
 toolchain; `npm run verify:release:runtime` checks that boundary before install
 or build.
 The exact internal versions are published and this candidate carries a
-registry-resolved lock. `deploy:mcp` still fails closed if either the lock or
+registry-resolved lock. Release construction fails closed if either the lock or
 installed graph drifts from the recorded train. An isolated local source train
 and its installed dependency graph can be checked without deploying:
 
@@ -50,19 +50,34 @@ repositories and any npm pack lifecycle hook. It exports the reviewed Vault
 SDK commit into a disposable directory, performs an exact-lock scripts-disabled
 install and the explicit reviewed build with npm 10.9.3, then requires the
 packed bytes to match the registry artifact exactly. It never uses or changes
-the source checkout's ignored `dist/` or `node_modules/`. The release path
-separately verifies the Node runtime and
-registry lock, performs `npm ci`, builds the hosted workspace package, and
-rejects any installed graph that differs from the recorded train.
+the source checkout's ignored `dist/` or `node_modules/`. Release construction
+separately verifies the Node runtime and registry lock, performs the exact-lock
+install and reviewed builds, and rejects any installed graph that differs from
+the recorded train. Descriptor generation exports the exact Git commit into a
+disposable directory, installs that archive from its lock, runs only the
+reviewed workspace build, and executes the archived materializer. Mutable
+checkout files and ignored `node_modules` are never descriptor evidence.
 
 Use `npm run build:apps-sdk:local` for a non-deploying widget build.
 `build:apps-sdk` retains its release behavior and copies served assets.
-`deploy:mcp` is an ordered install/build/copy/restart command, not atomic
-activation, rollback, health, OAuth, or live-render proof; production use still
-requires the coordinated release runbook and post-deploy checks below. It builds
-the ignored workspace output before materializing the hosted descriptor and,
-after every gate passes, reloads `ecosystem.production.cjs` with environment
-updates so both `dexter-mcp` and `dexter-open-mcp` receive the protected config.
+Construct a sealed candidate from the current clean, canonical Git commit into
+an explicit trusted release root without activating it:
+
+```bash
+npm run build:mcp-release -- --output-root /absolute/protected/release-root
+```
+
+The builder refuses a dirty checkout, hidden index flags, replacement refs, a
+noncanonical or unreachable origin, a commit the canonical origin does not
+advertise, an existing destination, or an unreviewed Node/npm/lock identity.
+`deploy:mcp` accepts only a sealed immutable release containing deterministic
+v3 provenance, the exact descriptor, and a complete file manifest that also
+authenticates the provenance bytes. It deletes both named PM2
+processes, starts both from that one candidate, and verifies their PM2 and
+kernel paths, health, exact rosters, and release identities before `pm2 save`.
+Any mismatch restores and re-verifies the previously saved pair. It never
+reloads or updates an existing process in place. This is still activation, not
+authorization to deploy or a substitute for OAuth and real-user product proof.
 
 ---
 

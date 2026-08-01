@@ -14,6 +14,11 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import {
+  REVIEWED_NPM_VERSION,
+  reviewedNpmInvocation,
+  reviewedReleaseToolEnvironment,
+} from '../lib/open-release-tooling.mjs';
 
 const execFileAsync = promisify(execFile);
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -85,11 +90,36 @@ export async function inspectRuntimeNode(
   return { ready: issues.length === 0, issues };
 }
 
-async function git(rootPath, ...args) {
-  const { stdout } = await execFileAsync('git', ['-C', rootPath, ...args], {
+async function git(runCommand, toolEnvironment, rootPath, ...args) {
+  const { stdout } = await runCommand('git', [
+    '--no-replace-objects',
+    '-C', rootPath,
+    ...args,
+  ], {
     encoding: 'utf8',
+    env: toolEnvironment,
   });
   return stdout.trim();
+}
+
+async function remoteAdvertisesCommit(
+  runCommand,
+  toolEnvironment,
+  remote,
+  commit,
+) {
+  const { stdout } = await runCommand('git', [
+    '--no-replace-objects',
+    'ls-remote', '--refs', remote,
+  ], {
+    encoding: 'utf8',
+    env: toolEnvironment,
+    timeout: 30_000,
+  });
+  return stdout.split(/\r?\n/).some((line) => {
+    const [remoteCommit, refname, extra] = line.trim().split(/\s+/);
+    return remoteCommit === commit && Boolean(refname) && extra === undefined;
+  });
 }
 
 export function gitTreeSpec(commit, packagePath) {
@@ -128,20 +158,21 @@ function packageManagerVersion(packageManager) {
 async function readPackedArtifactReport(
   packageRoot,
   runCommand = execFileAsync,
+  toolEnvironment = reviewedReleaseToolEnvironment(),
 ) {
   let stdout;
   try {
+    const npmPack = reviewedNpmInvocation([
+      'pack', '--ignore-scripts', '--dry-run', '--json',
+    ]);
     ({ stdout } = await runCommand(
-      'npm',
-      ['pack', '--ignore-scripts', '--dry-run', '--json'],
+      npmPack.command,
+      npmPack.args,
       {
         cwd: packageRoot,
         encoding: 'utf8',
         maxBuffer: 16 * 1024 * 1024,
-        env: {
-          ...process.env,
-          npm_config_ignore_scripts: 'true',
-        },
+        env: toolEnvironment,
       },
     ));
   } catch (error) {
@@ -200,10 +231,20 @@ export async function inspectPackageSourcePreflight(
   base,
   expected,
   repository,
-  { requireBuild },
+  {
+    requireBuild,
+    runCommand = execFileAsync,
+    environment = process.env,
+  },
 ) {
   const packageRoot = resolve(base, expected.path);
   const issues = [];
+  let toolEnvironment;
+  try {
+    toolEnvironment = reviewedReleaseToolEnvironment({ env: environment });
+  } catch (error) {
+    return [`${expected.name}: unsafe release tool environment: ${error.message}`];
+  }
   let pkg;
   try {
     pkg = await readJson(resolve(packageRoot, 'package.json'));
@@ -239,11 +280,18 @@ export async function inspectPackageSourcePreflight(
   }
 
   try {
-    const remote = await git(base, 'remote', 'get-url', 'origin');
+    const remote = await git(
+      runCommand,
+      toolEnvironment,
+      base,
+      'remote', 'get-url', 'origin',
+    );
     if (remote !== repository.remote) {
       issues.push(`${expected.name}: source remote is ${remote}`);
     }
     const recordedCommit = await git(
+      runCommand,
+      toolEnvironment,
       base,
       'rev-parse',
       `${repository.provenanceCommit}^{commit}`,
@@ -253,7 +301,12 @@ export async function inspectPackageSourcePreflight(
         `${expected.name}: provenance commit resolves to ${recordedCommit}`,
       );
     }
-    const head = await git(base, 'rev-parse', 'HEAD');
+    const head = await git(
+      runCommand,
+      toolEnvironment,
+      base,
+      'rev-parse', 'HEAD',
+    );
     if (expected.source !== 'hosted' && head !== repository.provenanceCommit) {
       issues.push(
         `${expected.name}: source HEAD is ${head}, `
@@ -261,6 +314,8 @@ export async function inspectPackageSourcePreflight(
       );
     }
     const recordedTree = await git(
+      runCommand,
+      toolEnvironment,
       base,
       'rev-parse',
       gitTreeSpec(repository.provenanceCommit, expected.path),
@@ -272,6 +327,8 @@ export async function inspectPackageSourcePreflight(
       );
     }
     const currentTree = await git(
+      runCommand,
+      toolEnvironment,
       base,
       'rev-parse',
       gitTreeSpec('HEAD', expected.path),
@@ -284,6 +341,8 @@ export async function inspectPackageSourcePreflight(
     }
     const dirty = expected.source === 'hosted'
       ? await git(
+        runCommand,
+        toolEnvironment,
         base,
         'status',
         '--porcelain',
@@ -291,12 +350,42 @@ export async function inspectPackageSourcePreflight(
         '--',
         expected.path,
       )
-      : await git(base, 'status', '--porcelain', '--untracked-files=all');
+      : await git(
+        runCommand,
+        toolEnvironment,
+        base,
+        'status', '--porcelain', '--untracked-files=all',
+      );
     if (dirty) {
       issues.push(
         expected.source === 'hosted'
           ? `${expected.name}: source package path has uncommitted changes`
           : `${expected.name}: source repository has uncommitted changes`,
+      );
+    }
+    const trackedFlags = await git(
+      runCommand,
+      toolEnvironment,
+      base,
+      'ls-files', '-v', '-z',
+    );
+    if (trackedFlags.split('\0').some((entry) => /^[a-zS] /.test(entry))) {
+      issues.push(
+        `${expected.name}: source repository contains assume-unchanged `
+          + 'or skip-worktree index state',
+      );
+    }
+    if (
+      remote === repository.remote
+      && !(await remoteAdvertisesCommit(
+        runCommand,
+        toolEnvironment,
+        repository.remote,
+        repository.provenanceCommit,
+      ))
+    ) {
+      issues.push(
+        `${expected.name}: canonical origin does not advertise provenance commit`,
       );
     }
   } catch (error) {
@@ -312,6 +401,7 @@ export async function rebuildPackedSourceArtifact({
   repository,
   packageManager,
   runCommand = execFileAsync,
+  environment = process.env,
 }) {
   const expectedNpmVersion = packageManagerVersion(packageManager);
   const buildScript = expected.packedArtifact?.buildScript;
@@ -325,10 +415,15 @@ export async function rebuildPackedSourceArtifact({
   const archivePath = resolve(disposableRoot, 'source.tar');
   const archiveRoot = resolve(disposableRoot, 'source');
   try {
+    const toolEnvironment = reviewedReleaseToolEnvironment({
+      env: environment,
+      npmCache: resolve(disposableRoot, 'npm-cache'),
+    });
     await mkdir(archiveRoot, { recursive: true });
     await runCommand(
       'git',
       [
+        '--no-replace-objects',
         '-C',
         sourceRoot,
         'archive',
@@ -337,12 +432,15 @@ export async function rebuildPackedSourceArtifact({
         archivePath,
         repository.provenanceCommit,
       ],
-      { encoding: 'utf8' },
+      {
+        encoding: 'utf8',
+        env: toolEnvironment,
+      },
     );
     await runCommand(
       'tar',
       ['-xf', archivePath, '-C', archiveRoot],
-      { encoding: 'utf8' },
+      { encoding: 'utf8', env: toolEnvironment },
     );
 
     const packageRoot = resolve(archiveRoot, expected.path);
@@ -373,10 +471,11 @@ export async function rebuildPackedSourceArtifact({
       throw new Error(`${expected.name}: archived package-lock.json is absent`);
     }
 
+    const npmVersionInvocation = reviewedNpmInvocation(['--version']);
     const { stdout: npmVersionOutput } = await runCommand(
-      'npm',
-      ['--version'],
-      { encoding: 'utf8' },
+      npmVersionInvocation.command,
+      npmVersionInvocation.args,
+      { encoding: 'utf8', env: toolEnvironment },
     );
     const npmVersion = npmVersionOutput.trim();
     if (npmVersion !== expectedNpmVersion) {
@@ -385,15 +484,19 @@ export async function rebuildPackedSourceArtifact({
       );
     }
 
-    const npmEnvironment = {
-      ...process.env,
-      npm_config_audit: 'false',
-      npm_config_fund: 'false',
-      npm_config_ignore_scripts: 'true',
-    };
+    if (expectedNpmVersion !== REVIEWED_NPM_VERSION) {
+      throw new Error(
+        `${expected.name}: source train pins npm ${expectedNpmVersion}, `
+          + `expected ${REVIEWED_NPM_VERSION}`,
+      );
+    }
+    const npmEnvironment = toolEnvironment;
+    const npmCi = reviewedNpmInvocation([
+      'ci', '--ignore-scripts', '--no-audit', '--no-fund',
+    ]);
     await runCommand(
-      'npm',
-      ['ci', '--ignore-scripts', '--no-audit', '--no-fund'],
+      npmCi.command,
+      npmCi.args,
       {
         cwd: packageRoot,
         encoding: 'utf8',
@@ -401,9 +504,10 @@ export async function rebuildPackedSourceArtifact({
         env: npmEnvironment,
       },
     );
+    const npmBuild = reviewedNpmInvocation(['run', buildScript]);
     await runCommand(
-      'npm',
-      ['run', buildScript],
+      npmBuild.command,
+      npmBuild.args,
       {
         cwd: packageRoot,
         encoding: 'utf8',
@@ -435,7 +539,11 @@ export async function rebuildPackedSourceArtifact({
         `${expected.name}: rebuild did not create ${expected.entrypoint}`,
       );
     }
-    return await readPackedArtifactReport(packageRoot, runCommand);
+    return await readPackedArtifactReport(
+      packageRoot,
+      runCommand,
+      toolEnvironment,
+    );
   } catch (error) {
     throw new Error(`${expected.name}: isolated source rebuild failed: ${error.message}`);
   } finally {
@@ -494,7 +602,11 @@ async function inspectInstalledPackage({
 export async function inspectPeerClosure(
   runtimeRoot,
   packageNames = [],
-  { omitDev = false } = {},
+  {
+    omitDev = false,
+    runCommand = execFileAsync,
+    environment = process.env,
+  } = {},
 ) {
   const args = [
     'ls',
@@ -506,10 +618,15 @@ export async function inspectPeerClosure(
   let stdout = '';
   let failed = false;
   try {
-    ({ stdout } = await execFileAsync('npm', args, {
+    const toolEnvironment = reviewedReleaseToolEnvironment({
+      env: environment,
+    });
+    const npmList = reviewedNpmInvocation(args);
+    ({ stdout } = await runCommand(npmList.command, npmList.args, {
       cwd: runtimeRoot,
       encoding: 'utf8',
       maxBuffer: 16 * 1024 * 1024,
+      env: toolEnvironment,
     }));
   } catch (error) {
     failed = true;
@@ -600,6 +717,8 @@ export async function inspectSourceTrain({
   requireBuild = true,
   rebuildPackedArtifact = inspectRebuiltSourceArtifact,
   inspectPeerGraph = inspectPeerClosure,
+  runCommand = execFileAsync,
+  environment = process.env,
 }) {
   if (!runtimeRoot) {
     throw new Error('runtimeRoot is required for source dependency verification');
@@ -641,6 +760,8 @@ export async function inspectSourceTrain({
     issues.push(
       ...(await inspectPackageSourcePreflight(sourceRoot, expected, repository, {
         requireBuild,
+        runCommand,
+        environment,
       })),
     );
     if (expected.packedArtifact) {
@@ -693,6 +814,8 @@ export async function inspectSourceTrain({
       ...(await rebuildPackedArtifact({
         ...packedSource,
         packageManager: manifest.packageManager,
+        runCommand,
+        environment,
       })),
     );
   }
@@ -702,6 +825,7 @@ export async function inspectSourceTrain({
     ...(await inspectPeerGraph(
       runtimeRoot,
       releaseClosurePackageNames(manifest),
+      { runCommand, environment },
     )),
   );
   return { ready: issues.length === 0, issues };

@@ -11,22 +11,37 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import dotenv from 'dotenv';
 import path from 'node:path';
 import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import chalk, { Chalk } from 'chalk';
+import {
+  readExpectedOpenReleaseRoster,
+  readOpenReleaseIdentity,
+} from './lib/open-release-identity.mjs';
+import {
+  requireGovernedAgentActionsHmacSecret,
+} from './lib/governed-asset-service-config.mjs';
+import {
+  requireSealedOpenReleaseRuntime,
+} from './lib/open-release-runtime-preflight.mjs';
 
 // Load env from repo root and local MCP overrides
-try {
-  const HERE = path.resolve(path.dirname(new URL(import.meta.url).pathname));
-  const CANDIDATES = [
-    path.resolve(HERE, '../dexter-ops/.env'),
-    path.resolve(HERE, '..', '.env'),
-    path.resolve(HERE, '.env'),
-  ];
-  for (const candidate of CANDIDATES) {
-    if (fs.existsSync(candidate)) {
-      dotenv.config({ path: candidate });
+// Production receives its complete environment from PM2's protected mode-0600
+// file. Never let an adjacent developer .env alter that immutable identity.
+if (process.env.NODE_ENV !== 'production') {
+  try {
+    const HERE = path.resolve(path.dirname(new URL(import.meta.url).pathname));
+    const CANDIDATES = [
+      path.resolve(HERE, '../dexter-ops/.env'),
+      path.resolve(HERE, '..', '.env'),
+      path.resolve(HERE, '.env'),
+    ];
+    for (const candidate of CANDIDATES) {
+      if (fs.existsSync(candidate)) {
+        dotenv.config({ path: candidate });
+      }
     }
-  }
-} catch {}
+  } catch {}
+}
 
 const passthrough = (value) => String(value);
 
@@ -88,6 +103,8 @@ const labelColor = color.bold ? color.bold : ((v) => v);
 
 const ROOT_DIR = path.resolve(path.dirname(new URL(import.meta.url).pathname), '.');
 const APPS_SDK_ASSETS_DIR = path.resolve(ROOT_DIR, 'public/apps-sdk/assets');
+const OPEN_RELEASE_IDENTITY = readOpenReleaseIdentity();
+const EXPECTED_OPEN_RELEASE_ROSTER = readExpectedOpenReleaseRoster();
 
 const PORT = Number(process.env.TOKEN_AI_MCP_PORT || 3930);
 const TOKEN = process.env.TOKEN_AI_MCP_TOKEN || '';
@@ -1311,12 +1328,18 @@ const server = http.createServer(async (req, res) => {
       const body = {
         ok: true,
         status: 'ok',
+        name: process.env.MCP_SERVER_NAME || 'dexter-mcp',
+        service: 'dexter-mcp',
         oauth: !!OAUTH_ENABLED,
         issuer: prov?.issuer || base,
         base,
         port: PORT,
         toolProfile: process.env.TOKEN_AI_MCP_PROFILE || null,
         toolsetsEnv: process.env.TOKEN_AI_MCP_TOOLSETS || null,
+        tools: Array.isArray(server.__dexterToolNames)
+          ? server.__dexterToolNames
+          : null,
+        release: OPEN_RELEASE_IDENTITY,
         sessions: {
           transports: Array.isArray(transports) ? transports.length : (typeof transports?.size === 'number' ? transports.size : undefined),
           servers: typeof servers?.size === 'number' ? servers.size : undefined
@@ -1734,7 +1757,41 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => {
+export async function startHttpServer() {
+  if (process.env.NODE_ENV === 'production') {
+    requireGovernedAgentActionsHmacSecret();
+  }
+  // Materialize the exact configured private roster before the listener is
+  // reachable so activation can prove the candidate did not inherit a stale
+  // PM2 process or a different tool profile.
+  const diagServer = await buildMcpServer({
+    includeToolsets: process.env.TOKEN_AI_MCP_TOOLSETS,
+    profile: process.env.TOKEN_AI_MCP_PROFILE,
+  });
+  server.__dexterToolGroups = Array.isArray(diagServer?.__dexterToolGroups)
+    ? diagServer.__dexterToolGroups
+    : [];
+  server.__dexterToolNames = diagServer?._registeredTools
+    && typeof diagServer._registeredTools === 'object'
+    ? Object.keys(diagServer._registeredTools)
+    : [];
+  const expectedRoster = process.env.NODE_ENV === 'production'
+    ? requireSealedOpenReleaseRuntime({
+      releaseDir: ROOT_DIR,
+      service: 'dexter-mcp',
+      actualRoster: server.__dexterToolNames,
+    }).roster
+    : EXPECTED_OPEN_RELEASE_ROSTER;
+  if (
+    expectedRoster
+    && JSON.stringify(expectedRoster)
+      !== JSON.stringify(server.__dexterToolNames)
+  ) {
+    throw new Error('dexter_mcp_release_roster_mismatch');
+  }
+
+  server.listen(PORT, () => {
+  process.send?.('ready');
   const jwtEnabled = Boolean(MCP_JWT_SECRET);
   if (!jwtEnabled) {
     console.warn('[auth] MCP_JWT_SECRET not set — per-user Dexter MCP JWTs will be rejected (static TOKEN_AI_MCP_TOKEN and external OAuth still supported).');
@@ -1774,18 +1831,9 @@ server.listen(PORT, () => {
         console.warn(`${color.magentaBright('[diag]')} health check failed: ${color.red(err?.message || err)}`);
       });
 
-    try {
-      const diagServer = await buildMcpServer({
-        includeToolsets: process.env.TOKEN_AI_MCP_TOOLSETS,
-        profile: process.env.TOKEN_AI_MCP_PROFILE,
-      });
-      const groups = Array.isArray(diagServer?.__dexterToolGroups) ? diagServer.__dexterToolGroups : null;
-      server.__dexterToolGroups = groups || [];
-      if (groups && groups.length) {
-        logToolsetGroups(color.magentaBright('[diag] toolsets'), groups, color);
-      }
-    } catch (err) {
-      console.warn(`${color.magentaBright('[diag]')} tools listing failed: ${color.red(err?.message || err)}`);
+    const groups = server.__dexterToolGroups;
+    if (groups.length) {
+      logToolsetGroups(color.magentaBright('[diag] toolsets'), groups, color);
     }
   }, 1000);
 
@@ -1816,7 +1864,14 @@ server.listen(PORT, () => {
       reaperTimer.unref?.();
     } catch {}
   }
-});
+  });
+}
+
+const isMainModule = process.argv[1]
+  ? path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+  : false;
+
+if (isMainModule) await startHttpServer();
 
 let shutdownNoted = false;
 

@@ -5,12 +5,28 @@ import {
   readFileSync,
   writeFileSync,
 } from 'node:fs';
+import {
+  access,
+  mkdir,
+  mkdtemp,
+  readFile,
+  realpath,
+  rm,
+} from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  REVIEWED_NPM_VERSION,
+  reviewedNpmInvocation,
+  reviewedReleaseToolEnvironment,
+} from '../lib/open-release-tooling.mjs';
 
 const execFileAsync = promisify(execFile);
+const CANONICAL_SOURCE_ORIGIN =
+  'https://github.com/Dexter-DAO/dexter-mcp.git';
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const OPEN_TOOL_DESCRIPTOR_PATH = resolve(
@@ -18,39 +34,262 @@ export const OPEN_TOOL_DESCRIPTOR_PATH = resolve(
   'release/open-tool-descriptors.json',
 );
 
-async function materializeInIsolatedProcess() {
-  const childEnv = {
-    ...process.env,
-    SENTRY_DSN: '',
-    SENTRY_OPEN_MCP_DSN: '',
-  };
-  for (const key of [
-    'NODE_OPTIONS',
-    'NODE_PATH',
-    'LD_PRELOAD',
-    'LD_LIBRARY_PATH',
-    'LD_AUDIT',
-  ]) {
-    delete childEnv[key];
+async function readJson(path) {
+  return JSON.parse(await readFile(path, 'utf8'));
+}
+
+async function requirePath(path, label) {
+  try {
+    await access(path);
+  } catch (error) {
+    throw new Error(`${label} is absent from the archived source`, {
+      cause: error,
+    });
   }
-  const { stdout } = await execFileAsync(
-    process.execPath,
-    [fileURLToPath(import.meta.url), '--emit-json'],
-    {
-      cwd: repositoryRoot,
-      encoding: 'utf8',
-      maxBuffer: 4 * 1024 * 1024,
-      env: childEnv,
-    },
-  );
+}
+
+function exactNpmVersion(packageManager) {
+  const match = String(packageManager).match(/^npm@(\d+\.\d+\.\d+)$/);
+  if (!match) {
+    throw new Error('archived source does not pin one exact npm version');
+  }
+  return match[1];
+}
+
+async function parseDescriptor(stdout) {
   const descriptor = JSON.parse(stdout);
   if (
     descriptor?.schemaVersion !== 1
     || descriptor?.kind !== 'opendexter-hosted-tool-descriptors/v1'
   ) {
-    throw new Error('isolated OpenDexter descriptor materializer returned invalid JSON');
+    throw new Error('OpenDexter descriptor materializer returned invalid JSON');
   }
   return descriptor;
+}
+
+/**
+ * Rebuild and execute the descriptor producer only from one committed Git
+ * archive. The caller's working files and ignored node_modules are never read
+ * as release evidence.
+ */
+export async function materializeOpenToolDescriptorsFromGit({
+  sourceRoot = repositoryRoot,
+  revision = 'HEAD',
+  runCommand = execFileAsync,
+  environment = process.env,
+} = {}) {
+  const cleanGitEnvironment = reviewedReleaseToolEnvironment({
+    env: environment,
+  });
+  const [{ stdout: topLevelOutput }, { stdout: remoteOutput }] =
+    await Promise.all([
+      runCommand('git', [
+        '--no-replace-objects',
+        '-C', sourceRoot,
+        'rev-parse', '--show-toplevel',
+      ], { encoding: 'utf8', env: cleanGitEnvironment }),
+      runCommand('git', [
+        '--no-replace-objects',
+        '-C', sourceRoot,
+        'remote', 'get-url', 'origin',
+      ], { encoding: 'utf8', env: cleanGitEnvironment }),
+    ]);
+  if (
+    await realpath(topLevelOutput.trim()) !== await realpath(sourceRoot)
+    || remoteOutput.trim() !== CANONICAL_SOURCE_ORIGIN
+  ) {
+    throw new Error('OpenDexter descriptor source repository is not canonical');
+  }
+  const { stdout: statusOutput } = await runCommand(
+    'git',
+    [
+      '--no-replace-objects',
+      '-C', sourceRoot,
+      'status',
+      '--porcelain=v2',
+      '-z',
+      '--untracked-files=all',
+    ],
+    { encoding: 'utf8', env: cleanGitEnvironment },
+  );
+  if (statusOutput.length > 0) {
+    throw new Error('OpenDexter descriptor source checkout is not clean');
+  }
+  const { stdout: trackedFlags } = await runCommand(
+    'git',
+    ['--no-replace-objects', '-C', sourceRoot, 'ls-files', '-v', '-z'],
+    { encoding: 'utf8', env: cleanGitEnvironment },
+  );
+  const hiddenPaths = trackedFlags.split('\0').filter((entry) =>
+    /^[a-zS] /.test(entry));
+  if (hiddenPaths.length > 0) {
+    throw new Error(
+      'OpenDexter descriptor source contains hidden index state '
+      + '(assume-unchanged or skip-worktree)',
+    );
+  }
+  const { stdout: replaceRefs } = await runCommand(
+    'git',
+    [
+      '--no-replace-objects',
+      '-C', sourceRoot,
+      'for-each-ref', '--format=%(refname)', 'refs/replace',
+    ],
+    { encoding: 'utf8', env: cleanGitEnvironment },
+  );
+  if (replaceRefs.trim().length > 0) {
+    throw new Error('OpenDexter descriptor source contains Git replace refs');
+  }
+  const { stdout: commitOutput } = await runCommand(
+    'git',
+    [
+      '--no-replace-objects',
+      '-C', sourceRoot,
+      'rev-parse', `${revision}^{commit}`,
+    ],
+    { encoding: 'utf8', env: cleanGitEnvironment },
+  );
+  const commit = commitOutput.trim();
+  if (!/^[0-9a-f]{40}$/.test(commit)) {
+    throw new Error('OpenDexter descriptor source commit is invalid');
+  }
+  const { stdout: headOutput } = await runCommand(
+    'git',
+    [
+      '--no-replace-objects',
+      '-C', sourceRoot,
+      'rev-parse', 'HEAD^{commit}',
+    ],
+    { encoding: 'utf8', env: cleanGitEnvironment },
+  );
+  if (headOutput.trim() !== commit) {
+    throw new Error(
+      'OpenDexter descriptor revision must be the clean checkout HEAD',
+    );
+  }
+  let remoteRefs;
+  try {
+    ({ stdout: remoteRefs } = await runCommand('git', [
+      '--no-replace-objects',
+      'ls-remote', '--refs', CANONICAL_SOURCE_ORIGIN,
+    ], {
+      encoding: 'utf8',
+      env: cleanGitEnvironment,
+      timeout: 30_000,
+    }));
+  } catch (error) {
+    throw new Error('OpenDexter descriptor canonical origin is unreachable', {
+      cause: error,
+    });
+  }
+  const advertised = remoteRefs.split(/\r?\n/).some((line) => {
+    const [remoteCommit, refname, extra] = line.trim().split(/\s+/);
+    return remoteCommit === commit && Boolean(refname) && extra === undefined;
+  });
+  if (!advertised) {
+    throw new Error(
+      'OpenDexter descriptor canonical origin does not advertise HEAD',
+    );
+  }
+
+  const disposableRoot = await mkdtemp(
+    resolve(tmpdir(), 'opendexter-descriptor-source-'),
+  );
+  const archivePath = resolve(disposableRoot, 'source.tar');
+  const archiveRoot = resolve(disposableRoot, 'source');
+  try {
+    await mkdir(archiveRoot, { recursive: true });
+    await runCommand('git', [
+      '--no-replace-objects',
+      '-C', sourceRoot,
+      'archive',
+      '--format=tar',
+      '--output', archivePath,
+      commit,
+    ], { encoding: 'utf8', env: cleanGitEnvironment });
+    await runCommand('tar', ['-xf', archivePath, '-C', archiveRoot], {
+      encoding: 'utf8',
+      env: cleanGitEnvironment,
+    });
+
+    const archivedPackage = await readJson(resolve(archiveRoot, 'package.json'));
+    const npmVersion = exactNpmVersion(archivedPackage.packageManager);
+    await requirePath(
+      resolve(archiveRoot, 'package-lock.json'),
+      'package-lock.json',
+    );
+    if (npmVersion !== REVIEWED_NPM_VERSION) {
+      throw new Error(
+        `archived source pins npm ${npmVersion}, expected ${REVIEWED_NPM_VERSION}`,
+      );
+    }
+    const buildEnv = reviewedReleaseToolEnvironment({
+      env: environment,
+      npmCache: resolve(disposableRoot, 'npm-cache'),
+    });
+    const materializerEnv = reviewedReleaseToolEnvironment({
+      env: environment,
+      production: true,
+      npmCache: resolve(disposableRoot, 'npm-cache'),
+    });
+    materializerEnv.SENTRY_DSN = '';
+    materializerEnv.SENTRY_OPEN_MCP_DSN = '';
+    const npmVersionCommand = reviewedNpmInvocation(['--version']);
+    const { stdout: installedNpmOutput } = await runCommand(
+      npmVersionCommand.command,
+      npmVersionCommand.args,
+      { encoding: 'utf8', env: buildEnv },
+    );
+    if (installedNpmOutput.trim() !== REVIEWED_NPM_VERSION) {
+      throw new Error(
+        `npm is ${installedNpmOutput.trim()}, expected ${REVIEWED_NPM_VERSION}`,
+      );
+    }
+
+    // npm treats NODE_ENV=production as an implicit --omit=dev. The exact
+    // archived development graph is required to run the reviewed workspace
+    // build; only descriptor execution itself runs in production mode.
+    const npmCi = reviewedNpmInvocation([
+      'ci',
+      '--ignore-scripts',
+      '--no-audit',
+      '--no-fund',
+    ]);
+    await runCommand(npmCi.command, npmCi.args, {
+      cwd: archiveRoot,
+      encoding: 'utf8',
+      maxBuffer: 16 * 1024 * 1024,
+      env: buildEnv,
+    });
+    const npmBuild = reviewedNpmInvocation([
+      'run', 'build:runtime-workspaces',
+    ]);
+    await runCommand(npmBuild.command, npmBuild.args, {
+      cwd: archiveRoot,
+      encoding: 'utf8',
+      maxBuffer: 16 * 1024 * 1024,
+      env: buildEnv,
+    });
+
+    const archivedMaterializer = resolve(
+      archiveRoot,
+      'scripts/materialize-open-tool-descriptors.mjs',
+    );
+    await requirePath(archivedMaterializer, 'descriptor materializer');
+    const { stdout } = await runCommand(
+      npmVersionCommand.nodeExecutable,
+      [archivedMaterializer, '--emit-json'],
+      {
+        cwd: archiveRoot,
+        encoding: 'utf8',
+        maxBuffer: 4 * 1024 * 1024,
+        env: materializerEnv,
+      },
+    );
+    return await parseDescriptor(stdout);
+  } finally {
+    await rm(disposableRoot, { recursive: true, force: true });
+  }
 }
 
 /**
@@ -58,8 +297,22 @@ async function materializeInIsolatedProcess() {
  * registrations. This is the fixed interface consumed by the OpenDexter IDE
  * package verifier; callers must not reconstruct or supplement its schemas.
  */
-export async function materializeOpenToolDescriptors() {
-  return materializeInIsolatedProcess();
+export async function materializeOpenToolDescriptors(options = {}) {
+  return materializeOpenToolDescriptorsFromGit(options);
+}
+
+/**
+ * Project the finalized registrations already loaded from this source tree.
+ * This starts no listener or reaper and is suitable for ordinary schema tests;
+ * release write/check still go through the strict committed-archive function.
+ */
+export async function materializeOpenToolDescriptorsFromRegistrations() {
+  const { buildHostedOpenToolDescriptor } = await import(
+    '../lib/open-tool-contracts.mjs'
+  );
+  const { createOpenMcpServer } = await import('../open-mcp-server.mjs');
+  const server = createOpenMcpServer({ includeResources: false });
+  return buildHostedOpenToolDescriptor(server);
 }
 
 export function serializeOpenToolDescriptors(descriptor) {
@@ -114,12 +367,9 @@ function cliMode(argv) {
 }
 
 async function emitDescriptorJson() {
-  const { buildHostedOpenToolDescriptor } = await import(
-    '../lib/open-tool-contracts.mjs'
-  );
-  const { createOpenMcpServer } = await import('../open-mcp-server.mjs');
-  const server = createOpenMcpServer({ includeResources: false });
-  process.stdout.write(JSON.stringify(buildHostedOpenToolDescriptor(server)));
+  process.stdout.write(JSON.stringify(
+    await materializeOpenToolDescriptorsFromRegistrations(),
+  ));
 }
 
 const isMainModule = process.argv[1]

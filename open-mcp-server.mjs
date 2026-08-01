@@ -26,8 +26,10 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { z } from 'zod';
 import { createRemoteJWKSet } from 'jose';
 import dotenv from 'dotenv';
-dotenv.config();
-dotenv.config({ path: '.env.local' });
+if (process.env.NODE_ENV !== 'production') {
+  dotenv.config();
+  dotenv.config({ path: '.env.local' });
+}
 import { createOpenSessionResolver } from './lib/open-session-resolution.mjs';
 import { X402_WIDGET_URIS, DIAGNOSTIC_WIDGET_URIS, PASSKEY_WIDGET_URIS } from './apps-sdk/widget-uris.mjs';
 // Card TOOLS are gone (runbook Jul 23); createRemoteCardOperations remains the
@@ -61,7 +63,15 @@ import {
 } from './lib/governed-asset-client.mjs';
 import {
   readGovernedAgentActionsHmacSecret,
+  requireGovernedAgentActionsHmacSecret,
 } from './lib/governed-asset-service-config.mjs';
+import {
+  readExpectedOpenReleaseRoster,
+  readOpenReleaseIdentity,
+} from './lib/open-release-identity.mjs';
+import {
+  requireSealedOpenReleaseRuntime,
+} from './lib/open-release-runtime-preflight.mjs';
 import {
   GOVERNED_ASSET_INPUT_SCHEMAS,
   GOVERNED_ASSET_TOOL_NAMES,
@@ -2334,6 +2344,8 @@ const LINK_TOKEN_RE = /^dlt_[0-9a-f]{48}$/;
 const INTERNAL_HMAC_SECRET = (process.env.INTERNAL_DEXTERCARD_HMAC_SECRET || '').trim();
 const GOVERNED_AGENT_ACTIONS_HMAC_SECRET =
   readGovernedAgentActionsHmacSecret();
+const OPEN_RELEASE_IDENTITY = readOpenReleaseIdentity();
+const EXPECTED_OPEN_RELEASE_ROSTER = readExpectedOpenReleaseRoster();
 
 // ── OAuth-native connect: seed a durable token-scoped vault binding ──────────
 // When an OAuth host completes the ceremony it presents a Dexter-signed ES256
@@ -2653,6 +2665,8 @@ const httpServer = http.createServer(async (req, res) => {
     res.end(JSON.stringify({
       ok: true,
       name: SERVER_NAME,
+      service: 'dexter-open-mcp',
+      port: PORT,
       tools: ALL_TOOLS,
       // Honest auth claim: public tools are noauth; wallet/payment tools
       // publish scope=vault and challenge unbound sessions into native OAuth.
@@ -2662,6 +2676,7 @@ const httpServer = http.createServer(async (req, res) => {
       sessions: transports.size,
       boundSessions: [...sessionMeta.values()].filter(isAnyIdentityBound).length,
       rssMb: Math.round(process.memoryUsage().rss / 1048576),
+      release: OPEN_RELEASE_IDENTITY,
       timestamp: new Date().toISOString(),
     }));
     return;
@@ -3182,12 +3197,30 @@ const isMainModule = process.argv[1]
   ? resolve(process.argv[1]) === fileURLToPath(import.meta.url)
   : false;
 
-if (isMainModule) {
+export function startOpenMcpServer() {
+  // Refuse startup before the public roster is reachable when its protected
+  // governed-money transport cannot authenticate to dexter-api.
+  requireGovernedAgentActionsHmacSecret();
+  if (process.env.NODE_ENV === 'production') {
+    requireSealedOpenReleaseRuntime({
+      releaseDir: resolve(dirname(fileURLToPath(import.meta.url))),
+      service: 'dexter-open-mcp',
+      actualRoster: ALL_TOOLS,
+    });
+  } else if (
+    EXPECTED_OPEN_RELEASE_ROSTER
+    && JSON.stringify(EXPECTED_OPEN_RELEASE_ROSTER) !== JSON.stringify(ALL_TOOLS)
+  ) {
+    throw new Error('opendexter_release_roster_mismatch');
+  }
   startSessionReaper();
   httpServer.listen(PORT, () => {
     console.log(`[open-mcp] ${SERVER_NAME} listening on :${PORT}`);
     console.log(`[open-mcp] Tools: ${ALL_TOOLS.join(', ')}`);
     console.log('[open-mcp] Auth: mixed — anonymous discovery; wallet/payment tools use scope=vault');
     console.log(`[open-mcp] Capability search origin: ${safeUrlOrigin(DEXTER_API)}`);
+    process.send?.('ready');
   });
 }
+
+if (isMainModule) startOpenMcpServer();

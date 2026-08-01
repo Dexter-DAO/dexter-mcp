@@ -43,6 +43,30 @@ async function git(root, ...args) {
   return stdout.trim();
 }
 
+function advertisedOriginRunner(
+  repositoryRoot,
+  { advertised = true, unreachable = false, calls = [] } = {},
+) {
+  return async (command, args, options = {}) => {
+    calls.push({ command, args: [...args], options });
+    if (
+      command === 'git'
+      && args[0] === '--no-replace-objects'
+      && args[1] === 'ls-remote'
+    ) {
+      if (unreachable) throw new Error('fixture origin unavailable');
+      const commit = await git(repositoryRoot, 'rev-parse', 'HEAD');
+      return {
+        stdout: advertised
+          ? `${commit}\trefs/heads/main\n`
+          : `${'f'.repeat(40)}\trefs/heads/main\n`,
+        stderr: '',
+      };
+    }
+    return execFileAsync(command, args, options);
+  };
+}
+
 async function packedSourceFixture({ lifecycleHook } = {}) {
   const repositoryRoot = await mkdtemp(
     resolve(tmpdir(), 'opendexter-packed-source-'),
@@ -395,7 +419,10 @@ test('hostile prepare is rejected without executing its marker', async () => {
       fixture.repositoryRoot,
       fixture.expected,
       fixture.repository,
-      { requireBuild: true },
+      {
+        requireBuild: true,
+        runCommand: advertisedOriginRunner(fixture.repositoryRoot),
+      },
     );
     assert.match(
       issues.join('\n'),
@@ -467,6 +494,7 @@ test('dirty external source fails before rebuild or peer npm inspection', async 
         peerCalled = true;
         return [];
       },
+      runCommand: advertisedOriginRunner(fixture.repositoryRoot),
     });
     assert.equal(result.ready, false);
     assert.match(result.issues.join('\n'), /source repository has uncommitted/);
@@ -506,6 +534,75 @@ test('external source requires exact remote and HEAD even when its package tree 
   }
 });
 
+test('source preflight requires a reachable origin advertising the exact provenance commit', async () => {
+  const fixture = await packedSourceFixture();
+  try {
+    const unadvertised = await inspectPackageSourcePreflight(
+      fixture.repositoryRoot,
+      fixture.expected,
+      fixture.repository,
+      {
+        requireBuild: true,
+        runCommand: advertisedOriginRunner(fixture.repositoryRoot, {
+          advertised: false,
+        }),
+      },
+    );
+    assert.match(
+      unadvertised.join('\n'),
+      /canonical origin does not advertise provenance commit/,
+    );
+
+    const unreachable = await inspectPackageSourcePreflight(
+      fixture.repositoryRoot,
+      fixture.expected,
+      fixture.repository,
+      {
+        requireBuild: true,
+        runCommand: advertisedOriginRunner(fixture.repositoryRoot, {
+          unreachable: true,
+        }),
+      },
+    );
+    assert.match(
+      unreachable.join('\n'),
+      /cannot verify Git provenance: fixture origin unavailable/,
+    );
+  } finally {
+    await rm(fixture.repositoryRoot, { recursive: true, force: true });
+  }
+});
+
+test('source preflight refuses hostile loader state before invoking any tool', async () => {
+  const fixture = await packedSourceFixture();
+  let invoked = false;
+  try {
+    const issues = await inspectPackageSourcePreflight(
+      fixture.repositoryRoot,
+      fixture.expected,
+      fixture.repository,
+      {
+        requireBuild: true,
+        environment: {
+          HOME: '/tmp',
+          NODE_OPTIONS: '--require=/tmp/opendexter-hostile-marker',
+        },
+        runCommand: async () => {
+          invoked = true;
+          throw new Error('must not run');
+        },
+      },
+    );
+    assert.match(
+      issues.join('\n'),
+      /unsafe release tool environment: .*NODE_OPTIONS/,
+    );
+    assert.equal(invoked, false);
+  } finally {
+    await rm(fixture.repositoryRoot, { recursive: true, force: true });
+  }
+});
+
 test('source artifact is rebuilt from pinned archive, not ignored checkout output', async () => {
   const fixture = await packedSourceFixture();
   try {
@@ -517,7 +614,10 @@ test('source artifact is rebuilt from pinned archive, not ignored checkout outpu
         fixture.repositoryRoot,
         fixture.expected,
         fixture.repository,
-        { requireBuild: true },
+        {
+          requireBuild: true,
+          runCommand: advertisedOriginRunner(fixture.repositoryRoot),
+        },
       ),
       [],
     );
@@ -596,7 +696,7 @@ test('installed closure ignores missing dev tooling but rejects any broken produ
   }
 });
 
-test('release scripts require lock, clean install, build, and installed closure', async () => {
+test('release activation uses only the sealed candidate verifier and transactional switch', async () => {
   const pkg = JSON.parse(
     await readFile(new URL('../package.json', import.meta.url), 'utf8'),
   );
@@ -606,23 +706,23 @@ test('release scripts require lock, clean install, build, and installed closure'
     pkg.scripts['studio:setup'],
     'npm ci --prefix scripts/studio-runtime --omit=dev --ignore-scripts',
   );
-  assert.match(
-    pkg.scripts['deploy:mcp'],
-    /^npm run verify:release:runtime && npm run verify:release:lock && npm ci && npm run build:runtime-workspaces && npm run verify:open-tool-descriptors && npm run studio:setup && npm run verify:release:installed /,
-  );
-  const deploySteps = pkg.scripts['deploy:mcp'].split(' && ');
-  assert.ok(
-    deploySteps.indexOf('npm run build:runtime-workspaces')
-      < deploySteps.indexOf('npm run verify:open-tool-descriptors'),
-    'a clean checkout must build ignored workspace output before materialization',
+  assert.equal(
+    pkg.scripts['build:mcp-release'],
+    'node scripts/release/build-open-release.mjs',
   );
   assert.equal(
+    pkg.scripts['deploy:mcp'],
+    'npm run verify:release:runtime && npm run verify:release:installed '
+      + '&& node scripts/release/activate-open-release.mjs',
+  );
+  const deploySteps = pkg.scripts['deploy:mcp'].split(' && ');
+  assert.equal(
     deploySteps.at(-1),
-    'pm2 startOrReload ecosystem.production.cjs --update-env',
+    'node scripts/release/activate-open-release.mjs',
   );
   assert.doesNotMatch(
     pkg.scripts['deploy:mcp'],
-    /pm2 (?:restart|reload) dexter-(?:open-)?mcp/,
+    /pm2|startOrReload|--update-env|\b(?:restart|reload)\b/,
   );
   assert.doesNotMatch(pkg.scripts['deploy:mcp'], /echo .*restarted/);
   await assert.rejects(

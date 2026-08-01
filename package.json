@@ -32,7 +32,8 @@
     "build:apps-sdk": "npm run build:apps-sdk:local && npm run deploy:apps-sdk && npm run sentry:apps-sdk:upload",
     "deploy:apps-sdk": "node scripts/deploy-apps-sdk.mjs",
     "sentry:apps-sdk:upload": "node scripts/upload-apps-sdk-sourcemaps.mjs",
-    "deploy:mcp": "npm run verify:release:runtime && npm run verify:release:lock && npm ci && npm run build:runtime-workspaces && npm run verify:open-tool-descriptors && npm run studio:setup && npm run verify:release:installed && npm run build:apps-sdk && pm2 startOrReload ecosystem.production.cjs --update-env"
+    "build:mcp-release": "node scripts/release/build-open-release.mjs",
+    "deploy:mcp": "npm run verify:release:runtime && npm run verify:release:installed && node scripts/release/activate-open-release.mjs"
   },
   "dependencies": {
     "@dexterai/mcp-instructions": "2.4.0",

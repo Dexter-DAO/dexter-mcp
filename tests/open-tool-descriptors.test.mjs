@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { execFileSync, spawn } from 'node:child_process';
+import { execFile, execFileSync, spawn } from 'node:child_process';
 import {
   mkdtempSync,
   readFileSync,
@@ -11,12 +11,19 @@ import { join } from 'node:path';
 import { createServer } from 'node:net';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
 import {
-  materializeOpenToolDescriptors,
+  materializeOpenToolDescriptorsFromGit,
+  materializeOpenToolDescriptorsFromRegistrations,
   serializeOpenToolDescriptors,
   verifyOpenToolDescriptor,
   writeOpenToolDescriptor,
 } from '../scripts/materialize-open-tool-descriptors.mjs';
+import {
+  reviewedReleaseToolEnvironment,
+} from '../lib/open-release-tooling.mjs';
+
+const execFileAsync = promisify(execFile);
 
 const ANONYMOUS = [
   'x402_search',
@@ -51,6 +58,61 @@ const CONNECTED = [
   'dexter_wallet_history',
 ];
 
+function descriptorSourceFixture(packageManager = 'npm@10.9.3') {
+  const directory = mkdtempSync(join(tmpdir(), 'opendexter-source-fixture-'));
+  writeFileSync(join(directory, 'package.json'), `${JSON.stringify({
+    name: 'descriptor-source-fixture',
+    version: '1.0.0',
+    packageManager,
+  })}\n`);
+  writeFileSync(join(directory, 'package-lock.json'), `${JSON.stringify({
+    name: 'descriptor-source-fixture',
+    version: '1.0.0',
+    lockfileVersion: 3,
+    packages: { '': { name: 'descriptor-source-fixture', version: '1.0.0' } },
+  })}\n`);
+  execFileSync('git', ['init', '-q'], { cwd: directory });
+  execFileSync('git', ['config', 'user.email', 'fixture@dexter.test'], {
+    cwd: directory,
+  });
+  execFileSync('git', ['config', 'user.name', 'Dexter Fixture'], {
+    cwd: directory,
+  });
+  execFileSync('git', [
+    'remote', 'add', 'origin', 'https://github.com/Dexter-DAO/dexter-mcp.git',
+  ], { cwd: directory });
+  execFileSync('git', ['add', '.'], { cwd: directory });
+  execFileSync('git', ['commit', '-qm', 'fixture'], { cwd: directory });
+  return directory;
+}
+
+function canonicalFixtureRunner(
+  directory,
+  { advertised = true, unreachable = false, calls = [] } = {},
+) {
+  return async (command, args, options = {}) => {
+    calls.push({ command, args: [...args], options });
+    if (
+      command === 'git'
+      && args[0] === '--no-replace-objects'
+      && args[1] === 'ls-remote'
+    ) {
+      if (unreachable) throw new Error('fixture origin unavailable');
+      const commit = execFileSync('git', ['rev-parse', 'HEAD'], {
+        cwd: directory,
+        encoding: 'utf8',
+      }).trim();
+      return {
+        stdout: advertised
+          ? `${commit}\trefs/heads/main\n`
+          : `${'f'.repeat(40)}\trefs/heads/main\n`,
+        stderr: '',
+      };
+    }
+    return execFileAsync(command, args, options);
+  };
+}
+
 test('importing the fixed materializer interface starts no server or reaper', () => {
   const scriptUrl = new URL(
     '../scripts/materialize-open-tool-descriptors.mjs',
@@ -67,9 +129,155 @@ test('importing the fixed materializer interface starts no server or reaper', ()
   assert.equal(output, 'import-safe');
 });
 
+test('--emit-json emits exactly one descriptor document and exits', () => {
+  const materializerPath = fileURLToPath(new URL(
+    '../scripts/materialize-open-tool-descriptors.mjs',
+    import.meta.url,
+  ));
+  const output = execFileSync(process.execPath, [materializerPath, '--emit-json'], {
+    cwd: fileURLToPath(new URL('..', import.meta.url)),
+    encoding: 'utf8',
+    timeout: 5_000,
+    env: {
+      ...process.env,
+      SENTRY_DSN: '',
+      SENTRY_OPEN_MCP_DSN: '',
+    },
+  });
+  const descriptor = JSON.parse(output);
+  assert.equal(descriptor.kind, 'opendexter-hosted-tool-descriptors/v1');
+  assert.deepEqual(descriptor.tools.map(({ name }) => name), CONNECTED);
+});
+
+test('descriptor archive preflight rejects visible and hidden checkout state before npm', async (t) => {
+  const directory = descriptorSourceFixture();
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const packagePath = join(directory, 'package.json');
+  const originalPackage = readFileSync(packagePath, 'utf8');
+
+  writeFileSync(join(directory, 'untracked.txt'), 'untracked\n');
+  await assert.rejects(
+    materializeOpenToolDescriptorsFromGit({ sourceRoot: directory }),
+    /source checkout is not clean/,
+  );
+  rmSync(join(directory, 'untracked.txt'));
+
+  execFileSync('git', ['update-index', '--assume-unchanged', 'package.json'], {
+    cwd: directory,
+  });
+  writeFileSync(packagePath, `${originalPackage} `);
+  await assert.rejects(
+    materializeOpenToolDescriptorsFromGit({ sourceRoot: directory }),
+    /hidden index state/,
+  );
+  execFileSync('git', ['update-index', '--no-assume-unchanged', 'package.json'], {
+    cwd: directory,
+  });
+  writeFileSync(packagePath, originalPackage);
+
+  execFileSync('git', ['update-index', '--skip-worktree', 'package-lock.json'], {
+    cwd: directory,
+  });
+  await assert.rejects(
+    materializeOpenToolDescriptorsFromGit({ sourceRoot: directory }),
+    /hidden index state/,
+  );
+  execFileSync('git', ['update-index', '--no-skip-worktree', 'package-lock.json'], {
+    cwd: directory,
+  });
+});
+
+test('descriptor archive preflight enforces the committed exact npm version before install', async (t) => {
+  const directory = descriptorSourceFixture('npm@0.0.1');
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  await assert.rejects(
+    materializeOpenToolDescriptorsFromGit({
+      sourceRoot: directory,
+      runCommand: canonicalFixtureRunner(directory),
+    }),
+    /pins npm 0\.0\.1, expected 10\.9\.3/,
+  );
+  assert.throws(() => readFileSync(join(directory, 'node_modules/.package-lock.json')));
+});
+
+test('descriptor archive preflight requires the exact HEAD at the reachable canonical origin', async (t) => {
+  const directory = descriptorSourceFixture('npm@0.0.1');
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+
+  await assert.rejects(
+    materializeOpenToolDescriptorsFromGit({
+      sourceRoot: directory,
+      runCommand: canonicalFixtureRunner(directory, { advertised: false }),
+    }),
+    /canonical origin does not advertise HEAD/,
+  );
+  await assert.rejects(
+    materializeOpenToolDescriptorsFromGit({
+      sourceRoot: directory,
+      runCommand: canonicalFixtureRunner(directory, { unreachable: true }),
+    }),
+    /canonical origin is unreachable/,
+  );
+});
+
+test('descriptor child environment refuses loader/archive injection and strips npm markers', async () => {
+  for (const key of [
+    'NODE_OPTIONS',
+    'NODE_PATH',
+    'LD_PRELOAD',
+    'LD_LIBRARY_PATH',
+    'LD_AUDIT',
+    'LD_DEBUG',
+    'TAR_OPTIONS',
+  ]) {
+    assert.throws(
+      () => reviewedReleaseToolEnvironment({
+        env: { HOME: '/tmp', [key]: '/tmp/hostile-marker' },
+      }),
+      new RegExp(`opendexter_release_tool_env_forbidden:${key}`),
+    );
+  }
+
+  const marker = '/tmp/opendexter-hostile-npm-marker';
+  const clean = reviewedReleaseToolEnvironment({
+    env: {
+      HOME: '/tmp',
+      npm_config_userconfig: marker,
+      npm_config_node_options: `--require=${marker}`,
+      npm_config_script_shell: marker,
+    },
+  });
+  assert.equal(clean.npm_config_userconfig, '/dev/null');
+  assert.equal(clean.npm_config_node_options, undefined);
+  assert.equal(clean.npm_config_script_shell, undefined);
+  assert.equal(Object.values(clean).some((value) => value.includes(marker)), false);
+});
+
+test('descriptor archive preflight rejects replace refs and any revision other than HEAD', async (t) => {
+  const directory = descriptorSourceFixture('npm@0.0.1');
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  writeFileSync(join(directory, 'second.txt'), 'second\n');
+  execFileSync('git', ['add', 'second.txt'], { cwd: directory });
+  execFileSync('git', ['commit', '-qm', 'second'], { cwd: directory });
+
+  await assert.rejects(
+    materializeOpenToolDescriptorsFromGit({
+      sourceRoot: directory,
+      revision: 'HEAD~1',
+    }),
+    /revision must be the clean checkout HEAD/,
+  );
+
+  execFileSync('git', ['replace', 'HEAD~1', 'HEAD'], { cwd: directory });
+  await assert.rejects(
+    materializeOpenToolDescriptorsFromGit({ sourceRoot: directory }),
+    /contains Git replace refs/,
+  );
+});
+
 test('source materializer emits one deterministic full hosted descriptor', async () => {
-  const first = await materializeOpenToolDescriptors();
-  const second = await materializeOpenToolDescriptors();
+  const first = await materializeOpenToolDescriptorsFromRegistrations();
+  const second = await materializeOpenToolDescriptorsFromRegistrations();
   assert.equal(
     serializeOpenToolDescriptors(first),
     serializeOpenToolDescriptors(second),
@@ -110,7 +318,7 @@ test('descriptor check is byte-exact and refuses schema or OAuth drift', async (
   const descriptorPath = join(directory, 'open-tool-descriptors.json');
   t.after(() => rmSync(directory, { recursive: true, force: true }));
 
-  const descriptor = await materializeOpenToolDescriptors();
+  const descriptor = await materializeOpenToolDescriptorsFromRegistrations();
   const expected = serializeOpenToolDescriptors(descriptor);
   await writeOpenToolDescriptor({ descriptorPath, descriptor });
   assert.equal(readFileSync(descriptorPath, 'utf8'), expected);
@@ -172,7 +380,7 @@ test('descriptor fields equal an actual finalized SDK tools/list projection', as
     client.connect(clientTransport),
   ]);
 
-  const descriptor = await materializeOpenToolDescriptors();
+  const descriptor = await materializeOpenToolDescriptorsFromRegistrations();
   await client.listTools();
   const wireTools = wireMessages.find(
     (message) => Array.isArray(message?.result?.tools),
@@ -251,6 +459,7 @@ test('direct server execution still binds and serves health', async (t) => {
     env: {
       ...process.env,
       OPEN_MCP_PORT: String(port),
+      GOVERNED_AGENT_ACTIONS_HMAC_SECRET: 's'.repeat(32),
       SENTRY_DSN: '',
       SENTRY_OPEN_MCP_DSN: '',
     },

@@ -82,7 +82,7 @@ test('manifest, server identity, and package use one release version', async () 
   );
   assert.match(
     packageJson.scripts['deploy:mcp'],
-    /^npm run verify:release:runtime && npm run verify:release:lock/,
+    /^npm run verify:release:runtime && npm run verify:release:installed /,
   );
   await assert.rejects(access(new URL('../pnpm-lock.yaml', import.meta.url)));
   assert.match(serverSource, /version: OPEN_MCP_VERSION/);
