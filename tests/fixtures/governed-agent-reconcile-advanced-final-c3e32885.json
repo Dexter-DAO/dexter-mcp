@@ -1,0 +1,93 @@
+{
+  "sourceRepository": "Dexter-DAO/dexter-api",
+  "sourceCommit": "c3e32885cc39cdee47eca5a054c0fd7d8a0fdd8b",
+  "httpStatus": 200,
+  "input": {
+    "intentId": "419f981c-9215-4141-84f2-d89ffe9cbece"
+  },
+  "body": {
+    "namespace": "dexter-governed-agent-reconcile/v1",
+    "outcome": "advanced",
+    "phase": "final",
+    "intentId": "419f981c-9215-4141-84f2-d89ffe9cbece",
+    "attemptId": "519f981c-9215-4141-84f2-d89ffe9cbece",
+    "mutated": true,
+    "stateVersionBefore": 2,
+    "code": null,
+    "explanation": "The same durable attempt now has a final or definitively nonmoving result.",
+    "statusAfter": {
+      "namespace": "dexter-governed-transaction-status/v1",
+      "intentId": "419f981c-9215-4141-84f2-d89ffe9cbece",
+      "attemptId": "519f981c-9215-4141-84f2-d89ffe9cbece",
+      "requestId": "019f981c-9215-7141-84f2-d89ffe9cbece",
+      "action": "buy",
+      "operationCeremony": {
+        "kind": "trade",
+        "operationMessageBytes": 589,
+        "operationMessageDomain": "OTS_GOVERNED_SWAP_V1",
+        "actionDiscriminator": 0,
+        "evidenceNamespace": "dexter-protected-owner-trade-evidence/v2"
+      },
+      "assetId": "dexter",
+      "assetMint": "11111111111111111111111111111111",
+      "tokenProgram": "spl-token",
+      "amountAtomic": "1000000",
+      "destinationOwner": null,
+      "protocolId": "jupiter-v2",
+      "wallet": {
+        "vaultPda": "11111111111111111111111111111111",
+        "swigAddress": "11111111111111111111111111111111",
+        "walletAddress": "11111111111111111111111111111111"
+      },
+      "actor": "agent",
+      "runtime": {
+        "principalSource": "mcp-link-token",
+        "linkTokenId": "719f981c-9215-4141-84f2-d89ffe9cbece",
+        "surfaceBindingDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "agentId": "619f981c-9215-4141-84f2-d89ffe9cbece",
+      "grantId": "819f981c-9215-4141-84f2-d89ffe9cbece",
+      "grantRevision": 1,
+      "grantRevisionDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "grantRuleId": "919f981c-9215-4141-84f2-d89ffe9cbece",
+      "policyDecision": "allowed",
+      "escalationReasons": [],
+      "authorityExpiresAt": "2026-08-02T00:00:00.000Z",
+      "ownerDecision": {
+        "required": false,
+        "status": "not-required",
+        "reason": null,
+        "decidedAt": null
+      },
+      "status": "refused",
+      "ledgerState": "provably_not_landed",
+      "stateVersion": 3,
+      "createdAt": "2026-08-01T00:00:00.000Z",
+      "lastActivityAt": "2026-08-01T00:01:00.000Z",
+      "transactionSignature": "1111111111111111111111111111111111111111111111111111111111111111",
+      "submitted": false,
+      "landingProof": false,
+      "definitiveNonlandingProof": true,
+      "executionSucceeded": false,
+      "confirmationSlot": null,
+      "confirmationCommitment": null,
+      "settlementFinalized": false,
+      "reconciliationRequired": false,
+      "canReconcile": false,
+      "reconciliationKind": "validator_refused_before_contact",
+      "reconciliationEvidenceDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "refusalSource": null,
+      "refusalCode": null,
+      "receiptPhases": [
+        "dispatch_fenced",
+        "refused_before_contact"
+      ],
+      "replay": {
+        "statusReadSafe": true,
+        "reconcileSameAttemptOnly": true,
+        "executeFromStatusForbidden": true
+      }
+    },
+    "digest": "48e77a936f06fe07b66fee7c2cb9126e8305d4e180c2c304513d5f0ea1636e16"
+  }
+}

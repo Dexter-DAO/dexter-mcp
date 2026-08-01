@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import {
   GOVERNED_BACKEND_AUTH_PURPOSE,
@@ -41,6 +43,13 @@ const NOW = 1_785_020_400_000;
 const ADDRESS = '11111111111111111111111111111111';
 const PREPARE_PATH =
   '/api/passkey-vault/governed-assets/agent/actions/prepare';
+const API_C3_ADVANCED_FINAL_FIXTURE_BYTES = readFileSync(new URL(
+  './fixtures/governed-agent-reconcile-advanced-final-c3e32885.json',
+  import.meta.url,
+));
+const API_C3_ADVANCED_FINAL_FIXTURE = JSON.parse(
+  API_C3_ADVANCED_FINAL_FIXTURE_BYTES.toString('utf8'),
+);
 
 function jsonResponse(status, body, headers = {}) {
   return {
@@ -1116,6 +1125,165 @@ test('reconcile accepts every exact runtime outcome envelope', async () => {
     });
     assert.equal(result.isError, isError, responseBody.outcome);
     assert.deepEqual(result.body, responseBody, responseBody.outcome);
+  }
+});
+
+test('reconcile accepts the exact API c3 advanced-final public envelope', async () => {
+  assert.equal(
+    createHash('sha256')
+      .update(API_C3_ADVANCED_FINAL_FIXTURE_BYTES)
+      .digest('hex'),
+    '449fc6b5a253d6856ae9f0990932dc6cefb84871c981229afb603a6314efa798',
+  );
+  assert.equal(
+    API_C3_ADVANCED_FINAL_FIXTURE.sourceCommit,
+    'c3e32885cc39cdee47eca5a054c0fd7d8a0fdd8b',
+  );
+  assert.equal(
+    GOVERNED_ASSET_TOOL_OUTPUT_SCHEMAS.reconcile.safeParse(
+      API_C3_ADVANCED_FINAL_FIXTURE.body,
+    ).success,
+    true,
+  );
+
+  const result = await callGovernedAssetBackend({
+    apiBase: 'https://api.dexter.test',
+    secret: SECRET,
+    operation: 'reconcile',
+    input: API_C3_ADVANCED_FINAL_FIXTURE.input,
+    mcpSessionId: SESSION_ID,
+    now: NOW,
+    fetchImpl: async () => jsonResponse(
+      API_C3_ADVANCED_FINAL_FIXTURE.httpStatus,
+      API_C3_ADVANCED_FINAL_FIXTURE.body,
+    ),
+  });
+
+  assert.equal(result.isError, false);
+  assert.deepEqual(result.body, API_C3_ADVANCED_FINAL_FIXTURE.body);
+});
+
+test('advanced-final reconciliation remains terminal, advancing, and identity exact', async () => {
+  const valid = API_C3_ADVANCED_FINAL_FIXTURE.body;
+  const pendingFinal = mutateReconcile(valid, (body) => {
+    body.outcome = 'pending';
+    body.mutated = false;
+    body.stateVersionBefore = 2;
+    body.code = 'agent_reconciliation_still_uncertain';
+    body.statusAfter = { ...statusResponse(), stateVersion: 2 };
+  });
+  const nonterminalAdvanced = mutateReconcile(valid, (body) => {
+    body.statusAfter = { ...statusResponse(), stateVersion: 3 };
+  });
+  const unchangedAdvanced = mutateReconcile(valid, (body) => {
+    body.mutated = false;
+    body.statusAfter.stateVersion = body.stateVersionBefore;
+  });
+  const regressedAdvanced = mutateReconcile(valid, (body) => {
+    body.statusAfter.stateVersion = body.stateVersionBefore - 1;
+  });
+  const attemptMismatch = mutateReconcile(valid, (body) => {
+    body.statusAfter.attemptId = 'a19f981c-9215-4141-84f2-d89ffe9cbece';
+  });
+  const intentMismatch = mutateReconcile(valid, (body) => {
+    body.statusAfter.intentId = 'a19f981c-9215-4141-84f2-d89ffe9cbece';
+  });
+  const requestedIntentSubstitution = mutateReconcile(valid, (body) => {
+    body.intentId = 'a19f981c-9215-4141-84f2-d89ffe9cbece';
+    body.statusAfter.intentId = body.intentId;
+  });
+  const actionCeremonyMismatch = mutateReconcile(valid, (body) => {
+    body.statusAfter.action = 'sell';
+  });
+  const ownerRefusalTerminal = mutateReconcile(valid, (body) => {
+    body.outcome = 'already-final';
+    body.attemptId = null;
+    body.mutated = false;
+    body.stateVersionBefore = null;
+    body.statusAfter = {
+      ...body.statusAfter,
+      attemptId: null,
+      stateVersion: null,
+      policyDecision: 'approval_required',
+      escalationReasons: ['owner_refused'],
+      ownerDecision: {
+        required: true,
+        status: 'refused',
+        reason: 'owner_refused',
+        decidedAt: '2026-08-01T00:00:30.000Z',
+      },
+      status: 'refused',
+      ledgerState: 'owner-refused',
+      transactionSignature: null,
+      submitted: false,
+      definitiveNonlandingProof: false,
+      reconciliationKind: null,
+      reconciliationEvidenceDigest: null,
+      refusalSource: 'owner',
+      refusalCode: 'owner_refused',
+      receiptPhases: [],
+    };
+  });
+  const ownerRefusalSubstitution = mutateReconcile(
+    ownerRefusalTerminal,
+    (body) => {
+      body.outcome = 'advanced';
+    },
+  );
+  const nonNullCode = mutateReconcile(valid, (body) => {
+    body.code = 'agent_reconciliation_still_uncertain';
+  });
+  const wrongDigest = { ...valid, digest: '0'.repeat(64) };
+
+  const ownerRefusalControl = await callGovernedAssetBackend({
+    apiBase: 'https://api.dexter.test',
+    secret: SECRET,
+    operation: 'reconcile',
+    input: API_C3_ADVANCED_FINAL_FIXTURE.input,
+    mcpSessionId: SESSION_ID,
+    now: NOW,
+    fetchImpl: async () => jsonResponse(200, ownerRefusalTerminal),
+  });
+  assert.equal(
+    ownerRefusalControl.isError,
+    false,
+    'the owner-refusal control is an otherwise valid terminal envelope',
+  );
+
+  const hostile = [
+    [202, valid],
+    [202, pendingFinal],
+    [200, nonterminalAdvanced],
+    [200, unchangedAdvanced],
+    [200, regressedAdvanced],
+    [200, attemptMismatch],
+    [200, intentMismatch],
+    [200, requestedIntentSubstitution],
+    [200, actionCeremonyMismatch],
+    [200, ownerRefusalSubstitution],
+    [200, nonNullCode],
+    [200, wrongDigest],
+  ];
+
+  for (const [httpStatus, responseBody] of hostile) {
+    assert.equal(
+      GOVERNED_ASSET_TOOL_OUTPUT_SCHEMAS.reconcile.safeParse(responseBody)
+        .success,
+      true,
+      'hostile envelope remains structurally valid before cross-field checks',
+    );
+    const result = await callGovernedAssetBackend({
+      apiBase: 'https://api.dexter.test',
+      secret: SECRET,
+      operation: 'reconcile',
+      input: API_C3_ADVANCED_FINAL_FIXTURE.input,
+      mcpSessionId: SESSION_ID,
+      now: NOW,
+      fetchImpl: async () => jsonResponse(httpStatus, responseBody),
+    });
+    assert.equal(result.isError, true);
+    assert.equal(result.body.code, 'governed_backend_response_invalid');
+    assert.equal('statusAfter' in result.body, false);
   }
 });
 
