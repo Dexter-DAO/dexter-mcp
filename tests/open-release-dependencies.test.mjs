@@ -608,7 +608,21 @@ test('release scripts require lock, clean install, build, and installed closure'
   );
   assert.match(
     pkg.scripts['deploy:mcp'],
-    /^npm run verify:release:runtime && npm run verify:release:lock && npm ci && npm run studio:setup && npm run build:runtime-workspaces && npm run verify:release:installed /,
+    /^npm run verify:release:runtime && npm run verify:release:lock && npm ci && npm run build:runtime-workspaces && npm run verify:open-tool-descriptors && npm run studio:setup && npm run verify:release:installed /,
+  );
+  const deploySteps = pkg.scripts['deploy:mcp'].split(' && ');
+  assert.ok(
+    deploySteps.indexOf('npm run build:runtime-workspaces')
+      < deploySteps.indexOf('npm run verify:open-tool-descriptors'),
+    'a clean checkout must build ignored workspace output before materialization',
+  );
+  assert.equal(
+    deploySteps.at(-1),
+    'pm2 startOrReload ecosystem.production.cjs --update-env',
+  );
+  assert.doesNotMatch(
+    pkg.scripts['deploy:mcp'],
+    /pm2 (?:restart|reload) dexter-(?:open-)?mcp/,
   );
   assert.doesNotMatch(pkg.scripts['deploy:mcp'], /echo .*restarted/);
   await assert.rejects(

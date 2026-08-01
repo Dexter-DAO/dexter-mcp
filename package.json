@@ -20,17 +20,19 @@
     "mcp:sessions:json": "node scripts/mcp-sessions.mjs --json",
     "test:pumpstream": "node scripts/run-pumpstream-harness.js",
     "verify:release:runtime": "node scripts/verify-open-release-dependencies.mjs --runtime",
-    "verify:release:source": "node scripts/verify-open-release-dependencies.mjs --source",
+    "verify:release:source": "node scripts/verify-open-release-dependencies.mjs --source && npm run verify:open-tool-descriptors",
     "verify:release:lock": "node scripts/verify-open-release-dependencies.mjs --lock",
     "verify:release:installed": "node scripts/verify-open-release-dependencies.mjs --installed",
     "verify:release:registry": "npm run verify:release:runtime && npm run verify:release:lock && npm run verify:release:installed",
+    "generate:open-tool-descriptors": "node scripts/materialize-open-tool-descriptors.mjs --write",
+    "verify:open-tool-descriptors": "node scripts/materialize-open-tool-descriptors.mjs --check",
     "build:runtime-workspaces": "npm run build -w @dexterai/x402-core",
     "typecheck:open-release": "tsc --noEmit --strict --skipLibCheck --target ES2022 --module ESNext --moduleResolution Bundler --jsx react-jsx --allowImportingTsExtensions apps-sdk/ui/src/sdk/mcp-apps-bridge.ts apps-sdk/ui/src/sdk/call-tool-result.ts",
     "build:apps-sdk:local": "vite build --config apps-sdk/vite.config.ts",
     "build:apps-sdk": "npm run build:apps-sdk:local && npm run deploy:apps-sdk && npm run sentry:apps-sdk:upload",
     "deploy:apps-sdk": "node scripts/deploy-apps-sdk.mjs",
     "sentry:apps-sdk:upload": "node scripts/upload-apps-sdk-sourcemaps.mjs",
-    "deploy:mcp": "npm run verify:release:runtime && npm run verify:release:lock && npm ci && npm run studio:setup && npm run build:runtime-workspaces && npm run verify:release:installed && npm run build:apps-sdk && pm2 restart dexter-mcp"
+    "deploy:mcp": "npm run verify:release:runtime && npm run verify:release:lock && npm ci && npm run build:runtime-workspaces && npm run verify:open-tool-descriptors && npm run studio:setup && npm run verify:release:installed && npm run build:apps-sdk && pm2 startOrReload ecosystem.production.cjs --update-env"
   },
   "dependencies": {
     "@dexterai/mcp-instructions": "2.4.0",

@@ -20,6 +20,9 @@ import {
   GOVERNED_HISTORY_CURSOR_MAX_LENGTH,
 } from '../lib/governed-asset-contract.mjs';
 import {
+  readGovernedAgentActionsHmacSecret,
+} from '../lib/governed-asset-service-config.mjs';
+import {
   GOVERNED_ASSET_TOOL_OUTPUT_SCHEMAS,
   buildGovernedAssetToolResult,
 } from '../lib/governed-asset-result.mjs';
@@ -223,6 +226,36 @@ function statusResponse() {
   };
 }
 
+function reconcileResponse({
+  outcome = 'pending',
+  phase = 'validator-reconciliation',
+  mutated = false,
+  stateVersionBefore = 2,
+  code = 'agent_reconciliation_still_uncertain',
+  statusAfter = statusResponse(),
+} = {}) {
+  const identity = {
+    namespace: 'dexter-governed-agent-reconcile/v1',
+    outcome,
+    phase,
+    intentId: INTENT_ID,
+    attemptId: ATTEMPT_ID,
+    mutated,
+    stateVersionBefore,
+    code,
+    explanation: 'Exact same-intent reconciliation result.',
+    statusAfter,
+  };
+  return { ...identity, digest: canonicalHash(identity) };
+}
+
+function mutateReconcile(response, mutate) {
+  const identity = structuredClone(response);
+  delete identity.digest;
+  mutate(identity);
+  return { ...identity, digest: canonicalHash(identity) };
+}
+
 function executeResponse() {
   return {
     namespace: 'dexter-governed-agent-execute/v1',
@@ -296,6 +329,16 @@ test('canonical service proof matches the frozen governed-agent payload', () => 
     idempotencyKey: OPERATION_ID,
     body,
   }), expectedPayload);
+});
+
+test('governed money secret is dedicated, trimmed, and has no Dextercard fallback', () => {
+  assert.equal(readGovernedAgentActionsHmacSecret({
+    GOVERNED_AGENT_ACTIONS_HMAC_SECRET: '  dedicated-governed-secret  ',
+    INTERNAL_DEXTERCARD_HMAC_SECRET: 'legacy-card-secret',
+  }), 'dedicated-governed-secret');
+  assert.equal(readGovernedAgentActionsHmacSecret({
+    INTERNAL_DEXTERCARD_HMAC_SECRET: 'legacy-card-secret',
+  }), '');
 });
 
 test('service proof binds exact method, URL including query, idempotency, session, and canonical body', () => {
@@ -806,36 +849,120 @@ test('history output cursor is exactly reusable by the next public input', () =>
   );
 });
 
-test('reconcile preserves the canonical 409 body and marks it as an error result', async () => {
-  const responseBody = {
-    namespace: 'dexter-governed-agent-reconcile/v1',
-    status: 'reconciliation-adapter-required',
-    intentId: INTENT_ID,
-    attemptId: ATTEMPT_ID,
-    executed: false,
-    mutated: false,
-    code: 'agent_reconciliation_adapter_required',
-    explanation: 'A reviewed adapter is required.',
-    attribution: attribution(),
-    business: business({
-      lifecycle: 'ambiguous',
-      settlement: 'unknown',
-      finality: 'unknown',
-      ambiguity: { status: 'unresolved', retrySameRequestOnly: false },
-      reconciliation: { required: true, availableToOwner: false },
-    }),
+test('reconcile accepts every exact runtime outcome envelope', async () => {
+  const finalStatus = {
+    ...statusResponse(),
+    status: 'confirmed',
+    ledgerState: 'confirmed',
+    landingProof: true,
+    confirmationSlot: '123',
+    confirmationCommitment: 'finalized',
+    settlementFinalized: true,
+    reconciliationRequired: false,
+    canReconcile: false,
   };
-  const result = await callGovernedAssetBackend({
-    apiBase: 'https://api.dexter.test',
-    secret: SECRET,
-    operation: 'reconcile',
-    input: { intentId: INTENT_ID },
-    mcpSessionId: SESSION_ID,
-    now: NOW,
-    fetchImpl: async () => jsonResponse(409, responseBody),
-  });
-  assert.equal(result.isError, true);
-  assert.deepEqual(result.body, responseBody);
+  const cases = [
+    [200, reconcileResponse({
+      outcome: 'already-final',
+      phase: 'final',
+      code: null,
+      statusAfter: finalStatus,
+    }), false],
+    [200, reconcileResponse({
+      outcome: 'advanced',
+      mutated: true,
+      code: null,
+      statusAfter: { ...finalStatus, stateVersion: 3 },
+    }), false],
+    [202, reconcileResponse(), false],
+    [409, reconcileResponse({
+      outcome: 'not-required',
+      phase: 'none',
+      code: 'reconciliation_not_required',
+      statusAfter: {
+        ...statusResponse(),
+        status: 'prepared',
+        ledgerState: 'prepared',
+        transactionSignature: null,
+        submitted: false,
+        reconciliationRequired: false,
+      },
+    }), true],
+    [409, reconcileResponse({
+      outcome: 'unavailable',
+      code: 'agent_reconciliation_adapter_required',
+    }), true],
+  ];
+
+  for (const [httpStatus, responseBody, isError] of cases) {
+    const result = await callGovernedAssetBackend({
+      apiBase: 'https://api.dexter.test',
+      secret: SECRET,
+      operation: 'reconcile',
+      input: { intentId: INTENT_ID },
+      mcpSessionId: SESSION_ID,
+      now: NOW,
+      fetchImpl: async () => jsonResponse(httpStatus, responseBody),
+    });
+    assert.equal(result.isError, isError, responseBody.outcome);
+    assert.deepEqual(result.body, responseBody, responseBody.outcome);
+  }
+});
+
+test('reconcile refuses substituted identity, version, mutation, finality, digest, or HTTP state', async () => {
+  const pending = reconcileResponse();
+  const finalStatus = {
+    ...statusResponse(),
+    status: 'confirmed',
+    ledgerState: 'confirmed',
+    landingProof: true,
+    confirmationSlot: '123',
+    confirmationCommitment: 'finalized',
+    settlementFinalized: true,
+    reconciliationRequired: false,
+    canReconcile: false,
+  };
+  const hostile = [
+    [202, mutateReconcile(pending, (body) => {
+      body.intentId = 'a19f981c-9215-4141-84f2-d89ffe9cbece';
+      body.statusAfter.intentId = body.intentId;
+    })],
+    [202, mutateReconcile(pending, (body) => {
+      body.statusAfter.attemptId = 'a19f981c-9215-4141-84f2-d89ffe9cbece';
+    })],
+    [202, mutateReconcile(pending, (body) => {
+      body.statusAfter.stateVersion = 1;
+    })],
+    [202, mutateReconcile(pending, (body) => {
+      body.mutated = true;
+    })],
+    [200, reconcileResponse({
+      outcome: 'advanced',
+      mutated: true,
+      code: null,
+      statusAfter: { ...statusResponse(), stateVersion: 3 },
+    })],
+    [202, reconcileResponse({
+      statusAfter: finalStatus,
+    })],
+    [202, { ...pending, digest: '0'.repeat(64) }],
+    [200, pending],
+  ];
+
+  for (const [httpStatus, responseBody] of hostile) {
+    const result = await callGovernedAssetBackend({
+      apiBase: 'https://api.dexter.test',
+      secret: SECRET,
+      operation: 'reconcile',
+      input: { intentId: INTENT_ID },
+      mcpSessionId: SESSION_ID,
+      now: NOW,
+      fetchImpl: async () => jsonResponse(httpStatus, responseBody),
+    });
+    assert.equal(result.isError, true);
+    assert.equal(result.body.code, 'governed_backend_response_invalid');
+    assert.equal('statusAfter' in result.body, false);
+  }
 });
 
 test('an execute transport failure is one call and reconciliation-only', async () => {
@@ -995,23 +1122,31 @@ test('authority selectors are rejected before transport', async () => {
 });
 
 test('weak service configuration fails before transport', async () => {
-  let called = false;
-  await assert.rejects(
-    callGovernedAssetBackend({
-      apiBase: 'https://api.dexter.test',
-      secret: 'too-short',
-      operation: 'status',
-      input: { intentId: INTENT_ID },
-      mcpSessionId: SESSION_ID,
-      now: NOW,
-      fetchImpl: async () => {
-        called = true;
-        return jsonResponse(200, statusResponse());
-      },
+  for (const secret of [
+    'too-short',
+    readGovernedAgentActionsHmacSecret({
+      INTERNAL_DEXTERCARD_HMAC_SECRET:
+        'legacy-only-secret-that-must-not-authorize-governed-money',
     }),
-    /governed_backend_secret_unavailable/,
-  );
-  assert.equal(called, false);
+  ]) {
+    let called = false;
+    await assert.rejects(
+      callGovernedAssetBackend({
+        apiBase: 'https://api.dexter.test',
+        secret,
+        operation: 'status',
+        input: { intentId: INTENT_ID },
+        mcpSessionId: SESSION_ID,
+        now: NOW,
+        fetchImpl: async () => {
+          called = true;
+          return jsonResponse(200, statusResponse());
+        },
+      }),
+      /governed_backend_secret_unavailable/,
+    );
+    assert.equal(called, false);
+  }
 });
 
 test('backend origin is an exact bounded origin with HTTP limited to loopback', () => {

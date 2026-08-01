@@ -19,7 +19,7 @@ import './instrument.open-mcp.mjs';
 import http from 'node:http';
 import { randomUUID, randomBytes, createHmac } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -59,6 +59,9 @@ import {
 import {
   callGovernedAssetBackend,
 } from './lib/governed-asset-client.mjs';
+import {
+  readGovernedAgentActionsHmacSecret,
+} from './lib/governed-asset-service-config.mjs';
 import {
   GOVERNED_ASSET_INPUT_SCHEMAS,
   GOVERNED_ASSET_TOOL_NAMES,
@@ -1842,7 +1845,7 @@ async function governedAssetAction(operation, args, extra) {
   try {
     result = await callGovernedAssetBackend({
       apiBase: API_BASE_FALLBACK,
-      secret: INTERNAL_HMAC_SECRET,
+      secret: GOVERNED_AGENT_ACTIONS_HMAC_SECRET,
       operation,
       input: args,
       mcpSessionId: sessionId,
@@ -1883,7 +1886,10 @@ const SKILLS_ROOT = (() => {
 // sanitizer and append the authoritative native-OAuth/spend boundary.
 const SERVER_INSTRUCTIONS = buildOpenServerInstructions();
 
-function createOpenMcpServer() {
+export function createOpenMcpServer({
+  includeResources = true,
+  listedToolNames,
+} = {}) {
   assertOpenToolAuthPolicyCoverage(ALL_TOOLS);
   const server = new McpServer({
     name: SERVER_NAME,
@@ -1901,18 +1907,20 @@ function createOpenMcpServer() {
     { name: 'debugging', uri: 'docs://opendexter/debugging', file: 'x402-debugging/SKILL.md', description: 'x402 payment debugging — facilitator health, error code reference, common issues and fixes' },
   ];
 
-  for (const res of SKILL_RESOURCES) {
-    server.resource(res.name, res.uri, { description: res.description, mimeType: 'text/markdown' }, async () => {
-      if (!SKILLS_ROOT) {
-        return { contents: [{ uri: res.uri, mimeType: 'text/markdown', text: `Resource unavailable — skills directory not found on this server.` }] };
-      }
-      try {
-        const content = readFileSync(join(SKILLS_ROOT, res.file), 'utf-8');
-        return { contents: [{ uri: res.uri, mimeType: 'text/markdown', text: content }] };
-      } catch (err) {
-        return { contents: [{ uri: res.uri, mimeType: 'text/markdown', text: `Failed to read ${res.file}: ${err?.message}` }] };
-      }
-    });
+  if (includeResources) {
+    for (const res of SKILL_RESOURCES) {
+      server.resource(res.name, res.uri, { description: res.description, mimeType: 'text/markdown' }, async () => {
+        if (!SKILLS_ROOT) {
+          return { contents: [{ uri: res.uri, mimeType: 'text/markdown', text: `Resource unavailable — skills directory not found on this server.` }] };
+        }
+        try {
+          const content = readFileSync(join(SKILLS_ROOT, res.file), 'utf-8');
+          return { contents: [{ uri: res.uri, mimeType: 'text/markdown', text: content }] };
+        } catch (err) {
+          return { contents: [{ uri: res.uri, mimeType: 'text/markdown', text: `Failed to read ${res.file}: ${err?.message}` }] };
+        }
+      });
+    }
   }
 
   registerOpenTool(server, 'x402_search', {
@@ -2239,32 +2247,34 @@ function createOpenMcpServer() {
 
   // ─── Widget Resource Registration (uses same system as authenticated MCP) ──
 
-  try {
-    registerAppsSdkResources(server, {
-      allowedTemplateUris: [
-        X402_WIDGET_URIS.search,
-        X402_WIDGET_URIS.fetch,
-        X402_WIDGET_URIS.pricing,
-        X402_WIDGET_URIS.wallet,
-        // Preserve already-served resource bytes for cached host renders.
-        // Neither compatibility resource has a callable tool in this release.
-        DIAGNOSTIC_WIDGET_URIS.passkeyProbe,
-        PASSKEY_WIDGET_URIS.onboard,
-      ],
-    });
-  } catch (err) {
-    console.warn(`[open-mcp] widget registration failed (${safeErrorLabel(err)})`);
+  if (includeResources) {
+    try {
+      registerAppsSdkResources(server, {
+        allowedTemplateUris: [
+          X402_WIDGET_URIS.search,
+          X402_WIDGET_URIS.fetch,
+          X402_WIDGET_URIS.pricing,
+          X402_WIDGET_URIS.wallet,
+          // Preserve already-served resource bytes for cached host renders.
+          // Neither compatibility resource has a callable tool in this release.
+          DIAGNOSTIC_WIDGET_URIS.passkeyProbe,
+          PASSKEY_WIDGET_URIS.onboard,
+        ],
+      });
+    } catch (err) {
+      console.warn(`[open-mcp] widget registration failed (${safeErrorLabel(err)})`);
+    }
   }
 
   // Physics, not vigilance: if the served instructions ever name a tool this
   // connector doesn't register, refuse to boot (drift register R1).
   assertInstructionRosterParity(SERVER_INSTRUCTIONS, ALL_TOOLS);
   finalizeOpenToolContracts(server, {
-    listedToolNames: (_request, extra) => (
+    listedToolNames: listedToolNames ?? ((_request, extra) => (
       isVaultBound(sessionMeta.get(extractMcpSessionId(extra)))
         ? OPEN_TOOL_NAMES
         : OPEN_ANONYMOUS_TOOL_NAMES
-    ),
+    )),
   });
 
   return server;
@@ -2322,6 +2332,8 @@ function clearSessionVaultBinding(sessionId) {
 // because a session died (restart, reap, client churn).
 const LINK_TOKEN_RE = /^dlt_[0-9a-f]{48}$/;
 const INTERNAL_HMAC_SECRET = (process.env.INTERNAL_DEXTERCARD_HMAC_SECRET || '').trim();
+const GOVERNED_AGENT_ACTIONS_HMAC_SECRET =
+  readGovernedAgentActionsHmacSecret();
 
 // ── OAuth-native connect: seed a durable token-scoped vault binding ──────────
 // When an OAuth host completes the ceremony it presents a Dexter-signed ES256
@@ -3142,31 +3154,40 @@ const httpServer = http.createServer(async (req, res) => {
 // below are belt-and-suspenders in case onclose doesn't fire.
 const SESSION_IDLE_MS = 90 * 60 * 1000;
 const BOUND_SESSION_IDLE_MS = 7 * 24 * 60 * 60 * 1000;
-setInterval(() => {
-  const now = Date.now();
-  let reaped = 0;
-  for (const [sid, transport] of transports) {
-    const meta = sessionMeta.get(sid);
-    const idleMs = now - (meta?.lastActivity ?? 0);
-    const ttlMs = isAnyIdentityBound(meta) ? BOUND_SESSION_IDLE_MS : SESSION_IDLE_MS;
-    if (idleMs > ttlMs) {
-      try {
-        transport.close();
-      } catch { /* best-effort; maps are cleaned below regardless */ }
-      transports.delete(sid);
-      userBindings.delete(sid);
-      sessionMeta.delete(sid);
-      reaped += 1;
+function startSessionReaper() {
+  return setInterval(() => {
+    const now = Date.now();
+    let reaped = 0;
+    for (const [sid, transport] of transports) {
+      const meta = sessionMeta.get(sid);
+      const idleMs = now - (meta?.lastActivity ?? 0);
+      const ttlMs = isAnyIdentityBound(meta) ? BOUND_SESSION_IDLE_MS : SESSION_IDLE_MS;
+      if (idleMs > ttlMs) {
+        try {
+          transport.close();
+        } catch { /* best-effort; maps are cleaned below regardless */ }
+        transports.delete(sid);
+        userBindings.delete(sid);
+        sessionMeta.delete(sid);
+        reaped += 1;
+      }
     }
-  }
-  if (reaped > 0) {
-    console.log(`[open-mcp] reaped ${reaped} idle session(s) (active: ${transports.size}, rss: ${Math.round(process.memoryUsage().rss / 1048576)}MB)`);
-  }
-}, 10 * 60 * 1000);
+    if (reaped > 0) {
+      console.log(`[open-mcp] reaped ${reaped} idle session(s) (active: ${transports.size}, rss: ${Math.round(process.memoryUsage().rss / 1048576)}MB)`);
+    }
+  }, 10 * 60 * 1000);
+}
 
-httpServer.listen(PORT, () => {
-  console.log(`[open-mcp] ${SERVER_NAME} listening on :${PORT}`);
-  console.log(`[open-mcp] Tools: ${ALL_TOOLS.join(', ')}`);
-  console.log('[open-mcp] Auth: mixed — anonymous discovery; wallet/payment tools use scope=vault');
-  console.log(`[open-mcp] Capability search origin: ${safeUrlOrigin(DEXTER_API)}`);
-});
+const isMainModule = process.argv[1]
+  ? resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+  : false;
+
+if (isMainModule) {
+  startSessionReaper();
+  httpServer.listen(PORT, () => {
+    console.log(`[open-mcp] ${SERVER_NAME} listening on :${PORT}`);
+    console.log(`[open-mcp] Tools: ${ALL_TOOLS.join(', ')}`);
+    console.log('[open-mcp] Auth: mixed — anonymous discovery; wallet/payment tools use scope=vault');
+    console.log(`[open-mcp] Capability search origin: ${safeUrlOrigin(DEXTER_API)}`);
+  });
+}

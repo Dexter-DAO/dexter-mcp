@@ -208,9 +208,12 @@ dispatches execution.
 ### `dexter_reconcile_asset_action`
 
 Input is exactly `{ intentId: string }`. It returns the canonical
-`dexter-governed-agent-reconcile/v1` result. Reconciliation is status-gated
-and never expands mandate scope or creates a replacement intent. The MCP does
-not retry reconciliation automatically.
+`dexter-governed-agent-reconcile/v1` result. Its outcome is `already-final`,
+`advanced`, `pending`, `not-required`, or `unavailable`; it binds the exact
+intent and attempt, prior state version, complete durable status after the
+operation, mutation truth, recovery phase, and canonical response digest.
+Reconciliation is status-gated and never expands mandate scope or creates a
+replacement intent. The MCP does not retry reconciliation automatically.
 
 ### `dexter_wallet_history`
 
@@ -224,9 +227,10 @@ separately authenticated owner ceremony. Models cannot call, emulate, or
 bypass it.
 
 The internal bridge signs `dexter-governed-agent-internal/v1` with
-`INTERNAL_DEXTERCARD_HMAC_SECRET`. The signature covers timestamp, MCP session,
-HTTP method, exact mounted URL including query, Idempotency-Key or empty, and
-the canonical hash of the parsed body or `null`.
+`GOVERNED_AGENT_ACTIONS_HMAC_SECRET`. It has no fallback to the Dextercard
+secret. The signature covers timestamp, MCP session, HTTP method, exact mounted
+URL including query, Idempotency-Key or empty, and the canonical hash of the
+parsed body or `null`.
 
 ### Public output boundary
 

@@ -142,7 +142,10 @@ borrow, or pay execution.
    again automatically.
 7. When status says reconciliation is required, call
    `dexter_reconcile_asset_action` once for the same intent. It cannot expand
-   mandate scope or create a replacement intent. Do not automatically retry it.
+   mandate scope or create a replacement intent. Read its exact outcome and
+   embedded `statusAfter`: `advanced` and `already-final` are durable progress,
+   `pending` still requires later status inspection, and `unavailable` requires
+   owner/operator resolution. Do not automatically retry it.
 8. Use `dexter_wallet_history` with only the server-issued opaque cursor to
    list prior governed actions. Never construct a wallet or authority filter.
 

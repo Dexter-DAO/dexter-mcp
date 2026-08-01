@@ -59,7 +59,10 @@ Use `npm run build:apps-sdk:local` for a non-deploying widget build.
 `build:apps-sdk` retains its release behavior and copies served assets.
 `deploy:mcp` is an ordered install/build/copy/restart command, not atomic
 activation, rollback, health, OAuth, or live-render proof; production use still
-requires the coordinated release runbook and post-deploy checks below.
+requires the coordinated release runbook and post-deploy checks below. It builds
+the ignored workspace output before materializing the hosted descriptor and,
+after every gate passes, reloads `ecosystem.production.cjs` with environment
+updates so both `dexter-mcp` and `dexter-open-mcp` receive the protected config.
 
 ---
 
@@ -133,11 +136,11 @@ enrollment, extension, or owner escalation. Those ceremonies remain
 separately authenticated and are not model-callable OpenDexter tools.
 
 The MCP-to-API governed-action bridge uses
-`INTERNAL_DEXTERCARD_HMAC_SECRET` (32 bytes or longer), configured to the same
-value in Dexter API and this MCP service, and signs the timestamp,
+`GOVERNED_AGENT_ACTIONS_HMAC_SECRET` (32 bytes or longer), configured to the
+same value in Dexter API and this MCP service, and signs the timestamp,
 authenticated MCP session, method, exact mounted URL including query,
 Idempotency-Key (or empty), and canonical request-body hash. It does not use
-the x402 service secret.
+the Dextercard/session or x402 service secrets and has no legacy fallback.
 
 The hosted check/fetch/status adapter also requires
 `NATIVE_EXACT_MCP_SERVICE_HMAC_SECRET` (32 bytes or longer), configured to the
