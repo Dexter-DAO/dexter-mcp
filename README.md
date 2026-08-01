@@ -126,9 +126,11 @@ enrollment, extension, or owner escalation. Those ceremonies remain
 separately authenticated and are not model-callable OpenDexter tools.
 
 The MCP-to-API governed-action bridge uses
-`INTERNAL_DEXTERCARD_HMAC_SECRET` and signs the timestamp, authenticated MCP
-session, method, exact mounted URL including query, Idempotency-Key (or empty),
-and canonical request-body hash. It does not use the x402 service secret.
+`INTERNAL_DEXTERCARD_HMAC_SECRET` (32 bytes or longer), configured to the same
+value in Dexter API and this MCP service, and signs the timestamp,
+authenticated MCP session, method, exact mounted URL including query,
+Idempotency-Key (or empty), and canonical request-body hash. It does not use
+the x402 service secret.
 
 The hosted check/fetch/status adapter also requires
 `NATIVE_EXACT_MCP_SERVICE_HMAC_SECRET` (32 bytes or longer), configured to the

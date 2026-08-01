@@ -3,6 +3,7 @@ import { execFileSync } from "node:child_process";
 import {
   chmodSync,
   mkdtempSync,
+  readFileSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -20,6 +21,7 @@ const probe = `
     script: app.script,
     cwd: app.cwd,
     nodeOptions: app.env.NODE_OPTIONS,
+    governedSecret: app.env.INTERNAL_DEXTERCARD_HMAC_SECRET,
     nativeExactSecret: app.env.NATIVE_EXACT_MCP_SERVICE_HMAC_SECRET,
     envFile: app.env.DEXTER_MCP_ENV_FILE,
     bindNode: app.interpreter,
@@ -35,6 +37,7 @@ test("production launcher binds both services to one protected external environm
       [
         "TOKEN_AI_MCP_PORT=3930",
         "OPEN_MCP_PORT=3931",
+        "INTERNAL_DEXTERCARD_HMAC_SECRET=test-governed-secret-with-at-least-thirty-two-bytes",
         "NATIVE_EXACT_MCP_SERVICE_HMAC_SECRET=test-secret-with-at-least-thirty-two-bytes",
         "NODE_OPTIONS=--inspect",
       ].join("\n"),
@@ -56,6 +59,10 @@ test("production launcher binds both services to one protected external environm
       assert.equal(app.cwd, root);
       assert.equal(app.nodeOptions, undefined);
       assert.equal(
+        app.governedSecret,
+        "test-governed-secret-with-at-least-thirty-two-bytes",
+      );
+      assert.equal(
         app.nativeExactSecret,
         "test-secret-with-at-least-thirty-two-bytes",
       );
@@ -66,6 +73,13 @@ test("production launcher binds both services to one protected external environm
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
+});
+
+test("fresh environment template declares both exact internal service secrets", () => {
+  const example = readFileSync(path.join(root, ".env.example"), "utf8");
+  assert.match(example, /^INTERNAL_DEXTERCARD_HMAC_SECRET=$/m);
+  assert.match(example, /^NATIVE_EXACT_MCP_SERVICE_HMAC_SECRET=$/m);
+  assert.match(example, /same 32\+ byte secret as dexter-api/);
 });
 
 test("production launcher refuses a group-readable environment file", () => {

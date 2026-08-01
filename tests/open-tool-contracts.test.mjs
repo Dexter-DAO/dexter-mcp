@@ -259,12 +259,21 @@ test('behavior annotations reflect the canonical twelve operations', () => {
   );
   for (const name of [
     'dexter_asset_action_status',
-    'dexter_reconcile_asset_action',
     'dexter_wallet_history',
   ]) {
     assert.equal(OPEN_TOOL_CONTRACTS[name].annotations.readOnlyHint, true, name);
+    assert.equal(OPEN_TOOL_CONTRACTS[name].annotations.destructiveHint, false, name);
     assert.equal(OPEN_TOOL_CONTRACTS[name].annotations.idempotentHint, true, name);
   }
+  assert.deepEqual(
+    OPEN_TOOL_CONTRACTS.dexter_reconcile_asset_action.annotations,
+    {
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+  );
 });
 
 test('retired compatibility names have no contract or output schema', () => {
@@ -384,6 +393,106 @@ test('wallet setup credentials are recursively removed from model output', () =>
   assert.equal(cleaned.structuredContent.nextAction, 'connect_opendexter');
   assert.equal(cleaned.structuredContent.secureSurface, undefined);
   assert.match(JSON.stringify(cleaned._meta), /private-session/);
+});
+
+test('real SDK clients receive governed refusal, auth, and local failures as text-only errors', async (t) => {
+  const intentId = '419f981c-9215-4141-84f2-d89ffe9cbece';
+  const refusal = {
+    namespace: 'dexter-governed-agent-http-refusal/v1',
+    status: 'refused',
+    code: 'mandate_enrollment_required',
+    explanation: 'A bounded mandate must be enrolled outside the model surface.',
+    executed: false,
+    signed: false,
+    submitted: false,
+    settlementFinalized: false,
+  };
+  const authenticationRequired = {
+    status: 401,
+    mode: 'authentication_required',
+    paySource: 'anon_vault',
+    next_action: 'connect_opendexter',
+    vault_status: 'authentication_required',
+    user_bound: false,
+    retry: null,
+    message: 'Connect OpenDexter with your Dexter passkey wallet to continue.',
+    instructions: 'Use the host Connect action, then retry the original call.',
+    reason: 'no_mcp_session',
+    requirements: null,
+    merchantSettlement: null,
+  };
+  const localFailure = (operation, operationId = null) => ({
+    namespace: 'opendexter-governed-backend-failure/v1',
+    operation,
+    status: operation === 'execute' ? 'unknown' : 'unavailable',
+    operationId,
+    intentId: operation === 'execute' ? intentId : null,
+    code: 'governed_backend_transport_failed',
+    explanation: 'Dexter did not return a result for this request.',
+    retry: operation === 'execute'
+      ? 'reconcile_same_intent_only'
+      : 'read_again',
+  });
+  const governedErrors = new Map([
+    ['dexter_prepare_asset_action', refusal],
+    ['dexter_execute_asset_action', localFailure(
+      'execute',
+      'open_abcdefghijklmnop',
+    )],
+    ['dexter_asset_action_status', authenticationRequired],
+    ['dexter_reconcile_asset_action', {
+      ...refusal,
+      code: 'agent_reconciliation_adapter_required',
+    }],
+    ['dexter_wallet_history', localFailure('history')],
+  ]);
+
+  const server = new McpServer({
+    name: 'governed-error-contract-test',
+    version: '0.5.0',
+  });
+  installOpenToolContracts(server);
+  for (const name of EXPECTED_TOOLS) {
+    server.registerTool(name, { inputSchema: {} }, async () => {
+      const body = governedErrors.get(name) ?? {};
+      return {
+        content: [{ type: 'text', text: JSON.stringify(body) }],
+        structuredContent: body,
+        isError: governedErrors.has(name),
+      };
+    });
+  }
+  finalizeOpenToolContracts(server);
+
+  const client = new Client({
+    name: 'governed-error-client',
+    version: '1.0.0',
+  });
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+  await Promise.all([
+    server.connect(serverTransport),
+    client.connect(clientTransport),
+  ]);
+
+  for (const [name, expectedBody] of governedErrors) {
+    const result = await client.callTool({ name, arguments: {} });
+    assert.equal(result.isError, true, name);
+    assert.equal(result.structuredContent, undefined, name);
+    const visibleBody = JSON.parse(result.content[0].text);
+    assert.equal(visibleBody.namespace, expectedBody.namespace, name);
+    assert.equal(
+      visibleBody.code ?? visibleBody.reason,
+      expectedBody.code ?? expectedBody.reason,
+      name,
+    );
+    if (name === 'dexter_execute_asset_action') {
+      assert.equal(visibleBody.operationId, 'open_abcdefghijklmnop');
+    }
+  }
 });
 
 test('real SDK tools/list exposes executable schemas, OAuth, annotations, and metadata', async (t) => {

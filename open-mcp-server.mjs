@@ -2893,7 +2893,7 @@ const httpServer = http.createServer(async (req, res) => {
         void bindLinkTokenToSession(linkToken, sessionId);
       }
 
-      // ── Spend-tool OAuth challenge (pre-transport) ──────────────────────
+      // ── Protected-tool OAuth challenge (pre-transport) ─────────────────
       // Tool dispatch happens inside the SDK and a tool callback can never
       // emit a 401 (response already committed), so the raw handler reads
       // the body here to see the tools/call names. From this point the
@@ -3023,7 +3023,7 @@ const httpServer = http.createServer(async (req, res) => {
           boundDurable,
         })) {
           console.log(
-            `[open-mcp] spend challenge (401 → vault OAuth) sessionRef=${logRef(sessionId)}`,
+            `[open-mcp] protected-tool challenge (401 → vault OAuth) sessionRef=${logRef(sessionId)}`,
           );
           writeVaultChallenge(res);
           return; // session state untouched — the client retries on the same id

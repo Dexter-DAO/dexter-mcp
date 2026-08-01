@@ -6,6 +6,7 @@ import {
   GOVERNED_ASSET_INPUT_SCHEMAS,
   GOVERNED_ASSET_TOOL_CONTRACTS,
   GOVERNED_ASSET_TOOL_NAMES,
+  GOVERNED_HISTORY_CURSOR_MAX_LENGTH,
   GOVERNED_OPERATION_SEMANTICS,
   REGISTERED_GOVERNED_ASSET_TOOL_NAMES,
   assertNoGovernedAuthorityOverrides,
@@ -125,7 +126,7 @@ test('execute accepts only operationId and intentId', () => {
   }
 });
 
-test('status, reconcile, and history expose only their exact read identities', () => {
+test('status, reconcile, and history expose only exact intent or pagination identities', () => {
   assert.equal(GOVERNED_ASSET_INPUT_SCHEMAS.status.safeParse({
     intentId: INTENT_ID,
   }).success, true);
@@ -138,6 +139,12 @@ test('status, reconcile, and history expose only their exact read identities', (
   }).success, true);
   assert.equal(GOVERNED_ASSET_INPUT_SCHEMAS.history.safeParse({
     limit: 101,
+  }).success, false);
+  assert.equal(GOVERNED_ASSET_INPUT_SCHEMAS.history.safeParse({
+    cursor: 'a'.repeat(GOVERNED_HISTORY_CURSOR_MAX_LENGTH),
+  }).success, true);
+  assert.equal(GOVERNED_ASSET_INPUT_SCHEMAS.history.safeParse({
+    cursor: 'a'.repeat(GOVERNED_HISTORY_CURSOR_MAX_LENGTH + 1),
   }).success, false);
   assert.equal(GOVERNED_ASSET_INPUT_SCHEMAS.status.safeParse({
     intentId: INTENT_ID,

@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   GOVERNED_BACKEND_AUTH_PURPOSE,
+  MAX_GOVERNED_BACKEND_RESPONSE_BYTES,
+  MAX_GOVERNED_HISTORY_RESPONSE_BYTES,
   buildGovernedBackendRequestAuth,
   buildGovernedRuntimeBindingPayload,
   callGovernedAssetBackend,
@@ -15,8 +17,13 @@ import {
   createGovernedBackendProfile,
 } from '../lib/governed-asset-backend-profile.mjs';
 import {
+  GOVERNED_HISTORY_CURSOR_MAX_LENGTH,
+} from '../lib/governed-asset-contract.mjs';
+import {
+  GOVERNED_ASSET_TOOL_OUTPUT_SCHEMAS,
   buildGovernedAssetToolResult,
 } from '../lib/governed-asset-result.mjs';
+import { applyOpenToolResultPolicy } from '../lib/open-tool-contracts.mjs';
 
 const SECRET = ' test-only-governed-secret-at-least-thirty-two-bytes ';
 const OPERATION_ID = '019f981c-9215-7141-84f2-d89ffe9cbece';
@@ -37,6 +44,26 @@ function jsonResponse(status, body, headers = {}) {
     status,
     headers: { get: (name) => headers[name.toLowerCase()] ?? null },
     text: async () => JSON.stringify(body),
+  };
+}
+
+function streamingJsonResponse(status, body, chunkBytes = 8 * 1024) {
+  const encoded = new TextEncoder().encode(JSON.stringify(body));
+  let offset = 0;
+  return {
+    status,
+    headers: { get: () => null },
+    body: new ReadableStream({
+      pull(controller) {
+        if (offset >= encoded.byteLength) {
+          controller.close();
+          return;
+        }
+        const end = Math.min(offset + chunkBytes, encoded.byteLength);
+        controller.enqueue(encoded.slice(offset, end));
+        offset = end;
+      },
+    }),
   };
 }
 
@@ -193,6 +220,28 @@ function statusResponse() {
       reconcileSameAttemptOnly: true,
       executeFromStatusForbidden: true,
     },
+  };
+}
+
+function executeResponse() {
+  return {
+    namespace: 'dexter-governed-agent-execute/v1',
+    status: 'confirmed',
+    requestId: OPERATION_ID,
+    intentId: INTENT_ID,
+    attemptId: ATTEMPT_ID,
+    transactionSignature: '1'.repeat(64),
+    executed: true,
+    code: null,
+    explanation: null,
+    attribution: attribution(),
+    business: business({
+      lifecycle: 'confirmed',
+      settlement: 'landed',
+      finality: 'finalized',
+      executionSucceeded: true,
+    }),
+    evidenceDigest: 'e'.repeat(64),
   };
 }
 
@@ -471,6 +520,63 @@ test('generic approved asset identity passes without a named-token output enum',
   assert.equal(result.body.preview.symbol, 'TOK42');
 });
 
+test('governed result policy preserves valid opaque identities that resemble bearer tokens', () => {
+  const opaqueIdentity = 'open_abcdefghijklmnop';
+  const opaquePlan = `dlt_${'a'.repeat(20)}`;
+  const prepare = preparedResponse();
+  prepare.requestId = opaqueIdentity;
+  prepare.planId = opaquePlan;
+  prepare.business.assetId = opaqueIdentity;
+  prepare.business.protocolId = opaqueIdentity;
+  prepare.preview.assetId = opaqueIdentity;
+  prepare.preview.symbol = opaqueIdentity;
+
+  const execute = executeResponse();
+  execute.requestId = opaqueIdentity;
+  execute.business.assetId = opaqueIdentity;
+  execute.business.protocolId = opaqueIdentity;
+
+  const status = statusResponse();
+  status.requestId = opaqueIdentity;
+  status.assetId = opaqueIdentity;
+  status.protocolId = opaqueIdentity;
+
+  const history = {
+    namespace: 'dexter-governed-transaction-history/v1',
+    items: [status],
+    nextCursor: opaquePlan,
+  };
+  const cases = [
+    ['prepare', 'dexter_prepare_asset_action', prepare],
+    ['execute', 'dexter_execute_asset_action', execute],
+    ['status', 'dexter_asset_action_status', status],
+    ['history', 'dexter_wallet_history', history],
+  ];
+
+  for (const [operation, toolName, body] of cases) {
+    assert.equal(
+      GOVERNED_ASSET_TOOL_OUTPUT_SCHEMAS[operation].safeParse(body).success,
+      true,
+      `${operation} fixture`,
+    );
+    const result = applyOpenToolResultPolicy(toolName, {
+      content: [{ type: 'text', text: JSON.stringify(body) }],
+      structuredContent: body,
+      isError: false,
+    });
+    assert.deepEqual(result.structuredContent, body, operation);
+    assert.equal(
+      GOVERNED_ASSET_TOOL_OUTPUT_SCHEMAS[operation]
+        .safeParse(result.structuredContent).success,
+      true,
+      `${operation} projected output`,
+    );
+    assert.match(result.content[0].text, /open_abcdefghijklmnop/);
+  }
+  assert.equal(prepare.planId, opaquePlan);
+  assert.equal(history.nextCursor, opaquePlan);
+});
+
 test('prepare preserves exact reusable-mandate coverage and escalation states', async () => {
   const covered = preparedResponse();
   const coveredResult = await callGovernedAssetBackend({
@@ -581,6 +687,84 @@ test('status and history use GET without bodies or idempotency headers', async (
   }
 });
 
+test('a streamed 100-record history page fits the history-only body bound', async () => {
+  const history = {
+    namespace: 'dexter-governed-transaction-history/v1',
+    items: Array.from({ length: 100 }, () => statusResponse()),
+    nextCursor: null,
+  };
+  const encodedBytes = Buffer.byteLength(JSON.stringify(history), 'utf8');
+  assert.ok(encodedBytes > MAX_GOVERNED_BACKEND_RESPONSE_BYTES);
+  assert.ok(encodedBytes < MAX_GOVERNED_HISTORY_RESPONSE_BYTES);
+
+  const result = await callGovernedAssetBackend({
+    apiBase: 'https://api.dexter.test',
+    secret: SECRET,
+    operation: 'history',
+    input: { limit: 100 },
+    mcpSessionId: SESSION_ID,
+    now: NOW,
+    fetchImpl: async () => streamingJsonResponse(200, history),
+  });
+  assert.equal(result.isError, false);
+  assert.equal(result.body.items.length, 100);
+
+  const oversized = await callGovernedAssetBackend({
+    apiBase: 'https://api.dexter.test',
+    secret: SECRET,
+    operation: 'history',
+    input: { limit: 100 },
+    mcpSessionId: SESSION_ID,
+    now: NOW,
+    fetchImpl: async () => jsonResponse(200, history, {
+      'content-length': String(MAX_GOVERNED_HISTORY_RESPONSE_BYTES + 1),
+    }),
+  });
+  assert.equal(oversized.isError, true);
+  assert.equal(oversized.body.code, 'governed_backend_response_invalid');
+});
+
+test('history refuses a backend page larger than the exact requested limit', async () => {
+  const history = {
+    namespace: 'dexter-governed-transaction-history/v1',
+    items: [statusResponse(), statusResponse()],
+    nextCursor: null,
+  };
+  const result = await callGovernedAssetBackend({
+    apiBase: 'https://api.dexter.test',
+    secret: SECRET,
+    operation: 'history',
+    input: { limit: 1 },
+    mcpSessionId: SESSION_ID,
+    now: NOW,
+    fetchImpl: async () => jsonResponse(200, history),
+  });
+  assert.equal(result.isError, true);
+  assert.equal(result.body.code, 'governed_backend_response_invalid');
+});
+
+test('history output cursor is exactly reusable by the next public input', () => {
+  const history = {
+    namespace: 'dexter-governed-transaction-history/v1',
+    items: [],
+    nextCursor: 'a'.repeat(GOVERNED_HISTORY_CURSOR_MAX_LENGTH),
+  };
+  assert.equal(
+    GOVERNED_ASSET_TOOL_OUTPUT_SCHEMAS.history.safeParse(history).success,
+    true,
+  );
+  assert.doesNotThrow(() => governedBackendRequest('history', {
+    cursor: history.nextCursor,
+  }));
+  assert.equal(
+    GOVERNED_ASSET_TOOL_OUTPUT_SCHEMAS.history.safeParse({
+      ...history,
+      nextCursor: `${history.nextCursor}a`,
+    }).success,
+    false,
+  );
+});
+
 test('reconcile preserves the canonical 409 body and marks it as an error result', async () => {
   const responseBody = {
     namespace: 'dexter-governed-agent-reconcile/v1',
@@ -640,6 +824,12 @@ test('an execute transport failure is one call and reconciliation-only', async (
     retry: 'reconcile_same_intent_only',
   });
   assert.equal(result.isError, true);
+  const toolResult = buildGovernedAssetToolResult(result);
+  assert.equal(toolResult.structuredContent, undefined);
+  assert.equal(
+    JSON.parse(toolResult.content[0].text).operationId,
+    OPERATION_ID,
+  );
 });
 
 test('invalid or oversized backend bodies fail closed without inventing evidence', async () => {

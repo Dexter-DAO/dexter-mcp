@@ -29,13 +29,22 @@ const UNBOUND = {
   boundDurable: false,
 };
 
-test('raw HTTP challenge set is exactly the canonical money-execution tool', () => {
-  assert.deepEqual([...SPEND_TOOL_NAMES], ['x402_fetch']);
+const PROTECTED_TOOL_NAMES = [
+  'x402_fetch',
+  'dexter_prepare_asset_action',
+  'dexter_execute_asset_action',
+  'dexter_asset_action_status',
+  'dexter_reconcile_asset_action',
+  'dexter_wallet_history',
+];
+
+test('raw HTTP challenge set is exactly the canonical protected tool set', () => {
+  assert.deepEqual([...SPEND_TOOL_NAMES], PROTECTED_TOOL_NAMES);
 });
 
 // ── Challenge fires: unbound, Bearer-less money-execution tools/call ────────
 
-for (const name of ['x402_fetch']) {
+for (const name of PROTECTED_TOOL_NAMES) {
   test(`challenges ${name} when unbound with no Bearer`, () => {
     assert.equal(shouldChallengeSpend({ messages: call(name), ...UNBOUND }), true);
   });
@@ -114,6 +123,21 @@ test('durable binding suppresses the challenge (restart survivor)', () => {
     }),
     false,
   );
+});
+
+test('a durable legacy-link binding suppresses every governed raw challenge', () => {
+  for (const name of PROTECTED_TOOL_NAMES.slice(1)) {
+    assert.equal(
+      shouldChallengeSpend({
+        messages: call(name),
+        hasValidVaultBearer: false,
+        boundInMemory: false,
+        boundDurable: true,
+      }),
+      false,
+      name,
+    );
+  }
 });
 
 // ── Malformed / hostile bodies never challenge and never throw ──────────────
