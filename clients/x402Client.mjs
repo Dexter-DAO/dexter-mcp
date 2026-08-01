@@ -1,4 +1,4 @@
-import { selectPaymentRequirements } from 'x402/client';
+import { selectPaymentRequirement } from './selectPaymentRequirement.mjs';
 
 const DEFAULT_MAX_ATTEMPTS = Number.isFinite(Number(process.env.MCP_X402_MAX_ATTEMPTS))
   ? Math.max(1, Number.parseInt(process.env.MCP_X402_MAX_ATTEMPTS, 10))
@@ -252,12 +252,12 @@ async function handlePaymentRequired(url, response, init, options) {
   const preferredNetworks =
     options?.preferredNetworks && options.preferredNetworks.length
       ? options.preferredNetworks
-      // Prefer canonical Solana v2 first, but keep the legacy short name during
-      // transition so mixed v1/v2 requirement sets still bias toward the SVM path.
+      // Accept canonical Solana v2 and the legacy short name during transition;
+      // the selector preserves the established base-first compatibility order.
       : ['solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp', 'solana', 'eip155:8453', 'eip155:137', 'eip155:42161', 'eip155:10', 'eip155:43114', 'eip155:56', 'eip155:1187947933', 'eip155:480', 'eip155:143', 'eip155:4663'];
 
   const selectedRequirement =
-    selectPaymentRequirements(payload.accepts, preferredNetworks, 'exact') ?? payload.accepts[0];
+    selectPaymentRequirement(payload.accepts, preferredNetworks, 'exact') ?? payload.accepts[0];
   const resourceUrlFrom402 =
     payload?.resource && typeof payload.resource === 'object' && typeof payload.resource.url === 'string'
       ? payload.resource.url
