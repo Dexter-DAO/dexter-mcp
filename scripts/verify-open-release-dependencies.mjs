@@ -13,7 +13,7 @@ import {
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const execFileAsync = promisify(execFile);
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -538,14 +538,25 @@ export async function inspectProductionClosure(runtimeRoot) {
   return inspectPeerClosure(runtimeRoot, [], { omitDev: true });
 }
 
-async function inspectIsolatedTooling(hostedRoot, manifest) {
+export async function inspectIsolatedTooling(
+  hostedRoot,
+  manifest,
+  { requireInstalled = false } = {},
+) {
   const hostedPackage = await readJson(resolve(hostedRoot, 'package.json'));
   const issues = [];
   if (hostedPackage.dependencies?.['@anthropic-ai/claude-agent-sdk']) {
     issues.push('Claude Agent SDK must not share the hosted MCP dependency graph');
   }
   for (const tool of manifest.isolatedTooling || []) {
-    const pkg = await readJson(resolve(hostedRoot, tool.path, 'package.json'));
+    const toolRoot = resolve(hostedRoot, tool.path);
+    const pkg = await readJson(resolve(toolRoot, 'package.json'));
+    if (tool.excludedFromHostedRootGraph !== true) {
+      issues.push(`${tool.name}: must remain outside the hosted root graph`);
+    }
+    if (tool.requiredInRelease !== true) {
+      issues.push(`${tool.name}: must be required in the immutable release`);
+    }
     for (const coordinate of tool.packages) {
       const separator = coordinate.lastIndexOf('@');
       const name = coordinate.slice(0, separator);
@@ -553,6 +564,29 @@ async function inspectIsolatedTooling(hostedRoot, manifest) {
       if (pkg.dependencies?.[name] !== version) {
         issues.push(`${tool.name}: expected ${coordinate}`);
       }
+    }
+    if (!requireInstalled) continue;
+
+    const graphIssues = await inspectProductionClosure(toolRoot);
+    issues.push(
+      ...graphIssues.map((issue) => `${tool.name}: ${issue}`),
+    );
+
+    const entrypoint = resolve(toolRoot, tool.entrypoint || 'query.mjs');
+    if (!(await exists(entrypoint))) {
+      issues.push(`${tool.name}: missing ${tool.entrypoint || 'query.mjs'}`);
+      continue;
+    }
+    if (graphIssues.length > 0) continue;
+    try {
+      const runtime = await import(
+        `${pathToFileURL(entrypoint).href}?release-verification=${Date.now()}`
+      );
+      if (typeof runtime.query !== 'function') {
+        issues.push(`${tool.name}: entrypoint does not export query()`);
+      }
+    } catch (error) {
+      issues.push(`${tool.name}: entrypoint import failed: ${error.message}`);
     }
   }
   return issues;
@@ -783,7 +817,9 @@ export async function inspectInstalledRelease(hostedRoot) {
       })),
     );
   }
-  issues.push(...(await inspectIsolatedTooling(hostedRoot, manifest)));
+  issues.push(...(await inspectIsolatedTooling(hostedRoot, manifest, {
+    requireInstalled: true,
+  })));
   issues.push(...(await inspectProductionClosure(hostedRoot)));
   return { ready: issues.length === 0, issues };
 }

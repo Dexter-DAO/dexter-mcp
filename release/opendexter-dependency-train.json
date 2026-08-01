@@ -103,7 +103,9 @@
     {
       "name": "Dexter Studio Claude runtime",
       "path": "scripts/studio-runtime",
-      "excludedFromHostedRuntime": true,
+      "entrypoint": "query.mjs",
+      "excludedFromHostedRootGraph": true,
+      "requiredInRelease": true,
       "packages": [
         "@anthropic-ai/claude-agent-sdk@0.2.6",
         "zod@4.3.6"

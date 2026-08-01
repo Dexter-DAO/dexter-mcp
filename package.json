@@ -15,7 +15,7 @@
     "start": "node http-server-oauth.mjs",
     "monitor": "node scripts/studio-monitor.mjs",
     "studio": "node scripts/studio.mjs",
-    "studio:setup": "npm install --prefix scripts/studio-runtime --ignore-scripts",
+    "studio:setup": "npm ci --prefix scripts/studio-runtime --omit=dev --ignore-scripts",
     "mcp:sessions": "node scripts/mcp-sessions.mjs",
     "mcp:sessions:json": "node scripts/mcp-sessions.mjs --json",
     "test:pumpstream": "node scripts/run-pumpstream-harness.js",
@@ -30,7 +30,7 @@
     "build:apps-sdk": "npm run build:apps-sdk:local && npm run deploy:apps-sdk && npm run sentry:apps-sdk:upload",
     "deploy:apps-sdk": "node scripts/deploy-apps-sdk.mjs",
     "sentry:apps-sdk:upload": "node scripts/upload-apps-sdk-sourcemaps.mjs",
-    "deploy:mcp": "npm run verify:release:runtime && npm run verify:release:lock && npm ci && npm run build:runtime-workspaces && npm run verify:release:installed && npm run build:apps-sdk && pm2 restart dexter-mcp"
+    "deploy:mcp": "npm run verify:release:runtime && npm run verify:release:lock && npm ci && npm run studio:setup && npm run build:runtime-workspaces && npm run verify:release:installed && npm run build:apps-sdk && pm2 restart dexter-mcp"
   },
   "dependencies": {
     "@dexterai/mcp-instructions": "2.4.0",

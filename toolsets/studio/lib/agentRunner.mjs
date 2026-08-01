@@ -7,7 +7,7 @@
  * Persistence: Supabase PostgreSQL (studio_jobs table)
  */
 
-import { query } from '../../../scripts/studio-runtime/query.mjs';
+import { loadStudioQuery } from '../../../scripts/studio-runtime/load-query.mjs';
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -445,6 +445,10 @@ export async function runJob(jobId) {
     }
   }
   
+    // The Claude Agent SDK intentionally lives in an isolated dependency graph.
+    // Load it only when a Studio job actually runs so an unavailable Studio
+    // runtime can never prevent either hosted MCP server from booting.
+    const query = await loadStudioQuery();
     const q = query({
       prompt: enrichedTask,
       options,

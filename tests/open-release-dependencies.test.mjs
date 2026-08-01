@@ -16,6 +16,7 @@ import {
   NPM_PACK_LIFECYCLE_HOOKS,
   comparePackedArtifact,
   inspectInstalledRelease,
+  inspectIsolatedTooling,
   inspectPackageSourcePreflight,
   inspectPackLifecycleScripts,
   inspectProductionClosure,
@@ -282,6 +283,19 @@ test('hosted source declares one exact internal dependency train', async () => {
     ].map(({ name }) => name),
   );
   assert.equal(releaseClosurePackageNames(manifest).includes('vite'), false);
+  assert.deepEqual(manifest.isolatedTooling, [
+    {
+      name: 'Dexter Studio Claude runtime',
+      path: 'scripts/studio-runtime',
+      entrypoint: 'query.mjs',
+      excludedFromHostedRootGraph: true,
+      requiredInRelease: true,
+      packages: [
+        '@anthropic-ai/claude-agent-sdk@0.2.6',
+        'zod@4.3.6',
+      ],
+    },
+  ]);
 });
 
 test('registry deployment gate fails closed without a real npm lock', async () => {
@@ -588,9 +602,13 @@ test('release scripts require lock, clean install, build, and installed closure'
   );
   assert.equal(pkg.dependencies['@anthropic-ai/claude-agent-sdk'], undefined);
   assert.equal(pkg.dependencies.zod, '3.25.76');
+  assert.equal(
+    pkg.scripts['studio:setup'],
+    'npm ci --prefix scripts/studio-runtime --omit=dev --ignore-scripts',
+  );
   assert.match(
     pkg.scripts['deploy:mcp'],
-    /^npm run verify:release:runtime && npm run verify:release:lock && npm ci && npm run build:runtime-workspaces && npm run verify:release:installed /,
+    /^npm run verify:release:runtime && npm run verify:release:lock && npm ci && npm run studio:setup && npm run build:runtime-workspaces && npm run verify:release:installed /,
   );
   assert.doesNotMatch(pkg.scripts['deploy:mcp'], /echo .*restarted/);
   await assert.rejects(
@@ -602,6 +620,52 @@ test('release scripts require lock, clean install, build, and installed closure'
     /runtimeRoot is required/,
   );
   assert.equal(typeof inspectInstalledRelease, 'function');
+});
+
+test('installed release gate requires the isolated Studio runtime graph', async () => {
+  const fixture = await mkdtemp(resolve(tmpdir(), 'opendexter-studio-runtime-'));
+  try {
+    await mkdir(resolve(fixture, 'scripts/studio-runtime'), { recursive: true });
+    await writeFile(
+      resolve(fixture, 'package.json'),
+      JSON.stringify({ name: 'hosted-fixture', dependencies: {} }),
+    );
+    await writeFile(
+      resolve(fixture, 'scripts/studio-runtime/package.json'),
+      JSON.stringify({
+        name: 'studio-fixture',
+        dependencies: {
+          '@anthropic-ai/claude-agent-sdk': '0.2.6',
+          zod: '4.3.6',
+        },
+      }),
+    );
+    await writeFile(
+      resolve(fixture, 'scripts/studio-runtime/query.mjs'),
+      'export const query = () => {};\n',
+    );
+    const manifest = {
+      isolatedTooling: [{
+        name: 'Dexter Studio Claude runtime',
+        path: 'scripts/studio-runtime',
+        entrypoint: 'query.mjs',
+        excludedFromHostedRootGraph: true,
+        requiredInRelease: true,
+        packages: [
+          '@anthropic-ai/claude-agent-sdk@0.2.6',
+          'zod@4.3.6',
+        ],
+      }],
+    };
+
+    assert.deepEqual(await inspectIsolatedTooling(fixture, manifest), []);
+    const issues = await inspectIsolatedTooling(fixture, manifest, {
+      requireInstalled: true,
+    });
+    assert.match(issues.join('\n'), /installed graph|npm ls rejected/);
+  } finally {
+    await rm(fixture, { recursive: true, force: true });
+  }
 });
 
 test(
