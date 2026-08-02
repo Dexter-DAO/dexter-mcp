@@ -878,7 +878,7 @@ test('prior capture requires complete PM2 and health roster/release identity', a
 });
 
 test('exact live v1 public tuple is captured with source, bytes, env, and fresh health', async () => {
-  const row = legacyOpenRow();
+  const row = legacyOpenRow({ pmId: 85 });
   let remoteProofCalls = 0;
   const prior = await capturePriorOpenReleasePair(
     [row],
@@ -915,18 +915,17 @@ test('legacy capture freezes the one exact deployed PM2 tuple', async () => {
       row.pm2_env.cwd = `/tmp/${LEGACY_COMMIT}`;
       row.pm2_env.pm_cwd = `/tmp/${LEGACY_COMMIT}`;
     },
-    (row) => {
-      row.pm_id = 69;
-      row.pm2_env.pm_id = 69;
-    },
     (row) => { row.pm2_env.exec_interpreter = '/usr/bin/node'; },
     (row) => { row.pm2_env.env.NODE_OPTIONS = '--require=/tmp/hostile'; },
     (row) => { row.pm2_env.env.OPEN_MCP_PORT = '4931'; },
     (row) => { row.pm2_env.listen_timeout = 'not-a-number'; },
+    (row) => { row.pm2_env.instances = 2; },
+    (row) => { row.pm2_env.autorestart = false; },
     (row) => { row.pm2_env.restart_time = 1; },
+    (row) => { row.pm2_env.unstable_restarts = 1; },
   ];
   for (const mutate of mutations) {
-    const row = legacyOpenRow();
+    const row = legacyOpenRow({ pmId: 85 });
     mutate(row);
     await assert.rejects(
       capturePriorOpenReleasePair(
@@ -935,6 +934,39 @@ test('legacy capture freezes the one exact deployed PM2 tuple', async () => {
         legacyCaptureOptions(row),
       ),
       /(?:identity is not safe to restore|environment namespace identity|declared\/effective environment|effective-only environment)/,
+    );
+  }
+});
+
+test('legacy capture admits only a positive emergency-restored public PM2 id', async () => {
+  for (const pmId of [1, 68, 85, 4096]) {
+    const row = legacyOpenRow({ pmId });
+    await assert.doesNotReject(capturePriorOpenReleasePair(
+      [row],
+      async () => ({ status: 200, json: async () => legacyHealth() }),
+      legacyCaptureOptions(row),
+    ));
+  }
+
+  const restoredRawOne = legacyOpenRow({
+    pmId: 85,
+    processPolicy: { raw: { instances: 1 } },
+  });
+  await assert.doesNotReject(capturePriorOpenReleasePair(
+    [restoredRawOne],
+    async () => ({ status: 200, json: async () => legacyHealth() }),
+    legacyCaptureOptions(restoredRawOne),
+  ));
+
+  for (const pmId of [0, -1, 1.5]) {
+    const row = legacyOpenRow({ pmId });
+    await assert.rejects(
+      capturePriorOpenReleasePair(
+        [row],
+        async () => ({ status: 200, json: async () => legacyHealth() }),
+        legacyCaptureOptions(row),
+      ),
+      /environment namespace identity is incomplete|identity is not safe to restore|runtime identity is not exact/,
     );
   }
 });
@@ -1353,6 +1385,8 @@ async function activationHarness({
   freshInstall = false,
   restartPublicDuringRemoteProof = false,
   useLegacyPrior = false,
+  legacyPriorPmId = 68,
+  legacyPriorRawInstances,
   finalPriorHealthMutation = null,
   harnessPm2TimeoutMs = HARNESS_PM2_TIMEOUT_MS,
 } = {}) {
@@ -1371,7 +1405,13 @@ async function activationHarness({
   });
   const defaultPriorRows = [
     useLegacyPrior
-      ? legacyOpenRow({ pid: 902002 })
+      ? legacyOpenRow({
+        pid: 902002,
+        pmId: legacyPriorPmId,
+        processPolicy: legacyPriorRawInstances === undefined
+          ? {}
+          : { raw: { instances: legacyPriorRawInstances } },
+      })
       : pm2Row('dexter-open-mcp', '/sealed/releases/old-open', 902002, ['old'], 5931, {
         envFile: '/protected/old.env',
         release: oldIdentity('dexter-open-mcp'),
@@ -1878,6 +1918,30 @@ test('candidate failure resurrects the sealed prior row and never executes a PM2
       .pm2_env.pm_exec_path,
     result.priorRows.find((row) => row.name === 'dexter-open-mcp')
       .pm2_env.pm_exec_path,
+  );
+});
+
+test('emergency-restored legacy public id can roll back through another PM2 id', async () => {
+  const result = await activationHarness({
+    useLegacyPrior: true,
+    legacyPriorPmId: 85,
+    legacyPriorRawInstances: 1,
+    rejectCandidate: true,
+  });
+  assert.match(
+    result.error?.message ?? '',
+    /candidate failed; the exact prior state was restored/,
+  );
+  const restoredPublic = result.rows.find(
+    (row) => row.name === 'dexter-open-mcp',
+  );
+  assert.notEqual(restoredPublic.pm_id, 85);
+  assert.equal(restoredPublic.pm2_env.restart_time, 0);
+  assert.equal(restoredPublic.pm2_env.unstable_restarts, 0);
+  assert.equal(result.events.at(-1), 'verified-rollback');
+  assert.deepEqual(
+    result.rows.find((row) => row.name === 'dexter-mcp'),
+    result.priorRows.find((row) => row.name === 'dexter-mcp'),
   );
 });
 

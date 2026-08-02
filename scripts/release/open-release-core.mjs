@@ -927,7 +927,7 @@ async function verifyLegacySourceAdvertisement(
 function legacyProcessIdentityIsExact(name, identity, runtime, row) {
   const policy = identity.processPolicy;
   return name === 'dexter-open-mcp'
-    && runtime.pmId === 68
+    && runtime.pmId > 0
     && runtime.restartTime === 0
     && runtime.unstableRestarts === 0
     && identity.release === null
@@ -958,7 +958,10 @@ function legacyProcessIdentityIsExact(name, identity, runtime, row) {
     && policy.instanceVariable === 'NODE_APP_INSTANCE'
     && policy.username === 'branchmanager'
     && policy.packageVersion === LEGACY_OPEN_RELEASE_CONTRACT.packageVersion
-    && processField(row, 'instances') === undefined
+    && (
+      processField(row, 'instances') === undefined
+      || processField(row, 'instances') === 1
+    )
     && processField(row, 'wait_ready') === undefined
     && processField(row, 'listen_timeout') === undefined
     && processField(row, 'kill_timeout') === undefined
