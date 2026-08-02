@@ -22,6 +22,7 @@ import {
 } from 'node:path';
 import {
   DEFAULT_PM2_COMMAND_TIMEOUT_MS,
+  PRODUCTION_PM2_EXECUTABLE,
   runBoundedPm2Command,
   samePm2ProcessSnapshot,
   snapshotPm2EnvironmentNamespaces,
@@ -46,6 +47,16 @@ const PM2_STATUS_ONLINE = 'online';
 const DEFAULT_HEALTH_TIMEOUT_MS = 3_000;
 const PRODUCTION_HOME = '/home/branchmanager';
 const PRODUCTION_PM2_HOME = `${PRODUCTION_HOME}/.pm2`;
+const PRODUCTION_PM2_PACKAGE_ROOT = '/usr/local/lib/node_modules/pm2';
+const PRODUCTION_PM2_PACKAGE_JSON = `${PRODUCTION_PM2_PACKAGE_ROOT}/package.json`;
+const PRODUCTION_PM2_CLI = `${PRODUCTION_PM2_PACKAGE_ROOT}/lib/binaries/CLI.js`;
+const PRODUCTION_PM2_VERSION = '6.0.5';
+const PRODUCTION_PM2_SHA256 =
+  'bbb586713050b21d86aa41bde704a3a4776aa300ddcbd9710e81fa7c0089256d';
+const PRODUCTION_PM2_PACKAGE_SHA256 =
+  'd0269334e995c0e0f9c52bfc28654149ffc48ef43cf02db6e9e9f337ce7f4a59';
+const PRODUCTION_PM2_CLI_SHA256 =
+  '106cda22f755c29701742a5e7dc280e4e484a31c976e9f8c9c6afc8f31dde3bb';
 const GOVERNED_SECRET = 'GOVERNED_AGENT_ACTIONS_HMAC_SECRET';
 const PRESERVED_PRIVATE_SERVICE = 'dexter-mcp';
 const LEGACY_OPEN_RELEASE_DIR =
@@ -1407,12 +1418,14 @@ export async function verifyRestoredOpenReleasePair({
 function boundedPm2Runner({
   runCommand,
   commandEnvironment,
+  pm2Executable,
   timeoutMs,
 }) {
   return (args) => runBoundedPm2Command({
     runCommand,
     args,
     commandEnvironment,
+    pm2Executable,
     timeoutMs,
   });
 }
@@ -1623,6 +1636,92 @@ function defaultCommandEnvironment() {
   }).filter(([, value]) => value !== undefined));
 }
 
+function sha256Bytes(bytes) {
+  return createHash('sha256').update(bytes).digest('hex');
+}
+
+async function requireProtectedRootOwnedPath(path, {
+  directory,
+  expectedSha256 = null,
+  lstatImpl = lstat,
+  readFileImpl = readFile,
+  realpathImpl = realpath,
+} = {}) {
+  if (await realpathImpl(path) !== path) {
+    throw new Error(`production PM2 path is not canonical: ${path}`);
+  }
+  const identity = await lstatImpl(path);
+  if (
+    identity.uid !== 0
+    || (identity.mode & 0o022) !== 0
+    || (directory ? !identity.isDirectory() : !identity.isFile())
+    || (!directory && identity.nlink !== 1)
+  ) {
+    throw new Error(`production PM2 path is not root-owned and protected: ${path}`);
+  }
+  if (
+    expectedSha256 !== null
+    && sha256Bytes(await readFileImpl(path)) !== expectedSha256
+  ) {
+    throw new Error(`production PM2 bytes differ from the reviewed release: ${path}`);
+  }
+}
+
+export async function verifyProductionPm2Executable({
+  lstatImpl = lstat,
+  readFileImpl = readFile,
+  realpathImpl = realpath,
+} = {}) {
+  for (const path of [
+    '/usr',
+    '/usr/local',
+    '/usr/local/lib',
+    '/usr/local/lib/node_modules',
+    PRODUCTION_PM2_PACKAGE_ROOT,
+    `${PRODUCTION_PM2_PACKAGE_ROOT}/bin`,
+    `${PRODUCTION_PM2_PACKAGE_ROOT}/lib`,
+    `${PRODUCTION_PM2_PACKAGE_ROOT}/lib/binaries`,
+  ]) {
+    await requireProtectedRootOwnedPath(path, {
+      directory: true,
+      lstatImpl,
+      readFileImpl,
+      realpathImpl,
+    });
+  }
+  await requireProtectedRootOwnedPath(PRODUCTION_PM2_EXECUTABLE, {
+    directory: false,
+    expectedSha256: PRODUCTION_PM2_SHA256,
+    lstatImpl,
+    readFileImpl,
+    realpathImpl,
+  });
+  await requireProtectedRootOwnedPath(PRODUCTION_PM2_PACKAGE_JSON, {
+    directory: false,
+    expectedSha256: PRODUCTION_PM2_PACKAGE_SHA256,
+    lstatImpl,
+    readFileImpl,
+    realpathImpl,
+  });
+  await requireProtectedRootOwnedPath(PRODUCTION_PM2_CLI, {
+    directory: false,
+    expectedSha256: PRODUCTION_PM2_CLI_SHA256,
+    lstatImpl,
+    readFileImpl,
+    realpathImpl,
+  });
+  let packageJson;
+  try {
+    packageJson = JSON.parse(await readFileImpl(PRODUCTION_PM2_PACKAGE_JSON, 'utf8'));
+  } catch (error) {
+    throw new Error('production PM2 package identity is unreadable', { cause: error });
+  }
+  if (packageJson?.name !== 'pm2' || packageJson?.version !== PRODUCTION_PM2_VERSION) {
+    throw new Error('production PM2 package identity differs from the reviewed release');
+  }
+  return PRODUCTION_PM2_EXECUTABLE;
+}
+
 async function restorePm2Dump(pm2Home, bytes) {
   const dumpPath = resolve(pm2Home, 'dump.pm2');
   const temporaryPath = resolve(
@@ -1760,6 +1859,7 @@ export async function activateOpenRelease({
   verifyPriorHealth = verifyCapturedPriorOpenReleaseHealth,
   verifyRestored = verifyRestoredOpenReleasePair,
   verifySaved = verifySavedPair,
+  verifyPm2Executable = verifyProductionPm2Executable,
   privateProcessProofOptions = {},
 } = {}) {
   const release = releaseCandidate
@@ -1774,12 +1874,17 @@ export async function activateOpenRelease({
     commandEnvironment,
     pm2Home,
   });
+  const pm2Executable = await verifyPm2Executable();
+  if (pm2Executable !== PRODUCTION_PM2_EXECUTABLE) {
+    throw new Error('verified PM2 executable is not the production binary');
+  }
   const runPm2 = boundedPm2Runner({
     runCommand,
     commandEnvironment: {
       ...commandEnvironment,
       PM2_HOME: pm2Home,
     },
+    pm2Executable,
     timeoutMs: pm2CommandTimeoutMs,
   });
   const before = await pm2List(runPm2);

@@ -17,9 +17,11 @@ import {
   preflightOpenReleaseCandidate,
   readLoopbackHealth,
   verifyPriorOpenReleaseRestartability,
+  verifyProductionPm2Executable,
   verifyRestoredOpenReleasePair,
   verifyRunningOpenReleasePair,
 } from '../scripts/release/open-release-core.mjs';
+import { PRODUCTION_PM2_EXECUTABLE } from '../lib/open-release-pm2-safety.mjs';
 
 const COMMIT = 'a'.repeat(40);
 const TREE = 'b'.repeat(40);
@@ -39,6 +41,13 @@ const FORBIDDEN_LOADER_KEYS = [
   'LD_LIBRARY_PATH',
   'LD_AUDIT',
 ];
+
+test('production activation binds the reviewed root-owned PM2 executable', async () => {
+  assert.equal(
+    await verifyProductionPm2Executable(),
+    PRODUCTION_PM2_EXECUTABLE,
+  );
+});
 
 function sha256(value) {
   return createHash('sha256').update(value).digest('hex');
@@ -1394,7 +1403,7 @@ async function activationHarness({
     await writeFile(resolve(pm2Home, 'dump.pm2'), initialSavedBytes);
   }
   const runCommand = async (command, args, options) => {
-    assert.equal(command, 'pm2');
+    assert.equal(command, PRODUCTION_PM2_EXECUTABLE);
     commandCalls.push({ args: [...args], options });
     const operation = args[0];
     events.push(`${operation}${args[1] ? `:${args[1]}` : ''}`);

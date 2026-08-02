@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  PRODUCTION_PM2_EXECUTABLE,
   runBoundedPm2Command,
   samePm2ProcessSnapshot,
   snapshotUnrelatedPm2Processes,
@@ -111,7 +112,7 @@ test('unrelated PM2 snapshot refuses duplicate or missing names', () => {
   );
 });
 
-test('bounded PM2 command supplies process-kill controls and returns output', async () => {
+test('bounded PM2 command ignores hostile PATH and uses the exact production binary', async () => {
   let received;
   const result = await runBoundedPm2Command({
     runCommand: async (command, args, options) => {
@@ -119,11 +120,11 @@ test('bounded PM2 command supplies process-kill controls and returns output', as
       return { stdout: '[]' };
     },
     args: ['jlist'],
-    commandEnvironment: { PATH: '/usr/bin' },
+    commandEnvironment: { PATH: '/tmp/hostile-user-bin:/usr/bin' },
     timeoutMs: 50,
   });
   assert.equal(result.stdout, '[]');
-  assert.equal(received.command, 'pm2');
+  assert.equal(received.command, PRODUCTION_PM2_EXECUTABLE);
   assert.deepEqual(received.args, ['jlist']);
   assert.equal(received.options.timeout, 50);
   assert.equal(received.options.killSignal, 'SIGKILL');
