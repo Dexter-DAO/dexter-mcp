@@ -29,6 +29,10 @@ import {
   FORBIDDEN_RELEASE_TOOL_ENV_KEYS,
   reviewedNpmInvocation,
 } from '../lib/open-release-tooling.mjs';
+import {
+  OPEN_RELEASE_FINALIZATION_SCRIPTS,
+  OPEN_RELEASE_INSTALL_ARGS,
+} from '../lib/open-release-finalization.mjs';
 
 const execFileAsync = promisify(execFile);
 const require = createRequire(import.meta.url);
@@ -268,6 +272,39 @@ function fixtureRunner(source, calls = [], descriptor = descriptorFixture()) {
   };
 }
 
+function finalizedWidgetDescriptorRunner({
+  source,
+  calls = [],
+  finalizedDescriptor,
+  prebuildDescriptor,
+}) {
+  const ordinaryRunner = fixtureRunner(source, calls, finalizedDescriptor);
+  let appsSdkFinalized = false;
+  return async (command, args, options = {}) => {
+    const result = await ordinaryRunner(command, args, options);
+    const npmCall = command === REVIEWED_NPM.command
+      && args[0] === REVIEWED_NPM.npmCli;
+    if (
+      npmCall
+      && args.slice(1).join(' ') === 'run build:apps-sdk:local'
+    ) {
+      appsSdkFinalized = true;
+    }
+    if (
+      command === REVIEWED_NPM.nodeExecutable
+      && args[0]?.endsWith('materialize-open-tool-descriptors.mjs')
+    ) {
+      return {
+        stdout: JSON.stringify(
+          appsSdkFinalized ? finalizedDescriptor : prebuildDescriptor,
+        ),
+        stderr: '',
+      };
+    }
+    return result;
+  };
+}
+
 async function expectMaterializedDescriptorFailure(mutateDescriptor) {
   const source = sourceFixture();
   const outputRoot = trustedOutputRoot();
@@ -461,14 +498,8 @@ test('release builder constructs the same sealed candidate from the same Git HEA
     .map(({ args }) => args.slice(1).join(' '));
   assert.deepEqual(npmCalls, [
     '--version',
-    'ci --ignore-scripts --no-audit --no-fund',
-    'run studio:setup',
-    'run build:runtime-workspaces',
-    'run typecheck:open-release',
-    'run build:apps-sdk:local',
-    'run verify:release:runtime',
-    'run verify:release:lock',
-    'run verify:release:installed',
+    OPEN_RELEASE_INSTALL_ARGS.join(' '),
+    ...OPEN_RELEASE_FINALIZATION_SCRIPTS.map((script) => `run ${script}`),
   ]);
   for (const call of calls.filter(({ command }) => (
     command === REVIEWED_NPM.nodeExecutable
@@ -711,6 +742,73 @@ test('release builder rejects committed descriptor drift', async () => {
     },
     pattern: /committed OpenDexter descriptor differs from the archived/,
   });
+});
+
+test('release builder compares committed tools only after shared widget finalization', async (t) => {
+  const source = sourceFixture();
+  const acceptedRoot = trustedOutputRoot();
+  const rejectedRoot = trustedOutputRoot();
+  t.after(() => {
+    removeTree(source);
+    removeTree(acceptedRoot);
+    removeTree(rejectedRoot);
+  });
+
+  const finalizedDescriptor = descriptorFixture();
+  finalizedDescriptor.tools[0]._meta = {
+    'ui/resourceUri': 'ui://dexter/x402-marketplace-search-finalized',
+  };
+  const prebuildDescriptor = structuredClone(finalizedDescriptor);
+  prebuildDescriptor.tools[0]._meta['ui/resourceUri'] =
+    'ui://dexter/x402-marketplace-search-prebuild';
+  writeFixtureFile(
+    source,
+    'release/open-tool-descriptors.json',
+    `${JSON.stringify(finalizedDescriptor, null, 2)}\n`,
+  );
+  git(source, ['add', 'release/open-tool-descriptors.json']);
+  git(source, ['commit', '-qm', 'regenerate finalized descriptor']);
+
+  const acceptedCalls = [];
+  await buildOpenRelease({
+    sourceRoot: source,
+    outputRoot: acceptedRoot,
+    runCommand: finalizedWidgetDescriptorRunner({
+      source,
+      calls: acceptedCalls,
+      finalizedDescriptor,
+      prebuildDescriptor,
+    }),
+  });
+  const materializerCall = acceptedCalls.findIndex(({ command, args }) => (
+    command === REVIEWED_NPM.nodeExecutable
+    && args[0]?.endsWith('materialize-open-tool-descriptors.mjs')
+  ));
+  const widgetBuildCall = acceptedCalls.findIndex(({ npmCall, args }) => (
+    npmCall && args.slice(1).join(' ') === 'run build:apps-sdk:local'
+  ));
+  assert.ok(widgetBuildCall >= 0);
+  assert.ok(materializerCall > widgetBuildCall);
+
+  writeFixtureFile(
+    source,
+    'release/open-tool-descriptors.json',
+    `${JSON.stringify(prebuildDescriptor, null, 2)}\n`,
+  );
+  git(source, ['add', 'release/open-tool-descriptors.json']);
+  git(source, ['commit', '-qm', 'introduce prebuild descriptor drift']);
+  await assert.rejects(
+    buildOpenRelease({
+      sourceRoot: source,
+      outputRoot: rejectedRoot,
+      runCommand: finalizedWidgetDescriptorRunner({
+        source,
+        finalizedDescriptor,
+        prebuildDescriptor,
+      }),
+    }),
+    /committed OpenDexter descriptor differs from the archived finalized tools/,
+  );
 });
 
 test('release builder rejects descriptor mutation during the build', async (t) => {

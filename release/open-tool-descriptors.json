@@ -189,7 +189,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-marketplace-search-49561132",
+          "resourceUri": "ui://dexter/x402-marketplace-search-8d945e6c",
           "visibility": [
             "model",
             "app"
@@ -209,8 +209,8 @@
           "domain": "https://dexter.cash",
           "prefersBorder": true
         },
-        "ui/resourceUri": "ui://dexter/x402-marketplace-search-49561132",
-        "openai/outputTemplate": "ui://dexter/x402-marketplace-search-49561132",
+        "ui/resourceUri": "ui://dexter/x402-marketplace-search-8d945e6c",
+        "openai/outputTemplate": "ui://dexter/x402-marketplace-search-8d945e6c",
         "openai/resultCanProduceWidget": true,
         "openai/widgetAccessible": true,
         "openai/widgetDomain": "https://dexter.cash",
@@ -430,7 +430,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-pricing-16671017",
+          "resourceUri": "ui://dexter/x402-pricing-15d362df",
           "visibility": [
             "model",
             "app"
@@ -448,8 +448,8 @@
           "domain": "https://dexter.cash",
           "prefersBorder": true
         },
-        "ui/resourceUri": "ui://dexter/x402-pricing-16671017",
-        "openai/outputTemplate": "ui://dexter/x402-pricing-16671017",
+        "ui/resourceUri": "ui://dexter/x402-pricing-15d362df",
+        "openai/outputTemplate": "ui://dexter/x402-pricing-15d362df",
         "openai/resultCanProduceWidget": true,
         "openai/widgetAccessible": true,
         "openai/widgetDomain": "https://dexter.cash",
@@ -603,7 +603,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-fetch-result-cf7844f4",
+          "resourceUri": "ui://dexter/x402-fetch-result-7382a14c",
           "visibility": [
             "model",
             "app"
@@ -622,8 +622,8 @@
           "domain": "https://dexter.cash",
           "prefersBorder": true
         },
-        "ui/resourceUri": "ui://dexter/x402-fetch-result-cf7844f4",
-        "openai/outputTemplate": "ui://dexter/x402-fetch-result-cf7844f4",
+        "ui/resourceUri": "ui://dexter/x402-fetch-result-7382a14c",
+        "openai/outputTemplate": "ui://dexter/x402-fetch-result-7382a14c",
         "openai/resultCanProduceWidget": true,
         "openai/widgetAccessible": false,
         "openai/widgetDomain": "https://dexter.cash",
@@ -871,7 +871,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-fetch-result-cf7844f4",
+          "resourceUri": "ui://dexter/x402-fetch-result-7382a14c",
           "visibility": [
             "model"
           ],
@@ -889,8 +889,8 @@
           "domain": "https://dexter.cash",
           "prefersBorder": true
         },
-        "ui/resourceUri": "ui://dexter/x402-fetch-result-cf7844f4",
-        "openai/outputTemplate": "ui://dexter/x402-fetch-result-cf7844f4",
+        "ui/resourceUri": "ui://dexter/x402-fetch-result-7382a14c",
+        "openai/outputTemplate": "ui://dexter/x402-fetch-result-7382a14c",
         "openai/resultCanProduceWidget": true,
         "openai/widgetAccessible": false,
         "openai/widgetDomain": "https://dexter.cash",
@@ -988,7 +988,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-wallet-c0d8db7c",
+          "resourceUri": "ui://dexter/x402-wallet-2f6211c5",
           "visibility": [
             "model",
             "app"
@@ -1009,8 +1009,8 @@
           "domain": "https://dexter.cash",
           "prefersBorder": true
         },
-        "ui/resourceUri": "ui://dexter/x402-wallet-c0d8db7c",
-        "openai/outputTemplate": "ui://dexter/x402-wallet-c0d8db7c",
+        "ui/resourceUri": "ui://dexter/x402-wallet-2f6211c5",
+        "openai/outputTemplate": "ui://dexter/x402-wallet-2f6211c5",
         "openai/resultCanProduceWidget": true,
         "openai/widgetAccessible": false,
         "openai/widgetDomain": "https://dexter.cash",

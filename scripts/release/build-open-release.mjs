@@ -21,6 +21,9 @@ import {
   reviewedNpmInvocation,
   reviewedReleaseToolEnvironment,
 } from '../../lib/open-release-tooling.mjs';
+import {
+  runOpenReleaseFinalization,
+} from '../../lib/open-release-finalization.mjs';
 
 const execFileAsync = promisify(execFile);
 
@@ -631,20 +634,7 @@ export async function buildOpenRelease({
       env: buildEnv,
       maxBuffer: 64 * 1024 * 1024,
     };
-    await runNpm([
-      'ci', '--ignore-scripts', '--no-audit', '--no-fund',
-    ], npmOptions);
-    for (const script of [
-      'studio:setup',
-      'build:runtime-workspaces',
-      'typecheck:open-release',
-      'build:apps-sdk:local',
-      'verify:release:runtime',
-      'verify:release:lock',
-      'verify:release:installed',
-    ]) {
-      await runNpm(['run', script], npmOptions);
-    }
+    await runOpenReleaseFinalization({ runNpm, options: npmOptions });
     if (
       await sha256File(io, join(candidate, 'package-lock.json'))
       !== packageIdentity.packageLockSha256

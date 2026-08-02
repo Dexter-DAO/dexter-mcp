@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFile, execFileSync, spawn } from 'node:child_process';
 import {
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
@@ -21,7 +22,12 @@ import {
 } from '../scripts/materialize-open-tool-descriptors.mjs';
 import {
   reviewedReleaseToolEnvironment,
+  reviewedNpmInvocation,
 } from '../lib/open-release-tooling.mjs';
+import {
+  OPEN_RELEASE_FINALIZATION_SCRIPTS,
+  OPEN_RELEASE_INSTALL_ARGS,
+} from '../lib/open-release-finalization.mjs';
 
 const execFileAsync = promisify(execFile);
 
@@ -64,6 +70,9 @@ function descriptorSourceFixture(packageManager = 'npm@10.9.3') {
     name: 'descriptor-source-fixture',
     version: '1.0.0',
     packageManager,
+    scripts: Object.fromEntries(
+      OPEN_RELEASE_FINALIZATION_SCRIPTS.map((script) => [script, 'true']),
+    ),
   })}\n`);
   writeFileSync(join(directory, 'package-lock.json'), `${JSON.stringify({
     name: 'descriptor-source-fixture',
@@ -71,6 +80,11 @@ function descriptorSourceFixture(packageManager = 'npm@10.9.3') {
     lockfileVersion: 3,
     packages: { '': { name: 'descriptor-source-fixture', version: '1.0.0' } },
   })}\n`);
+  mkdirSync(join(directory, 'scripts'), { recursive: true });
+  writeFileSync(
+    join(directory, 'scripts/materialize-open-tool-descriptors.mjs'),
+    '// intercepted by the descriptor finalization fixture\n',
+  );
   execFileSync('git', ['init', '-q'], { cwd: directory });
   execFileSync('git', ['config', 'user.email', 'fixture@dexter.test'], {
     cwd: directory,
@@ -84,6 +98,25 @@ function descriptorSourceFixture(packageManager = 'npm@10.9.3') {
   execFileSync('git', ['add', '.'], { cwd: directory });
   execFileSync('git', ['commit', '-qm', 'fixture'], { cwd: directory });
   return directory;
+}
+
+function descriptorFinalizationFixture() {
+  return {
+    schemaVersion: 2,
+    kind: 'opendexter-hosted-tool-descriptors/v2',
+    sourceContracts: { kind: 'opendexter-source-contracts/v3' },
+    oauth: {
+      resource: 'https://open.dexter.cash/mcp',
+      authorizationServer: 'https://mcp.dexter.cash/mcp',
+      authorizationServerMetadata:
+        'https://mcp.dexter.cash/.well-known/oauth-authorization-server/mcp',
+      tokenIssuer: 'https://dexter.cash',
+      protectedResourcePaths: [],
+      scopesSupported: ['vault'],
+      challengeRequiredParameters: [],
+    },
+    buildState: 'finalized-widgets',
+  };
 }
 
 function canonicalFixtureRunner(
@@ -197,6 +230,76 @@ test('descriptor archive preflight enforces the committed exact npm version befo
     /pins npm 0\.0\.1, expected 10\.9\.3/,
   );
   assert.throws(() => readFileSync(join(directory, 'node_modules/.package-lock.json')));
+});
+
+test('descriptor archive runs the exact shared finalization before tools/list emission', async (t) => {
+  const directory = descriptorSourceFixture();
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const calls = [];
+  const reviewedNpm = reviewedNpmInvocation();
+  const finalizedDescriptor = descriptorFinalizationFixture();
+  let appsSdkFinalized = false;
+  const runCommand = async (command, args, options = {}) => {
+    calls.push({ command, args: [...args] });
+    if (command === 'git' && args.includes('ls-remote')) {
+      const commit = execFileSync('git', ['rev-parse', 'HEAD'], {
+        cwd: directory,
+        encoding: 'utf8',
+      }).trim();
+      return { stdout: `${commit}\trefs/heads/main\n`, stderr: '' };
+    }
+    const npmCall = command === reviewedNpm.command
+      && args[0] === reviewedNpm.npmCli;
+    if (npmCall) {
+      const effectiveArgs = args.slice(1);
+      if (effectiveArgs[0] === '--version') {
+        return { stdout: '10.9.3\n', stderr: '' };
+      }
+      if (effectiveArgs.join(' ') === 'run build:apps-sdk:local') {
+        appsSdkFinalized = true;
+      }
+      return { stdout: '', stderr: '' };
+    }
+    if (
+      command === reviewedNpm.nodeExecutable
+      && args[0]?.endsWith('materialize-open-tool-descriptors.mjs')
+    ) {
+      return {
+        stdout: JSON.stringify(appsSdkFinalized
+          ? finalizedDescriptor
+          : { ...finalizedDescriptor, buildState: 'prebuild-widgets' }),
+        stderr: '',
+      };
+    }
+    return execFileAsync(command, args, options);
+  };
+
+  const descriptor = await materializeOpenToolDescriptorsFromGit({
+    sourceRoot: directory,
+    runCommand,
+  });
+  assert.equal(descriptor.buildState, 'finalized-widgets');
+  const npmCalls = calls
+    .filter(({ command, args }) => (
+      command === reviewedNpm.command && args[0] === reviewedNpm.npmCli
+    ))
+    .map(({ args }) => args.slice(1).join(' '));
+  assert.deepEqual(npmCalls, [
+    '--version',
+    OPEN_RELEASE_INSTALL_ARGS.join(' '),
+    ...OPEN_RELEASE_FINALIZATION_SCRIPTS.map((script) => `run ${script}`),
+  ]);
+  const widgetBuildCall = calls.findIndex(({ command, args }) => (
+    command === reviewedNpm.command
+    && args[0] === reviewedNpm.npmCli
+    && args.slice(1).join(' ') === 'run build:apps-sdk:local'
+  ));
+  const emitCall = calls.findIndex(({ command, args }) => (
+    command === reviewedNpm.nodeExecutable
+    && args[0]?.endsWith('materialize-open-tool-descriptors.mjs')
+  ));
+  assert.ok(widgetBuildCall >= 0);
+  assert.ok(emitCall > widgetBuildCall);
 });
 
 test('descriptor archive preflight requires the exact HEAD at the reachable canonical origin', async (t) => {

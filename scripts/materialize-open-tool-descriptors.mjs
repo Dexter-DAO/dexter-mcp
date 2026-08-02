@@ -30,6 +30,9 @@ import {
   reviewedNpmInvocation,
   reviewedReleaseToolEnvironment,
 } from '../lib/open-release-tooling.mjs';
+import {
+  runOpenReleaseFinalization,
+} from '../lib/open-release-finalization.mjs';
 import { canonicalHash } from '../lib/governed-canonical-identity.mjs';
 
 const execFileAsync = promisify(execFile);
@@ -1490,27 +1493,17 @@ export async function materializeOpenToolDescriptorsFromGit({
     // npm treats NODE_ENV=production as an implicit --omit=dev. The exact
     // archived development graph is required to run the reviewed workspace
     // build; only descriptor execution itself runs in production mode.
-    const npmCi = reviewedNpmInvocation([
-      'ci',
-      '--ignore-scripts',
-      '--no-audit',
-      '--no-fund',
-    ]);
-    await runCommand(npmCi.command, npmCi.args, {
+    const npmOptions = {
       cwd: archiveRoot,
       encoding: 'utf8',
-      maxBuffer: 16 * 1024 * 1024,
+      maxBuffer: 64 * 1024 * 1024,
       env: buildEnv,
-    });
-    const npmBuild = reviewedNpmInvocation([
-      'run', 'build:runtime-workspaces',
-    ]);
-    await runCommand(npmBuild.command, npmBuild.args, {
-      cwd: archiveRoot,
-      encoding: 'utf8',
-      maxBuffer: 16 * 1024 * 1024,
-      env: buildEnv,
-    });
+    };
+    const runNpm = async (args, options) => {
+      const invocation = reviewedNpmInvocation(args);
+      return runCommand(invocation.command, invocation.args, options);
+    };
+    await runOpenReleaseFinalization({ runNpm, options: npmOptions });
 
     const homeStats = await Promise.all([
       lstat(buildHome),
