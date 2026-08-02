@@ -80,6 +80,26 @@ test('a failing PM2 runtime verifier stops before the first jlist', async () => 
   assert.equal(commandCalls, 0);
 });
 
+test('an unavailable public widget asset stops before the first PM2 command', async () => {
+  let commandCalls = 0;
+  await assert.rejects(
+    activateOpenRelease({
+      releaseCandidate: releaseCandidate(),
+      preflightCandidate: async () => ({}),
+      verifyPm2Executable: async () => PRODUCTION_PM2_EXECUTABLE,
+      prepareWidgetAssets: async () => {
+        throw new Error('public widget asset returned HTTP 404');
+      },
+      runCommand: async () => {
+        commandCalls += 1;
+        return { stdout: '[]' };
+      },
+    }),
+    /public widget asset returned HTTP 404/,
+  );
+  assert.equal(commandCalls, 0);
+});
+
 function sha256(value) {
   return createHash('sha256').update(value).digest('hex');
 }
@@ -1412,6 +1432,7 @@ async function activationHarness({
   legacyPriorRawInstances,
   omitDefaultInstancesInSavedDump = false,
   finalPriorHealthMutation = null,
+  failWidgetPost = false,
   harnessPm2TimeoutMs = HARNESS_PM2_TIMEOUT_MS,
 } = {}) {
   const directory = await mkdtemp(resolve(tmpdir(), 'opendexter-activation-'));
@@ -1770,6 +1791,15 @@ async function activationHarness({
       },
       verifyRestored,
       verifyPair,
+      prepareWidgetAssets: async () => {
+        events.push('verified-widget-assets:pre');
+        return { referencedAssets: [{ name: 'fixture.js' }] };
+      },
+      verifyWidgetAssets: async () => {
+        events.push('verified-widget-assets:post');
+        if (failWidgetPost) throw new Error('hostile_public_widget_asset');
+        return true;
+      },
       privateProcessProofOptions: fakeProc(priorRows),
       verifySaved: async (args) => {
         events.push(`verified-saved:${args.phase}`);
@@ -1852,6 +1882,14 @@ test('activation replaces only public OpenDexter and preserves private runtime',
   );
   assert.equal(events.includes('delete:dexter-mcp'), false);
   assert.equal(events.filter((event) => event === 'verified-candidate').length, 2);
+  assert.ok(
+    events.indexOf('verified-widget-assets:pre')
+      < events.indexOf('delete:dexter-open-mcp'),
+  );
+  assert.ok(
+    events.indexOf('verified-widget-assets:post')
+      > events.lastIndexOf('verified-candidate'),
+  );
   assert.ok(events.indexOf('verified-candidate') < events.lastIndexOf('save:--force'));
   assert.ok(events.indexOf('verified-saved:candidate') > events.lastIndexOf('save:--force'));
   assert.ok(events.lastIndexOf('verified-candidate') > events.indexOf('verified-saved:candidate'));
@@ -1869,6 +1907,23 @@ test('activation replaces only public OpenDexter and preserves private runtime',
     '--only',
     'dexter-open-mcp',
   ]);
+});
+
+test('a post-activation public widget failure restores the prior service', async () => {
+  const result = await activationHarness({ failWidgetPost: true });
+  assert.match(
+    result.error?.message ?? '',
+    /candidate failed; the exact prior state was restored/,
+  );
+  assert.ok(result.events.includes('verified-widget-assets:pre'));
+  assert.ok(result.events.includes('verified-widget-assets:post'));
+  assert.equal(result.events.at(-1), 'verified-rollback');
+  assert.equal(
+    result.rows.find((row) => row.name === 'dexter-open-mcp')
+      .pm2_env.pm_cwd,
+    result.priorRows.find((row) => row.name === 'dexter-open-mcp')
+      .pm2_env.pm_cwd,
+  );
 });
 
 test('candidate PM2 config shim is exact during start and removed afterward', async () => {
@@ -2422,11 +2477,11 @@ test('partial or absent prior topology is refused before save/delete unless fres
   )];
   const partialResult = await activationHarness({ initialRows: partial });
   assert.match(partialResult.error?.message ?? '', /exactly one dexter-open-mcp/);
-  assert.deepEqual(partialResult.events, ['jlist']);
+  assert.deepEqual(partialResult.events, ['verified-widget-assets:pre', 'jlist']);
 
   const absentResult = await activationHarness({ initialRows: [] });
   assert.match(absentResult.error?.message ?? '', /explicit freshInstall/);
-  assert.deepEqual(absentResult.events, ['jlist']);
+  assert.deepEqual(absentResult.events, ['verified-widget-assets:pre', 'jlist']);
 
   const publicWithoutPrivate = await activationHarness({
     initialRows: [legacyOpenRow({ pid: 905003 })],
@@ -2495,7 +2550,10 @@ test('partial or absent prior topology is refused before save/delete unless fres
     staleSavedTarget.error?.message ?? '',
     /freshInstall requires no saved Dexter MCP process definitions/,
   );
-  assert.deepEqual(staleSavedTarget.events, ['jlist']);
+  assert.deepEqual(
+    staleSavedTarget.events,
+    ['verified-widget-assets:pre', 'jlist'],
+  );
   assert.equal(
     staleSavedTarget.savedBytes,
     staleSavedTarget.initialSavedBytes,

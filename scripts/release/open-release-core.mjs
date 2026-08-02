@@ -33,6 +33,10 @@ import {
 import {
   reviewedRemoteGitSourceIdentity,
 } from '../../lib/open-release-tooling.mjs';
+import {
+  publishAndVerifyOpenWidgetAssets,
+  verifyPublicOpenWidgetAssets,
+} from '../../lib/open-release-widget-assets.mjs';
 
 const require = createRequire(import.meta.url);
 const {
@@ -2048,6 +2052,8 @@ export async function activateOpenRelease({
   verifyRestored = verifyRestoredOpenReleasePair,
   verifySaved = verifySavedPair,
   verifyPm2Executable = verifyProductionPm2Executable,
+  prepareWidgetAssets = publishAndVerifyOpenWidgetAssets,
+  verifyWidgetAssets = verifyPublicOpenWidgetAssets,
   privateProcessProofOptions = {},
 } = {}) {
   const release = releaseCandidate
@@ -2066,6 +2072,14 @@ export async function activateOpenRelease({
   if (pm2Executable !== PRODUCTION_PM2_EXECUTABLE) {
     throw new Error('verified PM2 executable is not the production binary');
   }
+  // Publish only immutable release bytes, without deleting any historical
+  // hashes, and prove every JS/CSS URL referenced by release HTML before the
+  // first PM2 read or mutation. The old service remains live throughout this
+  // append-only preparation phase.
+  const widgetAssetPlan = await prepareWidgetAssets({
+    release,
+    fetchImpl,
+  });
   const runPm2 = boundedPm2Runner({
     runCommand,
     commandEnvironment: {
@@ -2258,6 +2272,13 @@ export async function activateOpenRelease({
       }
     }
     await verifyProtectedEnvironmentStillExact(preflight);
+    // Re-prove the public asset boundary after candidate activation/save. A
+    // CDN, MIME, or byte mismatch here enters the existing exact rollback path
+    // rather than reporting a successful cutover with blank renderers.
+    await verifyWidgetAssets({
+      plan: widgetAssetPlan,
+      fetchImpl,
+    });
     return { release, ...verified };
   } catch (activationError) {
     try {
