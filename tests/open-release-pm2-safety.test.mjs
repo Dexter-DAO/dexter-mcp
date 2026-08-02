@@ -16,12 +16,37 @@ import {
   PRODUCTION_PM2_EXECUTABLE,
   runBoundedPm2Command,
   samePm2ProcessSnapshot,
+  snapshotPm2ProcessDefinition,
   snapshotUnrelatedPm2Processes,
 } from '../lib/open-release-pm2-safety.mjs';
 
 const execFileAsync = promisify(execFile);
 
 const RELEASE_SERVICES = ['dexter-open-mcp'];
+
+test('target definition normalizes only PM2 default instance representations', () => {
+  const definition = (instances = Symbol.for('absent')) => {
+    const row = {
+      name: 'dexter-open-mcp',
+      pm2_env: {
+        pm_exec_path: '/sealed/open/server.mjs',
+        pm_cwd: '/sealed/open',
+      },
+    };
+    if (instances !== Symbol.for('absent')) {
+      row.pm2_env.instances = instances;
+    }
+    return snapshotPm2ProcessDefinition(row);
+  };
+
+  const canonical = definition();
+  assert.deepEqual(definition(null), canonical);
+  assert.deepEqual(definition(1), canonical);
+  assert.notDeepEqual(definition('1'), canonical);
+  assert.notDeepEqual(definition(2), canonical);
+  assert.notDeepEqual(definition(8), canonical);
+  assert.notDeepEqual(definition(2), definition(8));
+});
 
 test('unrelated PM2 snapshot binds configuration while ignoring runtime counters', () => {
   const live = [{

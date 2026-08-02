@@ -1389,6 +1389,7 @@ async function activationHarness({
   useLegacyPrior = false,
   legacyPriorPmId = 68,
   legacyPriorRawInstances,
+  omitDefaultInstancesInSavedDump = false,
   finalPriorHealthMutation = null,
   harnessPm2TimeoutMs = HARNESS_PM2_TIMEOUT_MS,
 } = {}) {
@@ -1493,6 +1494,11 @@ async function activationHarness({
       const dump = dumpRows(
         rows.filter((row) => row.pm2_env.pmx_module !== true),
       );
+      if (omitDefaultInstancesInSavedDump) {
+        for (const row of dump) {
+          if (row.instances === 1) delete row.instances;
+        }
+      }
       if (
         (
           tamperCandidateDump
@@ -1928,6 +1934,7 @@ test('emergency-restored legacy public id can roll back through another PM2 id',
     useLegacyPrior: true,
     legacyPriorPmId: 85,
     legacyPriorRawInstances: 1,
+    omitDefaultInstancesInSavedDump: true,
     rejectCandidate: true,
   });
   assert.match(
