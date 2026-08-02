@@ -244,6 +244,114 @@ test('portfolio output accepts old and new shapes but rejects invented or contra
   );
 });
 
+test('portfolio policy preserves only validated target display fields that resemble credentials', () => {
+  const schema = OPEN_TOOL_CONTRACTS.dexter_portfolio.outputSchema;
+  const symbol = 'open_abcdefghijklmnop';
+  const name = 'https://dexter.cash/connect?mcp=open_abcdefghijklmnop';
+  const portfolio = zeroHoldingBuyDiscoveryPortfolio();
+  portfolio.approvedActionTargets = [approvedActionTarget({ symbol, name })];
+  const ready = {
+    portfolio_status: 'ready',
+    mode: 'portfolio_ready',
+    user_bound: true,
+    portfolio: modelSafePortfolioSnapshot(
+      validateAndBoundPortfolioSnapshotV1(portfolio),
+    ),
+  };
+  assert.equal(schema.safeParse(ready).success, true);
+
+  const projected = applyOpenToolResultPolicy('dexter_portfolio', {
+    content: [{ type: 'text', text: JSON.stringify(ready) }],
+    structuredContent: ready,
+    isError: false,
+  });
+  assert.equal(schema.safeParse(projected.structuredContent).success, true);
+  assert.deepEqual(
+    projected.structuredContent.portfolio.approvedActionTargets,
+    ready.portfolio.approvedActionTargets,
+  );
+  assert.equal(
+    projected.structuredContent.portfolio.approvedActionTargets[0].symbol,
+    symbol,
+  );
+  assert.equal(
+    projected.structuredContent.portfolio.approvedActionTargets[0].name,
+    name,
+  );
+
+  const unexpected = applyOpenToolResultPolicy('dexter_portfolio', {
+    content: [{ type: 'text', text: '{}' }],
+    structuredContent: {
+      ...ready,
+      unexpected: { symbol, name },
+    },
+    isError: false,
+  });
+  assert.deepEqual(unexpected.structuredContent.unexpected, {});
+  assert.deepEqual(
+    unexpected.structuredContent.portfolio.approvedActionTargets,
+    ready.portfolio.approvedActionTargets,
+  );
+});
+
+test('real SDK call returns credential-shaped approved target display fields without output error', async (t) => {
+  const symbol = 'open_abcdefghijklmnop';
+  const name = 'https://dexter.cash/connect?mcp=open_abcdefghijklmnop';
+  const portfolio = zeroHoldingBuyDiscoveryPortfolio();
+  portfolio.approvedActionTargets = [approvedActionTarget({ symbol, name })];
+  const ready = {
+    portfolio_status: 'ready',
+    mode: 'portfolio_ready',
+    user_bound: true,
+    portfolio: modelSafePortfolioSnapshot(
+      validateAndBoundPortfolioSnapshotV1(portfolio),
+    ),
+  };
+
+  const server = new McpServer({ name: 'portfolio-display-test', version: '0.2.0' });
+  installOpenToolContracts(server);
+  for (const toolName of EXPECTED_TOOLS) {
+    server.registerTool(toolName, { inputSchema: {} }, async () => (
+      toolName === 'dexter_portfolio'
+        ? {
+            content: [{ type: 'text', text: JSON.stringify(ready) }],
+            structuredContent: ready,
+          }
+        : {
+            content: [{ type: 'text', text: '{}' }],
+            structuredContent: {},
+          }
+    ));
+  }
+  finalizeOpenToolContracts(server);
+
+  const client = new Client({ name: 'portfolio-display-client', version: '1.0.0' });
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+  await server.connect(serverTransport);
+  await client.connect(clientTransport);
+
+  const result = await client.callTool({ name: 'dexter_portfolio', arguments: {} });
+  assert.notEqual(result.isError, true);
+  assert.equal(
+    result.structuredContent.portfolio.approvedActionTargets[0].symbol,
+    symbol,
+  );
+  assert.equal(
+    result.structuredContent.portfolio.approvedActionTargets[0].name,
+    name,
+  );
+  assert.equal(
+    OPEN_TOOL_CONTRACTS.dexter_portfolio.outputSchema.safeParse(
+      result.structuredContent,
+    ).success,
+    true,
+  );
+});
+
 test('finalizer refuses any SDK-registered tool outside authoritative contracts', () => {
   const server = new McpServer({ name: 'extra-tool-test', version: '0.2.0' });
   installOpenToolContracts(server);
