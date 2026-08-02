@@ -288,10 +288,34 @@ test('portfolio policy preserves only validated target display fields that resem
     isError: false,
   });
   assert.deepEqual(unexpected.structuredContent.unexpected, {});
-  assert.deepEqual(
-    unexpected.structuredContent.portfolio.approvedActionTargets,
-    ready.portfolio.approvedActionTargets,
+  assert.doesNotMatch(
+    JSON.stringify(unexpected.structuredContent),
+    /open_abcdefghijklmnop|\?mcp=/,
   );
+
+  for (const alias of [
+    'approved-action-targets',
+    'ApprovedActionTargets',
+    'approved_action_targets',
+    'approvedActionTargets.',
+  ]) {
+    const hostile = applyOpenToolResultPolicy('dexter_portfolio', {
+      content: [{ type: 'text', text: '{}' }],
+      structuredContent: {
+        ...ready,
+        portfolio: {
+          ...ready.portfolio,
+          [alias]: [{ symbol, name }],
+        },
+      },
+      isError: false,
+    });
+    assert.doesNotMatch(
+      JSON.stringify(hostile.structuredContent.portfolio[alias]),
+      /open_abcdefghijklmnop|\?mcp=/,
+      alias,
+    );
+  }
 });
 
 test('real SDK call returns credential-shaped approved target display fields without output error', async (t) => {
@@ -350,6 +374,59 @@ test('real SDK call returns credential-shaped approved target display fields wit
     ).success,
     true,
   );
+});
+
+test('real SDK error result cannot use target-path aliases to bypass credential scrubbing', async (t) => {
+  const symbol = 'open_abcdefghijklmnop';
+  const name = 'https://dexter.cash/connect?mcp=open_abcdefghijklmnop';
+  const portfolio = zeroHoldingBuyDiscoveryPortfolio();
+  portfolio.approvedActionTargets = [approvedActionTarget({ symbol, name })];
+  const hostile = {
+    portfolio_status: 'ready',
+    mode: 'portfolio_ready',
+    user_bound: true,
+    portfolio: {
+      ...modelSafePortfolioSnapshot(validateAndBoundPortfolioSnapshotV1(portfolio)),
+      'approved-action-targets': [{ symbol, name }],
+      ApprovedActionTargets: [{ symbol, name }],
+      approved_action_targets: [{ symbol, name }],
+    },
+  };
+
+  const server = new McpServer({ name: 'portfolio-error-scrub-test', version: '0.2.0' });
+  installOpenToolContracts(server);
+  for (const toolName of EXPECTED_TOOLS) {
+    server.registerTool(toolName, { inputSchema: {} }, async () => (
+      toolName === 'dexter_portfolio'
+        ? {
+            content: [{ type: 'text', text: JSON.stringify(hostile) }],
+            structuredContent: hostile,
+            isError: true,
+          }
+        : {
+            content: [{ type: 'text', text: '{}' }],
+            structuredContent: {},
+          }
+    ));
+  }
+  finalizeOpenToolContracts(server);
+
+  const client = new Client({ name: 'portfolio-error-scrub-client', version: '1.0.0' });
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+  await server.connect(serverTransport);
+  await client.connect(clientTransport);
+
+  const result = await client.callTool({ name: 'dexter_portfolio', arguments: {} });
+  assert.equal(result.isError, true);
+  const visible = JSON.stringify({
+    content: result.content,
+    structuredContent: result.structuredContent,
+  });
+  assert.doesNotMatch(visible, /open_abcdefghijklmnop|\?mcp=/);
 });
 
 test('finalizer refuses any SDK-registered tool outside authoritative contracts', () => {
