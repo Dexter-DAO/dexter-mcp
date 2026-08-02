@@ -15,11 +15,19 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
 import {
   requireGovernedAgentActionsHmacSecret,
 } from "../lib/governed-asset-service-config.mjs";
+import {
+  productionPm2ConfigShim,
+} from "../scripts/release/open-release-core.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const require = createRequire(import.meta.url);
+const {
+  OPEN_RELEASE_APPLICATION_NODE_EXECUTABLE,
+} = require("../lib/open-release-provenance.cjs");
 const forbiddenLoaderKeys = [
   "NODE_OPTIONS",
   "NODE_PATH",
@@ -339,7 +347,7 @@ test("production launcher binds only public OpenDexter to protected environment"
       assert.equal(app.envFile, envFile);
       assert.equal(app.envFileSha256, sha256(envFileBytes));
       assert.notEqual(app.envFileSha256, "f".repeat(64));
-      assert.equal(app.bindNode, process.execPath);
+      assert.equal(app.bindNode, OPEN_RELEASE_APPLICATION_NODE_EXECUTABLE);
       assert.equal(path.dirname(app.script), candidate.releaseDir);
       assert.equal(app.waitReady, true);
       assert.equal(app.execMode, "fork");
@@ -358,6 +366,70 @@ test("production launcher binds only public OpenDexter to protected environment"
       );
       assert.equal(app.releaseService, app.name);
     }
+  } finally {
+    removeCandidate(directory, candidate);
+  }
+});
+
+test("PM2 control Node 18 evaluates a launcher bound to sealed Node 22", () => {
+  const controlNode = "/usr/bin/node";
+  const directory = mkdtempSync(path.join(tmpdir(), "dexter-mcp-control-node-"));
+  const candidate = createReleaseCandidate(directory);
+  const envFile = path.join(directory, "production.env");
+  const configShim = path.join(directory, "candidate.config.cjs");
+  try {
+    writeFileSync(
+      envFile,
+      `GOVERNED_AGENT_ACTIONS_HMAC_SECRET=${"s".repeat(32)}\n`,
+      { mode: 0o600 },
+    );
+    assert.equal(execFileSync(controlNode, ["--version"], {
+      encoding: "utf8",
+    }).trim(), "v18.19.1");
+    writeFileSync(
+      configShim,
+      productionPm2ConfigShim(
+        path.join(candidate.releaseDir, "ecosystem.production.cjs"),
+      ),
+      { mode: 0o600 },
+    );
+    const serializationProbe = (target) => [
+      `const value = require(${JSON.stringify(target)});`,
+      "process.stdout.write(JSON.stringify(value));",
+    ].join("\n");
+    const commandEnvironment = {
+      PATH: "/usr/bin:/bin",
+      DEXTER_MCP_ENV_FILE: envFile,
+    };
+    const directSerialization = execFileSync(
+      OPEN_RELEASE_APPLICATION_NODE_EXECUTABLE,
+      ["-e", serializationProbe(
+        path.join(candidate.releaseDir, "ecosystem.production.cjs"),
+      )],
+      {
+        cwd: candidate.releaseDir,
+        env: commandEnvironment,
+        encoding: "utf8",
+      },
+    );
+    const shimSerialization = execFileSync(
+      controlNode,
+      ["-e", serializationProbe(configShim)],
+      {
+        cwd: candidate.releaseDir,
+        env: commandEnvironment,
+        encoding: "utf8",
+      },
+    );
+    assert.equal(shimSerialization, directSerialization);
+    const [app] = JSON.parse(execFileSync(controlNode, ["-e", probe(
+      configShim,
+    )], {
+      cwd: candidate.releaseDir,
+      env: commandEnvironment,
+      encoding: "utf8",
+    }));
+    assert.equal(app.bindNode, OPEN_RELEASE_APPLICATION_NODE_EXECUTABLE);
   } finally {
     removeCandidate(directory, candidate);
   }

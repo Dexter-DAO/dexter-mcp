@@ -37,6 +37,10 @@ import {
 const require = createRequire(import.meta.url);
 const {
   LEGACY_OPEN_RELEASE_CONTRACT,
+  OPEN_RELEASE_APPLICATION_NODE_EXECUTABLE,
+  OPEN_RELEASE_APPLICATION_NODE_PROTECTED_DIRECTORIES,
+  OPEN_RELEASE_APPLICATION_NODE_SHA256,
+  OPEN_RELEASE_APPLICATION_NODE_VERSION,
   SERVICE_NAMES,
   readSealedLegacyOpenRelease,
   readSealedOpenRelease,
@@ -164,7 +168,7 @@ function environmentSha256(environment) {
 
 function expectedRuntimePath() {
   return [
-    dirname(process.execPath),
+    dirname(OPEN_RELEASE_APPLICATION_NODE_EXECUTABLE),
     '/usr/local/sbin',
     '/usr/local/bin',
     '/usr/sbin',
@@ -415,7 +419,7 @@ function expectedCandidateIdentity(
   return {
     cwd: release.releaseDir,
     script: resolve(release.releaseDir, release.provenance.entrypoints[name]),
-    interpreter: process.execPath,
+    interpreter: OPEN_RELEASE_APPLICATION_NODE_EXECUTABLE,
     port: Number(applicationEnvironment.OPEN_MCP_PORT ?? 3931),
     profile: null,
     toolsets: null,
@@ -652,7 +656,10 @@ export async function preflightOpenReleaseCandidate({
   readFileImpl = readFile,
   realpathImpl = realpath,
 }) {
-  if (release?.provenance?.nodeVersion !== process.version) {
+  if (
+    release?.provenance?.nodeVersion !== process.version
+    || release.provenance.nodeVersion !== OPEN_RELEASE_APPLICATION_NODE_VERSION
+  ) {
     throw new Error('Dexter MCP release Node runtime does not match this host');
   }
   if (typeof pm2Home !== 'string' || !isAbsolute(pm2Home)) {
@@ -752,7 +759,9 @@ export async function verifyRunningOpenReleasePair({
     throw new Error('candidate proof requires exact preflight process identities');
   }
   const byName = exactServiceRows(rows);
-  const nodeExecutable = await realpathImpl(process.execPath);
+  const nodeExecutable = await realpathImpl(
+    OPEN_RELEASE_APPLICATION_NODE_EXECUTABLE,
+  );
   const health = {};
   for (const name of SERVICE_NAMES) {
     const row = byName[name];
@@ -1697,6 +1706,7 @@ export async function verifyProductionPm2Executable({
     `${PRODUCTION_PM2_PACKAGE_ROOT}/bin`,
     `${PRODUCTION_PM2_PACKAGE_ROOT}/lib`,
     `${PRODUCTION_PM2_PACKAGE_ROOT}/lib/binaries`,
+    ...OPEN_RELEASE_APPLICATION_NODE_PROTECTED_DIRECTORIES,
   ]) {
     await requireProtectedRootOwnedPath(path, {
       directory: true,
@@ -1708,6 +1718,13 @@ export async function verifyProductionPm2Executable({
   await requireProtectedRootOwnedPath(PRODUCTION_NODE_EXECUTABLE, {
     directory: false,
     expectedSha256: PRODUCTION_NODE_SHA256,
+    lstatImpl,
+    readFileImpl,
+    realpathImpl,
+  });
+  await requireProtectedRootOwnedPath(OPEN_RELEASE_APPLICATION_NODE_EXECUTABLE, {
+    directory: false,
+    expectedSha256: OPEN_RELEASE_APPLICATION_NODE_SHA256,
     lstatImpl,
     readFileImpl,
     realpathImpl,
@@ -1769,6 +1786,35 @@ export async function verifyProductionPm2Executable({
   if (nodeVersion !== PRODUCTION_NODE_VERSION) {
     throw new Error('production Node runtime identity differs from the reviewed release');
   }
+  let applicationNodeVersion;
+  try {
+    const result = await runCommand(
+      OPEN_RELEASE_APPLICATION_NODE_EXECUTABLE,
+      ['--version'],
+      {
+        encoding: 'utf8',
+        env: {
+          HOME: '/root',
+          LANG: 'C',
+          LC_ALL: 'C',
+          PATH: '/usr/bin:/bin',
+        },
+        maxBuffer: 1024 * 1024,
+        timeout: 5_000,
+        killSignal: 'SIGKILL',
+      },
+    );
+    applicationNodeVersion = result.stdout.trim();
+  } catch (error) {
+    throw new Error('OpenDexter application Node runtime identity is unreadable', {
+      cause: error,
+    });
+  }
+  if (applicationNodeVersion !== OPEN_RELEASE_APPLICATION_NODE_VERSION) {
+    throw new Error(
+      'OpenDexter application Node runtime differs from the reviewed release',
+    );
+  }
   return PRODUCTION_PM2_EXECUTABLE;
 }
 
@@ -1781,6 +1827,34 @@ async function restorePm2Dump(pm2Home, bytes) {
   await writeFile(temporaryPath, bytes, { mode: 0o600, flag: 'wx' });
   await chmod(temporaryPath, 0o600);
   await rename(temporaryPath, dumpPath);
+}
+
+export function productionPm2ConfigShim(ecosystem) {
+  if (!isAbsolute(ecosystem)) {
+    throw new Error('OpenDexter ecosystem path must be absolute');
+  }
+  const evaluator = [
+    `'use strict';`,
+    `const value = require(${JSON.stringify(ecosystem)});`,
+    `process.stdout.write(JSON.stringify(value));`,
+  ].join('\n');
+  return Buffer.from([
+    `'use strict';`,
+    `const { execFileSync } = require('node:child_process');`,
+    `const serialized = execFileSync(`,
+    `  ${JSON.stringify(OPEN_RELEASE_APPLICATION_NODE_EXECUTABLE)},`,
+    `  ${JSON.stringify(['-e', evaluator])},`,
+    `  {`,
+    `    encoding: 'utf8',`,
+    `    env: process.env,`,
+    `    maxBuffer: 1024 * 1024,`,
+    `    timeout: 10_000,`,
+    `    killSignal: 'SIGKILL',`,
+    `  },`,
+    `);`,
+    `module.exports = JSON.parse(serialized);`,
+    ``,
+  ].join('\n'));
 }
 
 export async function startOpenReleaseCandidate({
@@ -1801,14 +1875,16 @@ export async function startOpenReleaseCandidate({
   // PM2 execute the configuration itself as an application named
   // `ecosystem.production` instead of starting its declared app. Load the
   // sealed file through a protected, one-shot config shim with a recognized
-  // suffix and select the exact public app explicitly.
+  // suffix and select the exact public app explicitly. PM2's reviewed CLI
+  // runs on Node 18, while the sealed application contract requires Node 22.
+  // Evaluate the ecosystem through the independently verified application
+  // runtime so its parser and emitted interpreter match the runtime that will
+  // actually execute the service.
   const configPath = resolve(
     pm2Home,
     `.opendexter-candidate-${process.pid}-${randomUUID()}.config.cjs`,
   );
-  const configBytes = Buffer.from(
-    `'use strict';\nmodule.exports = require(${JSON.stringify(ecosystem)});\n`,
-  );
+  const configBytes = productionPm2ConfigShim(ecosystem);
   await writeFile(configPath, configBytes, { mode: 0o600, flag: 'wx' });
   try {
     await chmod(configPath, 0o600);

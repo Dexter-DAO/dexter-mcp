@@ -10,12 +10,14 @@ import {
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
+import { createRequire } from 'node:module';
 import test from 'node:test';
 import {
   activateOpenRelease,
   capturePriorOpenReleasePair,
   preservedPrivateProcessSnapshot,
   preflightOpenReleaseCandidate,
+  productionPm2ConfigShim,
   readLoopbackHealth,
   startOpenReleaseCandidate,
   verifyPriorOpenReleaseRestartability,
@@ -27,6 +29,11 @@ import {
   PRODUCTION_NODE_EXECUTABLE,
   PRODUCTION_PM2_EXECUTABLE,
 } from '../lib/open-release-pm2-safety.mjs';
+
+const require = createRequire(import.meta.url);
+const {
+  OPEN_RELEASE_APPLICATION_NODE_EXECUTABLE,
+} = require('../lib/open-release-provenance.cjs');
 
 const COMMIT = 'a'.repeat(40);
 const TREE = 'b'.repeat(40);
@@ -124,6 +131,9 @@ function pm2Row(name, cwd, pid, roster, port, {
   singleArgument = false,
   processPolicy = {},
   pmId = name === 'dexter-mcp' ? 69 : 68,
+  interpreter = name === 'dexter-open-mcp'
+    ? OPEN_RELEASE_APPLICATION_NODE_EXECUTABLE
+    : process.execPath,
 } = {}) {
   const script = resolve(cwd, 'production-bootstrap.mjs');
   const packageVersion = processPolicy.packageVersion ?? release.packageVersion;
@@ -135,7 +145,7 @@ function pm2Row(name, cwd, pid, roster, port, {
     TOKEN_AI_MCP_PROFILE: profile,
     TOKEN_AI_MCP_TOOLSETS: toolsets,
     PATH: [
-      resolve(process.execPath, '..'),
+      resolve(interpreter, '..'),
       '/usr/local/sbin',
       '/usr/local/bin',
       '/usr/sbin',
@@ -198,7 +208,7 @@ function pm2Row(name, cwd, pid, roster, port, {
       version: packageVersion,
       pm_cwd: cwd,
       pm_exec_path: script,
-      exec_interpreter: process.execPath,
+      exec_interpreter: interpreter,
       env: environment,
     },
   };
@@ -349,7 +359,7 @@ function fakeProc(rows) {
       const row = byPid.get(pid);
       if (!row) throw new Error(`unknown fake pid ${pid}`);
       if (field === 'cwd') return row.pm2_env.pm_cwd;
-      if (field === 'exe') return process.execPath;
+      if (field === 'exe') return row.pm2_env.exec_interpreter;
       throw new Error(`unknown fake proc link ${path}`);
     },
     readFileImpl: async (path) => {
@@ -366,7 +376,7 @@ function fakeProc(rows) {
       }
       return row.singleArgument
         ? `node ${row.pm2_env.pm_exec_path}\0`
-        : `${process.execPath}\0${row.pm2_env.pm_exec_path}\0`;
+        : `${row.pm2_env.exec_interpreter}\0${row.pm2_env.pm_exec_path}\0`;
     },
     realpathImpl: async (path) => path,
   };
@@ -1867,7 +1877,7 @@ test('candidate PM2 config shim is exact during start and removed afterward', as
         observedConfigPath = args[1];
         assert.equal(
           await readFile(args[1], 'utf8'),
-          `'use strict';\nmodule.exports = require(${JSON.stringify(ecosystem)});\n`,
+          productionPm2ConfigShim(ecosystem).toString('utf8'),
         );
       },
     });
