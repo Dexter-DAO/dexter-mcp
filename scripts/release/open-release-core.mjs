@@ -22,6 +22,7 @@ import {
 } from 'node:path';
 import {
   DEFAULT_PM2_COMMAND_TIMEOUT_MS,
+  PRODUCTION_NODE_EXECUTABLE,
   PRODUCTION_PM2_EXECUTABLE,
   runBoundedPm2Command,
   samePm2ProcessSnapshot,
@@ -57,6 +58,9 @@ const PRODUCTION_PM2_PACKAGE_SHA256 =
   'd0269334e995c0e0f9c52bfc28654149ffc48ef43cf02db6e9e9f337ce7f4a59';
 const PRODUCTION_PM2_CLI_SHA256 =
   '106cda22f755c29701742a5e7dc280e4e484a31c976e9f8c9c6afc8f31dde3bb';
+const PRODUCTION_NODE_VERSION = 'v18.19.1';
+const PRODUCTION_NODE_SHA256 =
+  'f3f93db342d5ac5bb61656d0599a603a73779e98befd9342171e550002725f4d';
 const GOVERNED_SECRET = 'GOVERNED_AGENT_ACTIONS_HMAC_SECRET';
 const PRESERVED_PRIVATE_SERVICE = 'dexter-mcp';
 const LEGACY_OPEN_RELEASE_DIR =
@@ -1418,6 +1422,7 @@ export async function verifyRestoredOpenReleasePair({
 function boundedPm2Runner({
   runCommand,
   commandEnvironment,
+  nodeExecutable,
   pm2Executable,
   timeoutMs,
 }) {
@@ -1425,6 +1430,7 @@ function boundedPm2Runner({
     runCommand,
     args,
     commandEnvironment,
+    nodeExecutable,
     pm2Executable,
     timeoutMs,
   });
@@ -1671,9 +1677,11 @@ export async function verifyProductionPm2Executable({
   lstatImpl = lstat,
   readFileImpl = readFile,
   realpathImpl = realpath,
+  runCommand = execFileAsync,
 } = {}) {
   for (const path of [
     '/usr',
+    '/usr/bin',
     '/usr/local',
     '/usr/local/lib',
     '/usr/local/lib/node_modules',
@@ -1689,6 +1697,13 @@ export async function verifyProductionPm2Executable({
       realpathImpl,
     });
   }
+  await requireProtectedRootOwnedPath(PRODUCTION_NODE_EXECUTABLE, {
+    directory: false,
+    expectedSha256: PRODUCTION_NODE_SHA256,
+    lstatImpl,
+    readFileImpl,
+    realpathImpl,
+  });
   await requireProtectedRootOwnedPath(PRODUCTION_PM2_EXECUTABLE, {
     directory: false,
     expectedSha256: PRODUCTION_PM2_SHA256,
@@ -1718,6 +1733,33 @@ export async function verifyProductionPm2Executable({
   }
   if (packageJson?.name !== 'pm2' || packageJson?.version !== PRODUCTION_PM2_VERSION) {
     throw new Error('production PM2 package identity differs from the reviewed release');
+  }
+  let nodeVersion;
+  try {
+    const result = await runCommand(
+      PRODUCTION_NODE_EXECUTABLE,
+      ['--version'],
+      {
+        encoding: 'utf8',
+        env: {
+          HOME: '/root',
+          LANG: 'C',
+          LC_ALL: 'C',
+          PATH: '/usr/bin:/bin',
+        },
+        maxBuffer: 1024 * 1024,
+        timeout: 5_000,
+        killSignal: 'SIGKILL',
+      },
+    );
+    nodeVersion = result.stdout.trim();
+  } catch (error) {
+    throw new Error('production Node runtime identity is unreadable', {
+      cause: error,
+    });
+  }
+  if (nodeVersion !== PRODUCTION_NODE_VERSION) {
+    throw new Error('production Node runtime identity differs from the reviewed release');
   }
   return PRODUCTION_PM2_EXECUTABLE;
 }
@@ -1884,6 +1926,7 @@ export async function activateOpenRelease({
       ...commandEnvironment,
       PM2_HOME: pm2Home,
     },
+    nodeExecutable: PRODUCTION_NODE_EXECUTABLE,
     pm2Executable,
     timeoutMs: pm2CommandTimeoutMs,
   });

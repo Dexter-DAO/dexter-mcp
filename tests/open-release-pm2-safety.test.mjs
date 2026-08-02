@@ -1,11 +1,25 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import { execFile } from 'node:child_process';
 import {
+  chmodSync,
+  existsSync,
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import test from 'node:test';
+import { promisify } from 'node:util';
+import {
+  PRODUCTION_NODE_EXECUTABLE,
   PRODUCTION_PM2_EXECUTABLE,
   runBoundedPm2Command,
   samePm2ProcessSnapshot,
   snapshotUnrelatedPm2Processes,
 } from '../lib/open-release-pm2-safety.mjs';
+
+const execFileAsync = promisify(execFile);
 
 const RELEASE_SERVICES = ['dexter-open-mcp'];
 
@@ -112,7 +126,7 @@ test('unrelated PM2 snapshot refuses duplicate or missing names', () => {
   );
 });
 
-test('bounded PM2 command ignores hostile PATH and uses the exact production binary', async () => {
+test('bounded PM2 command uses exact Node and PM2 binaries', async () => {
   let received;
   const result = await runBoundedPm2Command({
     runCommand: async (command, args, options) => {
@@ -124,11 +138,38 @@ test('bounded PM2 command ignores hostile PATH and uses the exact production bin
     timeoutMs: 50,
   });
   assert.equal(result.stdout, '[]');
-  assert.equal(received.command, PRODUCTION_PM2_EXECUTABLE);
-  assert.deepEqual(received.args, ['jlist']);
+  assert.equal(received.command, PRODUCTION_NODE_EXECUTABLE);
+  assert.deepEqual(received.args, [PRODUCTION_PM2_EXECUTABLE, 'jlist']);
   assert.equal(received.options.timeout, 50);
   assert.equal(received.options.killSignal, 'SIGKILL');
   assert.equal(received.options.signal instanceof AbortSignal, true);
+});
+
+test('real PM2 child execution ignores a hostile node first on PATH', async (t) => {
+  const directory = mkdtempSync(join(tmpdir(), 'opendexter-hostile-node-'));
+  const marker = join(directory, 'hostile-node-ran');
+  const hostileNode = join(directory, 'node');
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  writeFileSync(hostileNode, `#!/bin/sh\ntouch ${JSON.stringify(marker)}\nexit 91\n`);
+  chmodSync(hostileNode, 0o755);
+
+  const result = await runBoundedPm2Command({
+    runCommand: async (command, args, options) => {
+      assert.equal(command, PRODUCTION_NODE_EXECUTABLE);
+      assert.deepEqual(args, [PRODUCTION_PM2_EXECUTABLE, 'jlist']);
+      return execFileAsync(command, ['--version'], options);
+    },
+    args: ['jlist'],
+    commandEnvironment: {
+      HOME: directory,
+      LANG: 'C',
+      LC_ALL: 'C',
+      PATH: `${directory}:/usr/bin:/bin`,
+    },
+    timeoutMs: 5_000,
+  });
+  assert.equal(result.stdout.trim(), 'v18.19.1');
+  assert.equal(existsSync(marker), false);
 });
 
 test('bounded PM2 command rejects a runner that never settles', async () => {

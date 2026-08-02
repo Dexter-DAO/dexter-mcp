@@ -21,7 +21,10 @@ import {
   verifyRestoredOpenReleasePair,
   verifyRunningOpenReleasePair,
 } from '../scripts/release/open-release-core.mjs';
-import { PRODUCTION_PM2_EXECUTABLE } from '../lib/open-release-pm2-safety.mjs';
+import {
+  PRODUCTION_NODE_EXECUTABLE,
+  PRODUCTION_PM2_EXECUTABLE,
+} from '../lib/open-release-pm2-safety.mjs';
 
 const COMMIT = 'a'.repeat(40);
 const TREE = 'b'.repeat(40);
@@ -47,6 +50,25 @@ test('production activation binds the reviewed root-owned PM2 executable', async
     await verifyProductionPm2Executable(),
     PRODUCTION_PM2_EXECUTABLE,
   );
+});
+
+test('a failing PM2 runtime verifier stops before the first jlist', async () => {
+  let commandCalls = 0;
+  await assert.rejects(
+    activateOpenRelease({
+      releaseCandidate: releaseCandidate(),
+      preflightCandidate: async () => ({}),
+      verifyPm2Executable: async () => {
+        throw new Error('untrusted PM2 runtime');
+      },
+      runCommand: async () => {
+        commandCalls += 1;
+        return { stdout: '[]' };
+      },
+    }),
+    /untrusted PM2 runtime/,
+  );
+  assert.equal(commandCalls, 0);
 });
 
 function sha256(value) {
@@ -1403,10 +1425,12 @@ async function activationHarness({
     await writeFile(resolve(pm2Home, 'dump.pm2'), initialSavedBytes);
   }
   const runCommand = async (command, args, options) => {
-    assert.equal(command, PRODUCTION_PM2_EXECUTABLE);
-    commandCalls.push({ args: [...args], options });
-    const operation = args[0];
-    events.push(`${operation}${args[1] ? `:${args[1]}` : ''}`);
+    assert.equal(command, PRODUCTION_NODE_EXECUTABLE);
+    assert.equal(args[0], PRODUCTION_PM2_EXECUTABLE);
+    const pm2Args = args.slice(1);
+    commandCalls.push({ args: [...pm2Args], options });
+    const operation = pm2Args[0];
+    events.push(`${operation}${pm2Args[1] ? `:${pm2Args[1]}` : ''}`);
     if (operation === 'jlist') {
       if (
         failCandidateJlistOnce
@@ -1513,7 +1537,7 @@ async function activationHarness({
         rollbackDeleteFailures += 1;
         throw new Error('rollback_delete_failed');
       }
-      rows = rows.filter((row) => row.name !== args[1]);
+      rows = rows.filter((row) => row.name !== pm2Args[1]);
       return { stdout: 'deleted' };
     }
     if (operation === 'start') {
@@ -1569,7 +1593,7 @@ async function activationHarness({
       })));
       return { stdout: 'resurrected' };
     }
-    throw new Error(`unexpected PM2 operation: ${args.join(' ')}`);
+    throw new Error(`unexpected PM2 operation: ${pm2Args.join(' ')}`);
   };
   const fetchImpl = async (url) => {
     const port = Number(new URL(url).port);
