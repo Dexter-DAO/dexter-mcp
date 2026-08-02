@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { parseEnv, promisify } from 'node:util';
 import {
@@ -1775,6 +1775,57 @@ async function restorePm2Dump(pm2Home, bytes) {
   await rename(temporaryPath, dumpPath);
 }
 
+export async function startOpenReleaseCandidate({
+  ecosystem,
+  pm2Home,
+  runPm2,
+}) {
+  if (!isAbsolute(ecosystem) || !isAbsolute(pm2Home)) {
+    throw new Error('OpenDexter candidate paths must be absolute');
+  }
+  if (SERVICE_NAMES.length !== 1 || SERVICE_NAMES[0] !== 'dexter-open-mcp') {
+    throw new Error('OpenDexter candidate requires the exact public-service roster');
+  }
+
+  // PM2 6 only recognizes JavaScript configuration files whose names contain
+  // `.config.js`, `.config.cjs`, or `.config.mjs`. The sealed release file is
+  // deliberately named ecosystem.production.cjs; passing it directly makes
+  // PM2 execute the configuration itself as an application named
+  // `ecosystem.production` instead of starting its declared app. Load the
+  // sealed file through a protected, one-shot config shim with a recognized
+  // suffix and select the exact public app explicitly.
+  const configPath = resolve(
+    pm2Home,
+    `.opendexter-candidate-${process.pid}-${randomUUID()}.config.cjs`,
+  );
+  const configBytes = Buffer.from(
+    `'use strict';\nmodule.exports = require(${JSON.stringify(ecosystem)});\n`,
+  );
+  await writeFile(configPath, configBytes, { mode: 0o600, flag: 'wx' });
+  try {
+    await chmod(configPath, 0o600);
+    const identity = await lstat(configPath);
+    if (
+      !identity.isFile()
+      || identity.isSymbolicLink()
+      || identity.nlink !== 1
+      || identity.uid !== process.getuid()
+      || (identity.mode & 0o7777) !== 0o600
+      || !(await readFile(configPath)).equals(configBytes)
+    ) {
+      throw new Error('OpenDexter candidate PM2 config shim is not exact');
+    }
+    await runPm2([
+      'start',
+      configPath,
+      '--only',
+      SERVICE_NAMES[0],
+    ]);
+  } finally {
+    await rm(configPath, { force: true });
+  }
+}
+
 async function readSavedPm2Dump(pm2Home, { allowMissing = false } = {}) {
   let bytes;
   try {
@@ -2047,7 +2098,11 @@ export async function activateOpenRelease({
       preservedPrivateProcess,
       privateProcessProofOptions,
     );
-    await runPm2(['start', ecosystem]);
+    await startOpenReleaseCandidate({
+      ecosystem,
+      pm2Home,
+      runPm2,
+    });
     const candidateRows = await pm2List(runPm2);
     await assertLiveUnrelatedPm2Processes(
       candidateRows,

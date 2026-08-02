@@ -4,6 +4,7 @@ import {
   chmod,
   mkdtemp,
   readFile,
+  readdir,
   rm,
   writeFile,
 } from 'node:fs/promises';
@@ -16,6 +17,7 @@ import {
   preservedPrivateProcessSnapshot,
   preflightOpenReleaseCandidate,
   readLoopbackHealth,
+  startOpenReleaseCandidate,
   verifyPriorOpenReleaseRestartability,
   verifyProductionPm2Executable,
   verifyRestoredOpenReleasePair,
@@ -1748,7 +1750,12 @@ async function activationHarness({
 }
 
 test('activation replaces only public OpenDexter and preserves private runtime', async () => {
-  const { error, rows, events } = await activationHarness();
+  const {
+    error,
+    rows,
+    events,
+    commandCalls,
+  } = await activationHarness();
   assert.equal(error, undefined);
   assert.deepEqual(rows.map((row) => [
     row.name,
@@ -1782,6 +1789,96 @@ test('activation replaces only public OpenDexter and preserves private runtime',
   assert.equal(events.some(
     (event) => /^(?:reload|restart|startOrReload)(?::|$)/.test(event),
   ), false);
+  const startCalls = commandCalls.filter(({ args }) => args[0] === 'start');
+  assert.equal(startCalls.length, 1);
+  assert.equal(startCalls[0].args[1].endsWith('.config.cjs'), true);
+  assert.notEqual(
+    startCalls[0].args[1],
+    '/sealed/releases/new/ecosystem.production.cjs',
+  );
+  assert.deepEqual(startCalls[0].args.slice(2), [
+    '--only',
+    'dexter-open-mcp',
+  ]);
+});
+
+test('candidate PM2 config shim is exact during start and removed afterward', async () => {
+  const directory = await mkdtemp(resolve(tmpdir(), 'opendexter-config-shim-'));
+  const ecosystem = resolve(directory, 'ecosystem.production.cjs');
+  await writeFile(ecosystem, 'module.exports = { apps: [] };\n');
+  try {
+    let observedConfigPath = null;
+    await startOpenReleaseCandidate({
+      ecosystem,
+      pm2Home: directory,
+      runPm2: async (args) => {
+        assert.equal(args[0], 'start');
+        assert.equal(args[1].endsWith('.config.cjs'), true);
+        assert.notEqual(args[1], ecosystem);
+        assert.deepEqual(args.slice(2), ['--only', 'dexter-open-mcp']);
+        observedConfigPath = args[1];
+        assert.equal(
+          await readFile(args[1], 'utf8'),
+          `'use strict';\nmodule.exports = require(${JSON.stringify(ecosystem)});\n`,
+        );
+      },
+    });
+    assert.notEqual(observedConfigPath, null);
+    assert.equal(
+      (await readdir(directory)).some((name) => name.endsWith('.config.cjs')),
+      false,
+    );
+
+    await assert.rejects(
+      startOpenReleaseCandidate({
+        ecosystem,
+        pm2Home: directory,
+        runPm2: async () => {
+          throw new Error('hostile_start_failure');
+        },
+      }),
+      /hostile_start_failure/,
+    );
+    assert.equal(
+      (await readdir(directory)).some((name) => name.endsWith('.config.cjs')),
+      false,
+    );
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('candidate failure resurrects the sealed prior row and never executes a PM2 dump', async () => {
+  const result = await activationHarness({ rejectCandidate: true });
+  assert.match(
+    result.error?.message ?? '',
+    /candidate failed; the exact prior state was restored/,
+  );
+  const startCalls = result.commandCalls.filter(({ args }) => args[0] === 'start');
+  assert.equal(startCalls.length, 1);
+  assert.equal(startCalls[0].args[1].endsWith('.config.cjs'), true);
+  assert.equal(result.commandCalls.some(({ args }) => (
+    args[0] === 'start'
+    && args.slice(1).some((argument) => (
+      argument.endsWith('dump.pm2')
+      || argument.includes('.opendexter-rollback-')
+    ))
+  )), false);
+  assert.equal(
+    result.commandCalls.filter(({ args }) => args[0] === 'resurrect').length,
+    1,
+  );
+  assert.equal(result.events.at(-1), 'verified-rollback');
+  assert.deepEqual(
+    result.rows.find((row) => row.name === 'dexter-mcp'),
+    result.priorRows.find((row) => row.name === 'dexter-mcp'),
+  );
+  assert.equal(
+    result.rows.find((row) => row.name === 'dexter-open-mcp')
+      .pm2_env.pm_exec_path,
+    result.priorRows.find((row) => row.name === 'dexter-open-mcp')
+      .pm2_env.pm_exec_path,
+  );
 });
 
 test('an unprovable prior causes zero PM2 save, delete, or start calls', async () => {

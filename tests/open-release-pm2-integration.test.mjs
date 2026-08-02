@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import {
+  mkdir,
   mkdtemp,
   readFile,
   readlink,
@@ -11,6 +12,7 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import test from 'node:test';
 import { promisify } from 'node:util';
+import { startOpenReleaseCandidate } from '../scripts/release/open-release-core.mjs';
 
 const execFileAsync = promisify(execFile);
 
@@ -166,4 +168,58 @@ test('real disposable PM2 save/delete/start/resurrect never restarts private run
   assert.ok(openAfter.pm_id > candidateOpen.pm_id);
   assert.equal(openAfter.pm2_env.pm_exec_path, oldOpenScript);
   assert.equal(openAfter.pm2_env.pm_cwd, fixture);
+});
+
+test('real disposable PM2 loads the sealed non-config filename through an exact app selector', {
+  timeout: 30_000,
+}, async (t) => {
+  const fixture = await mkdtemp(resolve(tmpdir(), 'opendexter-real-config-'));
+  const pm2Home = resolve(fixture, 'pm2');
+  const publicScript = resolve(fixture, 'public.mjs');
+  const ecosystem = resolve(fixture, 'ecosystem.production.cjs');
+  await mkdir(pm2Home, { mode: 0o700 });
+  await writeFile(publicScript, 'setInterval(() => {}, 1000);\n');
+  await writeFile(ecosystem, [
+    'module.exports = {',
+    '  apps: [{',
+    "    name: 'dexter-open-mcp',",
+    `    script: ${JSON.stringify(publicScript)},`,
+    `    cwd: ${JSON.stringify(fixture)},`,
+    '  }],',
+    '};',
+    '',
+  ].join('\n'));
+  const environment = {
+    ...process.env,
+    PM2_HOME: pm2Home,
+  };
+  const pm2 = async (...args) => execFileAsync('pm2', args, {
+    encoding: 'utf8',
+    env: environment,
+    timeout: 10_000,
+    maxBuffer: 8 * 1024 * 1024,
+  });
+  const list = async () => JSON.parse((await pm2('jlist')).stdout);
+  t.after(async () => {
+    await pm2('kill').catch(() => {});
+    await rm(fixture, { recursive: true, force: true });
+  });
+
+  // This is the exact production failure boundary: ecosystem.production.cjs
+  // is not a PM2-recognized config suffix. The helper must never pass it as
+  // the program argument and must leave only the declared public process.
+  await startOpenReleaseCandidate({
+    ecosystem,
+    pm2Home,
+    runPm2: (args) => pm2(...args),
+  });
+  const rows = await waitFor(async () => {
+    const current = await list();
+    return current.length === 1 && current[0].pm2_env.status === 'online'
+      ? current
+      : null;
+  });
+  assert.equal(rows[0].name, 'dexter-open-mcp');
+  assert.equal(rows[0].pm2_env.pm_exec_path, publicScript);
+  assert.equal(rows.some((row) => row.name === 'ecosystem.production'), false);
 });
