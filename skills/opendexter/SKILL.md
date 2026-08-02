@@ -106,7 +106,10 @@ Use `dexter_portfolio` for exact asset inventory and current action
 availability. It accepts no wallet, handle, actor, agent, grant, role, or
 authority selector. Preserve quantity and value strings exactly. Partial or
 unavailable inventory is not zero, portfolio value is not spendable cash, and
-display metadata never grants an action.
+display metadata never grants an action. Optional `approvedActionTargets` are
+separate, complete discovery records for server-approved governed assets even
+when the wallet has no holding. They never add to holdings, balances, quantities,
+or value.
 
 An `availableActions` display field is still not execution authority. Use only
 the exact governed tools below for Send, Buy, or Sell; do not invent lend,
@@ -114,9 +117,10 @@ borrow, or pay execution.
 
 ## Governed Send, Buy, and Sell
 
-1. Use `dexter_portfolio` to identify the exact supported asset and confirm the
-   requested action is currently displayed as available. That display is
-   context, not authority. Pass only its non-null canonical `assetId`; never
+1. Use `dexter_portfolio` to identify the exact supported asset from an approved
+   holding or `approvedActionTarget` and confirm the requested action is
+   currently displayed as available. That display is context, not authority.
+   Pass only its non-null canonical `assetId`; never
    substitute a symbol or send a mint, token program, network, or decimals as
    authority.
 2. Call `dexter_prepare_asset_action` with one stable `operationId` and the

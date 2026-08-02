@@ -88,6 +88,8 @@ test('served guidance requires native OAuth and bounded nonretryable spending', 
   );
   assert.match(WORKFLOW, /vaultPda[\s\S]*not a deposit\s+fallback/);
   assert.match(WORKFLOW, /canonical `assetId`/);
+  assert.match(WORKFLOW, /approvedActionTargets/);
+  assert.match(WORKFLOW, /never add to holdings, balances, quantities,[\s\S]*or value/);
   assert.match(WORKFLOW, /Buy[\s\S]*USDC budget[\s\S]*6\s+decimals/);
   assert.match(WORKFLOW, /Sell and Send[\s\S]*selected asset amount/);
   assert.match(WORKFLOW, /reusable\s+mandate[\s\S]*execute autonomously/i);
@@ -113,6 +115,8 @@ test('generated runtime instructions contain only native OAuth wallet guidance',
   assert.match(runtime, /dexter_prepare_asset_action/);
   assert.match(runtime, /dexter_execute_asset_action accepts only operationId and the exact prepared intentId/);
   assert.match(runtime, /non-null canonical assetId/);
+  assert.match(runtime, /approvedActionTarget whose matching action has available=true/);
+  assert.match(runtime, /never creates a holding, balance, quantity, or portfolio value/);
   assert.match(runtime, /reusable bounded mandate covers the request/);
   assert.match(runtime, /exact Prepare response is authoritative/);
   assert.match(runtime, /protected_agent_send_sdk_required/);

@@ -134,13 +134,14 @@ Governed Buy and Sell, plus the preserved fail-closed Send contract, use one
 API-owned intent through five public tools. `dexter_prepare_asset_action`
 accepts one stable `operationId` plus the
 exact action fields and persists/evaluates the request without signing or
-submitting it. `assetId` is the canonical ID returned by `dexter_portfolio`,
-not a symbol or mint. The API resolves it through its approved registry and
-binds the exact network, mint, token program, decimals, capabilities, and
-identity digest into the intent and reusable mandate. For Buy, `amountAtomic`
-is the USDC budget in atomic units (6 decimals). For Sell and Send, it is the
-selected asset amount using the server-certified decimals. Send does not
-expose a memo.
+submitting it. `assetId` is the canonical ID returned by `dexter_portfolio`
+from an approved holding or an `approvedActionTarget` whose matching action is
+available, not a symbol or mint. The API resolves it through its approved
+registry and binds the exact network, mint, token program, decimals,
+capabilities, and identity digest into the intent and reusable mandate. For
+Buy, `amountAtomic` is the USDC budget in atomic units (6 decimals). For Sell
+and Send, it is the selected asset amount using the server-certified decimals.
+Send does not expose a memo.
 
 `dexter_execute_asset_action` accepts only `operationId` and the prepared
 `intentId`; the API request body is exactly `{}` and the operation ID becomes
@@ -187,7 +188,11 @@ resolve the durable wallet binding for that authenticated MCP session and the
 stored passkey-vault identity behind it. They do not accept a caller-supplied
 wallet address or user handle. `x402_wallet` reads the bound passkey wallet;
 `dexter_portfolio` reads its governed asset inventory without changing the
-spendable balance.
+spendable balance. Its optional `approvedActionTargets` are a separate,
+complete list of server-approved governed assets, including assets the wallet
+does not hold. They enable first-time Buy discovery but never create a holding,
+quantity, balance, or portfolio value; the matching action must be available
+and the exact Prepare response remains authoritative.
 
 **How the npm package differs.** `@dexterai/opendexter` is an independently
 versioned local stdio package for Codex, Claude Code, and other agents. It uses

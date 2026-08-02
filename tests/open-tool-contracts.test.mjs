@@ -17,6 +17,15 @@ import {
   OPEN_TOOL_SECURITY_SCHEMES,
   installCanonicalSecuritySchemeProjection,
 } from '../lib/open-tool-auth.mjs';
+import {
+  approvedActionTarget,
+  rehashApprovedActionTarget,
+  zeroHoldingBuyDiscoveryPortfolio,
+} from './fixtures/approved-action-target-fixtures.mjs';
+import {
+  modelSafePortfolioSnapshot,
+  validateAndBoundPortfolioSnapshotV1,
+} from '../lib/session-portfolio.mjs';
 
 const EXPECTED_TOOLS = [
   'x402_search',
@@ -172,6 +181,66 @@ test('portfolio output carries only canonical approved assetIds as action identi
   assert.equal(
     projected.structuredContent.portfolio.holdings[0].assetId,
     'open_abcdefghijklmnop',
+  );
+});
+
+test('portfolio output accepts old and new shapes but rejects invented or contradictory targets', () => {
+  const schema = OPEN_TOOL_CONTRACTS.dexter_portfolio.outputSchema;
+  const oldPortfolio = modelSafePortfolioSnapshot(
+    validateAndBoundPortfolioSnapshotV1(zeroHoldingBuyDiscoveryPortfolio()),
+  );
+  delete oldPortfolio.approvedActionTargets;
+  const oldResult = {
+    portfolio_status: 'ready',
+    mode: 'portfolio_ready',
+    user_bound: true,
+    portfolio: oldPortfolio,
+  };
+  assert.equal(schema.safeParse(oldResult).success, true);
+
+  const newPortfolio = modelSafePortfolioSnapshot(
+    validateAndBoundPortfolioSnapshotV1(zeroHoldingBuyDiscoveryPortfolio()),
+  );
+  const newResult = {
+    ...oldResult,
+    portfolio: newPortfolio,
+  };
+  assert.equal(schema.safeParse(newResult).success, true);
+  assert.equal(newResult.portfolio.holdings.length, 0);
+  assert.equal(newResult.portfolio.pricedValueUsd, '0');
+  assert.equal(newResult.portfolio.portfolioValueUsd, '0');
+  assert.equal(
+    newResult.portfolio.approvedActionTargets[0].actions[0].action,
+    'buy',
+  );
+
+  const invented = structuredClone(newResult);
+  invented.portfolio.approvedActionTargets[0].mintAuthority = 'model-supplied';
+  assert.equal(schema.safeParse(invented).success, false);
+
+  const contradictory = structuredClone(newResult);
+  contradictory.portfolio.approvedActionTargets[0].actions[0].assetId = 'other';
+  contradictory.portfolio.approvedActionTargets[0] = rehashApprovedActionTarget(
+    contradictory.portfolio.approvedActionTargets[0],
+  );
+  assert.equal(schema.safeParse(contradictory).success, false);
+
+  const wrongOrder = structuredClone(newResult);
+  const target = wrongOrder.portfolio.approvedActionTargets[0];
+  [target.actions[0], target.actions[1]] = [target.actions[1], target.actions[0]];
+  wrongOrder.portfolio.approvedActionTargets[0] = rehashApprovedActionTarget(target);
+  assert.equal(schema.safeParse(wrongOrder).success, false);
+
+  const availableWithReason = structuredClone(newResult);
+  const reasonTarget = availableWithReason.portfolio.approvedActionTargets[0];
+  reasonTarget.actions[0].reason = 'governed_asset_rail_not_live';
+  availableWithReason.portfolio.approvedActionTargets[0] =
+    rehashApprovedActionTarget(reasonTarget);
+  assert.equal(schema.safeParse(availableWithReason).success, false);
+
+  assert.deepEqual(
+    newResult.portfolio.approvedActionTargets,
+    [approvedActionTarget()],
   );
 });
 

@@ -4,7 +4,9 @@ import test from 'node:test';
 import {
   MAX_PORTFOLIO_BYTES,
   MAX_PORTFOLIO_HOLDINGS,
+  MAX_APPROVED_ACTION_TARGETS,
   SESSION_PORTFOLIO_SIGNATURE_PURPOSE,
+  approvedActionTargetsAreValid,
   fetchSessionPortfolio,
   modelSafePortfolioSnapshot,
   numericPortfolioSummary,
@@ -16,6 +18,12 @@ import {
   completePortfolio,
   governancePortfolio,
 } from './fixtures/wallet-portfolio-fixtures.mjs';
+import {
+  approvedActionTarget,
+  rehashApprovedActionTarget,
+  secondApprovedActionTarget,
+  zeroHoldingBuyDiscoveryPortfolio,
+} from './fixtures/approved-action-target-fixtures.mjs';
 
 const SESSION_ID = '019f97fb-9684-7571-9c0c-9ba39bd54570';
 const SECRET = 'test-only-secret-that-is-at-least-thirty-two-bytes';
@@ -70,6 +78,158 @@ test('validates and returns a bounded exact PortfolioSnapshotV1', async () => {
   assert.equal(requestInit.headers['x-internal-signature'].length, 64);
   assert.deepEqual(result, snapshot);
   assert.notEqual(result, snapshot, 'boundary returns a detached canonical copy');
+});
+
+test('accepts the old PortfolioSnapshotV1 unchanged when approved targets are absent', () => {
+  const source = completePortfolio();
+  const portfolio = validateAndBoundPortfolioSnapshotV1(source);
+  const projected = modelSafePortfolioSnapshot(portfolio);
+
+  assert.deepEqual(portfolio, source);
+  assert.equal(Object.hasOwn(portfolio, 'approvedActionTargets'), false);
+  assert.equal(Object.hasOwn(projected, 'approvedActionTargets'), false);
+});
+
+test('discovers an approved zero-holding Buy target without synthesizing value', () => {
+  const source = zeroHoldingBuyDiscoveryPortfolio();
+  const portfolio = validateAndBoundPortfolioSnapshotV1(source);
+  const projected = modelSafePortfolioSnapshot(portfolio);
+
+  assert.deepEqual(portfolio, source);
+  assert.deepEqual(numericPortfolioSummary(portfolio), {
+    holdings: 0,
+    pricedHoldings: 0,
+    unpricedHoldings: 0,
+    holdingsComplete: true,
+    pricedValueUsd: '0',
+    portfolioValueUsd: '0',
+  });
+  assert.deepEqual(projected.holdings, []);
+  assert.equal(projected.approvedActionTargets.length, 1);
+  assert.deepEqual(projected.approvedActionTargets[0], source.approvedActionTargets[0]);
+  assert.deepEqual(
+    projected.approvedActionTargets[0].actions.map(({ action, available, reason }) => ({
+      action,
+      available,
+      reason,
+    })),
+    [
+      { action: 'buy', available: true, reason: null },
+      { action: 'sell', available: true, reason: null },
+      {
+        action: 'send',
+        available: false,
+        reason: 'protected_agent_send_sdk_required',
+      },
+    ],
+  );
+});
+
+test('preserves a complete target whose three governed actions are unavailable', () => {
+  const target = structuredClone(approvedActionTarget());
+  target.actions = target.actions.map((action) => ({
+    ...action,
+    available: false,
+    reason: action.action === 'send'
+      ? 'protected_agent_send_sdk_required'
+      : 'governed_asset_rail_not_live',
+  }));
+  const source = {
+    ...zeroHoldingBuyDiscoveryPortfolio(),
+    approvedActionTargets: [rehashApprovedActionTarget(target)],
+  };
+
+  const portfolio = validateAndBoundPortfolioSnapshotV1(source);
+  assert.ok(portfolio);
+  assert.equal(
+    portfolio.approvedActionTargets[0].actions.every(({ available }) => !available),
+    true,
+  );
+  assert.deepEqual(modelSafePortfolioSnapshot(portfolio).holdings, []);
+});
+
+test('fails closed on malformed, contradictory, duplicate, or unsorted approved targets', () => {
+  const sourceWithTarget = (targetOrTargets) => ({
+    ...zeroHoldingBuyDiscoveryPortfolio(),
+    approvedActionTargets: Array.isArray(targetOrTargets)
+      ? targetOrTargets
+      : [targetOrTargets],
+  });
+  const mutateAndRehash = (mutate) => {
+    const target = structuredClone(approvedActionTarget());
+    mutate(target);
+    return rehashApprovedActionTarget(target);
+  };
+
+  const staleDigest = approvedActionTarget();
+  staleDigest.name = 'Changed without a new digest';
+
+  const childIdentityMismatch = mutateAndRehash((target) => {
+    target.actions[0].assetId = 'different-asset';
+  });
+  const wrongActionOrder = mutateAndRehash((target) => {
+    [target.actions[0], target.actions[1]] = [target.actions[1], target.actions[0]];
+  });
+  const availableWithReason = mutateAndRehash((target) => {
+    target.actions[0].reason = 'governed_asset_rail_not_live';
+  });
+  const unavailableWithoutReason = mutateAndRehash((target) => {
+    target.actions[2].reason = null;
+  });
+  const unrecognizedReason = mutateAndRehash((target) => {
+    target.actions[2].reason = 'invented_reason';
+  });
+  const malformedDigest = mutateAndRehash((target) => {
+    target.actions[0].receiptDigest = 'A'.repeat(64);
+  });
+  const nativeTarget = mutateAndRehash((target) => {
+    target.mint = 'native:SOL';
+    target.tokenProgram = 'native';
+    target.decimals = 9;
+  });
+  const whitespaceSymbol = mutateAndRehash((target) => {
+    target.symbol = ' SPCX ';
+  });
+  const oversizedUtf8Symbol = mutateAndRehash((target) => {
+    target.symbol = '🚀'.repeat(9);
+  });
+  const extraField = mutateAndRehash((target) => {
+    target.invented = true;
+  });
+  const duplicateIdentity = secondApprovedActionTarget();
+  duplicateIdentity.mint = approvedActionTarget().mint;
+  duplicateIdentity.tokenProgram = approvedActionTarget().tokenProgram;
+  const duplicateIdentityRehashed = rehashApprovedActionTarget(duplicateIdentity);
+
+  const invalidSnapshots = [
+    sourceWithTarget(staleDigest),
+    sourceWithTarget(childIdentityMismatch),
+    sourceWithTarget(wrongActionOrder),
+    sourceWithTarget(availableWithReason),
+    sourceWithTarget(unavailableWithoutReason),
+    sourceWithTarget(unrecognizedReason),
+    sourceWithTarget(malformedDigest),
+    sourceWithTarget(nativeTarget),
+    sourceWithTarget(whitespaceSymbol),
+    sourceWithTarget(oversizedUtf8Symbol),
+    sourceWithTarget(extraField),
+    sourceWithTarget([approvedActionTarget(), approvedActionTarget()]),
+    sourceWithTarget([secondApprovedActionTarget(), approvedActionTarget()]),
+    sourceWithTarget([approvedActionTarget(), duplicateIdentityRehashed]),
+    sourceWithTarget(Array.from(
+      { length: MAX_APPROVED_ACTION_TARGETS + 1 },
+      () => approvedActionTarget(),
+    )),
+  ];
+
+  for (const [index, snapshot] of invalidSnapshots.entries()) {
+    assert.equal(
+      validateAndBoundPortfolioSnapshotV1(snapshot),
+      null,
+      `hostile approved target ${index} must fail closed`,
+    );
+  }
+  assert.equal(approvedActionTargetsAreValid([approvedActionTarget()]), true);
 });
 
 test('rejects extra fields, malformed holdings, and returned-wallet mismatches', async () => {

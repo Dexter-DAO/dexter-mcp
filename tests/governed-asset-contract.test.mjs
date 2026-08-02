@@ -210,6 +210,7 @@ test('operation identity never substitutes for authority or owner approval', () 
   const execute = GOVERNED_ASSET_TOOL_CONTRACTS.dexter_execute_asset_action.description;
   assert.match(prepare, /Idempotency-Key/);
   assert.match(prepare, /canonical assetId returned by dexter_portfolio/);
+  assert.match(prepare, /approved holding or approvedActionTarget/);
   assert.match(prepare, /reusable bounded mandate/);
   assert.match(prepare, /outside model-callable tools/);
   assert.match(prepare, /only this Prepare response is authoritative/);

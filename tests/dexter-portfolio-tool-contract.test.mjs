@@ -34,6 +34,27 @@ test('dexter_portfolio remains in the canonical twelve and is strict OAuth read-
     method: 'tools/call',
     params: { name: 'dexter_portfolio', arguments: {} },
   }), { name: 'dexter_portfolio', id: 7 });
+  assert.match(
+    OPEN_TOOL_CONTRACTS.dexter_portfolio.description,
+    /approvedActionTargets separately list server-approved governed assets even when the wallet holds none/,
+  );
+  assert.match(
+    OPEN_TOOL_CONTRACTS.dexter_portfolio.description,
+    /never count as holdings or value/,
+  );
+});
+
+test('public documentation keeps zero-balance targets separate from holdings and authority', async () => {
+  const [readme, contract] = await Promise.all([
+    readFile(new URL('README.md', ROOT), 'utf8'),
+    readFile(new URL('docs/contracts/OPENDXTER-OPAQUE-INTENT-V1.md', ROOT), 'utf8'),
+  ]);
+  for (const source of [readme, contract]) {
+    assert.match(source, /approvedActionTarget/);
+    assert.match(source, /zero-balance|does not hold/i);
+    assert.match(source, /never create|without becoming a synthetic holding/i);
+    assert.match(source, /Prepare.*authoritative|Prepare remains.*authority/is);
+  }
 });
 
 test('registered portfolio accepts no identity input and attaches no legacy widget', async () => {

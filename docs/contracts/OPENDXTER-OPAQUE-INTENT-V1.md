@@ -132,11 +132,15 @@ or intent creation. That refusal has no executable intent: callers must not call
 Execute or Reconcile and must not advertise Send as live.
 
 The public asset selector is a canonical registry ID matching
-`^[a-z0-9][a-z0-9._:-]{0,127}$`. It must come from an approved holding returned
-by `dexter_portfolio`; it is not a display symbol or mint. The API resolves the
-ID through its authoritative approved registry and freezes the exact network,
+`^[a-z0-9][a-z0-9._:-]{0,127}$`. It must come from an approved holding or an
+`approvedActionTarget` returned by `dexter_portfolio` with the requested action
+available; it is not a display symbol or mint. `approvedActionTargets` are
+separate from holdings and totals, so a zero-balance asset can be discoverable
+for Buy without becoming a synthetic holding or value. The API resolves the ID
+through its authoritative approved registry and freezes the exact network,
 mint, token program, decimals, capabilities, and identity digest in the intent
-and grant. The MCP never supplies those authority fields.
+and grant. The MCP never supplies those authority fields, and Prepare remains
+the execution-authority decision.
 
 ### `dexter_prepare_asset_action`
 
