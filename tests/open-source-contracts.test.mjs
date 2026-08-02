@@ -2,11 +2,17 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import {
+  chmodSync,
+  linkSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  renameSync,
   rmSync,
+  symlinkSync,
+  writeFileSync,
 } from 'node:fs';
+import { open as openFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -17,10 +23,15 @@ import {
   validateAndBoundPortfolioSnapshotV1,
 } from '../lib/session-portfolio.mjs';
 import {
+  assertOpenDexterPrivateReceiptChildEnvironment,
+  createOpenDexterPrivateSourceAdvertisementReceipt,
   hasExactOpenDexterSourceContractsShape,
+  isSafeOpenDexterPrivateSourceReceiptStat,
   readOpenDexterSourceContracts,
+  readOpenDexterPrivateSourceAdvertisementReceipts,
   verifyExactOpenDexterSourceContractsShape,
   verifyOpenDexterCrossRepositorySourceContracts,
+  verifyOpenDexterPrivateSourceAdvertisementReceipt,
 } from '../scripts/materialize-open-tool-descriptors.mjs';
 
 const REPOSITORY_ROOT = fileURLToPath(new URL('..', import.meta.url));
@@ -45,6 +56,115 @@ function manifest() {
     new URL('../release/opendexter-source-contracts.json', import.meta.url),
     'utf8',
   ));
+}
+
+function sourceContractsSha256() {
+  return createHash('sha256').update(readFileSync(
+    new URL('../release/opendexter-source-contracts.json', import.meta.url),
+  )).digest('hex');
+}
+
+function descriptorSha256() {
+  return createHash('sha256').update(readFileSync(
+    new URL('../release/open-tool-descriptors.json', import.meta.url),
+  )).digest('hex');
+}
+
+function privateReceiptFixture(repository = 'api') {
+  const contracts = manifest();
+  const descriptorSourceCommit = '1'.repeat(40);
+  const descriptorSourceTree = '2'.repeat(40);
+  const descriptorDigest = descriptorSha256();
+  const sourceDigest = sourceContractsSha256();
+  if (repository === 'api') {
+    const identities = [
+      { commit: contracts.api.commit, tree: contracts.api.tree },
+      {
+        commit: contracts.integratedApiRelease.commit,
+        tree: contracts.integratedApiRelease.tree,
+      },
+    ];
+    return {
+      descriptorSourceCommit,
+      descriptorSourceTree,
+      descriptorSha256: descriptorDigest,
+      identities,
+      origin: API_ORIGIN,
+      receipt: createOpenDexterPrivateSourceAdvertisementReceipt({
+        repository: contracts.api.repository,
+        origin: API_ORIGIN,
+        descriptorSourceCommit,
+        descriptorSourceTree,
+        descriptorSha256: descriptorDigest,
+        sourceContractsSha256: sourceDigest,
+        identities,
+        remoteRefs: [
+          `${contracts.integratedApiRelease.commit}\trefs/heads/integrated`,
+          `${contracts.api.commit}\trefs/tags/governed-contract`,
+          `${contracts.api.commit}\trefs/heads/governed-contract`,
+        ].join('\n'),
+      }),
+      repository: contracts.api.repository,
+      sourceContractsSha256: sourceDigest,
+    };
+  }
+  const identities = [{
+    commit: contracts.facilitator.commit,
+    tree: contracts.facilitator.tree,
+  }];
+  return {
+    descriptorSourceCommit,
+    descriptorSourceTree,
+    descriptorSha256: descriptorDigest,
+    identities,
+    origin: FACILITATOR_ORIGIN,
+    receipt: createOpenDexterPrivateSourceAdvertisementReceipt({
+      repository: contracts.facilitator.repository,
+      origin: FACILITATOR_ORIGIN,
+      descriptorSourceCommit,
+      descriptorSourceTree,
+      descriptorSha256: descriptorDigest,
+      sourceContractsSha256: sourceDigest,
+      identities,
+      remoteRefs:
+        `${contracts.facilitator.commit}\trefs/heads/runtime\n`,
+    }),
+    repository: contracts.facilitator.repository,
+    sourceContractsSha256: sourceDigest,
+  };
+}
+
+function exactPrivateReceiptChildEnvironment(overrides = {}) {
+  return {
+    PATH: '/usr/bin:/bin',
+    HOME: '/tmp/opendexter-child-home',
+    LANG: 'C',
+    LC_ALL: 'C',
+    NODE_ENV: 'production',
+    GIT_NO_REPLACE_OBJECTS: '1',
+    GIT_CONFIG_NOSYSTEM: '1',
+    GIT_CONFIG_GLOBAL: '/dev/null',
+    GIT_TERMINAL_PROMPT: '0',
+    npm_config_audit: 'false',
+    npm_config_fund: 'false',
+    npm_config_ignore_scripts: 'true',
+    npm_config_userconfig: '/dev/null',
+    npm_config_globalconfig: '/dev/null.opendexter-release-global-npmrc',
+    npm_config_cache: '/tmp/opendexter-npm-cache',
+    OPENDEXTER_VERIFY_CROSS_REPO_SOURCE_CONTRACTS: '1',
+    OPENDEXTER_API_SOURCE_ROOT: '/tmp/opendexter-api',
+    OPENDEXTER_FACILITATOR_SOURCE_ROOT: '/tmp/opendexter-facilitator',
+    OPENDEXTER_API_SOURCE_RECEIPT_PATH: '/tmp/opendexter-api-receipt',
+    OPENDEXTER_API_SOURCE_RECEIPT_SHA256: '3'.repeat(64),
+    OPENDEXTER_FACILITATOR_SOURCE_RECEIPT_PATH:
+      '/tmp/opendexter-facilitator-receipt',
+    OPENDEXTER_FACILITATOR_SOURCE_RECEIPT_SHA256: '4'.repeat(64),
+    OPENDEXTER_DESCRIPTOR_SOURCE_COMMIT: '1'.repeat(40),
+    OPENDEXTER_DESCRIPTOR_SOURCE_TREE: '2'.repeat(40),
+    SENTRY_DSN: '',
+    SENTRY_OPEN_MCP_DSN: '',
+    ...overrides,
+  };
 }
 
 function createCrossRepositoryHarness(t, options = {}) {
@@ -233,6 +353,334 @@ test('sourceContracts/v3 has one exact immutable shape and exact local fixtures'
   );
 });
 
+test('private source receipts bind exact repository refs and descriptor source', () => {
+  const fixture = privateReceiptFixture('api');
+  assert.equal(
+    verifyOpenDexterPrivateSourceAdvertisementReceipt(fixture.receipt, {
+      repository: fixture.repository,
+      origin: fixture.origin,
+      descriptorSourceCommit: fixture.descriptorSourceCommit,
+      descriptorSourceTree: fixture.descriptorSourceTree,
+      descriptorSha256: fixture.descriptorSha256,
+      sourceContractsSha256: fixture.sourceContractsSha256,
+      identities: fixture.identities,
+    }),
+    fixture.receipt,
+  );
+  assert.deepEqual(fixture.receipt.identities[0].refs, [
+    'refs/heads/governed-contract',
+    'refs/tags/governed-contract',
+  ]);
+
+  const cases = [
+    ['wrong repository', (value) => { value.repository += '-hostile'; }],
+    ['wrong origin', (value) => { value.origin = 'file:///tmp/hostile'; }],
+    ['wrong descriptor commit', (value) => {
+      value.descriptorSource.commit = 'f'.repeat(40);
+    }],
+    ['wrong descriptor tree', (value) => {
+      value.descriptorSource.tree = 'f'.repeat(40);
+    }],
+    ['wrong descriptor digest', (value) => {
+      value.descriptorSource.sha256 = 'f'.repeat(64);
+    }],
+    ['wrong manifest digest', (value) => {
+      value.sourceContracts.sha256 = 'f'.repeat(64);
+    }],
+    ['wrong source identity', (value) => {
+      value.identities[0].commit = 'f'.repeat(40);
+    }],
+    ['missing advertised ref', (value) => { value.identities[0].refs = []; }],
+    ['duplicate advertised ref', (value) => {
+      value.identities[0].refs.push(value.identities[0].refs[0]);
+    }],
+    ['unsorted advertised refs', (value) => {
+      value.identities[0].refs.reverse();
+    }],
+    ['invalid advertised ref', (value) => {
+      value.identities[0].refs = ['refs/heads/../hostile'];
+    }],
+    ['invented field', (value) => { value.hostile = true; }],
+  ];
+  for (const [name, mutate] of cases) {
+    const hostile = structuredClone(fixture.receipt);
+    mutate(hostile);
+    assert.throws(
+      () => verifyOpenDexterPrivateSourceAdvertisementReceipt(hostile, {
+        repository: fixture.repository,
+        origin: fixture.origin,
+        descriptorSourceCommit: fixture.descriptorSourceCommit,
+        descriptorSourceTree: fixture.descriptorSourceTree,
+        descriptorSha256: fixture.descriptorSha256,
+        sourceContractsSha256: fixture.sourceContractsSha256,
+        identities: fixture.identities,
+      }),
+      /private source receipt is invalid/,
+      name,
+    );
+  }
+
+  assert.throws(
+    () => createOpenDexterPrivateSourceAdvertisementReceipt({
+      repository: fixture.repository,
+      origin: fixture.origin,
+      descriptorSourceCommit: fixture.descriptorSourceCommit,
+      descriptorSourceTree: fixture.descriptorSourceTree,
+      descriptorSha256: fixture.descriptorSha256,
+      sourceContractsSha256: fixture.sourceContractsSha256,
+      identities: fixture.identities,
+      remoteRefs: '',
+    }),
+    /does not advertise/,
+  );
+  assert.throws(
+    () => createOpenDexterPrivateSourceAdvertisementReceipt({
+      repository: fixture.repository,
+      origin: fixture.origin,
+      descriptorSourceCommit: fixture.descriptorSourceCommit,
+      descriptorSourceTree: fixture.descriptorSourceTree,
+      descriptorSha256: fixture.descriptorSha256,
+      sourceContractsSha256: fixture.sourceContractsSha256,
+      identities: fixture.identities,
+      remoteRefs: `${fixture.identities[0].commit}\trefs/heads/../hostile\n`,
+    }),
+    /remote refs are invalid/,
+  );
+  assert.throws(
+    () => createOpenDexterPrivateSourceAdvertisementReceipt({
+      repository: fixture.repository,
+      origin: fixture.origin,
+      descriptorSourceCommit: fixture.descriptorSourceCommit,
+      descriptorSourceTree: fixture.descriptorSourceTree,
+      descriptorSha256: fixture.descriptorSha256,
+      sourceContractsSha256: fixture.sourceContractsSha256,
+      identities: fixture.identities,
+      // --refs exposes an annotated tag object's SHA, not its peeled commit.
+      // Such a tag alone is deliberately insufficient; a direct branch or
+      // lightweight tag must advertise the exact accepted commit.
+      remoteRefs: `${'e'.repeat(40)}\trefs/tags/annotated-only\n`,
+    }),
+    /does not advertise/,
+  );
+});
+
+test('archived child accepts only two mode-0600 digest-pinned receipts', async (t) => {
+  const workspace = mkdtempSync(join(tmpdir(), 'opendexter-private-receipts-'));
+  t.after(() => rmSync(workspace, { recursive: true, force: true }));
+  const api = privateReceiptFixture('api');
+  const facilitator = privateReceiptFixture('facilitator');
+  const apiPath = join(workspace, 'api.json');
+  const facilitatorPath = join(workspace, 'facilitator.json');
+  const apiBytes = Buffer.from(`${JSON.stringify(api.receipt, null, 2)}\n`);
+  const facilitatorBytes = Buffer.from(
+    `${JSON.stringify(facilitator.receipt, null, 2)}\n`,
+  );
+  writeFileSync(apiPath, apiBytes, { mode: 0o600 });
+  writeFileSync(facilitatorPath, facilitatorBytes, { mode: 0o600 });
+  const environment = {
+    OPENDEXTER_API_SOURCE_RECEIPT_PATH: apiPath,
+    OPENDEXTER_API_SOURCE_RECEIPT_SHA256:
+      createHash('sha256').update(apiBytes).digest('hex'),
+    OPENDEXTER_FACILITATOR_SOURCE_RECEIPT_PATH: facilitatorPath,
+    OPENDEXTER_FACILITATOR_SOURCE_RECEIPT_SHA256:
+      createHash('sha256').update(facilitatorBytes).digest('hex'),
+    OPENDEXTER_DESCRIPTOR_SOURCE_COMMIT: api.descriptorSourceCommit,
+    OPENDEXTER_DESCRIPTOR_SOURCE_TREE: api.descriptorSourceTree,
+  };
+  const receipts =
+    await readOpenDexterPrivateSourceAdvertisementReceipts({ environment });
+  assert.equal(receipts.apiReceipt.repository, manifest().api.repository);
+  assert.equal(
+    receipts.facilitatorReceipt.repository,
+    manifest().facilitator.repository,
+  );
+  assert.match(
+    await receipts.remoteRefsReader({ remote: API_ORIGIN }),
+    new RegExp(manifest().integratedApiRelease.commit),
+  );
+  await assert.rejects(
+    receipts.remoteRefsReader({ remote: 'file:///tmp/hostile.git' }),
+    /origin is unknown/,
+  );
+
+  await assert.rejects(
+    readOpenDexterPrivateSourceAdvertisementReceipts({
+      environment: {
+        ...environment,
+        OPENDEXTER_API_SOURCE_RECEIPT_SHA256: 'f'.repeat(64),
+      },
+    }),
+    /digest mismatch/,
+  );
+  writeFileSync(apiPath, Buffer.concat([apiBytes, Buffer.from(' ')]));
+  await assert.rejects(
+    readOpenDexterPrivateSourceAdvertisementReceipts({ environment }),
+    /digest mismatch/,
+  );
+  writeFileSync(apiPath, apiBytes);
+  chmodSync(apiPath, 0o644);
+  await assert.rejects(
+    readOpenDexterPrivateSourceAdvertisementReceipts({ environment }),
+    /receipt file is unsafe/,
+  );
+});
+
+test('receipt files reject ownership, links, swaps, and oversized substitution', async (t) => {
+  const safeStat = {
+    isFile: () => true,
+    mode: 0o100600,
+    nlink: 1,
+    size: 32,
+    uid: typeof process.getuid === 'function' ? process.getuid() : 1001,
+  };
+  assert.equal(
+    isSafeOpenDexterPrivateSourceReceiptStat(safeStat, safeStat.uid),
+    true,
+  );
+  assert.equal(isSafeOpenDexterPrivateSourceReceiptStat({
+    ...safeStat,
+    uid: safeStat.uid + 1,
+  }, safeStat.uid), false);
+  assert.equal(isSafeOpenDexterPrivateSourceReceiptStat({
+    ...safeStat,
+    nlink: 2,
+  }, safeStat.uid), false);
+  assert.equal(isSafeOpenDexterPrivateSourceReceiptStat({
+    ...safeStat,
+    mode: 0o100644,
+  }, safeStat.uid), false);
+  assert.equal(isSafeOpenDexterPrivateSourceReceiptStat({
+    ...safeStat,
+    size: (64 * 1024) + 1,
+  }, safeStat.uid), false);
+
+  const workspace = mkdtempSync(join(tmpdir(), 'opendexter-receipt-attacks-'));
+  t.after(() => rmSync(workspace, { recursive: true, force: true }));
+  const api = privateReceiptFixture('api');
+  const facilitator = privateReceiptFixture('facilitator');
+  const apiPath = join(workspace, 'api.json');
+  const facilitatorPath = join(workspace, 'facilitator.json');
+  const apiBytes = Buffer.from(`${JSON.stringify(api.receipt, null, 2)}\n`);
+  const facilitatorBytes = Buffer.from(
+    `${JSON.stringify(facilitator.receipt, null, 2)}\n`,
+  );
+  writeFileSync(apiPath, apiBytes, { mode: 0o600 });
+  writeFileSync(facilitatorPath, facilitatorBytes, { mode: 0o600 });
+  const environment = {
+    OPENDEXTER_API_SOURCE_RECEIPT_PATH: apiPath,
+    OPENDEXTER_API_SOURCE_RECEIPT_SHA256:
+      createHash('sha256').update(apiBytes).digest('hex'),
+    OPENDEXTER_FACILITATOR_SOURCE_RECEIPT_PATH: facilitatorPath,
+    OPENDEXTER_FACILITATOR_SOURCE_RECEIPT_SHA256:
+      createHash('sha256').update(facilitatorBytes).digest('hex'),
+    OPENDEXTER_DESCRIPTOR_SOURCE_COMMIT: api.descriptorSourceCommit,
+    OPENDEXTER_DESCRIPTOR_SOURCE_TREE: api.descriptorSourceTree,
+  };
+
+  const hardlink = join(workspace, 'api-hardlink.json');
+  linkSync(apiPath, hardlink);
+  await assert.rejects(
+    readOpenDexterPrivateSourceAdvertisementReceipts({ environment }),
+    /receipt file is unsafe/,
+  );
+  rmSync(hardlink);
+
+  const symlink = join(workspace, 'api-symlink.json');
+  symlinkSync(apiPath, symlink);
+  await assert.rejects(
+    readOpenDexterPrivateSourceAdvertisementReceipts({
+      environment: {
+        ...environment,
+        OPENDEXTER_API_SOURCE_RECEIPT_PATH: symlink,
+      },
+    }),
+    /receipt file is unsafe/,
+  );
+
+  const oversized = join(workspace, 'oversized.json');
+  const oversizedBytes = Buffer.alloc((64 * 1024) + 1, 0x20);
+  writeFileSync(oversized, oversizedBytes, { mode: 0o600 });
+  await assert.rejects(
+    readOpenDexterPrivateSourceAdvertisementReceipts({
+      environment: {
+        ...environment,
+        OPENDEXTER_API_SOURCE_RECEIPT_PATH: oversized,
+        OPENDEXTER_API_SOURCE_RECEIPT_SHA256:
+          createHash('sha256').update(oversizedBytes).digest('hex'),
+      },
+    }),
+    /receipt file is unsafe/,
+  );
+
+  const originalPath = join(workspace, 'api-opened-original.json');
+  let swapped = false;
+  const swappingOpen = async (path, flags) => {
+    const handle = await openFile(path, flags);
+    if (path !== apiPath) return handle;
+    return {
+      close: () => handle.close(),
+      stat: () => handle.stat(),
+      readFile: async () => {
+        renameSync(apiPath, originalPath);
+        writeFileSync(apiPath, '{"hostile":true}\n', { mode: 0o600 });
+        swapped = true;
+        return handle.readFile();
+      },
+    };
+  };
+  const readAfterSwap =
+    await readOpenDexterPrivateSourceAdvertisementReceipts({
+      environment,
+      openFile: swappingOpen,
+    });
+  assert.equal(swapped, true);
+  assert.equal(readAfterSwap.apiReceipt.repository, manifest().api.repository);
+});
+
+test('archived receipt mode rejects credential-bearing child environments', () => {
+  const safe = exactPrivateReceiptChildEnvironment();
+  assert.equal(assertOpenDexterPrivateReceiptChildEnvironment(safe), safe);
+  for (const key of [
+    'GH_TOKEN',
+    'GITHUB_PERSONAL_ACCESS_TOKEN',
+    'GIT_ASKPASS',
+    'GIT_CREDENTIAL_HELPER',
+    'GIT_CONFIG_COUNT',
+    'GIT_CONFIG_KEY_0',
+    'GIT_CONFIG_VALUE_0',
+    'HTTP_EXTRAHEADER',
+  ]) {
+    assert.throws(
+      () => assertOpenDexterPrivateReceiptChildEnvironment({
+        ...safe,
+        [key]: 'hostile',
+      }),
+      /child environment is unsafe/,
+      key,
+    );
+  }
+  assert.throws(
+    () => assertOpenDexterPrivateReceiptChildEnvironment({
+      ...safe,
+      GIT_CONFIG_GLOBAL: '/tmp/persisted-gitconfig',
+    }),
+    /child environment is unsafe/,
+  );
+  assert.throws(
+    () => assertOpenDexterPrivateReceiptChildEnvironment({
+      ...safe,
+      AMBIENT_UNKNOWN_KEY: 'hostile',
+    }),
+    /child environment is unsafe/,
+  );
+  const missing = { ...safe };
+  delete missing.OPENDEXTER_API_SOURCE_RECEIPT_SHA256;
+  assert.throws(
+    () => assertOpenDexterPrivateReceiptChildEnvironment(missing),
+    /child environment is unsafe/,
+  );
+});
+
 test('accepted API projection fixture is an exact zero-holding discovery contract', () => {
   const source = JSON.parse(readFileSync(PORTFOLIO_PROJECTION_FIXTURE_PATH));
   const validated = validateAndBoundPortfolioSnapshotV1(source);
@@ -333,6 +781,14 @@ test('release CLI and archived emit proof fail before success without explicit r
       'OPENDEXTER_API_SOURCE_ROOT',
       'OPENDEXTER_FACILITATOR_SOURCE_ROOT',
       'OPENDEXTER_VERIFY_CROSS_REPO_SOURCE_CONTRACTS',
+      'OPENDEXTER_API_SOURCE_RECEIPT_PATH',
+      'OPENDEXTER_API_SOURCE_RECEIPT_SHA256',
+      'OPENDEXTER_FACILITATOR_SOURCE_RECEIPT_PATH',
+      'OPENDEXTER_FACILITATOR_SOURCE_RECEIPT_SHA256',
+      'OPENDEXTER_DESCRIPTOR_SOURCE_COMMIT',
+      'OPENDEXTER_DESCRIPTOR_SOURCE_TREE',
+      'GH_TOKEN',
+      'GITHUB_PERSONAL_ACCESS_TOKEN',
     ].includes(key)),
   );
   for (const args of [['--check'], ['--write']]) {
@@ -363,4 +819,26 @@ test('release CLI and archived emit proof fail before success without explicit r
     /OPENDEXTER_API_SOURCE_ROOT must be supplied/,
   );
   assert.equal(archivedEmit.stdout, '');
+
+  const noReceiptFallback = spawnSync(
+    process.execPath,
+    [MATERIALIZER_PATH, '--emit-json'],
+    {
+      cwd: REPOSITORY_ROOT,
+      encoding: 'utf8',
+      env: exactPrivateReceiptChildEnvironment({
+        OPENDEXTER_API_SOURCE_ROOT: '/tmp/no-api-fallback',
+        OPENDEXTER_FACILITATOR_SOURCE_ROOT: '/tmp/no-facilitator-fallback',
+        OPENDEXTER_API_SOURCE_RECEIPT_PATH: '/tmp/no-api-receipt',
+        OPENDEXTER_FACILITATOR_SOURCE_RECEIPT_PATH:
+          '/tmp/no-facilitator-receipt',
+      }),
+    },
+  );
+  assert.equal(noReceiptFallback.status, 1);
+  assert.match(
+    noReceiptFallback.stderr,
+    /private source receipt file is unsafe/,
+  );
+  assert.doesNotMatch(noReceiptFallback.stderr, /origin is unreachable/);
 });

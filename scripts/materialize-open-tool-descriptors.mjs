@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import {
+  constants as fsConstants,
   mkdirSync,
   readFileSync,
   writeFileSync,
@@ -8,8 +9,10 @@ import {
 import { createHash } from 'node:crypto';
 import {
   access,
+  lstat,
   mkdir,
   mkdtemp,
+  open,
   readFile,
   realpath,
   rm,
@@ -51,6 +54,24 @@ const FACILITATOR_REPOSITORY =
   'https://github.com/Dexter-DAO/dexter-facilitator';
 const FACILITATOR_GIT_ORIGIN = `${FACILITATOR_REPOSITORY}.git`;
 const MCP_REPOSITORY = 'https://github.com/Dexter-DAO/dexter-mcp';
+const PRIVATE_SOURCE_RECEIPT_KIND =
+  'opendexter-private-source-advertisement-receipt/v1';
+const API_SOURCE_RECEIPT_PATH_ENV =
+  'OPENDEXTER_API_SOURCE_RECEIPT_PATH';
+const API_SOURCE_RECEIPT_SHA256_ENV =
+  'OPENDEXTER_API_SOURCE_RECEIPT_SHA256';
+const FACILITATOR_SOURCE_RECEIPT_PATH_ENV =
+  'OPENDEXTER_FACILITATOR_SOURCE_RECEIPT_PATH';
+const FACILITATOR_SOURCE_RECEIPT_SHA256_ENV =
+  'OPENDEXTER_FACILITATOR_SOURCE_RECEIPT_SHA256';
+const DESCRIPTOR_SOURCE_COMMIT_ENV =
+  'OPENDEXTER_DESCRIPTOR_SOURCE_COMMIT';
+const DESCRIPTOR_SOURCE_TREE_ENV =
+  'OPENDEXTER_DESCRIPTOR_SOURCE_TREE';
+const SOURCE_CONTRACTS_RELATIVE_PATH =
+  'release/opendexter-source-contracts.json';
+const DESCRIPTOR_RELATIVE_PATH =
+  'release/open-tool-descriptors.json';
 const RECONCILE_FIXTURE_PATH =
   'tests/fixtures/governed-agent-reconcile-advanced-final-c3e32885.json';
 const BINDING_FIXTURE_CONSUMER_PATH =
@@ -311,6 +332,437 @@ function remoteAdvertises(remoteRefs, commit) {
   return remoteRefs.split(/\r?\n/).some((line) => {
     const [remoteCommit, refname, extra] = line.trim().split(/\s+/);
     return remoteCommit === commit && Boolean(refname) && extra === undefined;
+  });
+}
+
+function sha256(bytes) {
+  return createHash('sha256').update(bytes).digest('hex');
+}
+
+function isExactPrivateSourceRef(ref) {
+  return typeof ref === 'string'
+    && /^refs\/(?:heads|tags)\/[A-Za-z0-9][A-Za-z0-9._/-]{0,511}$/.test(ref)
+    && !ref.includes('..')
+    && !ref.includes('//')
+    && !ref.includes('@{')
+    && !ref.endsWith('/')
+    && !ref.endsWith('.')
+    && !ref.includes('\\');
+}
+
+function exactRemoteAdvertisements(remoteRefs) {
+  const advertisements = [];
+  for (const rawLine of String(remoteRefs).split(/\r?\n/)) {
+    if (rawLine.length === 0) continue;
+    const fields = rawLine.split(/\s+/);
+    if (
+      fields.length !== 2
+      || !/^[0-9a-f]{40}$/.test(fields[0])
+      || !isExactPrivateSourceRef(fields[1])
+    ) {
+      throw new Error('OpenDexter private source remote refs are invalid');
+    }
+    advertisements.push(Object.freeze({
+      commit: fields[0],
+      ref: fields[1],
+    }));
+  }
+  advertisements.sort((left, right) => {
+    const leftIdentity = `${left.commit}\0${left.ref}`;
+    const rightIdentity = `${right.commit}\0${right.ref}`;
+    if (leftIdentity < rightIdentity) return -1;
+    if (leftIdentity > rightIdentity) return 1;
+    return 0;
+  });
+  for (let index = 1; index < advertisements.length; index += 1) {
+    if (
+      advertisements[index - 1].commit === advertisements[index].commit
+      && advertisements[index - 1].ref === advertisements[index].ref
+    ) {
+      throw new Error('OpenDexter private source remote refs are duplicated');
+    }
+  }
+  return advertisements;
+}
+
+/**
+ * Freeze only the canonical refs that advertise the exact source identities
+ * needed by one private-repository proof. The receipt carries no credential;
+ * its exact bytes are SHA-256 pinned into the already-scrubbed archive child.
+ */
+export function createOpenDexterPrivateSourceAdvertisementReceipt({
+  repository,
+  origin,
+  descriptorSourceCommit,
+  descriptorSourceTree,
+  descriptorSha256,
+  sourceContractsSha256,
+  identities,
+  remoteRefs,
+} = {}) {
+  const advertisements = exactRemoteAdvertisements(remoteRefs);
+  const exactIdentities = identities.map(({ commit, tree }) => {
+    if (!/^[0-9a-f]{40}$/.test(commit) || !/^[0-9a-f]{40}$/.test(tree)) {
+      throw new Error('OpenDexter private source receipt identity is invalid');
+    }
+    // reviewedSourceContractRemoteRefs deliberately uses `ls-remote --refs`.
+    // Only a ref whose object ID is the exact accepted commit counts. An
+    // annotated tag object is not peeled here and cannot stand in for a direct
+    // branch or lightweight tag advertisement.
+    const refs = advertisements
+      .filter((advertisement) => advertisement.commit === commit)
+      .map((advertisement) => advertisement.ref);
+    if (refs.length === 0) {
+      throw new Error(
+        `OpenDexter private source canonical origin does not advertise ${commit}`,
+      );
+    }
+    return Object.freeze({ commit, tree, refs: Object.freeze(refs) });
+  });
+  const receipt = {
+    schemaVersion: 1,
+    kind: PRIVATE_SOURCE_RECEIPT_KIND,
+    repository,
+    origin,
+    descriptorSource: {
+      repository: MCP_REPOSITORY,
+      commit: descriptorSourceCommit,
+      tree: descriptorSourceTree,
+      path: DESCRIPTOR_RELATIVE_PATH,
+      sha256: descriptorSha256,
+    },
+    sourceContracts: {
+      kind: SOURCE_CONTRACTS_KIND,
+      path: SOURCE_CONTRACTS_RELATIVE_PATH,
+      sha256: sourceContractsSha256,
+    },
+    identities: exactIdentities,
+  };
+  verifyOpenDexterPrivateSourceAdvertisementReceipt(receipt, {
+    repository,
+    origin,
+    descriptorSourceCommit,
+    descriptorSourceTree,
+    descriptorSha256,
+    sourceContractsSha256,
+    identities,
+  });
+  return Object.freeze(receipt);
+}
+
+export function verifyOpenDexterPrivateSourceAdvertisementReceipt(
+  receipt,
+  {
+    repository,
+    origin,
+    descriptorSourceCommit,
+    descriptorSourceTree,
+    descriptorSha256,
+    sourceContractsSha256,
+    identities,
+  } = {},
+) {
+  if (
+    !exactKeys(receipt, [
+      'schemaVersion',
+      'kind',
+      'repository',
+      'origin',
+      'descriptorSource',
+      'sourceContracts',
+      'identities',
+    ])
+    || receipt.schemaVersion !== 1
+    || receipt.kind !== PRIVATE_SOURCE_RECEIPT_KIND
+    || receipt.repository !== repository
+    || receipt.origin !== origin
+    || !exactKeys(receipt.descriptorSource, [
+      'repository', 'commit', 'tree', 'path', 'sha256',
+    ])
+    || receipt.descriptorSource.repository !== MCP_REPOSITORY
+    || receipt.descriptorSource.commit !== descriptorSourceCommit
+    || receipt.descriptorSource.tree !== descriptorSourceTree
+    || receipt.descriptorSource.path !== DESCRIPTOR_RELATIVE_PATH
+    || receipt.descriptorSource.sha256 !== descriptorSha256
+    || !/^[0-9a-f]{64}$/.test(receipt.descriptorSource.sha256)
+    || !exactKeys(receipt.sourceContracts, [
+      'kind', 'path', 'sha256',
+    ])
+    || receipt.sourceContracts.kind !== SOURCE_CONTRACTS_KIND
+    || receipt.sourceContracts.path !== SOURCE_CONTRACTS_RELATIVE_PATH
+    || receipt.sourceContracts.sha256 !== sourceContractsSha256
+    || !/^[0-9a-f]{64}$/.test(receipt.sourceContracts.sha256)
+    || !Array.isArray(receipt.identities)
+    || receipt.identities.length !== identities.length
+  ) {
+    throw new Error('OpenDexter private source receipt is invalid');
+  }
+  for (let index = 0; index < identities.length; index += 1) {
+    const expected = identities[index];
+    const actual = receipt.identities[index];
+    if (
+      !exactKeys(actual, ['commit', 'tree', 'refs'])
+      || actual.commit !== expected.commit
+      || actual.tree !== expected.tree
+      || !Array.isArray(actual.refs)
+      || actual.refs.length === 0
+      || actual.refs.some((ref) => !isExactPrivateSourceRef(ref))
+      || JSON.stringify(actual.refs)
+        !== JSON.stringify([...new Set(actual.refs)].sort())
+    ) {
+      throw new Error('OpenDexter private source receipt is invalid');
+    }
+  }
+  return receipt;
+}
+
+function privateSourceReceiptRemoteRefsReader(receipts) {
+  const byOrigin = new Map(receipts.map((receipt) => [
+    receipt.origin,
+    receipt.identities.flatMap(({ commit, refs }) =>
+      refs.map((ref) => `${commit}\t${ref}\n`)).join(''),
+  ]));
+  return async ({ remote }) => {
+    if (!byOrigin.has(remote)) {
+      throw new Error('OpenDexter private source receipt origin is unknown');
+    }
+    return byOrigin.get(remote);
+  };
+}
+
+async function readPinnedPrivateSourceReceipt({
+  path,
+  expectedSha256,
+  expected,
+  openFile = open,
+}) {
+  if (
+    typeof path !== 'string'
+    || path.length === 0
+    || path !== resolve(path)
+    || !/^[0-9a-f]{64}$/.test(expectedSha256 ?? '')
+  ) {
+    throw new Error('OpenDexter private source receipt path/digest is invalid');
+  }
+  let handle;
+  try {
+    handle = await openFile(
+      path,
+      fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW,
+    );
+  } catch (error) {
+    throw new Error('OpenDexter private source receipt file is unsafe', {
+      cause: error,
+    });
+  }
+  let bytes;
+  try {
+    const stat = await handle.stat();
+    if (!isSafeOpenDexterPrivateSourceReceiptStat(stat)) {
+      throw new Error('OpenDexter private source receipt file is unsafe');
+    }
+    bytes = await handle.readFile();
+    if (bytes.byteLength !== stat.size || bytes.byteLength > 64 * 1024) {
+      throw new Error('OpenDexter private source receipt file changed');
+    }
+  } finally {
+    await handle.close();
+  }
+  if (sha256(bytes) !== expectedSha256) {
+    throw new Error('OpenDexter private source receipt digest mismatch');
+  }
+  let receipt;
+  try {
+    receipt = JSON.parse(bytes.toString('utf8'));
+  } catch (error) {
+    throw new Error('OpenDexter private source receipt JSON is invalid', {
+      cause: error,
+    });
+  }
+  return verifyOpenDexterPrivateSourceAdvertisementReceipt(receipt, expected);
+}
+
+export function isSafeOpenDexterPrivateSourceReceiptStat(
+  stat,
+  expectedUid = typeof process.getuid === 'function' ? process.getuid() : null,
+) {
+  return Boolean(stat?.isFile?.())
+    && stat.nlink === 1
+    && (expectedUid === null || stat.uid === expectedUid)
+    && (stat.mode & 0o777) === 0o600
+    && stat.size > 0
+    && stat.size <= 64 * 1024;
+}
+
+const PRIVATE_RECEIPT_CHILD_FORBIDDEN_ENV = Object.freeze([
+  'GH_TOKEN',
+  'GITHUB_PERSONAL_ACCESS_TOKEN',
+  'GIT_ASKPASS',
+  'SSH_ASKPASS',
+  'GIT_SSH_COMMAND',
+  'GIT_CREDENTIAL_HELPER',
+  'GIT_CONFIG_COUNT',
+  'GIT_CONFIG_PARAMETERS',
+]);
+const PRIVATE_RECEIPT_CHILD_ALLOWED_ENV = Object.freeze([
+  'PATH',
+  'HOME',
+  'LANG',
+  'LC_ALL',
+  'NODE_ENV',
+  'GIT_NO_REPLACE_OBJECTS',
+  'GIT_CONFIG_NOSYSTEM',
+  'GIT_CONFIG_GLOBAL',
+  'GIT_TERMINAL_PROMPT',
+  'npm_config_audit',
+  'npm_config_fund',
+  'npm_config_ignore_scripts',
+  'npm_config_userconfig',
+  'npm_config_globalconfig',
+  'npm_config_cache',
+  'OPENDEXTER_VERIFY_CROSS_REPO_SOURCE_CONTRACTS',
+  'OPENDEXTER_API_SOURCE_ROOT',
+  'OPENDEXTER_FACILITATOR_SOURCE_ROOT',
+  API_SOURCE_RECEIPT_PATH_ENV,
+  API_SOURCE_RECEIPT_SHA256_ENV,
+  FACILITATOR_SOURCE_RECEIPT_PATH_ENV,
+  FACILITATOR_SOURCE_RECEIPT_SHA256_ENV,
+  DESCRIPTOR_SOURCE_COMMIT_ENV,
+  DESCRIPTOR_SOURCE_TREE_ENV,
+  'SENTRY_DSN',
+  'SENTRY_OPEN_MCP_DSN',
+]);
+
+export function assertOpenDexterPrivateReceiptChildEnvironment(environment) {
+  const keys = Object.keys(environment ?? {}).sort();
+  const expectedKeys = [...PRIVATE_RECEIPT_CHILD_ALLOWED_ENV].sort();
+  const forbidden = keys.find((key) =>
+    PRIVATE_RECEIPT_CHILD_FORBIDDEN_ENV.includes(key)
+    || /^GIT_CONFIG_(?:KEY|VALUE)_\d+$/.test(key)
+    || /extraheader/i.test(key)
+    || /credential.*helper/i.test(key)
+    || !PRIVATE_RECEIPT_CHILD_ALLOWED_ENV.includes(key));
+  if (
+    forbidden
+    || JSON.stringify(keys) !== JSON.stringify(expectedKeys)
+    || typeof environment.PATH !== 'string'
+    || environment.PATH.length === 0
+    || environment.HOME !== resolve(environment.HOME ?? '')
+    || environment.NODE_ENV !== 'production'
+    || environment.LANG !== 'C'
+    || environment.LC_ALL !== 'C'
+    || environment.GIT_NO_REPLACE_OBJECTS !== '1'
+    || environment?.GIT_CONFIG_GLOBAL !== '/dev/null'
+    || environment?.GIT_CONFIG_NOSYSTEM !== '1'
+    || environment?.GIT_TERMINAL_PROMPT !== '0'
+    || environment.npm_config_audit !== 'false'
+    || environment.npm_config_fund !== 'false'
+    || environment.npm_config_ignore_scripts !== 'true'
+    || environment.npm_config_userconfig !== '/dev/null'
+    || environment.npm_config_globalconfig
+      !== '/dev/null.opendexter-release-global-npmrc'
+    || environment.npm_config_cache
+      !== resolve(environment.npm_config_cache ?? '')
+    || environment.OPENDEXTER_VERIFY_CROSS_REPO_SOURCE_CONTRACTS !== '1'
+    || environment.OPENDEXTER_API_SOURCE_ROOT
+      !== resolve(environment.OPENDEXTER_API_SOURCE_ROOT ?? '')
+    || environment.OPENDEXTER_FACILITATOR_SOURCE_ROOT
+      !== resolve(environment.OPENDEXTER_FACILITATOR_SOURCE_ROOT ?? '')
+    || environment[API_SOURCE_RECEIPT_PATH_ENV]
+      !== resolve(environment[API_SOURCE_RECEIPT_PATH_ENV] ?? '')
+    || !/^[0-9a-f]{64}$/.test(
+      environment[API_SOURCE_RECEIPT_SHA256_ENV] ?? '',
+    )
+    || environment[FACILITATOR_SOURCE_RECEIPT_PATH_ENV]
+      !== resolve(environment[FACILITATOR_SOURCE_RECEIPT_PATH_ENV] ?? '')
+    || !/^[0-9a-f]{64}$/.test(
+      environment[FACILITATOR_SOURCE_RECEIPT_SHA256_ENV] ?? '',
+    )
+    || !/^[0-9a-f]{40}$/.test(environment[DESCRIPTOR_SOURCE_COMMIT_ENV] ?? '')
+    || !/^[0-9a-f]{40}$/.test(environment[DESCRIPTOR_SOURCE_TREE_ENV] ?? '')
+    || environment.SENTRY_DSN !== ''
+    || environment.SENTRY_OPEN_MCP_DSN !== ''
+  ) {
+    throw new Error(
+      `OpenDexter private receipt child environment is unsafe${
+        forbidden ? `: ${forbidden}` : ''
+      }`,
+    );
+  }
+  return environment;
+}
+
+export async function readOpenDexterPrivateSourceAdvertisementReceipts({
+  sourceRoot = repositoryRoot,
+  sourceContracts,
+  environment = process.env,
+  openFile = open,
+} = {}) {
+  const descriptorSourceCommit = environment?.[DESCRIPTOR_SOURCE_COMMIT_ENV];
+  const descriptorSourceTree = environment?.[DESCRIPTOR_SOURCE_TREE_ENV];
+  if (
+    !/^[0-9a-f]{40}$/.test(descriptorSourceCommit ?? '')
+    || !/^[0-9a-f]{40}$/.test(descriptorSourceTree ?? '')
+  ) {
+    throw new Error('OpenDexter descriptor source receipt identity is invalid');
+  }
+  const contracts = sourceContracts
+    ?? await readOpenDexterSourceContracts({ sourceRoot });
+  const sourceContractsSha256 = sha256(await readFile(resolve(
+    sourceRoot,
+    SOURCE_CONTRACTS_RELATIVE_PATH,
+  )));
+  const descriptorSha256 = sha256(await readFile(resolve(
+    sourceRoot,
+    DESCRIPTOR_RELATIVE_PATH,
+  )));
+  const descriptorIdentity = {
+    descriptorSourceCommit,
+    descriptorSourceTree,
+    descriptorSha256,
+    sourceContractsSha256,
+  };
+  const [apiReceipt, facilitatorReceipt] = await Promise.all([
+    readPinnedPrivateSourceReceipt({
+      path: environment?.[API_SOURCE_RECEIPT_PATH_ENV],
+      expectedSha256: environment?.[API_SOURCE_RECEIPT_SHA256_ENV],
+      expected: {
+        repository: API_REPOSITORY,
+        origin: API_GIT_ORIGIN,
+        ...descriptorIdentity,
+        identities: [
+          { commit: contracts.api.commit, tree: contracts.api.tree },
+          {
+            commit: contracts.integratedApiRelease.commit,
+            tree: contracts.integratedApiRelease.tree,
+          },
+        ],
+      },
+      openFile,
+    }),
+    readPinnedPrivateSourceReceipt({
+      path: environment?.[FACILITATOR_SOURCE_RECEIPT_PATH_ENV],
+      expectedSha256:
+        environment?.[FACILITATOR_SOURCE_RECEIPT_SHA256_ENV],
+      expected: {
+        repository: FACILITATOR_REPOSITORY,
+        origin: FACILITATOR_GIT_ORIGIN,
+        ...descriptorIdentity,
+        identities: [{
+          commit: contracts.facilitator.commit,
+          tree: contracts.facilitator.tree,
+        }],
+      },
+      openFile,
+    }),
+  ]);
+  return Object.freeze({
+    apiReceipt,
+    facilitatorReceipt,
+    remoteRefsReader: privateSourceReceiptRemoteRefsReader([
+      apiReceipt,
+      facilitatorReceipt,
+    ]),
   });
 }
 
@@ -706,6 +1158,9 @@ export async function materializeOpenToolDescriptorsFromGit({
 } = {}) {
   let explicitApiSourceRoot;
   let explicitFacilitatorSourceRoot;
+  let sourceContracts;
+  let sourceContractsSha256;
+  let descriptorSha256;
   if (verifyCrossRepositorySources) {
     explicitApiSourceRoot = requiredExplicitSourceRoot(
       apiSourceRoot,
@@ -715,13 +1170,15 @@ export async function materializeOpenToolDescriptorsFromGit({
       facilitatorSourceRoot,
       'OPENDEXTER_FACILITATOR_SOURCE_ROOT',
     );
-    await verifyOpenDexterCrossRepositorySourceContracts({
+    sourceContracts = await readOpenDexterSourceContracts({ sourceRoot });
+    sourceContractsSha256 = sha256(await readFile(resolve(
       sourceRoot,
-      apiSourceRoot: explicitApiSourceRoot,
-      facilitatorSourceRoot: explicitFacilitatorSourceRoot,
-      runCommand,
-      environment,
-    });
+      SOURCE_CONTRACTS_RELATIVE_PATH,
+    )));
+    descriptorSha256 = sha256(await readFile(resolve(
+      sourceRoot,
+      DESCRIPTOR_RELATIVE_PATH,
+    )));
   }
   const cleanGitEnvironment = reviewedReleaseToolEnvironment({
     env: environment,
@@ -812,6 +1269,15 @@ export async function materializeOpenToolDescriptorsFromGit({
       'OpenDexter descriptor revision must be the clean checkout HEAD',
     );
   }
+  const { stdout: treeOutput } = await runCommand('git', [
+    '--no-replace-objects',
+    '-C', sourceRoot,
+    'rev-parse', `${commit}^{tree}`,
+  ], { encoding: 'utf8', env: cleanGitEnvironment });
+  const sourceTree = treeOutput.trim();
+  if (!/^[0-9a-f]{40}$/.test(sourceTree)) {
+    throw new Error('OpenDexter descriptor source tree is invalid');
+  }
   let remoteRefs;
   try {
     remoteRefs = await reviewedGitRemoteRefs({
@@ -834,6 +1300,80 @@ export async function materializeOpenToolDescriptorsFromGit({
     );
   }
 
+  let apiReceiptBytes;
+  let facilitatorReceiptBytes;
+  if (verifyCrossRepositorySources) {
+    let apiRemoteRefs;
+    let facilitatorRemoteRefs;
+    try {
+      [apiRemoteRefs, facilitatorRemoteRefs] = await Promise.all([
+        reviewedSourceContractRemoteRefs({
+          remote: API_GIT_ORIGIN,
+          runCommand,
+          environment,
+        }),
+        reviewedSourceContractRemoteRefs({
+          remote: FACILITATOR_GIT_ORIGIN,
+          runCommand,
+          environment,
+        }),
+      ]);
+    } catch (error) {
+      throw new Error(
+        'OpenDexter private source canonical origins are unreachable',
+        { cause: error },
+      );
+    }
+    const descriptorIdentity = {
+      descriptorSourceCommit: commit,
+      descriptorSourceTree: sourceTree,
+      descriptorSha256,
+      sourceContractsSha256,
+    };
+    const apiIdentities = [
+      { commit: sourceContracts.api.commit, tree: sourceContracts.api.tree },
+      {
+        commit: sourceContracts.integratedApiRelease.commit,
+        tree: sourceContracts.integratedApiRelease.tree,
+      },
+    ];
+    const facilitatorIdentities = [{
+      commit: sourceContracts.facilitator.commit,
+      tree: sourceContracts.facilitator.tree,
+    }];
+    const apiReceipt = createOpenDexterPrivateSourceAdvertisementReceipt({
+      repository: API_REPOSITORY,
+      origin: API_GIT_ORIGIN,
+      ...descriptorIdentity,
+      identities: apiIdentities,
+      remoteRefs: apiRemoteRefs,
+    });
+    const facilitatorReceipt =
+      createOpenDexterPrivateSourceAdvertisementReceipt({
+        repository: FACILITATOR_REPOSITORY,
+        origin: FACILITATOR_GIT_ORIGIN,
+        ...descriptorIdentity,
+        identities: facilitatorIdentities,
+        remoteRefs: facilitatorRemoteRefs,
+      });
+    await verifyOpenDexterCrossRepositorySourceContracts({
+      sourceRoot,
+      apiSourceRoot: explicitApiSourceRoot,
+      facilitatorSourceRoot: explicitFacilitatorSourceRoot,
+      sourceContracts,
+      runCommand,
+      environment,
+      remoteRefsReader: privateSourceReceiptRemoteRefsReader([
+        apiReceipt,
+        facilitatorReceipt,
+      ]),
+    });
+    apiReceiptBytes = Buffer.from(`${JSON.stringify(apiReceipt, null, 2)}\n`);
+    facilitatorReceiptBytes = Buffer.from(
+      `${JSON.stringify(facilitatorReceipt, null, 2)}\n`,
+    );
+  }
+
   const disposableRoot = await mkdtemp(
     resolve(tmpdir(), 'opendexter-descriptor-source-'),
   );
@@ -841,15 +1381,10 @@ export async function materializeOpenToolDescriptorsFromGit({
   const archiveRoot = resolve(disposableRoot, 'source');
   try {
     await mkdir(archiveRoot, { recursive: true });
-    const { stdout: treeOutput } = await runCommand('git', [
-      '--no-replace-objects',
-      '-C', sourceRoot,
-      'rev-parse', `${commit}^{tree}`,
-    ], { encoding: 'utf8', env: cleanGitEnvironment });
     await createReviewedGitArchive({
       sourceRoot,
       commit,
-      expectedTree: treeOutput.trim(),
+      expectedTree: sourceTree,
       outputPath: archivePath,
       workspace: disposableRoot,
       runCommand,
@@ -871,20 +1406,55 @@ export async function materializeOpenToolDescriptorsFromGit({
         `archived source pins npm ${npmVersion}, expected ${REVIEWED_NPM_VERSION}`,
       );
     }
+    const buildHome = resolve(disposableRoot, 'build-home');
+    const childHome = resolve(disposableRoot, 'child-home');
+    await Promise.all([
+      mkdir(buildHome, { mode: 0o700 }),
+      mkdir(childHome, { mode: 0o700 }),
+    ]);
     const buildEnv = reviewedReleaseToolEnvironment({
       env: environment,
       npmCache: resolve(disposableRoot, 'npm-cache'),
     });
+    buildEnv.HOME = buildHome;
     const materializerEnv = reviewedReleaseToolEnvironment({
       env: environment,
       production: true,
       npmCache: resolve(disposableRoot, 'npm-cache'),
     });
+    materializerEnv.HOME = childHome;
     if (verifyCrossRepositorySources) {
+      const apiReceiptPath = resolve(
+        disposableRoot,
+        'api-source-advertisement-receipt.json',
+      );
+      const facilitatorReceiptPath = resolve(
+        disposableRoot,
+        'facilitator-source-advertisement-receipt.json',
+      );
+      await Promise.all([
+        writeFile(apiReceiptPath, apiReceiptBytes, {
+          flag: 'wx',
+          mode: 0o600,
+        }),
+        writeFile(facilitatorReceiptPath, facilitatorReceiptBytes, {
+          flag: 'wx',
+          mode: 0o600,
+        }),
+      ]);
       materializerEnv.OPENDEXTER_VERIFY_CROSS_REPO_SOURCE_CONTRACTS = '1';
       materializerEnv.OPENDEXTER_API_SOURCE_ROOT = explicitApiSourceRoot;
       materializerEnv.OPENDEXTER_FACILITATOR_SOURCE_ROOT =
         explicitFacilitatorSourceRoot;
+      materializerEnv[API_SOURCE_RECEIPT_PATH_ENV] = apiReceiptPath;
+      materializerEnv[API_SOURCE_RECEIPT_SHA256_ENV] = sha256(apiReceiptBytes);
+      materializerEnv[FACILITATOR_SOURCE_RECEIPT_PATH_ENV] =
+        facilitatorReceiptPath;
+      materializerEnv[FACILITATOR_SOURCE_RECEIPT_SHA256_ENV] =
+        sha256(facilitatorReceiptBytes);
+      materializerEnv[DESCRIPTOR_SOURCE_COMMIT_ENV] = commit;
+      materializerEnv[DESCRIPTOR_SOURCE_TREE_ENV] = sourceTree;
+      materializerEnv.GIT_TERMINAL_PROMPT = '0';
     }
     materializerEnv.SENTRY_DSN = '';
     materializerEnv.SENTRY_OPEN_MCP_DSN = '';
@@ -924,6 +1494,26 @@ export async function materializeOpenToolDescriptorsFromGit({
       maxBuffer: 16 * 1024 * 1024,
       env: buildEnv,
     });
+
+    const homeStats = await Promise.all([
+      lstat(buildHome),
+      lstat(childHome),
+    ]);
+    for (const homeStat of homeStats) {
+      if (
+        !homeStat.isDirectory()
+        || homeStat.isSymbolicLink()
+        || homeStat.nlink < 1
+        || (typeof process.getuid === 'function'
+          && homeStat.uid !== process.getuid())
+        || (homeStat.mode & 0o777) !== 0o700
+      ) {
+        throw new Error('OpenDexter descriptor release HOME is unsafe');
+      }
+    }
+    if (verifyCrossRepositorySources) {
+      assertOpenDexterPrivateReceiptChildEnvironment(materializerEnv);
+    }
 
     const archivedMaterializer = resolve(
       archiveRoot,
@@ -1060,10 +1650,25 @@ function cliMode(argv) {
 
 async function emitDescriptorJson() {
   if (process.env.OPENDEXTER_VERIFY_CROSS_REPO_SOURCE_CONTRACTS === '1') {
+    const apiSourceRoot = requiredExplicitSourceRoot(
+      process.env.OPENDEXTER_API_SOURCE_ROOT,
+      'OPENDEXTER_API_SOURCE_ROOT',
+    );
+    const facilitatorSourceRoot = requiredExplicitSourceRoot(
+      process.env.OPENDEXTER_FACILITATOR_SOURCE_ROOT,
+      'OPENDEXTER_FACILITATOR_SOURCE_ROOT',
+    );
+    assertOpenDexterPrivateReceiptChildEnvironment(process.env);
+    const sourceContracts = await readOpenDexterSourceContracts();
+    const receipts =
+      await readOpenDexterPrivateSourceAdvertisementReceipts({
+        sourceContracts,
+      });
     await verifyOpenDexterCrossRepositorySourceContracts({
-      apiSourceRoot: process.env.OPENDEXTER_API_SOURCE_ROOT,
-      facilitatorSourceRoot:
-        process.env.OPENDEXTER_FACILITATOR_SOURCE_ROOT,
+      apiSourceRoot,
+      facilitatorSourceRoot,
+      sourceContracts,
+      remoteRefsReader: receipts.remoteRefsReader,
     });
   }
   process.stdout.write(JSON.stringify(
