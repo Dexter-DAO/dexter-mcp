@@ -1857,6 +1857,65 @@ test('send has no memo and execute cannot carry plan, attempt, or authorization 
   }
 });
 
+test('current Send refusal stops at Prepare with no executable continuation', async () => {
+  const code = 'protected_agent_send_sdk_required';
+  const refusal = {
+    namespace: 'dexter-governed-agent-action/v1',
+    requestId: OPERATION_ID,
+    executed: false,
+    attribution: attribution(),
+    business: business({
+      action: 'send',
+      amountAtomic: '1',
+      destinationOwner: ADDRESS,
+      protocolId: 'spl-transfer',
+      lifecycle: 'refused',
+      refusalOrEscalationReasons: [code],
+    }),
+    status: 'refused',
+    code,
+    explanation:
+      'Protected delegated Send is unavailable until its dedicated authority, executor, and same-intent recovery are composed.',
+    retryable: false,
+  };
+  const result = await callGovernedAssetBackend({
+    apiBase: 'https://api.dexter.test',
+    secret: SECRET,
+    operation: 'prepare',
+    input: {
+      operationId: OPERATION_ID,
+      action: 'send',
+      assetId: 'dexter',
+      amountAtomic: '1',
+      destinationOwner: ADDRESS,
+    },
+    mcpSessionId: SESSION_ID,
+    now: NOW,
+    fetchImpl: async () => jsonResponse(422, refusal),
+  });
+
+  assert.equal(result.httpStatus, 422);
+  assert.equal(result.isError, true);
+  assert.equal(result.body.code, code);
+  assert.equal(result.body.executed, false);
+  assert.equal(result.body.retryable, false);
+  assert.equal(result.body.business.reconciliation.required, false);
+  for (const continuation of [
+    'intentId',
+    'attemptId',
+    'planId',
+    'approval',
+    'execution',
+    'retry',
+  ]) {
+    assert.equal(continuation in result.body, false, continuation);
+  }
+  const toolResult = buildGovernedAssetToolResult(result);
+  assert.equal(toolResult.isError, true);
+  assert.equal(toolResult.structuredContent, undefined);
+  assert.equal(JSON.parse(toolResult.content[0].text).code, code);
+});
+
 test('authority selectors are rejected before transport', async () => {
   let called = false;
   await assert.rejects(

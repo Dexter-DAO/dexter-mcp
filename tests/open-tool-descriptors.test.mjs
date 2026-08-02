@@ -289,6 +289,8 @@ test('source materializer emits one deterministic full hosted descriptor', async
     new URL('../release/opendexter-source-contracts.json', import.meta.url),
     'utf8',
   )));
+  assert.equal(descriptor.sourceContracts.schemaVersion, 2);
+  assert.equal(descriptor.sourceContracts.kind, 'opendexter-source-contracts/v2');
   assert.equal(
     descriptor.sourceContracts.api.commit,
     'c3e32885cc39cdee47eca5a054c0fd7d8a0fdd8b',
@@ -296,6 +298,25 @@ test('source materializer emits one deterministic full hosted descriptor', async
   assert.equal(
     descriptor.sourceContracts.api.tree,
     'b8a3bdd790379f82b959663e679960f213addb5b',
+  );
+  assert.deepEqual(descriptor.sourceContracts.integratedApiRelease, {
+    repository: 'https://github.com/Dexter-DAO/dexter-api',
+    commit: 'ea2acbb7a11a696c685b6e48581362c448ef73cf',
+    tree: 'b876e490e96843c3d37934e865966d6f6674fc48',
+    governedContractCommit: 'c3e32885cc39cdee47eca5a054c0fd7d8a0fdd8b',
+    governedContractTree: 'b8a3bdd790379f82b959663e679960f213addb5b',
+  });
+  assert.equal(
+    descriptor.sourceContracts.facilitator.commit,
+    'df370826b7b951dfc825a689c4e6f3b1928ee5e2',
+  );
+  assert.equal(
+    descriptor.sourceContracts.facilitator.tree,
+    'a9b4b18eb350143f3265834571c910891c83dd5c',
+  );
+  assert.equal(
+    descriptor.sourceContracts.facilitator.bindingFixture.sha256,
+    '66bbd343637fe9b3af245b2ace823a9dff1d8032e2dd01da7ee4bd71cc1ff7d6',
   );
   assert.equal(
     descriptor.sourceContracts.mcp.commit,
@@ -345,8 +366,12 @@ test('source materializer emits one deterministic full hosted descriptor', async
     assert.equal(tool.inputSchema.type, 'object', `${tool.name} input schema`);
     assert.equal(tool.outputSchema.type, 'object', `${tool.name} output schema`);
     assert.ok(tool.securitySchemes.length > 0, `${tool.name} security`);
-    assert.ok(tool.visibility.length > 0, `${tool.name} visibility`);
-    assert.equal(typeof tool.widgetAccessible, 'boolean', `${tool.name} widget`);
+    assert.ok(tool._meta.ui.visibility.length > 0, `${tool.name} visibility`);
+    assert.equal(
+      typeof tool._meta['openai/widgetAccessible'],
+      'boolean',
+      `${tool.name} widget`,
+    );
     for (const hint of [
       'readOnlyHint',
       'destructiveHint',
@@ -356,6 +381,24 @@ test('source materializer emits one deterministic full hosted descriptor', async
       assert.equal(typeof tool.annotations[hint], 'boolean', `${tool.name} ${hint}`);
     }
   }
+
+  const search = descriptor.tools.find(({ name }) => name === 'x402_search');
+  assert.equal(search._meta['ui/resourceUri'], search._meta.ui.resourceUri);
+  assert.equal(search._meta['openai/outputTemplate'], search._meta.ui.resourceUri);
+  assert.equal(search._meta['openai/widgetDomain'], search._meta.ui.domain);
+  assert.deepEqual(
+    search._meta['openai/widgetCSP'].resource_domains,
+    search._meta.ui.csp.resourceDomains,
+  );
+  assert.deepEqual(
+    search._meta['openai/widgetCSP'].connect_domains,
+    search._meta.ui.csp.connectDomains.filter(
+      (domain) => domain !== 'https://dexter.cash',
+    ),
+  );
+  assert.equal(search._meta['openai/toolInvocation/invoking'], 'Searching marketplace…');
+  assert.equal(search._meta['openai/toolInvocation/invoked'], 'Results ready');
+  assert.deepEqual(search._meta.securitySchemes, search.securitySchemes);
 });
 
 test('descriptor check is byte-exact and refuses schema or OAuth drift', async (t) => {
@@ -375,6 +418,22 @@ test('descriptor check is byte-exact and refuses schema or OAuth drift', async (
   const schemaDrift = JSON.parse(expected);
   schemaDrift.tools[0].inputSchema = { type: 'string' };
   writeFileSync(descriptorPath, `${JSON.stringify(schemaDrift, null, 2)}\n`);
+  await assert.rejects(
+    verifyOpenToolDescriptor({ descriptorPath, descriptor }),
+    /differs from the finalized hosted tools/,
+  );
+
+  const missingMeta = JSON.parse(expected);
+  delete missingMeta.tools[0]._meta['openai/outputTemplate'];
+  writeFileSync(descriptorPath, `${JSON.stringify(missingMeta, null, 2)}\n`);
+  await assert.rejects(
+    verifyOpenToolDescriptor({ descriptorPath, descriptor }),
+    /differs from the finalized hosted tools/,
+  );
+
+  const inventedMeta = JSON.parse(expected);
+  inventedMeta.tools[0]._meta['openai/inventedReleaseClaim'] = true;
+  writeFileSync(descriptorPath, `${JSON.stringify(inventedMeta, null, 2)}\n`);
   await assert.rejects(
     verifyOpenToolDescriptor({ descriptorPath, descriptor }),
     /differs from the finalized hosted tools/,
@@ -431,18 +490,7 @@ test('descriptor fields equal an actual finalized SDK tools/list projection', as
     (message) => Array.isArray(message?.result?.tools),
   )?.result?.tools;
   assert.ok(wireTools);
-  const listed = wireTools.map((tool) => ({
-    name: tool.name,
-    title: tool.title,
-    description: tool.description,
-    inputSchema: tool.inputSchema,
-    outputSchema: tool.outputSchema,
-    annotations: tool.annotations,
-    securitySchemes: tool.securitySchemes,
-    visibility: tool._meta?.ui?.visibility,
-    widgetAccessible: tool._meta?.['openai/widgetAccessible'],
-  }));
-  assert.deepEqual(descriptor.tools, listed);
+  assert.deepEqual(descriptor.tools, wireTools);
 });
 
 test('descriptor materialization refuses unfinalized, missing, or disabled tools', async () => {

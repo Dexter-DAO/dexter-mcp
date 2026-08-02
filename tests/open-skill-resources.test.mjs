@@ -94,6 +94,10 @@ test('served guidance requires native OAuth and bounded nonretryable spending', 
   assert.match(WORKFLOW, /mandate_enrollment_required/);
   assert.match(WORKFLOW, /mandate_extension_required/);
   assert.match(WORKFLOW, /delegated_authority_unavailable/);
+  assert.match(WORKFLOW, /protected_agent_send_sdk_required/);
+  assert.match(WORKFLOW, /before capacity\s+reservation or intent creation/);
+  assert.match(WORKFLOW, /do not call Execute or Reconcile/);
+  assert.match(WORKFLOW, /do not claim Send is live/);
   assert.match(WORKFLOW, /There is no public authorize tool/);
   assert.match(WORKFLOW, /Do not call Execute\s+again automatically/);
   assert.match(DEBUGGING, /call `x402_status`[\s\S]*same `intentId`/);
@@ -110,6 +114,9 @@ test('generated runtime instructions contain only native OAuth wallet guidance',
   assert.match(runtime, /dexter_execute_asset_action accepts only operationId and the exact prepared intentId/);
   assert.match(runtime, /non-null canonical assetId/);
   assert.match(runtime, /reusable bounded mandate covers the request/);
+  assert.match(runtime, /exact Prepare response is authoritative/);
+  assert.match(runtime, /protected_agent_send_sdk_required/);
+  assert.match(runtime, /do not call Execute or Reconcile/);
   assert.match(runtime, /There is no model-callable authorize tool/);
   assert.match(runtime, /paymentOptions/);
   assert.match(runtime, /call x402_fetch once with only intentId and maxAmountAtomic/);

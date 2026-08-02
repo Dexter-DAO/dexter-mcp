@@ -116,12 +116,20 @@ Status is a read of that intent's delivery, payment, reservation, and
 reconciliation state. It must not create another intent, redispatch the
 provider request, rebroadcast a transaction, change a route, or charge again.
 
-## Public governed Send, Buy, and Sell contract
+## Public governed Buy, Sell, and fail-closed Send contract
 
 These tools use the API's governed-agent facade. The authenticated MCP session
 selects the current wallet, reusable bounded mandate, agent authority, grant
 revision, and policy on the server. No public argument may select or override
 those identities.
+
+Tool/schema presence is not a claim that every action is executable. The exact
+Prepare response is the runtime capability certificate. In the current
+integrated release, autonomous governed Buy and Sell are the executable target;
+Send remains preserved in the public input and history contract but Prepare
+refuses it with `protected_agent_send_sdk_required` before capacity reservation
+or intent creation. That refusal has no executable intent: callers must not call
+Execute or Reconcile and must not advertise Send as live.
 
 The public asset selector is a canonical registry ID matching
 `^[a-z0-9][a-z0-9._:-]{0,127}$`. It must come from an approved holding returned

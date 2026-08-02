@@ -200,6 +200,8 @@ test('operation identity never substitutes for authority or owner approval', () 
     outsideScope: 'enrollment_extension_or_owner_escalation_required',
     assetAuthority: 'server_registry_exact_identity_only',
     ownerApproval: 'out_of_band_mandate_ceremony_only',
+    runtimeAvailability: 'prepare_response_is_authoritative',
+    unavailableAction: 'stop_without_execute_or_reconcile',
     backendAcceptanceRequired: true,
     automaticRetry: false,
     ambiguousExecution: 'status_then_reconcile_same_intent_only',
@@ -210,7 +212,11 @@ test('operation identity never substitutes for authority or owner approval', () 
   assert.match(prepare, /canonical assetId returned by dexter_portfolio/);
   assert.match(prepare, /reusable bounded mandate/);
   assert.match(prepare, /outside model-callable tools/);
+  assert.match(prepare, /only this Prepare response is authoritative/);
+  assert.match(prepare, /protected_agent_send_sdk_required/);
+  assert.match(prepare, /before capacity reservation or intent creation/);
   assert.match(execute, /grants no authority/);
   assert.match(execute, /covered by the bound reusable mandate may execute autonomously/);
+  assert.match(execute, /Never call Execute after protected_agent_send_sdk_required/);
   assert.match(execute, /Never retry automatically/);
 });

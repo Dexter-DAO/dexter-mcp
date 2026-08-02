@@ -70,14 +70,17 @@ npm run build:mcp-release -- --output-root /absolute/protected/release-root
 The builder refuses a dirty checkout, hidden index flags, replacement refs, a
 noncanonical or unreachable origin, a commit the canonical origin does not
 advertise, an existing destination, or an unreviewed Node/npm/lock identity.
-`deploy:mcp` accepts only a sealed immutable release containing deterministic
-v3 provenance, the exact descriptor, and a complete file manifest that also
-authenticates the provenance bytes. It deletes both named PM2
-processes, starts both from that one candidate, and verifies their PM2 and
-kernel paths, health, exact rosters, and release identities before `pm2 save`.
-Any mismatch restores and re-verifies the previously saved pair. It never
-reloads or updates an existing process in place. This is still activation, not
-authorization to deploy or a substitute for OAuth and real-user product proof.
+`deploy:mcp` accepts only a sealed immutable OpenDexter release containing
+deterministic provenance, the exact descriptor, and a complete file manifest
+that also authenticates the provenance bytes. It replaces only
+`dexter-open-mcp`, while proving the separate legacy `dexter-mcp` PID, path,
+configuration, and restart counters remain unchanged. It verifies the new
+public process's PM2 and kernel paths, health, exact 5/12 roster, and release
+identity before `pm2 save`. Any mismatch independently restores and re-verifies
+the prior public OpenDexter process without restarting the private service. It
+never reloads or updates an existing process in place. This is still activation,
+not authorization to deploy or a substitute for OAuth and real-user product
+proof.
 
 ---
 
@@ -127,8 +130,9 @@ not retry the purchase; it checks status and reconciliation on that intent.
 Internal settlement-rail choice remains API-owned and is not a public tool or
 mode menu.
 
-Governed Send, Buy, and Sell use one API-owned intent through five public
-tools. `dexter_prepare_asset_action` accepts one stable `operationId` plus the
+Governed Buy and Sell, plus the preserved fail-closed Send contract, use one
+API-owned intent through five public tools. `dexter_prepare_asset_action`
+accepts one stable `operationId` plus the
 exact action fields and persists/evaluates the request without signing or
 submitting it. `assetId` is the canonical ID returned by `dexter_portfolio`,
 not a symbol or mint. The API resolves it through its approved registry and
@@ -145,10 +149,15 @@ wallet, agent, or grant selector. `dexter_asset_action_status` reads durable
 receipt and finality evidence, `dexter_reconcile_asset_action` asks for the
 same-intent reconciliation result without automatic retry, and
 `dexter_wallet_history` reads cursor-paginated canonical status records.
-A covered request may execute autonomously under the reusable bounded mandate.
-No mandate, insufficient scope, or an unavailable signer fails closed for
-enrollment, extension, or owner escalation. Those ceremonies remain
-separately authenticated and are not model-callable OpenDexter tools.
+Tool/schema presence is not runtime capability: the exact Prepare response is
+authoritative. A covered Buy or Sell may execute autonomously under the
+reusable bounded mandate. In the current integrated release, Send is preserved
+in the public contract but Prepare refuses it with
+`protected_agent_send_sdk_required` before capacity reservation or intent
+creation. Do not call Execute or Reconcile for that refusal. No mandate,
+insufficient scope, or an unavailable signer otherwise fails closed for
+enrollment, extension, or owner escalation. Those ceremonies remain separately
+authenticated and are not model-callable OpenDexter tools.
 
 The MCP-to-API governed-action bridge uses
 `GOVERNED_AGENT_ACTIONS_HMAC_SECRET` (32 bytes or longer), configured to the
@@ -164,7 +173,9 @@ timestamp, method, exact route, and exact serialized body. Missing or weak
 configuration fails closed before the request leaves MCP; the secret is never
 part of a tool argument or result.
 
-Production runs both hosted processes from `ecosystem.production.cjs`. Set
+This release's production activation runs only `dexter-open-mcp` from
+`ecosystem.production.cjs` and leaves the distinct legacy `dexter-mcp` process
+untouched. Set
 `DEXTER_MCP_ENV_FILE` to one absolute, service-owned mode-0600 regular file
 before asking PM2 to load that config. The launcher rejects symlinks, hard
 links, foreign ownership, permissive modes, and inherited Node loader controls;

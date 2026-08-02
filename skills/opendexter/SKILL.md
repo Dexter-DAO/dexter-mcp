@@ -122,31 +122,37 @@ borrow, or pay execution.
 2. Call `dexter_prepare_asset_action` with one stable `operationId` and the
    exact action fields. For Buy, `amountAtomic` is the USDC budget in atomic
    units (6 decimals). For Sell and Send, it is the selected asset amount using
-   the server-certified decimals. Send has no memo.
+   the server-certified decimals. Send has no memo. Tool presence and input
+   acceptance are not runtime capability; only the exact Prepare result is.
 3. Read the returned `intentId`, policy result, approval state, expiry, and
    preview. Prepare never signs or submits. `operationId` is only the
    Idempotency-Key for an exact replay and grants no authority. A prepared
    result with `approval.status=not-required` is covered by the reusable
    mandate and may execute autonomously.
-4. If Prepare reports `owner-approval-required`,
+4. In the current integrated release, Send is preserved in this contract but
+   Prepare refuses it with `protected_agent_send_sdk_required` before capacity
+   reservation or intent creation. Stop there: do not call Execute or Reconcile
+   and do not claim Send is live. Buy and Sell continue under the ordinary
+   mandate rules below.
+5. If Prepare reports `owner-approval-required`,
    `mandate_enrollment_required`, `mandate_extension_required`, or
    `delegated_authority_unavailable`, do not call Execute. Explain the exact
    enrollment, extension, escalation, or authority problem. The owner uses the
    separate wallet ceremony when required. There is no public authorize tool;
    never invent one or put authority data into Execute.
-5. Call `dexter_execute_asset_action` only with a new stable `operationId` and
+6. Call `dexter_execute_asset_action` only with a new stable `operationId` and
    the exact prepared `intentId`. Never pass action, attempt, plan, plan hash,
    authorization, wallet, agent, or grant fields.
-6. After any timeout, uncertainty, pending state, or missing finality, call
+7. After any timeout, uncertainty, pending state, or missing finality, call
    `dexter_asset_action_status` with that same `intentId`. Do not call Execute
    again automatically.
-7. When status says reconciliation is required, call
+8. When status says reconciliation is required, call
    `dexter_reconcile_asset_action` once for the same intent. It cannot expand
    mandate scope or create a replacement intent. Read its exact outcome and
    embedded `statusAfter`: `advanced` and `already-final` are durable progress,
    `pending` still requires later status inspection, and `unavailable` requires
    owner/operator resolution. Do not automatically retry it.
-8. Use `dexter_wallet_history` with only the server-issued opaque cursor to
+9. Use `dexter_wallet_history` with only the server-issued opaque cursor to
    list prior governed actions. Never construct a wallet or authority filter.
 
 ## Safety

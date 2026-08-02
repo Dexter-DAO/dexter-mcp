@@ -37,6 +37,9 @@ test('well-known manifest is generated from the five-to-twelve OAuth contract', 
   assert.deepEqual(manifest.rosters.connected, OPEN_TOOL_NAMES);
   assert.deepEqual(manifest.tools.map((tool) => tool.name), OPEN_TOOL_NAMES);
   assert.equal(manifest.tools.length, 12);
+  assert.match(manifest.description, /autonomous governed Buy and Sell/);
+  assert.match(manifest.description, /preserved Send input fails closed at Prepare/);
+  assert.match(manifest.description, /exact Prepare response is authoritative/);
   assert.equal(
     manifest.tools.some((tool) => tool.name === 'dexter_authorize_asset_action'),
     false,
@@ -132,6 +135,9 @@ test('hosted source documentation states the current opaque-intent product contr
     assert.ok(readme.includes(`\`${name}\``), name);
   }
   assert.match(readme, /exact twelve-tool\s+connected roster/i);
+  assert.match(readme, /replaces only\s+`dexter-open-mcp`/i);
+  assert.match(readme, /legacy `dexter-mcp` PID, path,\s+configuration, and restart counters remain unchanged/i);
+  assert.doesNotMatch(readme, /deletes both named PM2\s+processes/i);
   assert.doesNotMatch(
     readme,
     /\b(?:x402_pay|x402_compose_skill|promote_skill|dexter_passkey(?:_probe)?)\b/,
@@ -141,5 +147,8 @@ test('hosted source documentation states the current opaque-intent product contr
     assert.match(source, /scope=vault/);
     assert.match(source, /intentId/);
     assert.doesNotMatch(source, /caller-carried PreparedPurchase/i);
+    assert.match(source, /protected_agent_send_sdk_required/);
+    assert.match(source, /before capacity reservation\s+or intent\s+creation/);
+    assert.match(source, /must not call\s+Execute or Reconcile|do not call\s+Execute or Reconcile/i);
   }
 });
