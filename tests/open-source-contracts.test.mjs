@@ -481,7 +481,11 @@ test('private ref lookup keeps its token only in the outer askpass environment',
       assert.equal(args.includes('credential.helper='), true);
       assert.equal(args.includes('--git-dir=/dev/null'), true);
       assert.equal(args.includes('--refs'), true);
-      assert.equal(args.at(-1), API_ORIGIN);
+      assert.deepEqual(args.slice(-3), [
+        API_ORIGIN,
+        'refs/heads/*',
+        'refs/tags/*',
+      ]);
       assert.equal(JSON.stringify(args).includes(token), false);
       assert.equal(options.cwd.includes(token), false);
       assert.equal(options.env.GIT_CONFIG_GLOBAL, '/dev/null');

@@ -927,7 +927,7 @@ export async function reviewedSourceContractRemoteRefs({
       '--git-dir=/dev/null',
       '-c', 'credential.helper=',
       '-c', 'core.attributesFile=/dev/null',
-      'ls-remote', '--refs', remote,
+      'ls-remote', '--refs', remote, 'refs/heads/*', 'refs/tags/*',
     ], {
       cwd: workspace,
       encoding: 'utf8',
