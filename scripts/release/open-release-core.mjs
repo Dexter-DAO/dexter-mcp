@@ -101,6 +101,7 @@ const ECOSYSTEM_REMOVED_ENV_KEYS = Object.freeze([
   'DEXTER_MCP_EXPECTED_ROSTER_JSON',
   'TOKEN_AI_MCP_PROFILE',
   'TOKEN_AI_MCP_TOOLSETS',
+  'version',
 ]);
 
 function parseJson(text, label) {
@@ -194,6 +195,7 @@ function expectedCandidateDeclaredEnvironment({
     PATH: expectedRuntimePath(),
     HOME: '/home/branchmanager',
     NODE_ENV: 'production',
+    version: release.provenance.packageVersion,
     DEXTER_MCP_ENV_FILE: envFile,
     DEXTER_MCP_ENV_FILE_SHA256: envFileSha256,
     DEXTER_MCP_RELEASE_COMMIT: releaseIdentity.commit,
@@ -220,6 +222,12 @@ function rawProcessField(row, key) {
 
 function exactPm2EnvironmentNamespaceIdentity(name, row) {
   const environment = processEnvironment(row);
+  const metadata = processMetadata(row);
+  const declaredEnvironment = metadata?.env
+    && typeof metadata.env === 'object'
+    ? metadata.env
+    : {};
+  const versionIsDeclared = Object.hasOwn(declaredEnvironment, 'version');
   const pm2Home = nullableString(environment.PM2_HOME);
   const packageVersion = nullableString(processField(row, 'version'));
   const runtimePmId = row?.pm_id ?? processField(row, 'pm_id');
@@ -267,7 +275,7 @@ function exactPm2EnvironmentNamespaceIdentity(name, row) {
         `${name}-out-${pmId}.log`,
       ),
       pmx: true,
-      version: packageVersion,
+      ...(versionIsDeclared ? {} : { version: packageVersion }),
       vizion_running: false,
     },
   });

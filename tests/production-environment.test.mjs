@@ -278,6 +278,7 @@ function probe(configPath) {
     envFile: app.env.DEXTER_MCP_ENV_FILE,
     envFileSha256: app.env.DEXTER_MCP_ENV_FILE_SHA256,
     bindNode: app.interpreter,
+    runtimePackageVersion: app.env.version,
     waitReady: app.wait_ready,
     execMode: app.exec_mode,
     instances: app.instances,
@@ -315,6 +316,7 @@ test("production launcher binds only public OpenDexter to protected environment"
       "INTERNAL_DEXTERCARD_HMAC_SECRET=test-governed-secret-with-at-least-thirty-two-bytes",
       "GOVERNED_AGENT_ACTIONS_HMAC_SECRET=test-dedicated-governed-secret-at-least-thirty-two-bytes",
       "NATIVE_EXACT_MCP_SERVICE_HMAC_SECRET=test-secret-with-at-least-thirty-two-bytes",
+      "version=9.9.9",
       `DEXTER_MCP_ENV_FILE_SHA256=${"f".repeat(64)}`,
     ].join("\n"));
     writeFileSync(envFile, envFileBytes, { mode: 0o600 });
@@ -348,6 +350,7 @@ test("production launcher binds only public OpenDexter to protected environment"
       assert.equal(app.envFileSha256, sha256(envFileBytes));
       assert.notEqual(app.envFileSha256, "f".repeat(64));
       assert.equal(app.bindNode, OPEN_RELEASE_APPLICATION_NODE_EXECUTABLE);
+      assert.equal(app.runtimePackageVersion, "0.5.0");
       assert.equal(path.dirname(app.script), candidate.releaseDir);
       assert.equal(app.waitReady, true);
       assert.equal(app.execMode, "fork");

@@ -178,13 +178,24 @@ test('real disposable PM2 loads the sealed non-config filename through an exact 
   const publicScript = resolve(fixture, 'public.mjs');
   const ecosystem = resolve(fixture, 'ecosystem.production.cjs');
   await mkdir(pm2Home, { mode: 0o700 });
-  await writeFile(publicScript, 'setInterval(() => {}, 1000);\n');
+  await writeFile(publicScript, [
+    "if (process.env.version !== '0.5.0') throw new Error('version_missing');",
+    "if (process.send) process.send('ready');",
+    'setInterval(() => {}, 1000);',
+    '',
+  ].join('\n'));
+  await writeFile(
+    resolve(fixture, 'package.json'),
+    `${JSON.stringify({ name: 'pm2-version-fixture', version: '0.5.0' })}\n`,
+  );
   await writeFile(ecosystem, [
     'module.exports = {',
     '  apps: [{',
     "    name: 'dexter-open-mcp',",
     `    script: ${JSON.stringify(publicScript)},`,
     `    cwd: ${JSON.stringify(fixture)},`,
+    "    wait_ready: true,",
+    "    env: { version: '0.5.0' },",
     '  }],',
     '};',
     '',
@@ -221,5 +232,7 @@ test('real disposable PM2 loads the sealed non-config filename through an exact 
   });
   assert.equal(rows[0].name, 'dexter-open-mcp');
   assert.equal(rows[0].pm2_env.pm_exec_path, publicScript);
+  assert.equal(rows[0].pm2_env.version, '0.5.0');
+  assert.equal(rows[0].pm2_env.env.version, '0.5.0');
   assert.equal(rows.some((row) => row.name === 'ecosystem.production'), false);
 });

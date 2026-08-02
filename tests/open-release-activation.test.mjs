@@ -155,6 +155,7 @@ function pm2Row(name, cwd, pid, roster, port, {
     ].join(':'),
     HOME: '/home/branchmanager',
     PM2_HOME: pm2Home,
+    version: release.packageVersion,
     DEXTER_MCP_ENV_FILE: envFile,
     DEXTER_MCP_ENV_FILE_SHA256: envFileSha256,
     NODE_ENV: 'production',

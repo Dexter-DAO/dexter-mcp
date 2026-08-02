@@ -151,6 +151,7 @@ for (const key of [
   "DEXTER_MCP_EXPECTED_ROSTER_JSON",
   "TOKEN_AI_MCP_PROFILE",
   "TOKEN_AI_MCP_TOOLSETS",
+  "version",
 ]) {
   delete applicationEnvironment[key];
 }
@@ -184,6 +185,7 @@ const common = {
     PATH: runtimePath,
     HOME: "/home/branchmanager",
     NODE_ENV: "production",
+    version: release.provenance.packageVersion,
     DEXTER_MCP_ENV_FILE: envFile,
     DEXTER_MCP_ENV_FILE_SHA256: envFileSha256,
   },
