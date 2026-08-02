@@ -21,11 +21,7 @@ export async function startProductionService(env = process.env) {
   // import graph. Only authenticated release bytes can reach this import.
   const applicationPath = resolve(releaseDir, APPLICATION_ENTRYPOINTS[service]);
   const application = await import(pathToFileURL(applicationPath).href);
-  if (service === 'dexter-mcp') {
-    await application.startHttpServer();
-  } else {
-    await application.startOpenMcpServer();
-  }
+  await application.startOpenMcpServer();
 }
 
 const isMainModule = process.argv[1]

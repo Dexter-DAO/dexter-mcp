@@ -84,10 +84,6 @@ function createReleaseCandidate(parent) {
     path.join(releaseDir, "production-bootstrap.mjs"),
   );
   writeFileSync(
-    path.join(releaseDir, "http-server-oauth.mjs"),
-    "export async function startHttpServer() {}\n",
-  );
-  writeFileSync(
     path.join(releaseDir, "open-mcp-server.mjs"),
     [
       "import { writeFileSync } from 'node:fs';",
@@ -105,7 +101,6 @@ function createReleaseCandidate(parent) {
   const pkg = Buffer.from(JSON.stringify({ name: "dexter-mcp", version: "0.5.0" }));
   const lock = Buffer.from("{}\n");
   const rosters = {
-    "dexter-mcp": ["private_fixture"],
     "dexter-open-mcp": ["x402_search", "dexter_prepare_asset_action"],
   };
   const descriptor = Buffer.from(`${JSON.stringify({
@@ -142,7 +137,6 @@ function createReleaseCandidate(parent) {
     "lib/open-release-runtime-preflight.mjs",
     "lib/transitive-fixture.mjs",
     "direct-entrypoint.mjs",
-    "http-server-oauth.mjs",
     "open-mcp-server.mjs",
     "package.json",
     "package-lock.json",
@@ -162,7 +156,6 @@ function createReleaseCandidate(parent) {
       npmVersion: "10.9.3",
       sourceCommittedAt: "2026-08-01T00:00:00.000Z",
       entrypoints: {
-        "dexter-mcp": "production-bootstrap.mjs",
         "dexter-open-mcp": "production-bootstrap.mjs",
       },
       rosters,
@@ -286,6 +279,8 @@ function probe(configPath) {
     releaseTree: app.env.DEXTER_MCP_RELEASE_TREE,
     releaseService: app.env.DEXTER_MCP_RELEASE_SERVICE,
     expectedRoster: JSON.parse(app.env.DEXTER_MCP_EXPECTED_ROSTER_JSON),
+    privateProfile: app.env.TOKEN_AI_MCP_PROFILE,
+    privateToolsets: app.env.TOKEN_AI_MCP_TOOLSETS,
   }))));
 `;
 }
@@ -297,7 +292,7 @@ function removeCandidate(directory, candidate) {
   rmSync(directory, { recursive: true, force: true });
 }
 
-test("production launcher binds both services to one protected external environment", () => {
+test("production launcher binds only public OpenDexter to protected environment", () => {
   const directory = mkdtempSync(path.join(tmpdir(), "dexter-mcp-env-"));
   const candidate = createReleaseCandidate(directory);
   const envFile = path.join(directory, "production.env");
@@ -321,10 +316,7 @@ test("production launcher binds both services to one protected external environm
       },
       encoding: "utf8",
     }));
-    assert.deepEqual(apps.map((app) => app.name), [
-      "dexter-mcp",
-      "dexter-open-mcp",
-    ]);
+    assert.deepEqual(apps.map((app) => app.name), ["dexter-open-mcp"]);
     for (const app of apps) {
       assert.equal(app.cwd, candidate.releaseDir);
       assert.equal(app.nodeOptions, undefined);
@@ -400,7 +392,7 @@ test("production launcher rejects every loader-influencing environment key", () 
   }
 });
 
-test("production preflight freezes the source-owned default private roster selection", () => {
+test("public launcher strips legacy private roster selection without touching it", () => {
   for (const key of ["TOKEN_AI_MCP_PROFILE", "TOKEN_AI_MCP_TOOLSETS"]) {
     const directory = mkdtempSync(path.join(tmpdir(), "dexter-mcp-profile-"));
     const candidate = createReleaseCandidate(directory);
@@ -408,66 +400,39 @@ test("production preflight freezes the source-owned default private roster selec
     try {
       writeFileSync(envFile, [
         `GOVERNED_AGENT_ACTIONS_HMAC_SECRET=${"s".repeat(32)}`,
-        `${key}=`,
+        `${key}=legacy-private-selection`,
       ].join("\n"), { mode: 0o600 });
-      const emptySelection = spawnSync(
+      const [app] = JSON.parse(execFileSync(process.execPath, ["-e", probe(
+        path.join(candidate.releaseDir, "ecosystem.production.cjs"),
+      )], {
+        cwd: candidate.releaseDir,
+        env: {
+          PATH: process.env.PATH,
+          DEXTER_MCP_ENV_FILE: envFile,
+        },
+        encoding: "utf8",
+      }));
+      assert.equal(app.privateProfile, undefined);
+      assert.equal(app.privateToolsets, undefined);
+
+      const injected = spawnSync(
         process.execPath,
         [path.join(candidate.releaseDir, "direct-entrypoint.mjs")],
         {
           cwd: candidate.releaseDir,
           env: {
             ...releaseEnvironment(candidate, "dexter-open-mcp", envFile),
-            [key]: "",
+            [key]: "legacy-private-selection",
           },
           encoding: "utf8",
           timeout: 5_000,
         },
       );
-      assert.equal(emptySelection.status, 0, emptySelection.stderr);
-
-      for (const [encoded, value] of [
-        ["hostile-selection", "hostile-selection"],
-        ['" "', " "],
-      ]) {
-        writeFileSync(envFile, [
-          `GOVERNED_AGENT_ACTIONS_HMAC_SECRET=${"s".repeat(32)}`,
-          `${key}=${encoded}`,
-        ].join("\n"));
-        chmodSync(envFile, 0o600);
-        assert.throws(
-          () => execFileSync(process.execPath, ["-e", probe(
-            path.join(candidate.releaseDir, "ecosystem.production.cjs"),
-          )], {
-            cwd: candidate.releaseDir,
-            env: {
-              PATH: process.env.PATH,
-              DEXTER_MCP_ENV_FILE: envFile,
-            },
-            stdio: ["ignore", "pipe", "pipe"],
-          }),
-          /Command failed/,
-        );
-        const hostileSelection = spawnSync(
-          process.execPath,
-          [path.join(candidate.releaseDir, "direct-entrypoint.mjs")],
-          {
-            cwd: candidate.releaseDir,
-            env: {
-              ...releaseEnvironment(candidate, "dexter-open-mcp", envFile),
-              [key]: value,
-            },
-            encoding: "utf8",
-            timeout: 5_000,
-          },
-        );
-        assert.notEqual(hostileSelection.status, 0);
-        assert.match(
-          `${hostileSelection.stdout}${hostileSelection.stderr}`,
-          new RegExp(
-            `opendexter_protected_env_private_selection_mismatch:${key}`,
-          ),
-        );
-      }
+      assert.notEqual(injected.status, 0);
+      assert.match(
+        `${injected.stdout}${injected.stderr}`,
+        new RegExp(`opendexter_unprotected_application_env:${key}`),
+      );
     } finally {
       removeCandidate(directory, candidate);
     }
@@ -544,14 +509,13 @@ test("production launcher rejects missing or short governed secret", () => {
   }
 });
 
-test("production entrypoints fail closed on the dedicated secret with dotenv neutralized", () => {
+test("public OpenDexter entrypoint fails closed on the dedicated secret", () => {
   const directory = mkdtempSync(path.join(tmpdir(), "dexter-mcp-direct-"));
   try {
     // A fresh cwd contains no .env, so open-mcp's instrumentation import
     // cannot inherit the repository's developer configuration during this
-    // direct-entrypoint test. The private entrypoint also skips adjacent dotenv
-    // loading outright in production.
-    for (const script of ["open-mcp-server.mjs", "http-server-oauth.mjs"]) {
+    // direct-entrypoint test.
+    for (const script of ["open-mcp-server.mjs"]) {
       for (const governedSecret of [undefined, "short", "a".repeat(31)]) {
         const env = {
           PATH: process.env.PATH,
@@ -965,8 +929,8 @@ test("direct autorestart rejects unprotected application config and loader env",
   }
 });
 
-test("both production entrypoints invoke the shared full release preflight", () => {
-  for (const script of ["open-mcp-server.mjs", "http-server-oauth.mjs"]) {
+test("public production entrypoint invokes the shared full release preflight", () => {
+  for (const script of ["open-mcp-server.mjs"]) {
     const source = readFileSync(path.join(root, script), "utf8");
     assert.match(
       source,

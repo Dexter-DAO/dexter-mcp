@@ -24,13 +24,19 @@ import {
   DEFAULT_PM2_COMMAND_TIMEOUT_MS,
   runBoundedPm2Command,
   samePm2ProcessSnapshot,
+  snapshotPm2EnvironmentNamespaces,
   snapshotPm2ProcessDefinition,
   snapshotUnrelatedPm2Processes,
 } from '../../lib/open-release-pm2-safety.mjs';
+import {
+  reviewedRemoteGitSourceIdentity,
+} from '../../lib/open-release-tooling.mjs';
 
 const require = createRequire(import.meta.url);
 const {
+  LEGACY_OPEN_RELEASE_CONTRACT,
   SERVICE_NAMES,
+  readSealedLegacyOpenRelease,
   readSealedOpenRelease,
   releaseIdentityForService,
 } = require('../../lib/open-release-provenance.cjs');
@@ -41,6 +47,16 @@ const DEFAULT_HEALTH_TIMEOUT_MS = 3_000;
 const PRODUCTION_HOME = '/home/branchmanager';
 const PRODUCTION_PM2_HOME = `${PRODUCTION_HOME}/.pm2`;
 const GOVERNED_SECRET = 'GOVERNED_AGENT_ACTIONS_HMAC_SECRET';
+const PRESERVED_PRIVATE_SERVICE = 'dexter-mcp';
+const LEGACY_OPEN_RELEASE_DIR =
+  `/var/lib/dexter-mcp/releases/${LEGACY_OPEN_RELEASE_CONTRACT.sourceCommit}`;
+const LEGACY_OPEN_ENTRYPOINT =
+  `${LEGACY_OPEN_RELEASE_DIR}/${LEGACY_OPEN_RELEASE_CONTRACT.entrypoint}`;
+const LEGACY_OPEN_INTERPRETER =
+  '/home/branchmanager/.nvm/versions/node/v22.19.0/bin/node';
+const LEGACY_OPEN_ENV_FILE =
+  '/home/branchmanager/websites/dexter-mcp/.env';
+const LEGACY_HEALTH_CLOCK_SKEW_MS = 5_000;
 const FORBIDDEN_LOADER_ENV_KEYS = Object.freeze([
   'NODE_OPTIONS',
   'NODE_PATH',
@@ -64,6 +80,8 @@ const ECOSYSTEM_REMOVED_ENV_KEYS = Object.freeze([
   'DEXTER_MCP_ENV_FILE_SHA256',
   ...Object.values(RELEASE_ENV_KEYS),
   'DEXTER_MCP_EXPECTED_ROSTER_JSON',
+  'TOKEN_AI_MCP_PROFILE',
+  'TOKEN_AI_MCP_TOOLSETS',
 ]);
 
 function parseJson(text, label) {
@@ -176,6 +194,83 @@ function processField(row, key) {
   return processMetadata(row)?.[key] ?? row?.[key];
 }
 
+function exactPm2EnvironmentNamespaceIdentity(name, row) {
+  const environment = processEnvironment(row);
+  const pm2Home = nullableString(environment.PM2_HOME);
+  const packageVersion = nullableString(processField(row, 'version'));
+  const runtimePmId = row?.pm_id ?? processField(row, 'pm_id');
+  const errorLogPrefix = pm2Home === null
+    ? null
+    : resolve(pm2Home, 'logs', `${name}-error-`);
+  const errorLog = nullableString(environment.pm_err_log_path);
+  const outputLog = nullableString(environment.pm_out_log_path);
+  const encodedPmId = errorLogPrefix !== null
+    && errorLog?.startsWith(errorLogPrefix)
+    && errorLog.endsWith('.log')
+    ? errorLog.slice(errorLogPrefix.length, -4)
+    : '';
+  const logPmId = /^\d+$/.test(encodedPmId) ? Number(encodedPmId) : null;
+  const pmId = Number.isInteger(runtimePmId) ? runtimePmId : logPmId;
+  if (
+    !Number.isInteger(pmId)
+    || pmId < 0
+    || pm2Home === null
+    || packageVersion === null
+    || (runtimePmId !== undefined && runtimePmId !== pmId)
+    || outputLog !== resolve(
+      pm2Home,
+      'logs',
+      `${name}-out-${pmId}.log`,
+    )
+  ) {
+    throw new Error(`PM2 ${name} environment namespace identity is incomplete`);
+  }
+  return snapshotPm2EnvironmentNamespaces(row, {
+    expectedDeclaredOnlyKeys: ['unique_id', name],
+    expectedEffectiveOnly: {
+      NODE_APP_INSTANCE: 0,
+      autostart: true,
+      km_link: false,
+      node_version: process.versions.node,
+      pm_err_log_path: resolve(
+        pm2Home,
+        'logs',
+        `${name}-error-${pmId}.log`,
+      ),
+      pm_out_log_path: resolve(
+        pm2Home,
+        'logs',
+        `${name}-out-${pmId}.log`,
+      ),
+      pmx: true,
+      version: packageVersion,
+      vizion_running: false,
+    },
+  });
+}
+
+function livePm2RuntimeIdentity(row, label, { expectedPmId } = {}) {
+  const pmId = row?.pm_id ?? processField(row, 'pm_id');
+  const pid = row?.pid;
+  const restartTime = processField(row, 'restart_time');
+  const unstableRestarts = processField(row, 'unstable_restarts');
+  if (
+    processField(row, 'status') !== PM2_STATUS_ONLINE
+    || !Number.isInteger(pmId)
+    || pmId < 0
+    || (expectedPmId !== undefined && pmId !== expectedPmId)
+    || !Number.isInteger(pid)
+    || pid <= 0
+    || !Number.isInteger(restartTime)
+    || restartTime < 0
+    || !Number.isInteger(unstableRestarts)
+    || unstableRestarts < 0
+  ) {
+    throw new Error(`${label} PM2 runtime identity is not exact`);
+  }
+  return Object.freeze({ pmId, pid, restartTime, unstableRestarts });
+}
+
 function nullableString(value) {
   return typeof value === 'string' && value.length > 0 ? value : null;
 }
@@ -208,9 +303,7 @@ function exactRosterFromEnvironment(env) {
 
 function expectedHealthPort(name, row) {
   const env = processEnvironment(row);
-  const value = name === 'dexter-mcp'
-    ? env.TOKEN_AI_MCP_PORT ?? 3930
-    : env.OPEN_MCP_PORT ?? 3931;
+  const value = env.OPEN_MCP_PORT ?? 3931;
   const port = Number(value);
   if (!Number.isInteger(port) || port < 1 || port > 65_535) {
     throw new Error(`invalid ${name} health port`);
@@ -219,6 +312,7 @@ function expectedHealthPort(name, row) {
 }
 
 export function stableProcessIdentity(name, row) {
+  exactPm2EnvironmentNamespaceIdentity(name, row);
   const env = processEnvironment(row);
   const release = Object.fromEntries(Object.entries(RELEASE_ENV_KEYS).map(
     ([field, key]) => [field, nullableString(env[key])],
@@ -277,6 +371,7 @@ export function stableProcessIdentity(name, row) {
 function savedProcessIdentity(name, row) {
   return {
     ...stableProcessIdentity(name, row),
+    pm2EnvironmentNamespaces: exactPm2EnvironmentNamespaceIdentity(name, row),
     pm2Definition: snapshotPm2ProcessDefinition(row),
   };
 }
@@ -301,11 +396,9 @@ function expectedCandidateIdentity(
     cwd: release.releaseDir,
     script: resolve(release.releaseDir, release.provenance.entrypoints[name]),
     interpreter: process.execPath,
-    port: Number(name === 'dexter-mcp'
-      ? applicationEnvironment.TOKEN_AI_MCP_PORT ?? 3930
-      : applicationEnvironment.OPEN_MCP_PORT ?? 3931),
-    profile: nullableString(applicationEnvironment.TOKEN_AI_MCP_PROFILE),
-    toolsets: nullableString(applicationEnvironment.TOKEN_AI_MCP_TOOLSETS),
+    port: Number(applicationEnvironment.OPEN_MCP_PORT ?? 3931),
+    profile: null,
+    toolsets: null,
     envFile,
     envFileSha256,
     pm2Home,
@@ -475,13 +568,18 @@ async function readKernelIdentity({
   const commandLine = (await readFileImpl(`/proc/${pid}/cmdline`, 'utf8'))
     .split('\0')
     .filter(Boolean);
+  const statText = await readFileImpl(`/proc/${pid}/stat`, 'utf8');
+  const statTail = statText.slice(statText.lastIndexOf(') ') + 2).trim()
+    .split(/\s+/);
+  const startTimeTicks = statTail[19];
   if (
     executable !== nodeExecutable
     || !commandLineMatches(commandLine, nodeExecutable, expectedScript)
+    || !/^[1-9][0-9]*$/.test(startTimeTicks ?? '')
   ) {
     throw new Error('kernel executable or command line mismatch');
   }
-  return { cwd, executable, commandLine };
+  return { cwd, executable, commandLine, startTimeTicks };
 }
 
 export async function readLoopbackHealth(
@@ -572,11 +670,6 @@ export async function preflightOpenReleaseCandidate({
     realpathImpl,
   });
   const applicationEnvironment = parseEnv(envFileBytes.toString('utf8'));
-  for (const key of ['TOKEN_AI_MCP_PROFILE', 'TOKEN_AI_MCP_TOOLSETS']) {
-    if (String(applicationEnvironment[key] ?? '') !== '') {
-      throw new Error(`${key} must be empty for the source-owned private roster`);
-    }
-  }
   if (Object.hasOwn(applicationEnvironment, 'PM2_HOME')) {
     throw new Error('PM2_HOME is forbidden in DEXTER_MCP_ENV_FILE');
   }
@@ -699,12 +792,6 @@ export async function verifyRunningOpenReleasePair({
     }
     health[name] = body;
   }
-  if (
-    stableProcessIdentity('dexter-mcp', byName['dexter-mcp']).cwd
-      !== stableProcessIdentity('dexter-open-mcp', byName['dexter-open-mcp']).cwd
-  ) {
-    throw new Error('Dexter MCP processes do not share one candidate directory');
-  }
   return { byName, health };
 }
 
@@ -716,7 +803,198 @@ function stablePriorHealth(body) {
     port: body?.port ?? null,
     tools: body?.tools ?? null,
     release: body?.release ?? null,
+    auth: body?.auth ?? null,
+    toolAuth: body?.toolAuth ?? null,
+    walletAndPaymentScope: body?.walletAndPaymentScope ?? null,
   };
+}
+
+function exactLegacyOpenHealth(body, {
+  requestStartedAt,
+  responseReceivedAt,
+} = {}) {
+  const keys = body && typeof body === 'object' && !Array.isArray(body)
+    ? Object.keys(body).sort()
+    : [];
+  const timestamp = new Date(body?.timestamp);
+  return (
+    sameJson(keys, [...LEGACY_OPEN_RELEASE_CONTRACT.healthKeys].sort())
+    && body.ok === true
+    && body.name === 'OpenDexter'
+    && sameJson(body.tools, LEGACY_OPEN_RELEASE_CONTRACT.roster)
+    && body.auth === 'optional'
+    && body.toolAuth === 'mixed'
+    && body.walletAndPaymentScope === 'vault'
+    && Number.isInteger(body.sessions)
+    && body.sessions >= 0
+    && Number.isInteger(body.boundSessions)
+    && body.boundSessions >= 0
+    && body.boundSessions <= body.sessions
+    && typeof body.rssMb === 'number'
+    && Number.isFinite(body.rssMb)
+    && body.rssMb >= 0
+    && typeof body.timestamp === 'string'
+    && !Number.isNaN(timestamp.valueOf())
+    && timestamp.toISOString() === body.timestamp
+    && Number.isFinite(requestStartedAt)
+    && Number.isFinite(responseReceivedAt)
+    && timestamp.valueOf() >= requestStartedAt - LEGACY_HEALTH_CLOCK_SKEW_MS
+    && timestamp.valueOf() <= responseReceivedAt + LEGACY_HEALTH_CLOCK_SKEW_MS
+  );
+}
+
+export async function verifyCapturedPriorOpenReleaseHealth({
+  prior,
+  rows,
+  fetchImpl = fetch,
+  healthTimeoutMs = DEFAULT_HEALTH_TIMEOUT_MS,
+}) {
+  const byName = exactServiceRows(rows);
+  for (const name of SERVICE_NAMES) {
+    const expected = prior?.[name];
+    const row = byName[name];
+    if (
+      !expected
+      || !sameJson(stableProcessIdentity(name, row), expected.process)
+      || !sameJson(savedProcessIdentity(name, row), expected.savedProcess)
+      || !sameJson(
+        livePm2RuntimeIdentity(row, `final prior ${name}`),
+        expected.runtime,
+      )
+    ) {
+      throw new Error(`final prior ${name} PM2 identity changed`);
+    }
+    const requestStartedAt = Date.now();
+    const body = await readLoopbackHealth(
+      name,
+      row,
+      fetchImpl,
+      healthTimeoutMs,
+    );
+    const responseReceivedAt = Date.now();
+    const matches = expected.legacy
+      ? exactLegacyOpenHealth(body, {
+        requestStartedAt,
+        responseReceivedAt,
+      })
+      : sameJson(stablePriorHealth(body), expected.health);
+    if (!matches) {
+      throw new Error(`final prior ${name} health identity changed`);
+    }
+  }
+  return true;
+}
+
+async function verifyLegacySourceAdvertisement(
+  sourceIdentity,
+  remoteSourceIdentityImpl,
+) {
+  const proof = await remoteSourceIdentityImpl({
+    remote: sourceIdentity.canonicalRemote,
+    ref: sourceIdentity.canonicalRef,
+    commit: sourceIdentity.commit,
+    tree: sourceIdentity.tree,
+    archiveSha256: sourceIdentity.archiveSha256,
+  });
+  const expected = {
+    remote: sourceIdentity.canonicalRemote,
+    ref: sourceIdentity.canonicalRef,
+    commit: sourceIdentity.commit,
+    tree: sourceIdentity.tree,
+    archiveSha256: sourceIdentity.archiveSha256,
+  };
+  if (!sameJson(proof, expected)) {
+    throw new Error('prior dexter-open-mcp canonical source proof mismatch');
+  }
+  return Object.freeze(expected);
+}
+
+function legacyProcessIdentityIsExact(name, identity, runtime, row) {
+  const policy = identity.processPolicy;
+  return name === 'dexter-open-mcp'
+    && runtime.pmId === 68
+    && runtime.restartTime === 0
+    && runtime.unstableRestarts === 0
+    && identity.release === null
+    && identity.roster === null
+    && identity.envFileSha256 === null
+    && identity.profile === null
+    && identity.toolsets === null
+    && identity.cwd === LEGACY_OPEN_RELEASE_DIR
+    && identity.script === LEGACY_OPEN_ENTRYPOINT
+    && identity.interpreter === LEGACY_OPEN_INTERPRETER
+    && identity.port === 3931
+    && identity.envFile === LEGACY_OPEN_ENV_FILE
+    && identity.pm2Home === PRODUCTION_PM2_HOME
+    && identity.nodeEnv === 'production'
+    && policy.name === 'dexter-open-mcp'
+    && policy.namespace === 'default'
+    && policy.configuredCwd === LEGACY_OPEN_RELEASE_DIR
+    && policy.execMode === 'fork_mode'
+    && policy.instances === 1
+    && policy.autorestart === true
+    && policy.waitReady === undefined
+    && policy.maxRestarts === 10
+    && Number.isNaN(policy.listenTimeout)
+    && Number.isNaN(policy.killTimeout)
+    && sameJson(policy.nodeArgs, [])
+    && sameJson(policy.scriptArgs, [])
+    && sameJson(policy.filterEnvironment, [''])
+    && policy.instanceVariable === 'NODE_APP_INSTANCE'
+    && policy.username === 'branchmanager'
+    && policy.packageVersion === LEGACY_OPEN_RELEASE_CONTRACT.packageVersion
+    && processField(row, 'instances') === undefined
+    && processField(row, 'wait_ready') === undefined
+    && processField(row, 'listen_timeout') === undefined
+    && processField(row, 'kill_timeout') === undefined
+    && processField(row, 'args') === undefined
+    && Object.values(identity.forbiddenLoaderEnvironment)
+      .every((value) => value === null);
+}
+
+const LEGACY_INJECTED_ENVIRONMENT_KEYS = new Set([
+  'DEXTER_MCP_ENV_FILE',
+  'HOME',
+  'NODE_ENV',
+  'PATH',
+  'PM2_HOME',
+  'unique_id',
+  'dexter-open-mcp',
+]);
+
+function verifyLegacyPersistedEnvironment(row, environmentBytes) {
+  const persisted = exactPersistedEnvironment(row);
+  const current = parseEnv(environmentBytes.toString('utf8'));
+  const persistedApplicationKeys = new Set();
+  for (const [key, value] of Object.entries(persisted)) {
+    if (LEGACY_INJECTED_ENVIRONMENT_KEYS.has(key)) continue;
+    persistedApplicationKeys.add(key);
+    if (!Object.hasOwn(current, key) || current[key] !== String(value)) {
+      throw new Error(
+        `prior dexter-open-mcp persisted environment does not match ${key}`,
+      );
+    }
+  }
+  const additions = Object.keys(current).filter(
+    (key) => !persistedApplicationKeys.has(key),
+  );
+  if (
+    persistedApplicationKeys.size !== 63
+    || !sameJson(additions, [GOVERNED_SECRET])
+    || Object.keys(current).length !== 64
+  ) {
+    throw new Error('prior dexter-open-mcp environment has an unapproved addition');
+  }
+  if (Object.hasOwn(current, GOVERNED_SECRET)) {
+    const secret = current[GOVERNED_SECRET];
+    if (
+      secret !== secret.trim()
+      || Buffer.byteLength(secret, 'utf8') < 32
+    ) {
+      throw new Error(`prior dexter-open-mcp ${GOVERNED_SECRET} is invalid`);
+    }
+  }
+  return current;
 }
 
 export async function capturePriorOpenReleasePair(
@@ -726,6 +1004,10 @@ export async function capturePriorOpenReleasePair(
     readlinkImpl = readlink,
     readFileImpl = readFile,
     realpathImpl = realpath,
+    lstatImpl = lstat,
+    environmentReadFileImpl = readFile,
+    readLegacyReleaseImpl = readSealedLegacyOpenRelease,
+    remoteSourceIdentityImpl = reviewedRemoteGitSourceIdentity,
     healthTimeoutMs = DEFAULT_HEALTH_TIMEOUT_MS,
   } = {},
 ) {
@@ -734,17 +1016,23 @@ export async function capturePriorOpenReleasePair(
   for (const name of SERVICE_NAMES) {
     const row = byName[name];
     const processIdentity = stableProcessIdentity(name, row);
-    const pid = row.pid;
+    const runtime = livePm2RuntimeIdentity(row, `prior ${name}`);
+    const isLegacy = legacyProcessIdentityIsExact(
+      name,
+      processIdentity,
+      runtime,
+      row,
+    );
+    const pid = runtime.pid;
     if (
-      processField(row, 'status') !== PM2_STATUS_ONLINE
-      || !Number.isInteger(pid)
-      || pid <= 0
-      || !isAbsolute(processIdentity.cwd ?? '')
+      !isAbsolute(processIdentity.cwd ?? '')
       || !isAbsolute(processIdentity.script ?? '')
       || !isAbsolute(processIdentity.interpreter ?? '')
-      || !Array.isArray(processIdentity.roster)
-      || processIdentity.roster.length === 0
-      || !exactPriorReleaseIdentity(name, processIdentity.release)
+      || (!isLegacy && (
+        !Array.isArray(processIdentity.roster)
+        || processIdentity.roster.length === 0
+        || !exactPriorReleaseIdentity(name, processIdentity.release)
+      ))
     ) {
       throw new Error(`prior ${name} identity is not safe to restore`);
     }
@@ -760,26 +1048,71 @@ export async function capturePriorOpenReleasePair(
     if (kernel.cwd !== await realpathImpl(processIdentity.cwd)) {
       throw new Error(`prior ${name} kernel cwd does not match PM2`);
     }
+    const healthRequestedAt = Date.now();
     const healthBody = await readLoopbackHealth(
       name,
       row,
       fetchImpl,
       healthTimeoutMs,
     );
-    if (
-      healthBody.ok !== true
-      || healthBody.service !== name
-      || healthBody.port !== processIdentity.port
-      || !sameJson(healthBody.tools, processIdentity.roster)
-      || !sameJson(healthBody.release, processIdentity.release)
-    ) {
+    const healthReceivedAt = Date.now();
+    const healthMatches = isLegacy
+      ? exactLegacyOpenHealth(healthBody, {
+        requestStartedAt: healthRequestedAt,
+        responseReceivedAt: healthReceivedAt,
+      })
+      : (
+        healthBody.ok === true
+        && healthBody.service === name
+        && healthBody.port === processIdentity.port
+        && sameJson(healthBody.tools, processIdentity.roster)
+        && sameJson(healthBody.release, processIdentity.release)
+      );
+    if (!healthMatches) {
       throw new Error(`prior ${name} health does not match PM2 identity`);
+    }
+    let legacy;
+    if (isLegacy) {
+      const release = await readLegacyReleaseImpl(processIdentity.cwd);
+      if (
+        release.kind !== 'legacy-open-v1'
+        || release.releaseDir !== await realpathImpl(processIdentity.cwd)
+        || release.entrypoint !== await realpathImpl(processIdentity.script)
+      ) {
+        throw new Error(`prior ${name} legacy release identity mismatch`);
+      }
+      const environment = await readStableProtectedEnvironment({
+        configuredPath: processIdentity.envFile,
+        lstatImpl,
+        readFileImpl: environmentReadFileImpl,
+        realpathImpl,
+      });
+      verifyLegacyPersistedEnvironment(row, environment.envFileBytes);
+      const sourceAdvertisement = await verifyLegacySourceAdvertisement(
+        release.sourceIdentity,
+        remoteSourceIdentityImpl,
+      );
+      legacy = Object.freeze({
+        release: Object.freeze({
+          sourceIdentity: release.sourceIdentity,
+          rollbackIdentity: release.rollbackIdentity,
+          entrypoint: release.entrypoint,
+        }),
+        environment: Object.freeze({
+          envFile: environment.envFile,
+          envFileSha256: environment.envFileSha256,
+          envFileIdentity: Object.freeze(environment.envFileIdentity),
+        }),
+        sourceAdvertisement,
+      });
     }
     processes[name] = {
       process: processIdentity,
       savedProcess: savedProcessIdentity(name, row),
+      runtime,
       kernel,
       health: stablePriorHealth(healthBody),
+      ...(legacy ? { legacy } : {}),
     };
   }
   return processes;
@@ -819,22 +1152,30 @@ function sameEnvironmentFileIdentity(before, after) {
 }
 
 /**
- * Prove that the exact pair about to be removed can be restarted without
- * reconstructing code or credentials. This is intentionally independent per
- * service: an existing deployment may run the private and open surfaces from
- * two different sealed release directories.
+ * Prove that the exact public OpenDexter process about to be removed can be
+ * restarted without reconstructing code or credentials. The private
+ * `dexter-mcp` process is outside this release and is never contacted.
  */
 export async function verifyPriorOpenReleaseRestartability({
   prior,
   rows,
   readSealedReleaseImpl = readSealedOpenRelease,
+  readLegacyReleaseImpl = readSealedLegacyOpenRelease,
   lstatImpl = lstat,
   readFileImpl = readFile,
+  readlinkImpl = readlink,
+  processReadFileImpl = readFile,
   realpathImpl = realpath,
+  runtimeMode = 'captured',
+  verifyRemoteSource = false,
+  remoteSourceIdentityImpl = reviewedRemoteGitSourceIdentity,
 }) {
+  if (!['captured', 'restored'].includes(runtimeMode)) {
+    throw new Error('prior restart proof runtime mode is invalid');
+  }
   const byName = exactServiceRows(rows);
   if (!sameJson(Object.keys(prior ?? {}).sort(), [...SERVICE_NAMES].sort())) {
-    throw new Error('prior restart proof requires the exact two-service topology');
+    throw new Error('prior restart proof requires the exact open-service topology');
   }
 
   for (const name of SERVICE_NAMES) {
@@ -846,23 +1187,81 @@ export async function verifyPriorOpenReleaseRestartability({
     if (!sameJson(savedProcessIdentity(name, row), snapshot?.savedProcess)) {
       throw new Error(`prior ${name} PM2 restart definition changed before proof`);
     }
+    const runtime = livePm2RuntimeIdentity(row, `prior ${name}`);
+    if (
+      (runtimeMode === 'captured' && !sameJson(runtime, snapshot?.runtime))
+      || (runtimeMode === 'restored' && (
+        runtime.pid === snapshot.runtime.pid
+        || runtime.restartTime !== snapshot.runtime.restartTime
+        || runtime.unstableRestarts !== snapshot.runtime.unstableRestarts
+      ))
+    ) {
+      throw new Error(`prior ${name} PM2 runtime changed before restart proof`);
+    }
+    const currentKernel = await readKernelIdentity({
+      pid: runtime.pid,
+      expectedScript: snapshot.process.script,
+      nodeExecutable: await realpathImpl(snapshot.process.interpreter),
+      readlinkImpl,
+      readFileImpl: processReadFileImpl,
+      realpathImpl,
+    });
+    const kernelMatches = runtimeMode === 'captured'
+      ? sameJson(currentKernel, snapshot.kernel)
+      : (
+        currentKernel.cwd === snapshot.kernel.cwd
+        && currentKernel.executable === snapshot.kernel.executable
+        && sameJson(currentKernel.commandLine, snapshot.kernel.commandLine)
+        && currentKernel.startTimeTicks !== snapshot.kernel.startTimeTicks
+      );
+    if (!kernelMatches) {
+      throw new Error(`prior ${name} kernel identity changed before restart proof`);
+    }
 
     const releaseDir = await realpathImpl(snapshot.process.cwd);
-    const release = await readSealedReleaseImpl(releaseDir);
-    if (release.releaseDir !== releaseDir) {
-      throw new Error(`prior ${name} release directory is not exact`);
+    let expectedScript;
+    if (snapshot.legacy) {
+      const release = await readLegacyReleaseImpl(releaseDir);
+      if (
+        release.releaseDir !== releaseDir
+        || !sameJson(release.sourceIdentity, snapshot.legacy.release.sourceIdentity)
+        || !sameJson(
+          release.rollbackIdentity,
+          snapshot.legacy.release.rollbackIdentity,
+        )
+        || release.entrypoint !== snapshot.legacy.release.entrypoint
+      ) {
+        throw new Error(`prior ${name} legacy release identity mismatch`);
+      }
+      if (verifyRemoteSource) {
+        const sourceAdvertisement = await verifyLegacySourceAdvertisement(
+          release.sourceIdentity,
+          remoteSourceIdentityImpl,
+        );
+        if (!sameJson(
+          sourceAdvertisement,
+          snapshot.legacy.sourceAdvertisement,
+        )) {
+          throw new Error(`prior ${name} canonical source proof changed`);
+        }
+      }
+      expectedScript = release.entrypoint;
+    } else {
+      const release = await readSealedReleaseImpl(releaseDir);
+      if (release.releaseDir !== releaseDir) {
+        throw new Error(`prior ${name} release directory is not exact`);
+      }
+      if (!sameJson(
+        releaseIdentityForService(release, name),
+        snapshot.process.release,
+      )) {
+        throw new Error(`prior ${name} sealed release identity mismatch`);
+      }
+      expectedScript = resolve(
+        releaseDir,
+        release.provenance.entrypoints[name],
+      );
     }
-    if (!sameJson(
-      releaseIdentityForService(release, name),
-      snapshot.process.release,
-    )) {
-      throw new Error(`prior ${name} sealed release identity mismatch`);
-    }
-
-    const expectedScript = resolve(
-      releaseDir,
-      release.provenance.entrypoints[name],
-    );
     if (
       snapshot.process.script !== expectedScript
       || await realpathImpl(snapshot.process.script)
@@ -883,7 +1282,9 @@ export async function verifyPriorOpenReleaseRestartability({
     }
 
     const envFile = snapshot.process.envFile;
-    const assertedDigest = snapshot.process.envFileSha256;
+    const assertedDigest = snapshot.legacy
+      ? snapshot.legacy.environment.envFileSha256
+      : snapshot.process.envFileSha256;
     if (
       !isAbsolute(envFile ?? '')
       || !/^[a-f0-9]{64}$/.test(assertedDigest ?? '')
@@ -911,16 +1312,30 @@ export async function verifyPriorOpenReleaseRestartability({
       throw new Error(`prior ${name} environment-file digest mismatch`);
     }
 
-    const persisted = exactPersistedEnvironment(row);
-    const applicationEnvironment = parseEnv(bytes.toString('utf8'));
-    for (const [key, value] of Object.entries(applicationEnvironment)) {
+    if (snapshot.legacy) {
+      const currentIdentity = protectedEnvironmentFileIdentity(after);
       if (
-        !Object.hasOwn(persisted, key)
-        || String(persisted[key]) !== value
+        envFile !== snapshot.legacy.environment.envFile
+        || !sameJson(
+          currentIdentity,
+          snapshot.legacy.environment.envFileIdentity,
+        )
       ) {
-        throw new Error(
-          `prior ${name} persisted environment does not match ${key}`,
-        );
+        throw new Error(`prior ${name} environment-file identity mismatch`);
+      }
+      verifyLegacyPersistedEnvironment(row, bytes);
+    } else {
+      const persisted = exactPersistedEnvironment(row);
+      const applicationEnvironment = parseEnv(bytes.toString('utf8'));
+      for (const [key, value] of Object.entries(applicationEnvironment)) {
+        if (
+          !Object.hasOwn(persisted, key)
+          || String(persisted[key]) !== value
+        ) {
+          throw new Error(
+            `prior ${name} persisted environment does not match ${key}`,
+          );
+        }
       }
     }
   }
@@ -941,10 +1356,11 @@ export async function verifyRestoredOpenReleasePair({
     const expected = prior[name];
     if (!expected) throw new Error(`rollback has no snapshot for ${name}`);
     const row = byName[name];
+    const runtime = livePm2RuntimeIdentity(row, `rollback ${name}`);
     if (
-      processField(row, 'status') !== PM2_STATUS_ONLINE
-      || !Number.isInteger(row.pid)
-      || row.pid <= 0
+      runtime.pid === expected.runtime.pid
+      || runtime.restartTime !== expected.runtime.restartTime
+      || runtime.unstableRestarts !== expected.runtime.unstableRestarts
       || !sameJson(stableProcessIdentity(name, row), expected.process)
       || !sameJson(savedProcessIdentity(name, row), expected.savedProcess)
     ) {
@@ -952,7 +1368,7 @@ export async function verifyRestoredOpenReleasePair({
     }
     const nodeExecutable = await realpathImpl(expected.process.interpreter);
     const kernel = await readKernelIdentity({
-      pid: row.pid,
+      pid: runtime.pid,
       expectedScript: expected.process.script,
       nodeExecutable,
       readlinkImpl,
@@ -963,16 +1379,25 @@ export async function verifyRestoredOpenReleasePair({
       kernel.cwd !== expected.kernel.cwd
       || kernel.executable !== expected.kernel.executable
       || !sameJson(kernel.commandLine, expected.kernel.commandLine)
+      || kernel.startTimeTicks === expected.kernel.startTimeTicks
     ) {
       throw new Error(`rollback kernel identity mismatch for ${name}`);
     }
-    const health = stablePriorHealth(await readLoopbackHealth(
+    const healthRequestedAt = Date.now();
+    const healthBody = await readLoopbackHealth(
       name,
       row,
       fetchImpl,
       healthTimeoutMs,
-    ));
-    if (!sameJson(health, expected.health)) {
+    );
+    const healthReceivedAt = Date.now();
+    if (
+      (expected.legacy && !exactLegacyOpenHealth(healthBody, {
+        requestStartedAt: healthRequestedAt,
+        responseReceivedAt: healthReceivedAt,
+      }))
+      || !sameJson(stablePriorHealth(healthBody), expected.health)
+    ) {
       throw new Error(`rollback health mismatch for ${name}`);
     }
   }
@@ -1001,9 +1426,85 @@ function unrelatedPm2Snapshot(rows) {
   return snapshotUnrelatedPm2Processes(rows, SERVICE_NAMES);
 }
 
-function assertUnrelatedPm2Processes(rows, expected, phase) {
+export async function preservedPrivateProcessSnapshot(
+  rows,
+  {
+    readlinkImpl = readlink,
+    readFileImpl = readFile,
+    realpathImpl = realpath,
+  } = {},
+) {
+  const selected = rows.filter((row) => row?.name === PRESERVED_PRIVATE_SERVICE);
+  if (selected.length > 1) {
+    throw new Error('PM2 contains duplicate preserved private Dexter processes');
+  }
+  if (selected.length === 0) return null;
+  const row = selected[0];
+  const runtime = livePm2RuntimeIdentity(
+    row,
+    'private Dexter',
+    { expectedPmId: 69 },
+  );
+  const { pid } = runtime;
+  const cwd = processField(row, 'pm_cwd') ?? null;
+  const script = processField(row, 'pm_exec_path') ?? null;
+  const interpreter = processField(row, 'exec_interpreter') ?? null;
+  if (
+    !isAbsolute(cwd ?? '')
+    || !isAbsolute(script ?? '')
+    || !isAbsolute(interpreter ?? '')
+  ) {
+    throw new Error('private Dexter process identity is not exact');
+  }
+  const nodeExecutable = await realpathImpl(interpreter);
+  const kernel = await readKernelIdentity({
+    pid,
+    expectedScript: script,
+    nodeExecutable,
+    readlinkImpl,
+    readFileImpl,
+    realpathImpl,
+  });
+  if (kernel.cwd !== await realpathImpl(cwd)) {
+    throw new Error('private Dexter kernel cwd does not match PM2');
+  }
+  return Object.freeze({
+    ...runtime,
+    status: PM2_STATUS_ONLINE,
+    cwd,
+    script,
+    interpreter: nodeExecutable,
+    kernel: Object.freeze(kernel),
+    definition: snapshotUnrelatedPm2Processes([row], [])[0],
+  });
+}
+
+function assertUnrelatedPm2Processes(
+  rows,
+  expected,
+  phase,
+) {
   if (!samePm2ProcessSnapshot(unrelatedPm2Snapshot(rows), expected)) {
     throw new Error(`${phase} changed an unrelated PM2 process definition`);
+  }
+}
+
+async function assertLiveUnrelatedPm2Processes(
+  rows,
+  expected,
+  phase,
+  expectedPrivateProcess,
+  privateProcessProofOptions,
+) {
+  assertUnrelatedPm2Processes(rows, expected, phase);
+  if (
+    expectedPrivateProcess !== undefined
+    && !samePm2ProcessSnapshot(
+      await preservedPrivateProcessSnapshot(rows, privateProcessProofOptions),
+      expectedPrivateProcess,
+    )
+  ) {
+    throw new Error(`${phase} changed the private Dexter process`);
   }
 }
 
@@ -1025,7 +1526,13 @@ async function waitFor(condition, {
   throw lastError ?? new Error('OpenDexter release activation timed out');
 }
 
-async function deleteServices(rows, runPm2, expectedUnrelated) {
+async function deleteServices(
+  rows,
+  runPm2,
+  expectedUnrelated,
+  expectedPrivateProcess,
+  privateProcessProofOptions,
+) {
   for (const name of SERVICE_NAMES) {
     if (!rows.some((row) => row?.name === name)) continue;
     await runPm2(['delete', name]);
@@ -1036,7 +1543,13 @@ async function deleteServices(rows, runPm2, expectedUnrelated) {
     .filter((pid) => Number.isInteger(pid) && pid > 0);
   await waitFor(async () => {
     const current = await pm2List(runPm2);
-    assertUnrelatedPm2Processes(current, expectedUnrelated, 'service deletion');
+    await assertLiveUnrelatedPm2Processes(
+      current,
+      expectedUnrelated,
+      'service deletion',
+      expectedPrivateProcess,
+      privateProcessProofOptions,
+    );
     const absent = current.every((row) => !SERVICE_NAMES.includes(row?.name));
     const exited = (await Promise.all(oldPids.map(processExists)))
       .every((exists) => !exists);
@@ -1044,16 +1557,55 @@ async function deleteServices(rows, runPm2, expectedUnrelated) {
   });
 }
 
-async function bestEffortDeleteServices(runPm2) {
-  const errors = [];
-  for (const name of SERVICE_NAMES) {
+async function deleteServicesForRollback(
+  runPm2,
+  expectedUnrelated,
+  expectedPrivateProcess,
+  privateProcessProofOptions,
+  timeoutMs,
+) {
+  await waitFor(async () => {
+    let current;
     try {
-      await runPm2(['delete', name]);
-    } catch (error) {
-      errors.push(error);
+      current = await pm2List(runPm2);
+      await assertLiveUnrelatedPm2Processes(
+        current,
+        expectedUnrelated,
+        'rollback deletion',
+        expectedPrivateProcess,
+        privateProcessProofOptions,
+      );
+      if (current.every((row) => !SERVICE_NAMES.includes(row?.name))) {
+        return true;
+      }
+    } catch {
+      // A transient jlist failure cannot skip the known target delete. The
+      // next bounded iteration must still obtain a fresh absence proof.
+      current = null;
     }
-  }
-  return errors;
+    const presentNames = current === null
+      ? SERVICE_NAMES
+      : SERVICE_NAMES.filter((name) => current.some((row) => row?.name === name));
+    for (const name of presentNames) {
+      try {
+        await runPm2(['delete', name]);
+      } catch {
+        // Retry only within the explicit rollback deadline.
+      }
+    }
+    const after = await pm2List(runPm2);
+    await assertLiveUnrelatedPm2Processes(
+      after,
+      expectedUnrelated,
+      'rollback deletion',
+      expectedPrivateProcess,
+      privateProcessProofOptions,
+    );
+    return after.every((row) => !SERVICE_NAMES.includes(row?.name));
+  }, {
+    timeoutMs,
+    intervalMs: Math.min(100, Math.max(1, Math.floor(timeoutMs / 4))),
+  });
 }
 
 function defaultPm2Home() {
@@ -1162,7 +1714,7 @@ export async function verifySavedPair({
     return true;
   }
   if (!sameJson(expectedNames, [...SERVICE_NAMES].sort())) {
-    throw new Error('saved PM2 proof requires the exact two-service topology');
+    throw new Error('saved PM2 proof requires the exact open-service topology');
   }
   const byName = exactServiceRows(dump);
   for (const name of SERVICE_NAMES) {
@@ -1181,8 +1733,8 @@ function assertPriorTopology(rows, freshInstall) {
   if (selected.length === 0) {
     if (!freshInstall) {
       throw new Error(
-        'Dexter MCP activation requires the exact prior two-service topology; '
-        + 'use explicit freshInstall only on a host with neither service',
+        'OpenDexter activation requires the exact prior public-service topology; '
+        + 'use explicit freshInstall only on a host without the public service',
       );
     }
     return false;
@@ -1205,8 +1757,10 @@ export async function activateOpenRelease({
   verifyPair = verifyRunningOpenReleasePair,
   capturePrior = capturePriorOpenReleasePair,
   verifyPriorRestartability = verifyPriorOpenReleaseRestartability,
+  verifyPriorHealth = verifyCapturedPriorOpenReleaseHealth,
   verifyRestored = verifyRestoredOpenReleasePair,
   verifySaved = verifySavedPair,
+  privateProcessProofOptions = {},
 } = {}) {
   const release = releaseCandidate
     ?? readSealedOpenRelease(releaseDirectory);
@@ -1238,6 +1792,20 @@ export async function activateOpenRelease({
   }
   const priorProcesses = expectedPriorProcesses(prior);
   const liveUnrelatedProcesses = unrelatedPm2Snapshot(before);
+  const preservedPrivateProcess = await preservedPrivateProcessSnapshot(
+    before,
+    privateProcessProofOptions,
+  );
+  if (
+    (!freshInstall && preservedPrivateProcess === null)
+    || (freshInstall && preservedPrivateProcess !== null)
+  ) {
+    throw new Error(
+      freshInstall
+        ? 'freshInstall requires the private Dexter process to be absent'
+        : 'OpenDexter cutover requires the exact preserved private Dexter process',
+    );
+  }
   const savedBefore = await readSavedPm2Dump(pm2Home, { allowMissing: true });
   const originalSavedUnrelatedRows = unrelatedRows(savedBefore.rows);
   const savedUnrelatedProcesses = unrelatedPm2Snapshot(savedBefore.rows);
@@ -1250,7 +1818,7 @@ export async function activateOpenRelease({
     );
   }
 
-  // Persist and prove the exact prior pair before any destructive PM2 change.
+  // Persist and prove the exact prior public service before any PM2 change.
   // A failed candidate is restored from these bytes, not reconstructed.
   let priorResurrectDump;
   let priorSavedDump;
@@ -1269,15 +1837,45 @@ export async function activateOpenRelease({
       phase: 'prior',
     });
     const liveAfterPriorSave = await pm2List(runPm2);
-    assertUnrelatedPm2Processes(
+    await assertLiveUnrelatedPm2Processes(
       liveAfterPriorSave,
       liveUnrelatedProcesses,
       'prior save',
+      preservedPrivateProcess,
+      privateProcessProofOptions,
     );
     if (hasPriorPair) {
-      await verifyPriorRestartability({ prior, rows: liveAfterPriorSave });
+      await verifyPriorRestartability({
+        prior,
+        rows: liveAfterPriorSave,
+        verifyRemoteSource: true,
+      });
     }
     await verifyProtectedEnvironmentStillExact(preflight);
+    const finalPreDeleteRows = await pm2List(runPm2);
+    await assertLiveUnrelatedPm2Processes(
+      finalPreDeleteRows,
+      liveUnrelatedProcesses,
+      'final pre-delete proof',
+      preservedPrivateProcess,
+      privateProcessProofOptions,
+    );
+    if (hasPriorPair) {
+      await verifyPriorRestartability({
+        prior,
+        rows: finalPreDeleteRows,
+      });
+    }
+    await verifyProtectedEnvironmentStillExact(preflight);
+    if (hasPriorPair) {
+      await verifyPriorHealth({
+        prior,
+        rows: finalPreDeleteRows,
+        fetchImpl,
+        healthTimeoutMs,
+      });
+    }
+    before.splice(0, before.length, ...finalPreDeleteRows);
   } catch (priorSaveError) {
     try {
       await restoreOriginalSavedPm2Dump(pm2Home, savedBefore.bytes);
@@ -1294,13 +1892,21 @@ export async function activateOpenRelease({
   }
 
   try {
-    await deleteServices(before, runPm2, liveUnrelatedProcesses);
+    await deleteServices(
+      before,
+      runPm2,
+      liveUnrelatedProcesses,
+      preservedPrivateProcess,
+      privateProcessProofOptions,
+    );
     await runPm2(['start', ecosystem]);
     const candidateRows = await pm2List(runPm2);
-    assertUnrelatedPm2Processes(
+    await assertLiveUnrelatedPm2Processes(
       candidateRows,
       liveUnrelatedProcesses,
       'candidate activation',
+      preservedPrivateProcess,
+      privateProcessProofOptions,
     );
     await verifyPair({
       release,
@@ -1330,10 +1936,12 @@ export async function activateOpenRelease({
       phase: 'candidate',
     });
     const finalRows = await pm2List(runPm2);
-    assertUnrelatedPm2Processes(
+    await assertLiveUnrelatedPm2Processes(
       finalRows,
       liveUnrelatedProcesses,
       'post-save candidate activation',
+      preservedPrivateProcess,
+      privateProcessProofOptions,
     );
     const verified = await verifyPair({
       release,
@@ -1355,9 +1963,16 @@ export async function activateOpenRelease({
     return { release, ...verified };
   } catch (activationError) {
     try {
-      // Do not make rollback conditional on jlist: an unavailable process list
-      // is exactly when the known target names still need deletion attempted.
-      await bestEffortDeleteServices(runPm2);
+      // Resurrect skips a saved app when a process with the same name remains.
+      // Therefore rollback first performs bounded delete retries and obtains a
+      // fresh PM2/private-runtime proof that the public name is absent.
+      await deleteServicesForRollback(
+        runPm2,
+        liveUnrelatedProcesses,
+        preservedPrivateProcess,
+        privateProcessProofOptions,
+        pm2CommandTimeoutMs,
+      );
       await restorePm2Dump(pm2Home, priorResurrectDump);
       if (hasPriorPair) {
         try {
@@ -1367,26 +1982,36 @@ export async function activateOpenRelease({
         }
         await waitFor(async () => {
           const rows = await pm2List(runPm2);
-          assertUnrelatedPm2Processes(
+          await assertLiveUnrelatedPm2Processes(
             rows,
             liveUnrelatedProcesses,
             'rollback',
+            preservedPrivateProcess,
+            privateProcessProofOptions,
           );
-          return verifyRestored({
+          await verifyPriorRestartability({
+            prior,
+            rows,
+            runtimeMode: 'restored',
+          });
+          await verifyRestored({
             prior,
             rows,
             fetchImpl,
             healthTimeoutMs,
           });
+          return true;
         });
       } else {
         await restorePm2Dump(pm2Home, priorSavedDump);
         await waitFor(async () => {
           const rows = await pm2List(runPm2);
-          assertUnrelatedPm2Processes(
+          await assertLiveUnrelatedPm2Processes(
             rows,
             liveUnrelatedProcesses,
             'fresh-install rollback',
+            preservedPrivateProcess,
+            privateProcessProofOptions,
           );
           return rows.every((row) => !SERVICE_NAMES.includes(row?.name));
         });
@@ -1411,12 +2036,19 @@ export async function activateOpenRelease({
         await restoreOriginalSavedPm2Dump(pm2Home, savedBefore.bytes);
       }
       const finalRollbackRows = await pm2List(runPm2);
-      assertUnrelatedPm2Processes(
+      await assertLiveUnrelatedPm2Processes(
         finalRollbackRows,
         liveUnrelatedProcesses,
         'post-save rollback',
+        preservedPrivateProcess,
+        privateProcessProofOptions,
       );
       if (hasPriorPair) {
+        await verifyPriorRestartability({
+          prior,
+          rows: finalRollbackRows,
+          runtimeMode: 'restored',
+        });
         await verifyRestored({
           prior,
           rows: finalRollbackRows,

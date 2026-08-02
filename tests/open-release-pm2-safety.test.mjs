@@ -6,7 +6,7 @@ import {
   snapshotUnrelatedPm2Processes,
 } from '../lib/open-release-pm2-safety.mjs';
 
-const DEXTER_SERVICES = ['dexter-mcp', 'dexter-open-mcp'];
+const RELEASE_SERVICES = ['dexter-open-mcp'];
 
 test('unrelated PM2 snapshot binds configuration while ignoring runtime counters', () => {
   const live = [{
@@ -49,24 +49,27 @@ test('unrelated PM2 snapshot binds configuration while ignoring runtime counters
       pm_exec_path: '/environment-value-not-process-path',
     },
     'other-service': true,
+  }, {
+    name: 'dexter-mcp',
+    pm_exec_path: '/old/private.mjs',
   }];
 
-  const liveSnapshot = snapshotUnrelatedPm2Processes(live, DEXTER_SERVICES);
-  const savedSnapshot = snapshotUnrelatedPm2Processes(saved, DEXTER_SERVICES);
+  const liveSnapshot = snapshotUnrelatedPm2Processes(live, RELEASE_SERVICES);
+  const savedSnapshot = snapshotUnrelatedPm2Processes(saved, RELEASE_SERVICES);
   assert.equal(samePm2ProcessSnapshot(liveSnapshot, savedSnapshot), true);
 
   const changed = structuredClone(saved);
   changed[0].OTHER_PORT = '4011';
   assert.equal(samePm2ProcessSnapshot(
     liveSnapshot,
-    snapshotUnrelatedPm2Processes(changed, DEXTER_SERVICES),
+    snapshotUnrelatedPm2Processes(changed, RELEASE_SERVICES),
   ), false);
 
   const changedDefinition = structuredClone(saved);
   changedDefinition[0].pm_exec_path = '/srv/other/attacker.mjs';
   assert.equal(samePm2ProcessSnapshot(
     liveSnapshot,
-    snapshotUnrelatedPm2Processes(changedDefinition, DEXTER_SERVICES),
+    snapshotUnrelatedPm2Processes(changedDefinition, RELEASE_SERVICES),
   ), false);
 
   const changedCollidingEnvironment = structuredClone(saved);
@@ -75,7 +78,7 @@ test('unrelated PM2 snapshot binds configuration while ignoring runtime counters
     liveSnapshot,
     snapshotUnrelatedPm2Processes(
       changedCollidingEnvironment,
-      DEXTER_SERVICES,
+      RELEASE_SERVICES,
     ),
   ), false);
 });
@@ -85,25 +88,25 @@ test('fallback PM2 rows ignore top-level runtime pid', () => {
     name: 'other',
     pid: 10,
     pm_exec_path: '/srv/other/server.mjs',
-  }], DEXTER_SERVICES);
+  }], RELEASE_SERVICES);
   const right = snapshotUnrelatedPm2Processes([{
     name: 'other',
     pid: 99,
     pm_exec_path: '/srv/other/server.mjs',
-  }], DEXTER_SERVICES);
+  }], RELEASE_SERVICES);
   assert.equal(samePm2ProcessSnapshot(left, right), true);
 });
 
 test('unrelated PM2 snapshot refuses duplicate or missing names', () => {
   assert.throws(
-    () => snapshotUnrelatedPm2Processes([{ name: '' }], DEXTER_SERVICES),
+    () => snapshotUnrelatedPm2Processes([{ name: '' }], RELEASE_SERVICES),
     /unique strings/,
   );
   assert.throws(
     () => snapshotUnrelatedPm2Processes([
       { name: 'other' },
       { name: 'other' },
-    ], DEXTER_SERVICES),
+    ], RELEASE_SERVICES),
     /unique strings/,
   );
 });

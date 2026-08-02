@@ -12,8 +12,25 @@
       "provenanceCommit": "fa094ce79f67b539bd74fc7ab6a52822398a085b"
     },
     "opendexter-ide": {
-      "remote": "https://github.com/Dexter-DAO/dexter-cursor.git",
-      "provenanceCommit": "49805e9cd7894e982d8e6227af1e98e0ccd1d05e"
+      "remote": "https://github.com/Dexter-DAO/opendexter-ide.git",
+      "provenanceCommit": "3c2ed36736f6f637dedd05c890e6e2d49d869794",
+      "rootWorkspaceBuild": {
+        "packageLockSha256": "c096945c6d6e74c36be532ed747746df254c2aa16e7b5eec2a909a8c2e959b60",
+        "buildOrder": [
+          {
+            "workspace": "@dexterai/dextercard",
+            "script": "build"
+          },
+          {
+            "workspace": "@dexterai/mcp-instructions",
+            "script": "build"
+          },
+          {
+            "workspace": "@dexterai/x402-mcp-tools",
+            "script": "build"
+          }
+        ]
+      }
     },
     "vault-sdk": {
       "remote": "https://github.com/Dexter-DAO/dexter-vault-sdk.git",
@@ -42,6 +59,16 @@
       "path": "packages/mcp-instructions",
       "entrypoint": "dist/index.js",
       "treeHash": "9c17a942c7393875cca685c06e7b8bcb80a011eb",
+      "packedArtifact": {
+        "buildMode": "root-workspace",
+        "buildScript": "build",
+        "integrity": "sha512-ABM/8sQ11JhsF+h6I9swhRHcAZXFng9nUjl5h12MTbmQmoC5uGTmTDWszDumUBgZaq8C1PpRQ4Xu7tzUVIGJNA==",
+        "shasum": "6cc035584d9e0fc4e060924543a5bc7ec412f1ce",
+        "size": 10951,
+        "unpackedSize": 44282,
+        "entryCount": 5,
+        "tgzSha256": "95a2ff1758345da22263e903fa3137a2e46d3f816523c8e286bf742ca25adeb8"
+      },
       "install": {
         "source": "linked-source",
         "release": "registry"
@@ -55,6 +82,16 @@
       "path": "packages/x402-mcp-tools",
       "entrypoint": "dist/index.js",
       "treeHash": "266beeb8deaab7f05bc06d929252d2e22c0ec6e8",
+      "packedArtifact": {
+        "buildMode": "root-workspace",
+        "buildScript": "build",
+        "integrity": "sha512-XrwUxdx68ykweSyMaihtyQUjKJj9FLor90MeLG27id5AdW25fZ9SxYfIN9ju+vcxTsAvRdeqaLvqLV3sxIkWkA==",
+        "shasum": "3ed48da3ba121644c3a48e472d5413cc41a8136b",
+        "size": 58407,
+        "unpackedSize": 232025,
+        "entryCount": 19,
+        "tgzSha256": "f2d35bb5827b123b9b3456c45b08891f15b47f35db04020b2e2bdd05925db2fc"
+      },
       "install": {
         "source": "linked-source",
         "release": "registry"

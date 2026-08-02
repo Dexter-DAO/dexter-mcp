@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import {
   access,
   mkdir,
@@ -51,8 +52,7 @@ function advertisedOriginRunner(
     calls.push({ command, args: [...args], options });
     if (
       command === 'git'
-      && args[0] === '--no-replace-objects'
-      && args[1] === 'ls-remote'
+      && args.includes('ls-remote')
     ) {
       if (unreachable) throw new Error('fixture origin unavailable');
       const commit = await git(repositoryRoot, 'rev-parse', 'HEAD');
@@ -151,6 +151,121 @@ async function packedSourceFixture({ lifecycleHook } = {}) {
     repository: {
       remote: 'https://example.test/dexter-vault-sdk.git',
       provenanceCommit,
+    },
+  };
+}
+
+async function rootWorkspacePackedSourceFixture() {
+  const repositoryRoot = await mkdtemp(
+    resolve(tmpdir(), 'opendexter-root-workspace-source-'),
+  );
+  const prerequisiteRoot = resolve(repositoryRoot, 'packages/prerequisite');
+  const packagePath = 'packages/target';
+  const packageRoot = resolve(repositoryRoot, packagePath);
+  await mkdir(prerequisiteRoot, { recursive: true });
+  await mkdir(packageRoot, { recursive: true });
+  await writeFile(resolve(repositoryRoot, '.gitignore'), 'packages/*/dist/\n');
+  await writeFile(resolve(repositoryRoot, 'package.json'), JSON.stringify({
+    private: true,
+    packageManager: 'npm@10.9.3',
+    workspaces: ['packages/*'],
+  }, null, 2));
+  await writeFile(resolve(prerequisiteRoot, 'package.json'), JSON.stringify({
+    name: '@dexterai/prerequisite',
+    version: '1.0.0',
+    type: 'module',
+    files: ['dist'],
+    scripts: { build: 'node build.mjs' },
+  }, null, 2));
+  await writeFile(resolve(prerequisiteRoot, 'build.mjs'), [
+    "import { mkdir, writeFile } from 'node:fs/promises';",
+    "await mkdir(new URL('./dist/', import.meta.url), { recursive: true });",
+    "await writeFile(new URL('./dist/index.js', import.meta.url), 'export const prerequisite = true;\\n');",
+    '',
+  ].join('\n'));
+  await writeFile(resolve(packageRoot, 'package.json'), JSON.stringify({
+    name: '@dexterai/root-workspace-target',
+    version: '1.0.0',
+    type: 'module',
+    files: ['dist'],
+    dependencies: { '@dexterai/prerequisite': '1.0.0' },
+    scripts: { build: 'node build.mjs' },
+  }, null, 2));
+  await writeFile(resolve(packageRoot, 'build.mjs'), [
+    "import { access, mkdir, writeFile } from 'node:fs/promises';",
+    "await access(new URL('../prerequisite/dist/index.js', import.meta.url));",
+    "await mkdir(new URL('./dist/', import.meta.url), { recursive: true });",
+    "await writeFile(new URL('./dist/index.js', import.meta.url), 'export const target = true;\\n');",
+    '',
+  ].join('\n'));
+  const packageLock = `${JSON.stringify({
+    name: 'root-workspace-fixture',
+    lockfileVersion: 3,
+    requires: true,
+    packages: {
+      '': {
+        name: 'root-workspace-fixture',
+        workspaces: ['packages/*'],
+      },
+      'node_modules/@dexterai/prerequisite': {
+        resolved: 'packages/prerequisite',
+        link: true,
+      },
+      'node_modules/@dexterai/root-workspace-target': {
+        resolved: 'packages/target',
+        link: true,
+      },
+      'packages/prerequisite': {
+        name: '@dexterai/prerequisite',
+        version: '1.0.0',
+      },
+      'packages/target': {
+        name: '@dexterai/root-workspace-target',
+        version: '1.0.0',
+        dependencies: { '@dexterai/prerequisite': '1.0.0' },
+      },
+    },
+  }, null, 2)}\n`;
+  await writeFile(resolve(repositoryRoot, 'package-lock.json'), packageLock);
+  await git(repositoryRoot, 'init');
+  await git(repositoryRoot, 'config', 'user.email', 'fixture@example.test');
+  await git(repositoryRoot, 'config', 'user.name', 'Fixture');
+  await git(repositoryRoot, 'remote', 'add', 'origin', 'https://example.test/root.git');
+  await git(repositoryRoot, 'add', '.');
+  await git(repositoryRoot, 'commit', '-m', 'fixture');
+  const provenanceCommit = await git(repositoryRoot, 'rev-parse', 'HEAD');
+  const treeHash = await git(
+    repositoryRoot,
+    'rev-parse',
+    `${provenanceCommit}:${packagePath}`,
+  );
+  return {
+    repositoryRoot,
+    packageRoot,
+    expected: {
+      name: '@dexterai/root-workspace-target',
+      version: '1.0.0',
+      source: 'fixture',
+      path: packagePath,
+      entrypoint: 'dist/index.js',
+      treeHash,
+      packedArtifact: {
+        buildMode: 'root-workspace',
+        buildScript: 'build',
+      },
+    },
+    repository: {
+      remote: 'https://example.test/root.git',
+      provenanceCommit,
+      rootWorkspaceBuild: {
+        packageLockSha256: createHash('sha256')
+          .update(packageLock)
+          .digest('hex'),
+        buildOrder: [
+          { workspace: '@dexterai/prerequisite', script: 'build' },
+          { workspace: '@dexterai/root-workspace-target', script: 'build' },
+        ],
+      },
     },
   };
 }
@@ -269,10 +384,36 @@ test('hosted source declares one exact internal dependency train', async () => {
       { source: 'registry', release: 'registry' },
     ],
   );
-  assert.equal(
-    manifest.repositories['opendexter-ide'].provenanceCommit,
-    '49805e9cd7894e982d8e6227af1e98e0ccd1d05e',
-  );
+  assert.deepEqual(manifest.repositories['opendexter-ide'], {
+    remote: 'https://github.com/Dexter-DAO/opendexter-ide.git',
+    provenanceCommit: '3c2ed36736f6f637dedd05c890e6e2d49d869794',
+    rootWorkspaceBuild: {
+      packageLockSha256:
+        'c096945c6d6e74c36be532ed747746df254c2aa16e7b5eec2a909a8c2e959b60',
+      buildOrder: [
+        { workspace: '@dexterai/dextercard', script: 'build' },
+        { workspace: '@dexterai/mcp-instructions', script: 'build' },
+        { workspace: '@dexterai/x402-mcp-tools', script: 'build' },
+      ],
+    },
+  });
+  for (const [name, tgzSha256] of [
+    [
+      '@dexterai/mcp-instructions',
+      '95a2ff1758345da22263e903fa3137a2e46d3f816523c8e286bf742ca25adeb8',
+    ],
+    [
+      '@dexterai/x402-mcp-tools',
+      'f2d35bb5827b123b9b3456c45b08891f15b47f35db04020b2e2bdd05925db2fc',
+    ],
+  ]) {
+    const artifact = manifest.sourcePackages.find(
+      (entry) => entry.name === name,
+    ).packedArtifact;
+    assert.equal(artifact.buildMode, 'root-workspace');
+    assert.equal(artifact.buildScript, 'build');
+    assert.equal(artifact.tgzSha256, tgzSha256);
+  }
   assert.deepEqual(manifest.repositories['vault-sdk'], {
     remote: 'https://github.com/Dexter-DAO/dexter-vault-sdk.git',
     provenanceCommit: 'dac9a9384f181341370c8fa776b1832279911a30',
@@ -653,6 +794,111 @@ test('source artifact is rebuilt from pinned archive, not ignored checkout outpu
       comparePackedArtifact(first, expected).join('\n'),
       /source pack integrity is .* expected/,
     );
+  } finally {
+    await rm(fixture.repositoryRoot, { recursive: true, force: true });
+  }
+});
+
+test('root workspace artifacts rebuild from the exact lock in frozen topological order', async () => {
+  const fixture = await rootWorkspacePackedSourceFixture();
+  const calls = [];
+  try {
+    const actual = await rebuildPackedSourceArtifact({
+      sourceRoot: fixture.repositoryRoot,
+      expected: fixture.expected,
+      repository: fixture.repository,
+      packageManager: 'npm@10.9.3',
+      runCommand: async (command, args, options = {}) => {
+        calls.push({ command, args: [...args], options });
+        return execFileAsync(command, args, options);
+      },
+    });
+    assert.equal(actual.name, '@dexterai/root-workspace-target');
+    assert.equal(actual.version, '1.0.0');
+    assert.match(actual.integrity, /^sha512-/);
+    assert.match(actual.shasum, /^[0-9a-f]{40}$/);
+    assert.match(actual.tgzSha256, /^[0-9a-f]{64}$/);
+
+    const npmCalls = calls
+      .filter(({ args }) => args[0]?.endsWith('/npm-cli.js'))
+      .map(({ args, options }) => ({ args: args.slice(1), cwd: options.cwd }));
+    assert.deepEqual(
+      npmCalls.slice(0, 4).map(({ args }) => args),
+      [
+        ['--version'],
+        ['ci', '--ignore-scripts', '--no-audit', '--no-fund'],
+        [
+          'run', 'build', '--workspace', '@dexterai/prerequisite',
+        ],
+        [
+          'run', 'build', '--workspace', '@dexterai/root-workspace-target',
+        ],
+      ],
+    );
+    assert.equal(npmCalls[1].cwd.endsWith('/source'), true);
+    assert.equal(npmCalls[2].cwd, npmCalls[1].cwd);
+    assert.equal(npmCalls[3].cwd, npmCalls[1].cwd);
+    assert.deepEqual(npmCalls[4].args.slice(0, 3), [
+      'pack', '--ignore-scripts', '--json',
+    ]);
+    assert.equal(
+      npmCalls[4].cwd.endsWith('/source/packages/target'),
+      true,
+    );
+  } finally {
+    await rm(fixture.repositoryRoot, { recursive: true, force: true });
+  }
+});
+
+test('root workspace rebuild refuses a changed root lock before npm contact', async () => {
+  const fixture = await rootWorkspacePackedSourceFixture();
+  let npmContacted = false;
+  try {
+    const repository = structuredClone(fixture.repository);
+    repository.rootWorkspaceBuild.packageLockSha256 = 'f'.repeat(64);
+    await assert.rejects(
+      rebuildPackedSourceArtifact({
+        sourceRoot: fixture.repositoryRoot,
+        expected: fixture.expected,
+        repository,
+        packageManager: 'npm@10.9.3',
+        runCommand: async (command, args, options = {}) => {
+          if (args[0]?.endsWith('/npm-cli.js')) npmContacted = true;
+          return execFileAsync(command, args, options);
+        },
+      }),
+      /archived root package-lock digest mismatch/,
+    );
+    assert.equal(npmContacted, false);
+  } finally {
+    await rm(fixture.repositoryRoot, { recursive: true, force: true });
+  }
+});
+
+test('root workspace rebuild fails closed when the frozen build order is reversed', async () => {
+  const fixture = await rootWorkspacePackedSourceFixture();
+  const buildCalls = [];
+  try {
+    const repository = structuredClone(fixture.repository);
+    repository.rootWorkspaceBuild.buildOrder.reverse();
+    await assert.rejects(
+      rebuildPackedSourceArtifact({
+        sourceRoot: fixture.repositoryRoot,
+        expected: fixture.expected,
+        repository,
+        packageManager: 'npm@10.9.3',
+        runCommand: async (command, args, options = {}) => {
+          if (args[0]?.endsWith('/npm-cli.js') && args[1] === 'run') {
+            buildCalls.push(args.slice(1));
+          }
+          return execFileAsync(command, args, options);
+        },
+      }),
+      /isolated source rebuild failed/,
+    );
+    assert.deepEqual(buildCalls, [[
+      'run', 'build', '--workspace', '@dexterai/root-workspace-target',
+    ]]);
   } finally {
     await rm(fixture.repositoryRoot, { recursive: true, force: true });
   }

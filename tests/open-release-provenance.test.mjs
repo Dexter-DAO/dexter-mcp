@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import {
   chmodSync,
+  linkSync,
   lstatSync,
   mkdirSync,
   mkdtempSync,
@@ -18,8 +19,10 @@ import test from 'node:test';
 
 const require = createRequire(import.meta.url);
 const {
+  readSealedLegacyOpenRelease,
   readSealedOpenRelease,
 } = require('../lib/open-release-provenance.cjs');
+const fs = require('node:fs');
 
 const COMMIT = 'a'.repeat(40);
 const TREE = 'b'.repeat(40);
@@ -32,13 +35,13 @@ function sealedFixture({
   extraFiles = {},
   symlinks = {},
   unmanifestedFiles = {},
+  openRoster = ['x402_search', 'dexter_prepare_asset_action'],
 } = {}) {
   const parent = mkdtempSync(join(tmpdir(), 'opendexter-release-fixture-'));
   const releaseDir = join(parent, COMMIT);
   mkdirSync(join(releaseDir, 'release'), { recursive: true });
   const files = new Map([
     ['production-bootstrap.mjs', Buffer.from('// bootstrap fixture\n')],
-    ['http-server-oauth.mjs', Buffer.from('// private fixture\n')],
     ['open-mcp-server.mjs', Buffer.from('// open fixture\n')],
     ['package.json', Buffer.from(JSON.stringify({
       name: 'dexter-mcp',
@@ -46,7 +49,6 @@ function sealedFixture({
     }))],
     ['package-lock.json', Buffer.from('{}\n')],
   ]);
-  const openRoster = ['x402_search', 'dexter_prepare_asset_action'];
   const descriptor = Buffer.from(`${JSON.stringify({
     connectedToolNames: openRoster,
     tools: openRoster.map((name) => ({ name })),
@@ -67,11 +69,9 @@ function sealedFixture({
     npmVersion: '10.9.3',
     sourceCommittedAt: '2026-08-01T00:00:00.000Z',
     entrypoints: {
-      'dexter-mcp': 'production-bootstrap.mjs',
       'dexter-open-mcp': 'production-bootstrap.mjs',
     },
     rosters: {
-      'dexter-mcp': ['private_fixture'],
       'dexter-open-mcp': openRoster,
     },
   };
@@ -141,6 +141,96 @@ function removeFixture(fixture) {
   rmSync(fixture.parent, { recursive: true, force: true });
 }
 
+function legacyFixture() {
+  const parent = mkdtempSync(join(tmpdir(), 'opendexter-legacy-release-'));
+  const sourceCommit = '8'.repeat(40);
+  const releaseDir = join(parent, sourceCommit);
+  const mirrorDir = join(parent, 'private-runtime-mirror');
+  mkdirSync(releaseDir, { recursive: true });
+  mkdirSync(mirrorDir, { recursive: true });
+  const packageLock = Buffer.from('{"lockfileVersion":3}\n');
+  const entrypoint = Buffer.from('// exact legacy open entrypoint\n');
+  const provenance = {
+    schema: 'dexter-mcp-immutable-release/v1',
+    sourceCommit,
+    sourceArchiveSha256: '6'.repeat(64),
+    packageLockSha256: sha256(packageLock),
+    vaultVersion: '0.43.0',
+    nodeVersion: '22.19.0',
+    npmVersion: '10.9.3',
+    builtAt: '2026-07-31T14:06:26.549Z',
+    entrypoints: ['http-server-oauth.mjs', 'open-mcp-server.mjs'],
+    environmentContract:
+      'DEXTER_MCP_ENV_FILE owned mode-0600 regular file',
+  };
+  const files = new Map([
+    ['.release-provenance.json', Buffer.from(`${JSON.stringify(provenance, null, 2)}\n`)],
+    ['package-lock.json', packageLock],
+    ['package.json', Buffer.from(`${JSON.stringify({
+      name: 'dexter-mcp',
+      version: '0.4.0',
+      packageManager: 'npm@10.9.3',
+      engines: { node: '^20.19.0 || >=22.12.0' },
+    })}\n`)],
+    ['http-server-oauth.mjs', Buffer.from('// exact legacy private entrypoint\n')],
+    ['open-mcp-server.mjs', entrypoint],
+  ]);
+  for (const [relative, bytes] of files) {
+    writeFileSync(join(releaseDir, relative), bytes, { mode: 0o400 });
+    chmodSync(join(releaseDir, relative), 0o400);
+  }
+  const mirroredEntrypoint = join(mirrorDir, 'open-mcp-server.mjs');
+  linkSync(join(releaseDir, 'open-mcp-server.mjs'), mirroredEntrypoint);
+  const manifest = Buffer.from([...files.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([relative, bytes]) => `F\t${sha256(bytes)}\t${relative}\n`)
+    .join(''));
+  const manifestPath = `${releaseDir}.FILE-MANIFEST.tsv`;
+  const sidecarPath = `${manifestPath}.sha256`;
+  writeFileSync(manifestPath, manifest, { mode: 0o600 });
+  writeFileSync(
+    sidecarPath,
+    `${sha256(manifest)}  ${manifestPath}\n`,
+    { mode: 0o600 },
+  );
+  chmodSync(releaseDir, 0o500);
+  const contract = {
+    schema: provenance.schema,
+    sourceCommit,
+    sourceTree: '7'.repeat(40),
+    sourceArchiveSha256: provenance.sourceArchiveSha256,
+    packageLockSha256: provenance.packageLockSha256,
+    artifactManifestSha256: sha256(manifest),
+    artifactManifestSize: manifest.length,
+    packageName: 'dexter-mcp',
+    packageVersion: '0.4.0',
+    packageManager: 'npm@10.9.3',
+    node: '^20.19.0 || >=22.12.0',
+    entrypoint: 'open-mcp-server.mjs',
+    entrypointSha256: sha256(entrypoint),
+    canonicalRemote: 'https://example.test/dexter-mcp.git',
+    canonicalRef: 'refs/heads/release',
+    healthKeys: [],
+    roster: ['x402_search'],
+    provenance,
+  };
+  return {
+    parent,
+    releaseDir,
+    manifestPath,
+    sidecarPath,
+    mirroredEntrypoint,
+    contract,
+  };
+}
+
+function removeLegacyFixture(fixture) {
+  chmodSync(fixture.releaseDir, 0o700);
+  chmodSync(join(fixture.releaseDir, 'open-mcp-server.mjs'), 0o600);
+  chmodSync(fixture.parent, 0o700);
+  rmSync(fixture.parent, { recursive: true, force: true });
+}
+
 test('sealed release binds complete files, descriptor, roster, and source identity', (t) => {
   const fixture = sealedFixture();
   t.after(() => removeFixture(fixture));
@@ -155,6 +245,162 @@ test('sealed release binds complete files, descriptor, roster, and source identi
     readFileSync(release.descriptorPath, 'utf8').includes('x402_search'),
     true,
   );
+});
+
+test('sealed release uses the final SEP-986 tool-name alphabet and 128-byte edge', (t) => {
+  const openRoster = [
+    'A',
+    'tools_code-interpreter_jobs',
+    'tools.deep-research-jobs',
+    'x'.repeat(128),
+  ];
+  const fixture = sealedFixture({ openRoster });
+  t.after(() => removeFixture(fixture));
+  assert.deepEqual(
+    readSealedOpenRelease(fixture.releaseDir)
+      .provenance.rosters['dexter-open-mcp'],
+    openRoster,
+  );
+});
+
+test('sealed release rejects slash, space, empty, and overlong tool names', (t) => {
+  for (const invalidName of [
+    'tools/code-interpreter',
+    'tools code-interpreter',
+    '',
+    'x'.repeat(129),
+  ]) {
+    const fixture = sealedFixture({ openRoster: ['valid', invalidName] });
+    t.after(() => removeFixture(fixture));
+    assert.throws(
+      () => readSealedOpenRelease(fixture.releaseDir),
+      /invalid dexter-open-mcp release roster/,
+    );
+  }
+});
+
+test('legacy v1 reader binds manifest, metadata, hard links, and performs no writes', (t) => {
+  const fixture = legacyFixture();
+  t.after(() => removeLegacyFixture(fixture));
+  const entrypoint = join(fixture.releaseDir, 'open-mcp-server.mjs');
+  const before = {
+    release: lstatSync(fixture.releaseDir),
+    entrypoint: lstatSync(entrypoint),
+    mirror: lstatSync(fixture.mirroredEntrypoint),
+    manifest: lstatSync(fixture.manifestPath),
+    sidecar: lstatSync(fixture.sidecarPath),
+  };
+  const originals = Object.fromEntries([
+    'chmodSync',
+    'renameSync',
+    'rmSync',
+    'unlinkSync',
+    'writeFileSync',
+  ].map((name) => [name, fs[name]]));
+  let writes = 0;
+  for (const name of Object.keys(originals)) {
+    fs[name] = () => {
+      writes += 1;
+      throw new Error(`unexpected legacy verifier mutation: ${name}`);
+    };
+  }
+  let release;
+  try {
+    release = readSealedLegacyOpenRelease(
+      fixture.releaseDir,
+      fixture.contract,
+    );
+  } finally {
+    for (const [name, implementation] of Object.entries(originals)) {
+      fs[name] = implementation;
+    }
+  }
+  assert.equal(writes, 0);
+  assert.equal(release.kind, 'legacy-open-v1');
+  assert.equal(release.rollbackIdentity.fileCount, 5);
+  assert.match(release.rollbackIdentity.filesystemMetadataSha256, /^[a-f0-9]{64}$/);
+  assert.equal(release.sourceIdentity.tree, fixture.contract.sourceTree);
+  const after = {
+    release: lstatSync(fixture.releaseDir),
+    entrypoint: lstatSync(entrypoint),
+    mirror: lstatSync(fixture.mirroredEntrypoint),
+    manifest: lstatSync(fixture.manifestPath),
+    sidecar: lstatSync(fixture.sidecarPath),
+  };
+  for (const key of Object.keys(before)) {
+    assert.equal(after[key].ino, before[key].ino);
+    assert.equal(after[key].mode, before[key].mode);
+    assert.equal(after[key].nlink, before[key].nlink);
+    assert.equal(after[key].mtimeMs, before[key].mtimeMs);
+    assert.equal(after[key].ctimeMs, before[key].ctimeMs);
+  }
+  assert.equal(before.entrypoint.ino, before.mirror.ino);
+  assert.equal(before.entrypoint.nlink, 2);
+});
+
+test('legacy v1 reader refuses changed bytes, extras, and sidecar drift', (t) => {
+  const byteFixture = legacyFixture();
+  const extraFixture = legacyFixture();
+  const sidecarFixture = legacyFixture();
+  for (const fixture of [byteFixture, extraFixture, sidecarFixture]) {
+    t.after(() => removeLegacyFixture(fixture));
+  }
+
+  const entrypoint = join(byteFixture.releaseDir, 'open-mcp-server.mjs');
+  chmodSync(entrypoint, 0o600);
+  writeFileSync(entrypoint, '// tampered legacy bytes\n');
+  chmodSync(entrypoint, 0o400);
+  assert.throws(
+    () => readSealedLegacyOpenRelease(byteFixture.releaseDir, byteFixture.contract),
+    /legacy release file identity mismatch/,
+  );
+
+  chmodSync(extraFixture.releaseDir, 0o700);
+  writeFileSync(join(extraFixture.releaseDir, 'extra.txt'), 'extra\n', {
+    mode: 0o400,
+  });
+  chmodSync(extraFixture.releaseDir, 0o500);
+  assert.throws(
+    () => readSealedLegacyOpenRelease(extraFixture.releaseDir, extraFixture.contract),
+    /legacy release file manifest is incomplete/,
+  );
+
+  writeFileSync(sidecarFixture.sidecarPath, 'f'.repeat(64), { mode: 0o600 });
+  assert.throws(
+    () => readSealedLegacyOpenRelease(
+      sidecarFixture.releaseDir,
+      sidecarFixture.contract,
+    ),
+    /legacy OpenDexter manifest identity mismatch/,
+  );
+});
+
+test('legacy v1 reader closes manifest and sidecar TOCTOU after traversal', (t) => {
+  const fixture = legacyFixture();
+  t.after(() => removeLegacyFixture(fixture));
+  const trigger = join(fixture.releaseDir, 'package.json');
+  const originalRead = fs.readFileSync;
+  let changed = false;
+  fs.readFileSync = function hostileRead(path, ...args) {
+    const result = originalRead.call(this, path, ...args);
+    if (!changed && path === trigger) {
+      changed = true;
+      fs.appendFileSync(fixture.manifestPath, '\n');
+    }
+    return result;
+  };
+  try {
+    assert.throws(
+      () => readSealedLegacyOpenRelease(
+        fixture.releaseDir,
+        fixture.contract,
+      ),
+      /legacy OpenDexter controls changed during verification/,
+    );
+  } finally {
+    fs.readFileSync = originalRead;
+  }
+  assert.equal(changed, true);
 });
 
 test('sealed release rejects changed or unlisted candidate bytes', (t) => {

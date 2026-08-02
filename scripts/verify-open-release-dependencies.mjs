@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { execFile } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { promisify } from 'node:util';
 import {
   access,
@@ -12,10 +13,12 @@ import {
   rm,
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, resolve } from 'node:path';
+import { basename, dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
+  createReviewedGitArchive,
   REVIEWED_NPM_VERSION,
+  reviewedGitRemoteRefs,
   reviewedNpmInvocation,
   reviewedReleaseToolEnvironment,
 } from '../lib/open-release-tooling.mjs';
@@ -26,6 +29,10 @@ const manifestPath = resolve(root, 'release/opendexter-dependency-train.json');
 
 async function readJson(path) {
   return JSON.parse(await readFile(path, 'utf8'));
+}
+
+async function sha256File(path) {
+  return createHash('sha256').update(await readFile(path)).digest('hex');
 }
 
 async function exists(path) {
@@ -104,19 +111,16 @@ async function git(runCommand, toolEnvironment, rootPath, ...args) {
 
 async function remoteAdvertisesCommit(
   runCommand,
-  toolEnvironment,
+  environment,
   remote,
   commit,
 ) {
-  const { stdout } = await runCommand('git', [
-    '--no-replace-objects',
-    'ls-remote', '--refs', remote,
-  ], {
-    encoding: 'utf8',
-    env: toolEnvironment,
-    timeout: 30_000,
+  const refs = await reviewedGitRemoteRefs({
+    remote,
+    runCommand,
+    environment,
   });
-  return stdout.split(/\r?\n/).some((line) => {
+  return refs.split(/\r?\n/).some((line) => {
     const [remoteCommit, refname, extra] = line.trim().split(/\s+/);
     return remoteCommit === commit && Boolean(refname) && extra === undefined;
   });
@@ -159,11 +163,16 @@ async function readPackedArtifactReport(
   packageRoot,
   runCommand = execFileAsync,
   toolEnvironment = reviewedReleaseToolEnvironment(),
+  packDestination,
 ) {
+  if (typeof packDestination !== 'string') {
+    throw new Error(`npm pack destination is unavailable for ${packageRoot}`);
+  }
   let stdout;
   try {
     const npmPack = reviewedNpmInvocation([
-      'pack', '--ignore-scripts', '--dry-run', '--json',
+      'pack', '--ignore-scripts', '--json',
+      '--pack-destination', packDestination,
     ]);
     ({ stdout } = await runCommand(
       npmPack.command,
@@ -191,6 +200,13 @@ async function readPackedArtifactReport(
     throw new Error(`npm pack returned an unexpected report for ${packageRoot}`);
   }
   const packed = report[0];
+  if (
+    typeof packed.filename !== 'string'
+    || basename(packed.filename) !== packed.filename
+  ) {
+    throw new Error(`npm pack returned an unsafe filename for ${packageRoot}`);
+  }
+  const tarballPath = resolve(packDestination, packed.filename);
   return {
     id: packed.id,
     name: packed.name,
@@ -200,6 +216,7 @@ async function readPackedArtifactReport(
     size: packed.size,
     unpackedSize: packed.unpackedSize,
     entryCount: packed.entryCount,
+    tgzSha256: await sha256File(tarballPath),
   };
 }
 
@@ -216,6 +233,7 @@ export function comparePackedArtifact(actual, expected) {
     'size',
     'unpackedSize',
     'entryCount',
+    ...(expected.packedArtifact.tgzSha256 ? ['tgzSha256'] : []),
   ]) {
     if (actual[field] !== expected.packedArtifact[field]) {
       issues.push(
@@ -379,7 +397,7 @@ export async function inspectPackageSourcePreflight(
       remote === repository.remote
       && !(await remoteAdvertisesCommit(
         runCommand,
-        toolEnvironment,
+        environment,
         repository.remote,
         repository.provenanceCommit,
       ))
@@ -420,23 +438,21 @@ export async function rebuildPackedSourceArtifact({
       npmCache: resolve(disposableRoot, 'npm-cache'),
     });
     await mkdir(archiveRoot, { recursive: true });
-    await runCommand(
-      'git',
-      [
-        '--no-replace-objects',
-        '-C',
-        sourceRoot,
-        'archive',
-        '--format=tar',
-        '--output',
-        archivePath,
-        repository.provenanceCommit,
-      ],
-      {
-        encoding: 'utf8',
-        env: toolEnvironment,
-      },
+    const tree = await git(
+      runCommand,
+      toolEnvironment,
+      sourceRoot,
+      'rev-parse', `${repository.provenanceCommit}^{tree}`,
     );
+    await createReviewedGitArchive({
+      sourceRoot,
+      commit: repository.provenanceCommit,
+      expectedTree: tree,
+      outputPath: archivePath,
+      workspace: disposableRoot,
+      runCommand,
+      environment,
+    });
     await runCommand(
       'tar',
       ['-xf', archivePath, '-C', archiveRoot],
@@ -467,7 +483,46 @@ export async function rebuildPackedSourceArtifact({
     ) {
       throw new Error(`${expected.name}: archived build script is unavailable`);
     }
-    if (!(await exists(resolve(packageRoot, 'package-lock.json')))) {
+    const rootWorkspace = expected.packedArtifact.buildMode === 'root-workspace';
+    if (
+      expected.packedArtifact.buildMode !== undefined
+      && !rootWorkspace
+    ) {
+      throw new Error(`${expected.name}: packed artifact build mode is invalid`);
+    }
+    const rootWorkspaceBuild = repository.rootWorkspaceBuild;
+    if (rootWorkspace) {
+      if (
+        !rootWorkspaceBuild
+        || !/^[0-9a-f]{64}$/.test(rootWorkspaceBuild.packageLockSha256)
+        || !Array.isArray(rootWorkspaceBuild.buildOrder)
+        || rootWorkspaceBuild.buildOrder.length === 0
+        || rootWorkspaceBuild.buildOrder.some((step) => (
+          !step
+          || typeof step !== 'object'
+          || Array.isArray(step)
+          || Object.keys(step).sort().join(',') !== 'script,workspace'
+          || !/^@[a-z0-9._-]+\/[a-z0-9._-]+$/.test(step.workspace)
+          || !/^[a-z][a-z0-9:_-]*$/.test(step.script)
+        ))
+        || !rootWorkspaceBuild.buildOrder.some((step) => (
+          step.workspace === expected.name && step.script === buildScript
+        ))
+      ) {
+        throw new Error(`${expected.name}: root-workspace build plan is invalid`);
+      }
+      const rootLock = resolve(archiveRoot, 'package-lock.json');
+      if (!(await exists(rootLock))) {
+        throw new Error(`${expected.name}: archived root package-lock.json is absent`);
+      }
+      if (await sha256File(rootLock) !== rootWorkspaceBuild.packageLockSha256) {
+        throw new Error(`${expected.name}: archived root package-lock digest mismatch`);
+      }
+      const rootPackage = await readJson(resolve(archiveRoot, 'package.json'));
+      if (rootPackage.packageManager !== packageManager) {
+        throw new Error(`${expected.name}: archived root package manager mismatch`);
+      }
+    } else if (!(await exists(resolve(packageRoot, 'package-lock.json')))) {
       throw new Error(`${expected.name}: archived package-lock.json is absent`);
     }
 
@@ -491,6 +546,7 @@ export async function rebuildPackedSourceArtifact({
       );
     }
     const npmEnvironment = toolEnvironment;
+    const installRoot = rootWorkspace ? archiveRoot : packageRoot;
     const npmCi = reviewedNpmInvocation([
       'ci', '--ignore-scripts', '--no-audit', '--no-fund',
     ]);
@@ -498,23 +554,31 @@ export async function rebuildPackedSourceArtifact({
       npmCi.command,
       npmCi.args,
       {
-        cwd: packageRoot,
+        cwd: installRoot,
         encoding: 'utf8',
         maxBuffer: 16 * 1024 * 1024,
         env: npmEnvironment,
       },
     );
-    const npmBuild = reviewedNpmInvocation(['run', buildScript]);
-    await runCommand(
-      npmBuild.command,
-      npmBuild.args,
-      {
-        cwd: packageRoot,
-        encoding: 'utf8',
-        maxBuffer: 16 * 1024 * 1024,
-        env: npmEnvironment,
-      },
-    );
+    const buildOrder = rootWorkspace
+      ? rootWorkspaceBuild.buildOrder
+      : [{ workspace: null, script: buildScript }];
+    for (const step of buildOrder) {
+      const npmBuild = reviewedNpmInvocation([
+        'run', step.script,
+        ...(step.workspace ? ['--workspace', step.workspace] : []),
+      ]);
+      await runCommand(
+        npmBuild.command,
+        npmBuild.args,
+        {
+          cwd: installRoot,
+          encoding: 'utf8',
+          maxBuffer: 16 * 1024 * 1024,
+          env: npmEnvironment,
+        },
+      );
+    }
     const builtPackage = await readJson(resolve(packageRoot, 'package.json'));
     if (
       builtPackage.name !== expected.name
@@ -539,10 +603,13 @@ export async function rebuildPackedSourceArtifact({
         `${expected.name}: rebuild did not create ${expected.entrypoint}`,
       );
     }
+    const packDestination = resolve(disposableRoot, 'packed');
+    await mkdir(packDestination, { recursive: true });
     return await readPackedArtifactReport(
       packageRoot,
       runCommand,
       toolEnvironment,
+      packDestination,
     );
   } catch (error) {
     throw new Error(`${expected.name}: isolated source rebuild failed: ${error.message}`);

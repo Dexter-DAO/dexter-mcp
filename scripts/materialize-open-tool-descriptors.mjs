@@ -20,7 +20,9 @@ import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  createReviewedGitArchive,
   REVIEWED_NPM_VERSION,
+  reviewedGitRemoteRefs,
   reviewedNpmInvocation,
   reviewedReleaseToolEnvironment,
 } from '../lib/open-release-tooling.mjs';
@@ -270,14 +272,11 @@ export async function materializeOpenToolDescriptorsFromGit({
   }
   let remoteRefs;
   try {
-    ({ stdout: remoteRefs } = await runCommand('git', [
-      '--no-replace-objects',
-      'ls-remote', '--refs', CANONICAL_SOURCE_ORIGIN,
-    ], {
-      encoding: 'utf8',
-      env: cleanGitEnvironment,
-      timeout: 30_000,
-    }));
+    remoteRefs = await reviewedGitRemoteRefs({
+      remote: CANONICAL_SOURCE_ORIGIN,
+      runCommand,
+      environment,
+    });
   } catch (error) {
     throw new Error('OpenDexter descriptor canonical origin is unreachable', {
       cause: error,
@@ -300,14 +299,20 @@ export async function materializeOpenToolDescriptorsFromGit({
   const archiveRoot = resolve(disposableRoot, 'source');
   try {
     await mkdir(archiveRoot, { recursive: true });
-    await runCommand('git', [
+    const { stdout: treeOutput } = await runCommand('git', [
       '--no-replace-objects',
       '-C', sourceRoot,
-      'archive',
-      '--format=tar',
-      '--output', archivePath,
-      commit,
+      'rev-parse', `${commit}^{tree}`,
     ], { encoding: 'utf8', env: cleanGitEnvironment });
+    await createReviewedGitArchive({
+      sourceRoot,
+      commit,
+      expectedTree: treeOutput.trim(),
+      outputPath: archivePath,
+      workspace: disposableRoot,
+      runCommand,
+      environment,
+    });
     await runCommand('tar', ['-xf', archivePath, '-C', archiveRoot], {
       encoding: 'utf8',
       env: cleanGitEnvironment,

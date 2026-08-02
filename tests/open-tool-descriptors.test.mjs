@@ -94,8 +94,7 @@ function canonicalFixtureRunner(
     calls.push({ command, args: [...args], options });
     if (
       command === 'git'
-      && args[0] === '--no-replace-objects'
-      && args[1] === 'ls-remote'
+      && args.includes('ls-remote')
     ) {
       if (unreachable) throw new Error('fixture origin unavailable');
       const commit = execFileSync('git', ['rev-parse', 'HEAD'], {

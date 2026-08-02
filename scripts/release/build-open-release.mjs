@@ -15,7 +15,9 @@ import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 
 import {
+  createReviewedGitArchive,
   REVIEWED_NPM_VERSION,
+  reviewedGitRemoteRefs,
   reviewedNpmInvocation,
   reviewedReleaseToolEnvironment,
 } from '../../lib/open-release-tooling.mjs';
@@ -30,18 +32,13 @@ export const RELEASE_PROVENANCE_SCHEMA =
 
 const SOURCE_COMMIT = /^[0-9a-f]{40}$/;
 const SHA256 = /^[0-9a-f]{64}$/;
-const TOOL_NAME = /^[a-z][a-z0-9_]{0,127}$/;
-const PRIVATE_ROSTER_MARKER = 'DEXTER_MCP_PRIVATE_ROSTER=';
+const TOOL_NAME = /^[A-Za-z0-9_.-]{1,128}$/;
 const ENTRYPOINTS = Object.freeze({
-  'dexter-mcp': 'production-bootstrap.mjs',
   'dexter-open-mcp': 'production-bootstrap.mjs',
 });
 const APPLICATION_ENTRYPOINTS = Object.freeze({
-  'dexter-mcp': 'http-server-oauth.mjs',
   'dexter-open-mcp': 'open-mcp-server.mjs',
 });
-const CANONICAL_PRIVATE_PROFILE = '';
-const CANONICAL_PRIVATE_TOOLSETS = '';
 
 function exactEnvironment(values) {
   return Object.fromEntries(
@@ -62,8 +59,6 @@ function buildEnvironment({
     }),
     SENTRY_DSN: '',
     SENTRY_OPEN_MCP_DSN: '',
-    TOKEN_AI_MCP_PROFILE: CANONICAL_PRIVATE_PROFILE,
-    TOKEN_AI_MCP_TOOLSETS: CANONICAL_PRIVATE_TOOLSETS,
   });
 }
 
@@ -180,37 +175,6 @@ function parseDescriptor(stdout) {
   return { descriptor, connected };
 }
 
-function parsePrivateRoster(stdout) {
-  const marker = stdout.lastIndexOf(PRIVATE_ROSTER_MARKER);
-  if (marker < 0) {
-    throw new Error('archived private server did not emit its finalized roster');
-  }
-  const encoded = stdout
-    .slice(marker + PRIVATE_ROSTER_MARKER.length)
-    .split(/\r?\n/, 1)[0];
-  try {
-    return exactRoster(JSON.parse(encoded), 'private MCP server');
-  } catch (error) {
-    if (error?.message?.includes('exact tool roster')) throw error;
-    throw new Error('archived private server emitted an invalid roster', {
-      cause: error,
-    });
-  }
-}
-
-const PRIVATE_ROSTER_PROGRAM = String.raw`
-  const { buildMcpServer } = await import('./common.mjs');
-  const server = await buildMcpServer({
-    includeToolsets: process.env.TOKEN_AI_MCP_TOOLSETS || undefined,
-    profile: process.env.TOKEN_AI_MCP_PROFILE || undefined,
-  });
-  const tools = server?._registeredTools;
-  const names = tools && typeof tools === 'object' ? Object.keys(tools) : [];
-  process.stdout.write('\n${PRIVATE_ROSTER_MARKER}' + JSON.stringify(names) + '\n');
-  try { await server.close(); } catch {}
-  process.exit(0);
-`;
-
 async function requireTrustedOutputRoot(io, outputRoot, sourceRoot) {
   if (typeof outputRoot !== 'string' || !isAbsolute(outputRoot)) {
     throw new Error('release output root must be one explicit absolute path');
@@ -323,9 +287,11 @@ async function requireCanonicalCleanHead({
   }
   const sourceCommittedAt = committedAtDate.toISOString();
 
-  const remoteRefs = await runText(runCommand, 'git', [
-    'ls-remote', '--refs', CANONICAL_SOURCE_ORIGIN,
-  ], { env, timeout: 30_000 });
+  const remoteRefs = await reviewedGitRemoteRefs({
+    remote: CANONICAL_SOURCE_ORIGIN,
+    runCommand,
+    environment: reviewedEnvironment,
+  });
   const remoteContainsCommit = remoteRefs.split(/\r?\n/).some((line) => {
     const [remoteCommit, refname, extra] = line.split(/\s+/);
     return remoteCommit === commit && Boolean(refname) && extra === undefined;
@@ -547,6 +513,7 @@ export async function buildOpenRelease({
   privateToolsets: forbiddenPrivateToolsets,
   runCommand = execFileAsync,
   fsOps = {},
+  environment = process.env,
 } = {}) {
   if (
     forbiddenPrivateProfile !== undefined
@@ -563,7 +530,7 @@ export async function buildOpenRelease({
   // child process. Every Git/archive/build/materializer child below receives
   // only this reviewed source-owned environment (plus explicit build fields).
   const sourceEnvironment = reviewedReleaseToolEnvironment({
-    env: process.env,
+    env: environment,
   });
   const { commit, tree, sourceCommittedAt } =
     await requireCanonicalCleanHead({
@@ -586,10 +553,15 @@ export async function buildOpenRelease({
   let publishedCandidate = false;
   try {
     await io.mkdir(candidate, { mode: 0o700 });
-    await runText(runCommand, 'git', [
-      '--no-replace-objects', '-C', source,
-      'archive', '--format=tar', '--output', archivePath, commit,
-    ], { env: sourceEnvironment });
+    await createReviewedGitArchive({
+      sourceRoot: source,
+      commit,
+      expectedTree: tree,
+      outputPath: archivePath,
+      workspace,
+      runCommand,
+      environment,
+    });
     const sourceArchiveSha256 = await sha256File(io, archivePath);
     if (!SHA256.test(sourceArchiveSha256)) {
       throw new Error('release source archive digest is invalid');
@@ -704,14 +676,6 @@ export async function buildOpenRelease({
       );
     }
 
-    const privateOutput = await runText(
-      runCommand,
-      reviewedNpm.nodeExecutable,
-      ['--input-type=module', '--eval', PRIVATE_ROSTER_PROGRAM],
-      { cwd: candidate, env: materializerEnv },
-    );
-    const privateRoster = parsePrivateRoster(privateOutput);
-
     const sealedProvenance = {
       schema: RELEASE_PROVENANCE_SCHEMA,
       sourceCommit: commit,
@@ -725,7 +689,6 @@ export async function buildOpenRelease({
       sourceCommittedAt,
       entrypoints: { ...ENTRYPOINTS },
       rosters: {
-        'dexter-mcp': privateRoster,
         'dexter-open-mcp': connected,
       },
     };

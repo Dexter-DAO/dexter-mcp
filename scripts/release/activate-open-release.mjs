@@ -13,7 +13,7 @@ try {
   const result = await activateOpenRelease({ releaseDirectory });
   process.stdout.write(
     `Activated Dexter MCP release ${result.release.provenance.sourceCommit} `
-    + 'for dexter-mcp and dexter-open-mcp.\n',
+    + 'for dexter-open-mcp only; the private dexter-mcp process is untouched.\n',
   );
 } catch (error) {
   process.stderr.write(`${error?.message ?? String(error)}\n`);

@@ -39,11 +39,6 @@ const CONNECTED = [
   'x402_search',
   'dexter_prepare_asset_action',
 ];
-const PRIVATE = [
-  'resolve_wallet',
-  'x402_fetch',
-];
-
 function sha256(value) {
   return createHash('sha256').update(value).digest('hex');
 }
@@ -245,7 +240,7 @@ function fixtureRunner(source, calls = []) {
       env: { ...options.env },
       npmCall,
     });
-    if (command === 'git' && args[0] === 'ls-remote') {
+    if (command === 'git' && args.includes('ls-remote')) {
       const head = git(source, ['rev-parse', 'HEAD^{commit}']);
       return { stdout: `${head}\trefs/heads/main\n`, stderr: '' };
     }
@@ -268,13 +263,6 @@ function fixtureRunner(source, calls = []) {
             }
           : descriptor;
         return { stdout: JSON.stringify(materialized), stderr: '' };
-      }
-      if (args.includes('--eval')) {
-        const roster = hostileSelection ? ['hostile_private_tool'] : PRIVATE;
-        return {
-          stdout: `registration logs\nDEXTER_MCP_PRIVATE_ROSTER=${JSON.stringify(roster)}\n`,
-          stderr: '',
-        };
       }
     }
     return execFileAsync(command, args, options);
@@ -371,11 +359,9 @@ test('release builder constructs the same sealed candidate from the same Git HEA
     new Date(git(source, ['show', '-s', '--format=%cI', 'HEAD'])).toISOString(),
   );
   assert.deepEqual(first.provenance.rosters, {
-    'dexter-mcp': PRIVATE,
     'dexter-open-mcp': CONNECTED,
   });
   assert.deepEqual(first.provenance.entrypoints, {
-    'dexter-mcp': 'production-bootstrap.mjs',
     'dexter-open-mcp': 'production-bootstrap.mjs',
   });
   assert.equal(
@@ -464,8 +450,8 @@ test('release builder constructs the same sealed candidate from the same Git HEA
   for (const call of calls.filter(({ command }) => (
     command === REVIEWED_NPM.nodeExecutable
   ))) {
-    assert.equal(call.privateProfile, '');
-    assert.equal(call.privateToolsets, '');
+    assert.equal(call.privateProfile, undefined);
+    assert.equal(call.privateToolsets, undefined);
   }
   for (const call of calls) {
     assert.equal(call.env.NODE_OPTIONS, undefined);
@@ -607,7 +593,7 @@ test('release builder rejects a canonical origin that does not advertise HEAD', 
   });
   const ordinaryRunner = fixtureRunner(source);
   const runCommand = async (command, args, options) => {
-    if (command === 'git' && args[0] === 'ls-remote') {
+    if (command === 'git' && args.includes('ls-remote')) {
       return {
         stdout: `${git(source, ['rev-parse', 'HEAD^'])}\trefs/heads/main\n`,
         stderr: '',

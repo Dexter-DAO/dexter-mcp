@@ -1,4 +1,4 @@
-// Immutable production launcher for both hosted OpenDexter MCP surfaces.
+// Immutable production launcher for the public OpenDexter MCP surface only.
 //
 // The application release contains no credentials. PM2 must be invoked with
 // DEXTER_MCP_ENV_FILE pointing at one explicit, owned mode-0600 regular file.
@@ -54,11 +54,6 @@ if (Buffer.byteLength(governedSecret, "utf8") < 32) {
 }
 applicationEnvironment.GOVERNED_AGENT_ACTIONS_HMAC_SECRET = governedSecret;
 
-for (const key of ["TOKEN_AI_MCP_PROFILE", "TOKEN_AI_MCP_TOOLSETS"]) {
-  if (String(applicationEnvironment[key] ?? "") !== "") {
-    throw new Error(`${key} must be empty for the source-owned private roster`);
-  }
-}
 if (Object.hasOwn(applicationEnvironment, "PM2_HOME")) {
   throw new Error("PM2_HOME is forbidden in DEXTER_MCP_ENV_FILE");
 }
@@ -95,6 +90,8 @@ for (const key of [
   "DEXTER_MCP_RELEASE_PACKAGE_VERSION",
   "DEXTER_MCP_RELEASE_SERVICE",
   "DEXTER_MCP_EXPECTED_ROSTER_JSON",
+  "TOKEN_AI_MCP_PROFILE",
+  "TOKEN_AI_MCP_TOOLSETS",
 ]) {
   delete applicationEnvironment[key];
 }
@@ -157,7 +154,6 @@ function service(name) {
 
 module.exports = {
   apps: [
-    service("dexter-mcp"),
     service("dexter-open-mcp"),
   ],
 };
