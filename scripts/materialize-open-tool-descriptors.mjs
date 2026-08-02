@@ -27,6 +27,7 @@ import {
   reviewedNpmInvocation,
   reviewedReleaseToolEnvironment,
 } from '../lib/open-release-tooling.mjs';
+import { canonicalHash } from '../lib/governed-canonical-identity.mjs';
 
 const execFileAsync = promisify(execFile);
 const CANONICAL_SOURCE_ORIGIN =
@@ -42,7 +43,7 @@ export const OPENDEXTER_SOURCE_CONTRACTS_PATH = resolve(
   'release/opendexter-source-contracts.json',
 );
 
-const SOURCE_CONTRACTS_KIND = 'opendexter-source-contracts/v2';
+const SOURCE_CONTRACTS_KIND = 'opendexter-source-contracts/v3';
 const DESCRIPTOR_KIND = 'opendexter-hosted-tool-descriptors/v2';
 const API_REPOSITORY = 'https://github.com/Dexter-DAO/dexter-api';
 const API_GIT_ORIGIN = `${API_REPOSITORY}.git`;
@@ -58,10 +59,16 @@ const BINDING_FIXTURE_API_PATH =
   'tests/fixtures/governed-agent-trade-api-facilitator-binding-v1.json';
 const BINDING_FIXTURE_FACILITATOR_PATH =
   'test/fixtures/governed-agent-trade-api-facilitator-binding-v1.json';
+const PORTFOLIO_PROJECTION_SOURCE_PATHS = Object.freeze([
+  'src/portfolio/approvedActionTargets.ts',
+  'src/routes/passkeyMcpBinding.ts',
+  'src/routes/defaultGovernedDelegatedAssetActions.ts',
+]);
+const PORTFOLIO_PROJECTION_FIXTURE_PATH =
+  'tests/fixtures/opendexter-portfolio-v1-zero-holding-approved-action-targets.json';
 const API_GOVERNED_CONTRACT_PATHS = Object.freeze([
   'src/portfolio/governedWrites',
   'src/routes/governedDelegatedAssetActions.ts',
-  'src/routes/defaultGovernedDelegatedAssetActions.ts',
   BINDING_FIXTURE_API_PATH,
 ]);
 
@@ -72,14 +79,18 @@ const EXPECTED_SOURCE_CONTRACTS = Object.freeze({
     '449fc6b5a253d6856ae9f0990932dc6cefb84871c981229afb603a6314efa798',
   apiCanonicalBodyDigest:
     '48e77a936f06fe07b66fee7c2cb9126e8305d4e180c2c304513d5f0ea1636e16',
-  integratedApiCommit: 'ea2acbb7a11a696c685b6e48581362c448ef73cf',
-  integratedApiTree: 'b876e490e96843c3d37934e865966d6f6674fc48',
+  integratedApiCommit: '6d8de2cee71fc217559fa2a2825fa2a25faf9497',
+  integratedApiTree: 'a8f7a84e001bcd06f0418eb149da4e14fbafbfeb',
+  portfolioProjectionFixtureSha256:
+    '9c4c29b0d911b490d53a375eca1ae302501397be9c56250591bafaeb34a4e625',
+  portfolioProjectionCanonicalDigest:
+    'f4a3f826aa1c08531d42da402f08df709642ea75a84fd74608be75cdba2fc28a',
   facilitatorCommit: 'df370826b7b951dfc825a689c4e6f3b1928ee5e2',
   facilitatorTree: 'a9b4b18eb350143f3265834571c910891c83dd5c',
   bindingFixtureSha256:
     '66bbd343637fe9b3af245b2ace823a9dff1d8032e2dd01da7ee4bd71cc1ff7d6',
-  mcpCommit: 'c54821778f016e5bfd4942852d31ec314828a8e5',
-  mcpTree: 'c750008a28e5bb01e7ac670c826e1049461637ce',
+  mcpCommit: '0647bbdf081733ac3ca5ba82850c2c1db79307cb',
+  mcpTree: '66dfac45954b4b0983c56bf967b063fa59e72d91',
 });
 
 async function readJson(path) {
@@ -107,17 +118,20 @@ function exactKeys(value, expected) {
 export function hasExactOpenDexterSourceContractsShape(sourceContracts) {
   const api = sourceContracts?.api;
   const integratedApiRelease = sourceContracts?.integratedApiRelease;
+  const portfolioProjection = sourceContracts?.portfolioProjection;
+  const projectionFixture = portfolioProjection?.fixture;
   const facilitator = sourceContracts?.facilitator;
   const bindingFixture = facilitator?.bindingFixture;
   const mcp = sourceContracts?.mcp;
   const fixture = api?.consumerFixture;
-  return sourceContracts?.schemaVersion === 2
+  return sourceContracts?.schemaVersion === 3
     && sourceContracts?.kind === SOURCE_CONTRACTS_KIND
     && exactKeys(sourceContracts, [
       'schemaVersion',
       'kind',
       'api',
       'integratedApiRelease',
+      'portfolioProjection',
       'facilitator',
       'mcp',
     ])
@@ -131,6 +145,12 @@ export function hasExactOpenDexterSourceContractsShape(sourceContracts) {
       'tree',
       'governedContractCommit',
       'governedContractTree',
+    ])
+    && exactKeys(portfolioProjection, [
+      'repository', 'commit', 'tree', 'sourcePaths', 'fixture',
+    ])
+    && exactKeys(projectionFixture, [
+      'consumerPath', 'apiPath', 'sha256', 'canonicalDigest',
     ])
     && exactKeys(facilitator, [
       'repository', 'commit', 'tree', 'bindingFixture',
@@ -154,6 +174,18 @@ export function hasExactOpenDexterSourceContractsShape(sourceContracts) {
       === EXPECTED_SOURCE_CONTRACTS.integratedApiTree
     && integratedApiRelease.governedContractCommit === api.commit
     && integratedApiRelease.governedContractTree === api.tree
+    && portfolioProjection.repository === API_REPOSITORY
+    && portfolioProjection.commit === integratedApiRelease.commit
+    && portfolioProjection.tree === integratedApiRelease.tree
+    && Array.isArray(portfolioProjection.sourcePaths)
+    && JSON.stringify(portfolioProjection.sourcePaths)
+      === JSON.stringify(PORTFOLIO_PROJECTION_SOURCE_PATHS)
+    && projectionFixture.consumerPath === PORTFOLIO_PROJECTION_FIXTURE_PATH
+    && projectionFixture.apiPath === PORTFOLIO_PROJECTION_FIXTURE_PATH
+    && projectionFixture.sha256
+      === EXPECTED_SOURCE_CONTRACTS.portfolioProjectionFixtureSha256
+    && projectionFixture.canonicalDigest
+      === EXPECTED_SOURCE_CONTRACTS.portfolioProjectionCanonicalDigest
     && facilitator.repository === FACILITATOR_REPOSITORY
     && facilitator.commit === EXPECTED_SOURCE_CONTRACTS.facilitatorCommit
     && facilitator.tree === EXPECTED_SOURCE_CONTRACTS.facilitatorTree
@@ -170,6 +202,8 @@ export function hasExactOpenDexterSourceContractsShape(sourceContracts) {
     && mcp.authContractPath === 'lib/open-tool-auth.mjs'
     && /^[0-9a-f]{40}$/.test(integratedApiRelease.commit)
     && /^[0-9a-f]{40}$/.test(integratedApiRelease.tree)
+    && /^[0-9a-f]{40}$/.test(portfolioProjection.commit)
+    && /^[0-9a-f]{40}$/.test(portfolioProjection.tree)
     && /^[0-9a-f]{40}$/.test(facilitator.commit)
     && /^[0-9a-f]{40}$/.test(facilitator.tree);
 }
@@ -223,6 +257,29 @@ export async function readOpenDexterSourceContracts({
   ) {
     throw new Error(
       'OpenDexter API-facilitator binding fixture differs from its source pin',
+    );
+  }
+  const projectionFixturePath = resolve(
+    sourceRoot,
+    sourceContracts.portfolioProjection.fixture.consumerPath,
+  );
+  const projectionFixtureBytes = await readFile(projectionFixturePath);
+  let projectionFixture;
+  try {
+    projectionFixture = JSON.parse(projectionFixtureBytes.toString('utf8'));
+  } catch (error) {
+    throw new Error('OpenDexter portfolio projection fixture is invalid', {
+      cause: error,
+    });
+  }
+  if (
+    createHash('sha256').update(projectionFixtureBytes).digest('hex')
+      !== sourceContracts.portfolioProjection.fixture.sha256
+    || canonicalHash(projectionFixture)
+      !== sourceContracts.portfolioProjection.fixture.canonicalDigest
+  ) {
+    throw new Error(
+      'OpenDexter portfolio projection fixture differs from its source pin',
     );
   }
   await Promise.all([
@@ -543,11 +600,60 @@ export async function verifyOpenDexterCrossRepositorySourceContracts({
       );
     }
   }
+  const projection = contracts.portfolioProjection;
+  const localProjectionFixture = await readFile(
+    resolve(sourceRoot, projection.fixture.consumerPath),
+  );
+  const [projectionSources, projectionSourceFixture] = await Promise.all([
+    Promise.all(projection.sourcePaths.map((path) => gitBlob({
+      root: explicitApiRoot,
+      object: projection.commit,
+      path,
+      runCommand,
+      environment: cleanGitEnvironment,
+    }))),
+    gitBlob({
+      root: explicitApiRoot,
+      object: projection.commit,
+      path: projection.fixture.apiPath,
+      runCommand,
+      environment: cleanGitEnvironment,
+    }),
+  ]);
+  let parsedProjectionFixture;
+  try {
+    parsedProjectionFixture = JSON.parse(
+      projectionSourceFixture.toString('utf8'),
+    );
+  } catch (error) {
+    throw new Error(
+      'OpenDexter portfolio projection source fixture is invalid',
+      { cause: error },
+    );
+  }
+  if (
+    projectionSources.some((source) => source.byteLength === 0)
+    || !projectionSourceFixture.equals(localProjectionFixture)
+    || createHash('sha256').update(projectionSourceFixture).digest('hex')
+      !== projection.fixture.sha256
+    || canonicalHash(parsedProjectionFixture)
+      !== projection.fixture.canonicalDigest
+  ) {
+    throw new Error(
+      'OpenDexter portfolio projection source bytes differ',
+    );
+  }
   return Object.freeze({
     api: Object.freeze({
       repository: contracts.api.repository,
       governedContractCommit: contracts.api.commit,
       integratedReleaseCommit: contracts.integratedApiRelease.commit,
+    }),
+    portfolioProjection: Object.freeze({
+      repository: projection.repository,
+      commit: projection.commit,
+      fixtureSha256: projection.fixture.sha256,
+      canonicalDigest: projection.fixture.canonicalDigest,
     }),
     facilitator: Object.freeze({
       repository: contracts.facilitator.repository,

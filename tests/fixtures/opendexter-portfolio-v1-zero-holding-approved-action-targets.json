@@ -1,0 +1,195 @@
+{
+  "schemaVersion": 1,
+  "network": "solana-mainnet",
+  "walletAddress": "Vote111111111111111111111111111111111111111",
+  "vaultPda": "Stake11111111111111111111111111111111111111",
+  "observedAt": "2026-08-02T00:00:00.000Z",
+  "contextSlot": 435090000,
+  "holdingsComplete": true,
+  "nextCursor": null,
+  "omittedHoldings": 0,
+  "pricedValueUsd": "0",
+  "portfolioValueUsd": "0",
+  "pricedHoldings": 0,
+  "unpricedHoldings": 0,
+  "enrichment": {
+    "metadata": "complete",
+    "pricing": "complete",
+    "tokenExtensions": "complete"
+  },
+  "holdings": [],
+  "approvedActionTargets": [
+    {
+      "namespace": "dexter-approved-action-target/v1",
+      "assetId": "backpack-spcx",
+      "symbol": "SPCX",
+      "name": "SpaceX",
+      "network": "solana-mainnet",
+      "mint": "SPCXxcqXj6e5dJDVNovHN8744zkbhM2bYudU45BimGb",
+      "tokenProgram": "token-2022",
+      "decimals": 6,
+      "actions": [
+        {
+          "namespace": "dexter-governed-asset-action-availability/v1",
+          "action": "buy",
+          "assetId": "backpack-spcx",
+          "registryIdentityDigest": "c105427413d032c5ce823987b33649e0577287c72df157e18f0db065cbd54888",
+          "runtimeReleaseDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "available": true,
+          "reason": null,
+          "receiptDigest": "dfe9d0f72fd4e944c1163d72a44c223bc8d5075ee67082463cad25713df1a1cf"
+        },
+        {
+          "namespace": "dexter-governed-asset-action-availability/v1",
+          "action": "sell",
+          "assetId": "backpack-spcx",
+          "registryIdentityDigest": "c105427413d032c5ce823987b33649e0577287c72df157e18f0db065cbd54888",
+          "runtimeReleaseDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "available": true,
+          "reason": null,
+          "receiptDigest": "46d6466a5a7c6ba662fbcbdb14ac619ed90a2a4a3e150e34796f4024223d1bb2"
+        },
+        {
+          "namespace": "dexter-governed-asset-action-availability/v1",
+          "action": "send",
+          "assetId": "backpack-spcx",
+          "registryIdentityDigest": "c105427413d032c5ce823987b33649e0577287c72df157e18f0db065cbd54888",
+          "runtimeReleaseDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "available": false,
+          "reason": "protected_agent_send_sdk_required",
+          "receiptDigest": "1238ea9d89d360dcd68729201a34159851dd50bf61ccd2ee6204edfe57684010"
+        }
+      ],
+      "targetDigest": "ccfbcd3f95980c50cfb878448805cad506cac3e9f1f11143b205c90afd908185"
+    },
+    {
+      "namespace": "dexter-approved-action-target/v1",
+      "assetId": "dexter",
+      "symbol": "DEXTER",
+      "name": "Dexter AI",
+      "network": "solana-mainnet",
+      "mint": "EfPoo4wWgxKVToit7yX5VtXXBrhao4G8L7vrbKy6pump",
+      "tokenProgram": "spl-token",
+      "decimals": 6,
+      "actions": [
+        {
+          "namespace": "dexter-governed-asset-action-availability/v1",
+          "action": "buy",
+          "assetId": "dexter",
+          "registryIdentityDigest": "0333c579157823b4a6a8a28615c9bb511accc1f095eaa46986fe323d29b168bd",
+          "runtimeReleaseDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "available": true,
+          "reason": null,
+          "receiptDigest": "c568ea21dc30e1a4f65d18386e2638e7ff8f31761802ecff4aa66c0c5580dead"
+        },
+        {
+          "namespace": "dexter-governed-asset-action-availability/v1",
+          "action": "sell",
+          "assetId": "dexter",
+          "registryIdentityDigest": "0333c579157823b4a6a8a28615c9bb511accc1f095eaa46986fe323d29b168bd",
+          "runtimeReleaseDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "available": true,
+          "reason": null,
+          "receiptDigest": "8f22b46c9b5103e2b9d925988f820fb07d0d732be3972109599010c999dd01b6"
+        },
+        {
+          "namespace": "dexter-governed-asset-action-availability/v1",
+          "action": "send",
+          "assetId": "dexter",
+          "registryIdentityDigest": "0333c579157823b4a6a8a28615c9bb511accc1f095eaa46986fe323d29b168bd",
+          "runtimeReleaseDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "available": false,
+          "reason": "protected_agent_send_sdk_required",
+          "receiptDigest": "3fd6db6b227b8fa9f76025bb1b3670fd9cac0d0d2a6080124b338ae3192529f9"
+        }
+      ],
+      "targetDigest": "5d107526b44418c42a26832796966e335cebb3bc0dda2796d4c756e2c2e3959c"
+    },
+    {
+      "namespace": "dexter-approved-action-target/v1",
+      "assetId": "syrup-usdc",
+      "symbol": "syrupUSDC",
+      "name": "syrupUSDC",
+      "network": "solana-mainnet",
+      "mint": "AvZZF1YaZDziPY2RCK4oJrRVrbN3mTD9NL24hPeaZeUj",
+      "tokenProgram": "spl-token",
+      "decimals": 6,
+      "actions": [
+        {
+          "namespace": "dexter-governed-asset-action-availability/v1",
+          "action": "buy",
+          "assetId": "syrup-usdc",
+          "registryIdentityDigest": "56f61b59f45247a1c8a92b7cfa0406e28e6d78d2ba25d91f618dc4c60af31965",
+          "runtimeReleaseDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "available": true,
+          "reason": null,
+          "receiptDigest": "4e37c317707382d95ff4d113c6ddb754d289a914a23b6acf00d1aaee3b16d108"
+        },
+        {
+          "namespace": "dexter-governed-asset-action-availability/v1",
+          "action": "sell",
+          "assetId": "syrup-usdc",
+          "registryIdentityDigest": "56f61b59f45247a1c8a92b7cfa0406e28e6d78d2ba25d91f618dc4c60af31965",
+          "runtimeReleaseDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "available": true,
+          "reason": null,
+          "receiptDigest": "f47e6e69ae07b376e7247d865dff9caa3bebc0bc891db7bb11aa8e41be8ffeb6"
+        },
+        {
+          "namespace": "dexter-governed-asset-action-availability/v1",
+          "action": "send",
+          "assetId": "syrup-usdc",
+          "registryIdentityDigest": "56f61b59f45247a1c8a92b7cfa0406e28e6d78d2ba25d91f618dc4c60af31965",
+          "runtimeReleaseDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "available": false,
+          "reason": "protected_agent_send_sdk_required",
+          "receiptDigest": "c441244b9639e950675db4fb0afbcf336b0c7ee6647e8511a20e4f56f5ccc2aa"
+        }
+      ],
+      "targetDigest": "2e508d923621d47b94ae7899bf355a8dc86daed4ea89702aa18fa38cd976be73"
+    },
+    {
+      "namespace": "dexter-approved-action-target/v1",
+      "assetId": "wrapped-solana",
+      "symbol": "SOL",
+      "name": "Wrapped SOL",
+      "network": "solana-mainnet",
+      "mint": "So11111111111111111111111111111111111111112",
+      "tokenProgram": "spl-token",
+      "decimals": 9,
+      "actions": [
+        {
+          "namespace": "dexter-governed-asset-action-availability/v1",
+          "action": "buy",
+          "assetId": "wrapped-solana",
+          "registryIdentityDigest": "b1732cb85884c5a438b51189e0eb075561f1921c08646ba8a9025f59a057379c",
+          "runtimeReleaseDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "available": true,
+          "reason": null,
+          "receiptDigest": "ab5b7f78a80403df0708050ff7c1c56f21fd3e24e8d25cab19c09b02c71f489f"
+        },
+        {
+          "namespace": "dexter-governed-asset-action-availability/v1",
+          "action": "sell",
+          "assetId": "wrapped-solana",
+          "registryIdentityDigest": "b1732cb85884c5a438b51189e0eb075561f1921c08646ba8a9025f59a057379c",
+          "runtimeReleaseDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "available": true,
+          "reason": null,
+          "receiptDigest": "d6e6a286fd705b2ab17882982339ebcf070882c6d9b5a1be4f00b8fbedd356a0"
+        },
+        {
+          "namespace": "dexter-governed-asset-action-availability/v1",
+          "action": "send",
+          "assetId": "wrapped-solana",
+          "registryIdentityDigest": "b1732cb85884c5a438b51189e0eb075561f1921c08646ba8a9025f59a057379c",
+          "runtimeReleaseDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "available": false,
+          "reason": "protected_agent_send_sdk_required",
+          "receiptDigest": "6dbd6a7d5cb5f3781b4adfdf8e854279555edacbe97596e9b0a030e22001dd98"
+        }
+      ],
+      "targetDigest": "77a1e41067fbac821cfa869e59a68e2044cd81330c5386854ee4dc90036bf724"
+    }
+  ]
+}

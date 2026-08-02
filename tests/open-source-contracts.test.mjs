@@ -11,6 +11,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { canonicalHash } from '../lib/governed-canonical-identity.mjs';
+import {
+  modelSafePortfolioSnapshot,
+  validateAndBoundPortfolioSnapshotV1,
+} from '../lib/session-portfolio.mjs';
 import {
   hasExactOpenDexterSourceContractsShape,
   readOpenDexterSourceContracts,
@@ -28,6 +33,10 @@ const FACILITATOR_ORIGIN =
   'https://github.com/Dexter-DAO/dexter-facilitator.git';
 const BINDING_FIXTURE_PATH = fileURLToPath(new URL(
   './fixtures/governed-agent-trade-api-facilitator-binding-v1.json',
+  import.meta.url,
+));
+const PORTFOLIO_PROJECTION_FIXTURE_PATH = fileURLToPath(new URL(
+  './fixtures/opendexter-portfolio-v1-zero-holding-approved-action-targets.json',
   import.meta.url,
 ));
 
@@ -48,6 +57,9 @@ function createCrossRepositoryHarness(t, options = {}) {
 
   const contracts = manifest();
   const fixtureBytes = readFileSync(BINDING_FIXTURE_PATH);
+  const projectionFixtureBytes = readFileSync(
+    PORTFOLIO_PROJECTION_FIXTURE_PATH,
+  );
   const response = (value, commandOptions) => ({
     stdout: commandOptions?.encoding === null
       ? Buffer.from(value)
@@ -107,7 +119,27 @@ function createCrossRepositoryHarness(t, options = {}) {
       );
     }
     if (gitArgs[0] === 'show') {
-      const [object] = gitArgs[1].split(':');
+      const [object, path] = gitArgs[1].split(':');
+      if (contracts.portfolioProjection.sourcePaths.includes(path)) {
+        return response(
+          options.projectionSourceMissing === true
+            || options.projectionSourceMissing === path
+            ? Buffer.alloc(0)
+            : Buffer.from(`// exact producer composition: ${path}\n`),
+          commandOptions,
+        );
+      }
+      if (path === contracts.portfolioProjection.fixture.apiPath) {
+        return response(
+          options.projectionFixtureDrift
+            ? Buffer.from(JSON.stringify({
+                ...JSON.parse(projectionFixtureBytes),
+                hostile: true,
+              }))
+            : projectionFixtureBytes,
+          commandOptions,
+        );
+      }
       const driftKey = isFacilitator
         ? 'facilitator'
         : object === contracts.api.commit ? 'api-contract' : 'api-integrated';
@@ -155,12 +187,24 @@ async function verifyHarness(harness) {
   });
 }
 
-test('sourceContracts/v2 has one exact immutable shape and exact local fixtures', async () => {
+test('sourceContracts/v3 has one exact immutable shape and exact local fixtures', async () => {
   const sourceContracts = manifest();
   assert.equal(hasExactOpenDexterSourceContractsShape(sourceContracts), true);
   assert.equal(
     verifyExactOpenDexterSourceContractsShape(sourceContracts),
     sourceContracts,
+  );
+  const projectionFixtureBytes = readFileSync(
+    PORTFOLIO_PROJECTION_FIXTURE_PATH,
+  );
+  assert.equal(projectionFixtureBytes.byteLength, 8529);
+  assert.equal(
+    createHash('sha256').update(projectionFixtureBytes).digest('hex'),
+    '9c4c29b0d911b490d53a375eca1ae302501397be9c56250591bafaeb34a4e625',
+  );
+  assert.equal(
+    canonicalHash(JSON.parse(projectionFixtureBytes)),
+    'f4a3f826aa1c08531d42da402f08df709642ea75a84fd74608be75cdba2fc28a',
   );
   assert.deepEqual(await readOpenDexterSourceContracts(), sourceContracts);
 
@@ -174,12 +218,56 @@ test('sourceContracts/v2 has one exact immutable shape and exact local fixtures'
   const extra = structuredClone(sourceContracts);
   extra.integratedApiRelease.extra = true;
   assert.equal(hasExactOpenDexterSourceContractsShape(extra), false);
+  const substitutedComposition = structuredClone(sourceContracts);
+  substitutedComposition.portfolioProjection.sourcePaths[2] =
+    'src/routes/hostileComposition.ts';
+  assert.equal(
+    hasExactOpenDexterSourceContractsShape(substitutedComposition),
+    false,
+  );
   const wrongTree = structuredClone(sourceContracts);
   wrongTree.integratedApiRelease.tree = 'f'.repeat(40);
   assert.throws(
     () => verifyExactOpenDexterSourceContractsShape(wrongTree),
     /manifest is invalid/,
   );
+});
+
+test('accepted API projection fixture is an exact zero-holding discovery contract', () => {
+  const source = JSON.parse(readFileSync(PORTFOLIO_PROJECTION_FIXTURE_PATH));
+  const validated = validateAndBoundPortfolioSnapshotV1(source);
+  assert.ok(validated);
+  assert.deepEqual(validated.holdings, []);
+  assert.equal(validated.portfolioValueUsd, '0');
+  assert.equal(validated.approvedActionTargets.length, 4);
+  assert.deepEqual(
+    validated.approvedActionTargets.map(({ assetId }) => assetId),
+    ['backpack-spcx', 'dexter', 'syrup-usdc', 'wrapped-solana'],
+  );
+  for (const target of validated.approvedActionTargets) {
+    assert.deepEqual(
+      target.actions.map(({ action, available, reason }) => ({
+        action,
+        available,
+        reason,
+      })),
+      [
+        { action: 'buy', available: true, reason: null },
+        { action: 'sell', available: true, reason: null },
+        {
+          action: 'send',
+          available: false,
+          reason: 'protected_agent_send_sdk_required',
+        },
+      ],
+    );
+  }
+  const projected = modelSafePortfolioSnapshot(validated);
+  assert.deepEqual(
+    projected.approvedActionTargets,
+    source.approvedActionTargets,
+  );
+  assert.deepEqual(projected.holdings, []);
 });
 
 test('cross-repository source verifier accepts only the exact frozen graph', async (t) => {
@@ -189,6 +277,14 @@ test('cross-repository source verifier accepts only the exact frozen graph', asy
       repository: 'https://github.com/Dexter-DAO/dexter-api',
       governedContractCommit: harness.contracts.api.commit,
       integratedReleaseCommit: harness.contracts.integratedApiRelease.commit,
+    },
+    portfolioProjection: {
+      repository: 'https://github.com/Dexter-DAO/dexter-api',
+      commit: harness.contracts.portfolioProjection.commit,
+      fixtureSha256:
+        '9c4c29b0d911b490d53a375eca1ae302501397be9c56250591bafaeb34a4e625',
+      canonicalDigest:
+        'f4a3f826aa1c08531d42da402f08df709642ea75a84fd74608be75cdba2fc28a',
     },
     facilitator: {
       repository: 'https://github.com/Dexter-DAO/dexter-facilitator',
@@ -206,6 +302,10 @@ test('cross-repository source verifier rejects every identity and byte attack', 
     ['governed byte drift', { governedDrift: true }, /changes the frozen/],
     ['API fixture drift', { fixtureDrift: 'api-integrated' }, /source bytes differ/],
     ['facilitator fixture drift', { fixtureDrift: 'facilitator' }, /source bytes differ/],
+    ['portfolio fixture drift', { projectionFixtureDrift: true }, /projection source bytes differ/],
+    ['portfolio source missing', {
+      projectionSourceMissing: 'src/routes/passkeyMcpBinding.ts',
+    }, /projection source bytes differ/],
     ['noncanonical API origin', { noncanonicalOrigin: 'api' }, /not canonical/],
     ['noncanonical facilitator origin', {
       noncanonicalOrigin: 'facilitator',

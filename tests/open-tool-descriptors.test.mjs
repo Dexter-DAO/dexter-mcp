@@ -289,8 +289,8 @@ test('source materializer emits one deterministic full hosted descriptor', async
     new URL('../release/opendexter-source-contracts.json', import.meta.url),
     'utf8',
   )));
-  assert.equal(descriptor.sourceContracts.schemaVersion, 2);
-  assert.equal(descriptor.sourceContracts.kind, 'opendexter-source-contracts/v2');
+  assert.equal(descriptor.sourceContracts.schemaVersion, 3);
+  assert.equal(descriptor.sourceContracts.kind, 'opendexter-source-contracts/v3');
   assert.equal(
     descriptor.sourceContracts.api.commit,
     'c3e32885cc39cdee47eca5a054c0fd7d8a0fdd8b',
@@ -301,10 +301,30 @@ test('source materializer emits one deterministic full hosted descriptor', async
   );
   assert.deepEqual(descriptor.sourceContracts.integratedApiRelease, {
     repository: 'https://github.com/Dexter-DAO/dexter-api',
-    commit: 'ea2acbb7a11a696c685b6e48581362c448ef73cf',
-    tree: 'b876e490e96843c3d37934e865966d6f6674fc48',
+    commit: '6d8de2cee71fc217559fa2a2825fa2a25faf9497',
+    tree: 'a8f7a84e001bcd06f0418eb149da4e14fbafbfeb',
     governedContractCommit: 'c3e32885cc39cdee47eca5a054c0fd7d8a0fdd8b',
     governedContractTree: 'b8a3bdd790379f82b959663e679960f213addb5b',
+  });
+  assert.deepEqual(descriptor.sourceContracts.portfolioProjection, {
+    repository: 'https://github.com/Dexter-DAO/dexter-api',
+    commit: '6d8de2cee71fc217559fa2a2825fa2a25faf9497',
+    tree: 'a8f7a84e001bcd06f0418eb149da4e14fbafbfeb',
+    sourcePaths: [
+      'src/portfolio/approvedActionTargets.ts',
+      'src/routes/passkeyMcpBinding.ts',
+      'src/routes/defaultGovernedDelegatedAssetActions.ts',
+    ],
+    fixture: {
+      consumerPath:
+        'tests/fixtures/opendexter-portfolio-v1-zero-holding-approved-action-targets.json',
+      apiPath:
+        'tests/fixtures/opendexter-portfolio-v1-zero-holding-approved-action-targets.json',
+      sha256:
+        '9c4c29b0d911b490d53a375eca1ae302501397be9c56250591bafaeb34a4e625',
+      canonicalDigest:
+        'f4a3f826aa1c08531d42da402f08df709642ea75a84fd74608be75cdba2fc28a',
+    },
   });
   assert.equal(
     descriptor.sourceContracts.facilitator.commit,
@@ -320,7 +340,7 @@ test('source materializer emits one deterministic full hosted descriptor', async
   );
   assert.equal(
     descriptor.sourceContracts.mcp.commit,
-    'c54821778f016e5bfd4942852d31ec314828a8e5',
+    '0647bbdf081733ac3ca5ba82850c2c1db79307cb',
   );
   assert.equal(
     execFileSync('git', [
@@ -399,6 +419,22 @@ test('source materializer emits one deterministic full hosted descriptor', async
   assert.equal(search._meta['openai/toolInvocation/invoking'], 'Searching marketplace…');
   assert.equal(search._meta['openai/toolInvocation/invoked'], 'Results ready');
   assert.deepEqual(search._meta.securitySchemes, search.securitySchemes);
+
+  const portfolio = descriptor.tools.find(
+    ({ name }) => name === 'dexter_portfolio',
+  );
+  const targets =
+    portfolio.outputSchema.properties.portfolio.properties.approvedActionTargets;
+  assert.equal(targets.type, 'array');
+  assert.equal(targets.maxItems, 128);
+  assert.deepEqual(
+    targets.items.properties.actions.items.properties.action.enum,
+    ['buy', 'sell', 'send'],
+  );
+  assert.equal(
+    targets.items.properties.assetId.pattern,
+    '^[a-z0-9][a-z0-9._:-]{0,127}$',
+  );
 });
 
 test('descriptor check is byte-exact and refuses schema or OAuth drift', async (t) => {

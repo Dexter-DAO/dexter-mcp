@@ -2,8 +2,8 @@
   "schemaVersion": 2,
   "kind": "opendexter-hosted-tool-descriptors/v2",
   "sourceContracts": {
-    "schemaVersion": 1,
-    "kind": "opendexter-source-contracts/v1",
+    "schemaVersion": 3,
+    "kind": "opendexter-source-contracts/v3",
     "api": {
       "repository": "https://github.com/Dexter-DAO/dexter-api",
       "commit": "c3e32885cc39cdee47eca5a054c0fd7d8a0fdd8b",
@@ -14,10 +14,44 @@
         "canonicalBodyDigest": "48e77a936f06fe07b66fee7c2cb9126e8305d4e180c2c304513d5f0ea1636e16"
       }
     },
+    "integratedApiRelease": {
+      "repository": "https://github.com/Dexter-DAO/dexter-api",
+      "commit": "6d8de2cee71fc217559fa2a2825fa2a25faf9497",
+      "tree": "a8f7a84e001bcd06f0418eb149da4e14fbafbfeb",
+      "governedContractCommit": "c3e32885cc39cdee47eca5a054c0fd7d8a0fdd8b",
+      "governedContractTree": "b8a3bdd790379f82b959663e679960f213addb5b"
+    },
+    "portfolioProjection": {
+      "repository": "https://github.com/Dexter-DAO/dexter-api",
+      "commit": "6d8de2cee71fc217559fa2a2825fa2a25faf9497",
+      "tree": "a8f7a84e001bcd06f0418eb149da4e14fbafbfeb",
+      "sourcePaths": [
+        "src/portfolio/approvedActionTargets.ts",
+        "src/routes/passkeyMcpBinding.ts",
+        "src/routes/defaultGovernedDelegatedAssetActions.ts"
+      ],
+      "fixture": {
+        "consumerPath": "tests/fixtures/opendexter-portfolio-v1-zero-holding-approved-action-targets.json",
+        "apiPath": "tests/fixtures/opendexter-portfolio-v1-zero-holding-approved-action-targets.json",
+        "sha256": "9c4c29b0d911b490d53a375eca1ae302501397be9c56250591bafaeb34a4e625",
+        "canonicalDigest": "f4a3f826aa1c08531d42da402f08df709642ea75a84fd74608be75cdba2fc28a"
+      }
+    },
+    "facilitator": {
+      "repository": "https://github.com/Dexter-DAO/dexter-facilitator",
+      "commit": "df370826b7b951dfc825a689c4e6f3b1928ee5e2",
+      "tree": "a9b4b18eb350143f3265834571c910891c83dd5c",
+      "bindingFixture": {
+        "consumerPath": "tests/fixtures/governed-agent-trade-api-facilitator-binding-v1.json",
+        "apiPath": "tests/fixtures/governed-agent-trade-api-facilitator-binding-v1.json",
+        "facilitatorPath": "test/fixtures/governed-agent-trade-api-facilitator-binding-v1.json",
+        "sha256": "66bbd343637fe9b3af245b2ace823a9dff1d8032e2dd01da7ee4bd71cc1ff7d6"
+      }
+    },
     "mcp": {
       "repository": "https://github.com/Dexter-DAO/dexter-mcp",
-      "commit": "c54821778f016e5bfd4942852d31ec314828a8e5",
-      "tree": "c750008a28e5bb01e7ac670c826e1049461637ce",
+      "commit": "0647bbdf081733ac3ca5ba82850c2c1db79307cb",
+      "tree": "66dfac45954b4b0983c56bf967b063fa59e72d91",
       "toolContractPath": "lib/open-tool-contracts.mjs",
       "authContractPath": "lib/open-tool-auth.mjs"
     }
@@ -153,11 +187,57 @@
           "type": "noauth"
         }
       ],
-      "visibility": [
-        "model",
-        "app"
-      ],
-      "widgetAccessible": true
+      "_meta": {
+        "ui": {
+          "resourceUri": "ui://dexter/x402-marketplace-search-49561132",
+          "visibility": [
+            "model",
+            "app"
+          ],
+          "csp": {
+            "resourceDomains": [
+              "https://dexter.cash",
+              "https://api.dexter.cash",
+              "https://x402gle.com"
+            ],
+            "connectDomains": [
+              "https://dexter.cash",
+              "https://o4510869152923648.ingest.us.sentry.io",
+              "https://api.dexter.cash"
+            ]
+          },
+          "domain": "https://dexter.cash",
+          "prefersBorder": true
+        },
+        "ui/resourceUri": "ui://dexter/x402-marketplace-search-49561132",
+        "openai/outputTemplate": "ui://dexter/x402-marketplace-search-49561132",
+        "openai/resultCanProduceWidget": true,
+        "openai/widgetAccessible": true,
+        "openai/widgetDomain": "https://dexter.cash",
+        "openai/widgetPrefersBorder": true,
+        "openai/widgetCSP": {
+          "connect_domains": [
+            "https://o4510869152923648.ingest.us.sentry.io",
+            "https://api.dexter.cash"
+          ],
+          "resource_domains": [
+            "https://dexter.cash",
+            "https://api.dexter.cash",
+            "https://x402gle.com"
+          ],
+          "redirect_domains": [
+            "https://dexter.cash"
+          ]
+        },
+        "openai/toolInvocation/invoking": "Searching marketplace…",
+        "openai/toolInvocation/invoked": "Results ready",
+        "openai/widgetDescription": "Shows paid API search results as interactive cards with quality rings, prices, and fetch buttons.",
+        "securitySchemes": [
+          {
+            "type": "noauth"
+          }
+        ]
+      }
     },
     {
       "name": "x402_check",
@@ -348,11 +428,70 @@
           ]
         }
       ],
-      "visibility": [
-        "model",
-        "app"
-      ],
-      "widgetAccessible": true
+      "_meta": {
+        "ui": {
+          "resourceUri": "ui://dexter/x402-pricing-16671017",
+          "visibility": [
+            "model",
+            "app"
+          ],
+          "csp": {
+            "resourceDomains": [
+              "https://dexter.cash",
+              "https://api.dexter.cash"
+            ],
+            "connectDomains": [
+              "https://dexter.cash",
+              "https://o4510869152923648.ingest.us.sentry.io"
+            ]
+          },
+          "domain": "https://dexter.cash",
+          "prefersBorder": true
+        },
+        "ui/resourceUri": "ui://dexter/x402-pricing-16671017",
+        "openai/outputTemplate": "ui://dexter/x402-pricing-16671017",
+        "openai/resultCanProduceWidget": true,
+        "openai/widgetAccessible": true,
+        "openai/widgetDomain": "https://dexter.cash",
+        "openai/widgetPrefersBorder": true,
+        "openai/widgetCSP": {
+          "connect_domains": [
+            "https://o4510869152923648.ingest.us.sentry.io"
+          ],
+          "resource_domains": [
+            "https://dexter.cash",
+            "https://api.dexter.cash"
+          ],
+          "redirect_domains": [
+            "https://solscan.io",
+            "https://basescan.org",
+            "https://etherscan.io",
+            "https://polygonscan.com",
+            "https://arbiscan.io",
+            "https://optimistic.etherscan.io",
+            "https://snowtrace.io",
+            "https://skale-base-explorer.skalenodes.com",
+            "https://robinhoodchain.blockscout.com",
+            "https://worldscan.org",
+            "https://monadvision.com",
+            "https://bscscan.com"
+          ]
+        },
+        "openai/toolInvocation/invoking": "Checking pricing…",
+        "openai/toolInvocation/invoked": "Pricing loaded",
+        "openai/widgetDescription": "Shows endpoint pricing per blockchain with payment amounts and a pay button.",
+        "securitySchemes": [
+          {
+            "type": "noauth"
+          },
+          {
+            "type": "oauth2",
+            "scopes": [
+              "vault"
+            ]
+          }
+        ]
+      }
     },
     {
       "name": "x402_fetch",
@@ -462,11 +601,69 @@
           ]
         }
       ],
-      "visibility": [
-        "model",
-        "app"
-      ],
-      "widgetAccessible": false
+      "_meta": {
+        "ui": {
+          "resourceUri": "ui://dexter/x402-fetch-result-cf7844f4",
+          "visibility": [
+            "model",
+            "app"
+          ],
+          "csp": {
+            "resourceDomains": [
+              "https://dexter.cash",
+              "https://api.dexter.cash",
+              "https://api.qrserver.com"
+            ],
+            "connectDomains": [
+              "https://dexter.cash",
+              "https://o4510869152923648.ingest.us.sentry.io"
+            ]
+          },
+          "domain": "https://dexter.cash",
+          "prefersBorder": true
+        },
+        "ui/resourceUri": "ui://dexter/x402-fetch-result-cf7844f4",
+        "openai/outputTemplate": "ui://dexter/x402-fetch-result-cf7844f4",
+        "openai/resultCanProduceWidget": true,
+        "openai/widgetAccessible": false,
+        "openai/widgetDomain": "https://dexter.cash",
+        "openai/widgetPrefersBorder": true,
+        "openai/widgetCSP": {
+          "connect_domains": [
+            "https://o4510869152923648.ingest.us.sentry.io"
+          ],
+          "resource_domains": [
+            "https://dexter.cash",
+            "https://api.dexter.cash",
+            "https://api.qrserver.com"
+          ],
+          "redirect_domains": [
+            "https://solscan.io",
+            "https://basescan.org",
+            "https://etherscan.io",
+            "https://polygonscan.com",
+            "https://arbiscan.io",
+            "https://optimistic.etherscan.io",
+            "https://snowtrace.io",
+            "https://skale-base-explorer.skalenodes.com",
+            "https://robinhoodchain.blockscout.com",
+            "https://worldscan.org",
+            "https://monadvision.com",
+            "https://bscscan.com"
+          ]
+        },
+        "openai/toolInvocation/invoking": "Calling API…",
+        "openai/toolInvocation/invoked": "Response received",
+        "openai/widgetDescription": "Shows API response data with payment receipt, transaction link, and settlement status.",
+        "securitySchemes": [
+          {
+            "type": "oauth2",
+            "scopes": [
+              "vault"
+            ]
+          }
+        ]
+      }
     },
     {
       "name": "x402_status",
@@ -569,10 +766,24 @@
           ]
         }
       ],
-      "visibility": [
-        "model"
-      ],
-      "widgetAccessible": false
+      "_meta": {
+        "openai/toolInvocation/invoking": "Checking purchase…",
+        "openai/toolInvocation/invoked": "Purchase status loaded",
+        "securitySchemes": [
+          {
+            "type": "oauth2",
+            "scopes": [
+              "vault"
+            ]
+          }
+        ],
+        "ui": {
+          "visibility": [
+            "model"
+          ]
+        },
+        "openai/widgetAccessible": false
+      }
     },
     {
       "name": "x402_access",
@@ -658,10 +869,65 @@
           "type": "noauth"
         }
       ],
-      "visibility": [
-        "model"
-      ],
-      "widgetAccessible": false
+      "_meta": {
+        "ui": {
+          "resourceUri": "ui://dexter/x402-fetch-result-cf7844f4",
+          "visibility": [
+            "model"
+          ],
+          "csp": {
+            "resourceDomains": [
+              "https://dexter.cash",
+              "https://api.dexter.cash",
+              "https://api.qrserver.com"
+            ],
+            "connectDomains": [
+              "https://dexter.cash",
+              "https://o4510869152923648.ingest.us.sentry.io"
+            ]
+          },
+          "domain": "https://dexter.cash",
+          "prefersBorder": true
+        },
+        "ui/resourceUri": "ui://dexter/x402-fetch-result-cf7844f4",
+        "openai/outputTemplate": "ui://dexter/x402-fetch-result-cf7844f4",
+        "openai/resultCanProduceWidget": true,
+        "openai/widgetAccessible": false,
+        "openai/widgetDomain": "https://dexter.cash",
+        "openai/widgetPrefersBorder": true,
+        "openai/widgetCSP": {
+          "connect_domains": [
+            "https://o4510869152923648.ingest.us.sentry.io"
+          ],
+          "resource_domains": [
+            "https://dexter.cash",
+            "https://api.dexter.cash",
+            "https://api.qrserver.com"
+          ],
+          "redirect_domains": [
+            "https://solscan.io",
+            "https://basescan.org",
+            "https://etherscan.io",
+            "https://polygonscan.com",
+            "https://arbiscan.io",
+            "https://optimistic.etherscan.io",
+            "https://snowtrace.io",
+            "https://skale-base-explorer.skalenodes.com",
+            "https://robinhoodchain.blockscout.com",
+            "https://worldscan.org",
+            "https://monadvision.com",
+            "https://bscscan.com"
+          ]
+        },
+        "openai/toolInvocation/invoking": "Signing access proof…",
+        "openai/toolInvocation/invoked": "Access response ready",
+        "openai/widgetDescription": "Shows identity-gated API responses with wallet proof details and any follow-up requirements.",
+        "securitySchemes": [
+          {
+            "type": "noauth"
+          }
+        ]
+      }
     },
     {
       "name": "x402_wallet",
@@ -720,16 +986,68 @@
           ]
         }
       ],
-      "visibility": [
-        "model",
-        "app"
-      ],
-      "widgetAccessible": false
+      "_meta": {
+        "ui": {
+          "resourceUri": "ui://dexter/x402-wallet-c0d8db7c",
+          "visibility": [
+            "model",
+            "app"
+          ],
+          "csp": {
+            "resourceDomains": [
+              "https://dexter.cash",
+              "https://open.dexter.cash",
+              "https://api.dexter.cash",
+              "https://api.qrserver.com"
+            ],
+            "connectDomains": [
+              "https://dexter.cash",
+              "https://o4510869152923648.ingest.us.sentry.io",
+              "https://open.dexter.cash"
+            ]
+          },
+          "domain": "https://dexter.cash",
+          "prefersBorder": true
+        },
+        "ui/resourceUri": "ui://dexter/x402-wallet-c0d8db7c",
+        "openai/outputTemplate": "ui://dexter/x402-wallet-c0d8db7c",
+        "openai/resultCanProduceWidget": true,
+        "openai/widgetAccessible": false,
+        "openai/widgetDomain": "https://dexter.cash",
+        "openai/widgetPrefersBorder": true,
+        "openai/widgetCSP": {
+          "connect_domains": [
+            "https://o4510869152923648.ingest.us.sentry.io",
+            "https://open.dexter.cash"
+          ],
+          "resource_domains": [
+            "https://dexter.cash",
+            "https://open.dexter.cash",
+            "https://api.dexter.cash",
+            "https://api.qrserver.com"
+          ],
+          "redirect_domains": [
+            "https://dexter.cash",
+            "https://solscan.io"
+          ]
+        },
+        "openai/toolInvocation/invoking": "Loading wallet…",
+        "openai/toolInvocation/invoked": "Wallet loaded",
+        "openai/widgetDescription": "Shows wallet addresses with copy button, USDC balances across chains, and deposit QR code.",
+        "securitySchemes": [
+          {
+            "type": "oauth2",
+            "scopes": [
+              "vault"
+            ]
+          }
+        ]
+      }
     },
     {
       "name": "dexter_portfolio",
       "title": "View the Governed Asset Portfolio",
-      "description": "Read the portfolio bound to the current authenticated OpenDexter session. Inputs cannot select a handle, wallet, vault, actor, agent, grant, role, or authority. Approved holdings include the canonical assetId accepted by governed Send, Buy, and Sell; unreviewed or blocked holdings expose null. The result otherwise contains only verified chain identities, exact quantities, bounded numeric valuation, and allowed action enums; names, symbols, issuers, URLs, registry groups, and policy reasons are excluded.",
+      "description": "Read the portfolio bound to the current authenticated OpenDexter session. Inputs cannot select a handle, wallet, vault, actor, agent, grant, role, or authority. Approved holdings include canonical assetIds for held assets; optional approvedActionTargets separately list server-approved governed assets even when the wallet holds none. Targets never count as holdings or value. Use only a target action whose availability is true, and treat Prepare as execution authority. Unreviewed or blocked holdings expose a null assetId.",
       "inputSchema": {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "object",
@@ -947,6 +1265,135 @@
                   ],
                   "additionalProperties": false
                 }
+              },
+              "approvedActionTargets": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "namespace": {
+                      "type": "string",
+                      "const": "dexter-approved-action-target/v1"
+                    },
+                    "assetId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128,
+                      "pattern": "^[a-z0-9][a-z0-9._:-]{0,127}$"
+                    },
+                    "symbol": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 32
+                    },
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "network": {
+                      "type": "string",
+                      "const": "solana-mainnet"
+                    },
+                    "mint": {
+                      "type": "string",
+                      "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$"
+                    },
+                    "tokenProgram": {
+                      "type": "string",
+                      "enum": [
+                        "spl-token",
+                        "token-2022"
+                      ]
+                    },
+                    "decimals": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 18
+                    },
+                    "actions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "namespace": {
+                            "type": "string",
+                            "const": "dexter-governed-asset-action-availability/v1"
+                          },
+                          "action": {
+                            "type": "string",
+                            "enum": [
+                              "buy",
+                              "sell",
+                              "send"
+                            ]
+                          },
+                          "assetId": {
+                            "$ref": "#/properties/portfolio/properties/approvedActionTargets/items/properties/assetId"
+                          },
+                          "registryIdentityDigest": {
+                            "type": "string",
+                            "pattern": "^[0-9a-f]{64}$"
+                          },
+                          "runtimeReleaseDigest": {
+                            "$ref": "#/properties/portfolio/properties/approvedActionTargets/items/properties/actions/items/properties/registryIdentityDigest"
+                          },
+                          "available": {
+                            "type": "boolean"
+                          },
+                          "reason": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "governed_asset_rail_not_live",
+                                  "governed_asset_action_not_supported",
+                                  "protected_agent_send_sdk_required"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "receiptDigest": {
+                            "$ref": "#/properties/portfolio/properties/approvedActionTargets/items/properties/actions/items/properties/registryIdentityDigest"
+                          }
+                        },
+                        "required": [
+                          "namespace",
+                          "action",
+                          "assetId",
+                          "registryIdentityDigest",
+                          "runtimeReleaseDigest",
+                          "available",
+                          "reason",
+                          "receiptDigest"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "minItems": 3,
+                      "maxItems": 3
+                    },
+                    "targetDigest": {
+                      "$ref": "#/properties/portfolio/properties/approvedActionTargets/items/properties/actions/items/properties/registryIdentityDigest"
+                    }
+                  },
+                  "required": [
+                    "namespace",
+                    "assetId",
+                    "symbol",
+                    "name",
+                    "network",
+                    "mint",
+                    "tokenProgram",
+                    "decimals",
+                    "actions",
+                    "targetDigest"
+                  ],
+                  "additionalProperties": false
+                },
+                "maxItems": 128
               }
             },
             "required": [
@@ -1038,15 +1485,29 @@
           ]
         }
       ],
-      "visibility": [
-        "model"
-      ],
-      "widgetAccessible": false
+      "_meta": {
+        "openai/toolInvocation/invoking": "Loading portfolio…",
+        "openai/toolInvocation/invoked": "Portfolio loaded",
+        "securitySchemes": [
+          {
+            "type": "oauth2",
+            "scopes": [
+              "vault"
+            ]
+          }
+        ],
+        "ui": {
+          "visibility": [
+            "model"
+          ]
+        },
+        "openai/widgetAccessible": false
+      }
     },
     {
       "name": "dexter_prepare_asset_action",
       "title": "Prepare a Governed Send, Buy, or Sell",
-      "description": "Persist and evaluate one exact Send, Buy, or Sell without signing or submitting it. Pass only a canonical assetId returned by dexter_portfolio; Dexter resolves and binds its exact network, mint, token program, decimals, and supported actions. Buy amountAtomic is the USDC budget to spend; Sell and Send amountAtomic are selected-asset input. operationId is only the Idempotency-Key. The server resolves the wallet and reusable bounded mandate; enrollment, extension, or owner escalation happens outside model-callable tools only when the request is not already covered.",
+      "description": "Persist and evaluate one exact Send, Buy, or Sell without signing or submitting it. Tool/schema presence is not runtime capability; only this Prepare response is authoritative. In the current integrated release, covered Buy and Sell may continue autonomously, while Send is preserved in the input contract but fails closed with protected_agent_send_sdk_required before capacity reservation or intent creation. Pass only a canonical assetId returned by dexter_portfolio from an approved holding or approvedActionTarget with the requested action available; Dexter resolves and binds its exact network, mint, token program, decimals, and supported actions. Buy amountAtomic is the USDC budget to spend; Sell and Send amountAtomic are selected-asset input. operationId is only the Idempotency-Key. The server resolves the wallet and reusable bounded mandate; enrollment, extension, or owner escalation happens outside model-callable tools only when the request is not already covered.",
       "inputSchema": {
         "anyOf": [
           {
@@ -1068,7 +1529,7 @@
                 "minLength": 1,
                 "maxLength": 128,
                 "pattern": "^[a-z0-9][a-z0-9._:-]*$",
-                "description": "Canonical assetId returned by dexter_portfolio for a server-approved asset. This is not a symbol or mint; Dexter resolves it to one exact network, mint, token program, decimals, and capability record."
+                "description": "Canonical assetId returned by dexter_portfolio from an approved holding or approvedActionTarget. This is not a symbol or mint; Dexter resolves it to one exact network, mint, token program, decimals, and capability record."
               },
               "amountAtomic": {
                 "type": "string",
@@ -1333,7 +1794,7 @@
                 "minLength": 1,
                 "maxLength": 128,
                 "pattern": "^[a-z0-9][a-z0-9._:-]*$",
-                "description": "Canonical assetId returned by dexter_portfolio for a server-approved asset. This is not a symbol or mint; Dexter resolves it to one exact network, mint, token program, decimals, and capability record."
+                "description": "Canonical assetId returned by dexter_portfolio from an approved holding or approvedActionTarget. This is not a symbol or mint; Dexter resolves it to one exact network, mint, token program, decimals, and capability record."
               },
               "amountAtomic": {
                 "type": "string",
@@ -1814,15 +2275,27 @@
           ]
         }
       ],
-      "visibility": [
-        "model"
-      ],
-      "widgetAccessible": false
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "oauth2",
+            "scopes": [
+              "vault"
+            ]
+          }
+        ],
+        "ui": {
+          "visibility": [
+            "model"
+          ]
+        },
+        "openai/widgetAccessible": false
+      }
     },
     {
       "name": "dexter_execute_asset_action",
       "title": "Execute a Prepared Governed Asset Action",
-      "description": "Ask the protected mandate executor to execute one exact intentId. A request covered by the bound reusable mandate may execute autonomously; an uncovered request fails closed for enrollment, extension, or owner escalation. operationId is only the Idempotency-Key and grants no authority. The tool accepts no plan, attempt, authorization, wallet, agent, grant, mint, or token-program fields. Never retry automatically after a timeout or uncertain result; inspect status and reconcile the same intent.",
+      "description": "Ask the protected mandate executor to execute one exact intentId returned by a successful Prepare. A request covered by the bound reusable mandate may execute autonomously; an uncovered or runtime-unavailable request fails closed. Never call Execute after protected_agent_send_sdk_required because that refusal creates no executable intent. operationId is only the Idempotency-Key and grants no authority. The tool accepts no plan, attempt, authorization, wallet, agent, grant, mint, or token-program fields. Never retry automatically after a timeout or uncertain result; inspect status and reconcile the same intent.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -2058,7 +2531,7 @@
                 "minLength": 1,
                 "maxLength": 128,
                 "pattern": "^[a-z0-9][a-z0-9._:-]*$",
-                "description": "Canonical assetId returned by dexter_portfolio for a server-approved asset. This is not a symbol or mint; Dexter resolves it to one exact network, mint, token program, decimals, and capability record."
+                "description": "Canonical assetId returned by dexter_portfolio from an approved holding or approvedActionTarget. This is not a symbol or mint; Dexter resolves it to one exact network, mint, token program, decimals, and capability record."
               },
               "amountAtomic": {
                 "type": "string",
@@ -2227,10 +2700,22 @@
           ]
         }
       ],
-      "visibility": [
-        "model"
-      ],
-      "widgetAccessible": false
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "oauth2",
+            "scopes": [
+              "vault"
+            ]
+          }
+        ],
+        "ui": {
+          "visibility": [
+            "model"
+          ]
+        },
+        "openai/widgetAccessible": false
+      }
     },
     {
       "name": "dexter_asset_action_status",
@@ -2340,7 +2825,7 @@
             "minLength": 1,
             "maxLength": 128,
             "pattern": "^[a-z0-9][a-z0-9._:-]*$",
-            "description": "Canonical assetId returned by dexter_portfolio for a server-approved asset. This is not a symbol or mint; Dexter resolves it to one exact network, mint, token program, decimals, and capability record."
+            "description": "Canonical assetId returned by dexter_portfolio from an approved holding or approvedActionTarget. This is not a symbol or mint; Dexter resolves it to one exact network, mint, token program, decimals, and capability record."
           },
           "assetMint": {
             "anyOf": [
@@ -2831,10 +3316,22 @@
           ]
         }
       ],
-      "visibility": [
-        "model"
-      ],
-      "widgetAccessible": false
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "oauth2",
+            "scopes": [
+              "vault"
+            ]
+          }
+        ],
+        "ui": {
+          "visibility": [
+            "model"
+          ]
+        },
+        "openai/widgetAccessible": false
+      }
     },
     {
       "name": "dexter_reconcile_asset_action",
@@ -3020,7 +3517,7 @@
                 "minLength": 1,
                 "maxLength": 128,
                 "pattern": "^[a-z0-9][a-z0-9._:-]*$",
-                "description": "Canonical assetId returned by dexter_portfolio for a server-approved asset. This is not a symbol or mint; Dexter resolves it to one exact network, mint, token program, decimals, and capability record."
+                "description": "Canonical assetId returned by dexter_portfolio from an approved holding or approvedActionTarget. This is not a symbol or mint; Dexter resolves it to one exact network, mint, token program, decimals, and capability record."
               },
               "assetMint": {
                 "anyOf": [
@@ -3530,10 +4027,22 @@
           ]
         }
       ],
-      "visibility": [
-        "model"
-      ],
-      "widgetAccessible": false
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "oauth2",
+            "scopes": [
+              "vault"
+            ]
+          }
+        ],
+        "ui": {
+          "visibility": [
+            "model"
+          ]
+        },
+        "openai/widgetAccessible": false
+      }
     },
     {
       "name": "dexter_wallet_history",
@@ -3656,7 +4165,7 @@
                   "minLength": 1,
                   "maxLength": 128,
                   "pattern": "^[a-z0-9][a-z0-9._:-]*$",
-                  "description": "Canonical assetId returned by dexter_portfolio for a server-approved asset. This is not a symbol or mint; Dexter resolves it to one exact network, mint, token program, decimals, and capability record."
+                  "description": "Canonical assetId returned by dexter_portfolio from an approved holding or approvedActionTarget. This is not a symbol or mint; Dexter resolves it to one exact network, mint, token program, decimals, and capability record."
                 },
                 "assetMint": {
                   "anyOf": [
@@ -4169,10 +4678,22 @@
           ]
         }
       ],
-      "visibility": [
-        "model"
-      ],
-      "widgetAccessible": false
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "oauth2",
+            "scopes": [
+              "vault"
+            ]
+          }
+        ],
+        "ui": {
+          "visibility": [
+            "model"
+          ]
+        },
+        "openai/widgetAccessible": false
+      }
     }
   ]
 }

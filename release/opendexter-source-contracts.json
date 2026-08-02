@@ -1,6 +1,6 @@
 {
-  "schemaVersion": 2,
-  "kind": "opendexter-source-contracts/v2",
+  "schemaVersion": 3,
+  "kind": "opendexter-source-contracts/v3",
   "api": {
     "repository": "https://github.com/Dexter-DAO/dexter-api",
     "commit": "c3e32885cc39cdee47eca5a054c0fd7d8a0fdd8b",
@@ -13,10 +13,26 @@
   },
   "integratedApiRelease": {
     "repository": "https://github.com/Dexter-DAO/dexter-api",
-    "commit": "ea2acbb7a11a696c685b6e48581362c448ef73cf",
-    "tree": "b876e490e96843c3d37934e865966d6f6674fc48",
+    "commit": "6d8de2cee71fc217559fa2a2825fa2a25faf9497",
+    "tree": "a8f7a84e001bcd06f0418eb149da4e14fbafbfeb",
     "governedContractCommit": "c3e32885cc39cdee47eca5a054c0fd7d8a0fdd8b",
     "governedContractTree": "b8a3bdd790379f82b959663e679960f213addb5b"
+  },
+  "portfolioProjection": {
+    "repository": "https://github.com/Dexter-DAO/dexter-api",
+    "commit": "6d8de2cee71fc217559fa2a2825fa2a25faf9497",
+    "tree": "a8f7a84e001bcd06f0418eb149da4e14fbafbfeb",
+    "sourcePaths": [
+      "src/portfolio/approvedActionTargets.ts",
+      "src/routes/passkeyMcpBinding.ts",
+      "src/routes/defaultGovernedDelegatedAssetActions.ts"
+    ],
+    "fixture": {
+      "consumerPath": "tests/fixtures/opendexter-portfolio-v1-zero-holding-approved-action-targets.json",
+      "apiPath": "tests/fixtures/opendexter-portfolio-v1-zero-holding-approved-action-targets.json",
+      "sha256": "9c4c29b0d911b490d53a375eca1ae302501397be9c56250591bafaeb34a4e625",
+      "canonicalDigest": "f4a3f826aa1c08531d42da402f08df709642ea75a84fd74608be75cdba2fc28a"
+    }
   },
   "facilitator": {
     "repository": "https://github.com/Dexter-DAO/dexter-facilitator",
@@ -31,8 +47,8 @@
   },
   "mcp": {
     "repository": "https://github.com/Dexter-DAO/dexter-mcp",
-    "commit": "c54821778f016e5bfd4942852d31ec314828a8e5",
-    "tree": "c750008a28e5bb01e7ac670c826e1049461637ce",
+    "commit": "0647bbdf081733ac3ca5ba82850c2c1db79307cb",
+    "tree": "66dfac45954b4b0983c56bf967b063fa59e72d91",
     "toolContractPath": "lib/open-tool-contracts.mjs",
     "authContractPath": "lib/open-tool-auth.mjs"
   }
