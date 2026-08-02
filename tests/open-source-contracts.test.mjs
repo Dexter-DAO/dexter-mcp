@@ -3,7 +3,9 @@ import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import {
   chmodSync,
+  existsSync,
   linkSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -29,6 +31,7 @@ import {
   isSafeOpenDexterPrivateSourceReceiptStat,
   readOpenDexterSourceContracts,
   readOpenDexterPrivateSourceAdvertisementReceipts,
+  reviewedSourceContractRemoteRefs,
   verifyExactOpenDexterSourceContractsShape,
   verifyOpenDexterCrossRepositorySourceContracts,
   verifyOpenDexterPrivateSourceAdvertisementReceipt,
@@ -462,6 +465,63 @@ test('private source receipts bind exact repository refs and descriptor source',
     }),
     /does not advertise/,
   );
+});
+
+test('private ref lookup keeps its token only in the outer askpass environment', async () => {
+  const token = 'github-app-token-that-must-never-reach-disk';
+  let askpassPath;
+  const remoteRefs = await reviewedSourceContractRemoteRefs({
+    remote: API_ORIGIN,
+    environment: {
+      HOME: '/tmp',
+      GH_TOKEN: token,
+    },
+    runCommand: async (command, args, options) => {
+      assert.equal(command, 'git');
+      assert.equal(args.includes('credential.helper='), true);
+      assert.equal(args.includes('--git-dir=/dev/null'), true);
+      assert.equal(args.includes('--refs'), true);
+      assert.equal(args.at(-1), API_ORIGIN);
+      assert.equal(JSON.stringify(args).includes(token), false);
+      assert.equal(options.cwd.includes(token), false);
+      assert.equal(options.env.GIT_CONFIG_GLOBAL, '/dev/null');
+      assert.equal(options.env.GIT_CONFIG_NOSYSTEM, '1');
+      assert.equal(options.env.GIT_TERMINAL_PROMPT, '0');
+      assert.equal(options.env.GIT_ASKPASS_REQUIRE, 'force');
+      assert.equal(options.env.OPENDEXTER_PRIVATE_GIT_TOKEN, token);
+      assert.equal(Object.hasOwn(options.env, 'GH_TOKEN'), false);
+      assert.equal(
+        Object.hasOwn(options.env, 'GITHUB_PERSONAL_ACCESS_TOKEN'),
+        false,
+      );
+      askpassPath = options.env.GIT_ASKPASS;
+      const helperBytes = readFileSync(askpassPath, 'utf8');
+      assert.equal(helperBytes.includes(token), false);
+      assert.equal(helperBytes.includes('extraHeader'), false);
+      assert.equal(lstatSync(askpassPath).mode & 0o777, 0o700);
+      return {
+        stdout: `${manifest().api.commit}\trefs/heads/governed-contract\n`,
+        stderr: '',
+      };
+    },
+  });
+  assert.equal(remoteRefs.includes(token), false);
+  assert.match(remoteRefs, /refs\/heads\/governed-contract/);
+  assert.equal(existsSync(askpassPath), false);
+
+  let contacted = false;
+  await assert.rejects(
+    reviewedSourceContractRemoteRefs({
+      remote: API_ORIGIN,
+      environment: { GH_TOKEN: 'hostile\nsecond-line' },
+      runCommand: async () => {
+        contacted = true;
+        throw new Error('must not run');
+      },
+    }),
+    /private source token is invalid/,
+  );
+  assert.equal(contacted, false);
 });
 
 test('archived child accepts only two mode-0600 digest-pinned receipts', async (t) => {

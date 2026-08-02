@@ -875,10 +875,11 @@ async function verifySourceRepository({
 
 /**
  * Query canonical GitHub refs without inheriting Git configuration. Private
- * canonical repositories may use the explicitly supplied release token, held
- * only in a mode-0600 disposable config rather than a process argument.
+ * canonical repositories may use the explicitly supplied release token only
+ * in the outer Git/askpass process environment. The disposable helper never
+ * contains the credential, and neither argv nor Git configuration carries it.
  */
-async function reviewedSourceContractRemoteRefs({
+export async function reviewedSourceContractRemoteRefs({
   remote,
   runCommand = execFileAsync,
   environment = process.env,
@@ -888,27 +889,43 @@ async function reviewedSourceContractRemoteRefs({
   if (!token) {
     return reviewedGitRemoteRefs({ remote, runCommand, environment });
   }
+  if (
+    typeof token !== 'string'
+    || token.length === 0
+    || token.length > 4096
+    || /[\r\n\0]/.test(token)
+  ) {
+    throw new Error('OpenDexter private source token is invalid');
+  }
   const workspace = await mkdtemp(
     resolve(tmpdir(), 'opendexter-source-contract-remote-'),
   );
-  const configPath = resolve(workspace, 'gitconfig');
+  const askpassPath = resolve(workspace, 'askpass.sh');
   try {
-    const basicCredential = Buffer.from(`x-access-token:${token}`)
-      .toString('base64');
     await writeFile(
-      configPath,
-      '[http "https://github.com/"]\n'
-        + `\textraHeader = Authorization: Basic ${basicCredential}\n`,
-      { flag: 'wx', mode: 0o600 },
+      askpassPath,
+      '#!/bin/sh\n'
+        + 'set -eu\n'
+        + 'case "${1:-}" in\n'
+        + '  Username*) printf "%s\\n" "x-access-token" ;;\n'
+        + '  Password*) printf "%s\\n" '
+        + '"${OPENDEXTER_PRIVATE_GIT_TOKEN:?}" ;;\n'
+        + '  *) exit 1 ;;\n'
+        + 'esac\n',
+      { flag: 'wx', mode: 0o700 },
     );
     const cleanEnvironment = reviewedReleaseToolEnvironment({
       env: environment,
     });
-    cleanEnvironment.GIT_CONFIG_GLOBAL = configPath;
+    cleanEnvironment.HOME = workspace;
+    cleanEnvironment.GIT_ASKPASS = askpassPath;
+    cleanEnvironment.GIT_ASKPASS_REQUIRE = 'force';
     cleanEnvironment.GIT_TERMINAL_PROMPT = '0';
+    cleanEnvironment.OPENDEXTER_PRIVATE_GIT_TOKEN = token;
     return commandText(await runCommand('git', [
       '--no-replace-objects',
       '--git-dir=/dev/null',
+      '-c', 'credential.helper=',
       '-c', 'core.attributesFile=/dev/null',
       'ls-remote', '--refs', remote,
     ], {
