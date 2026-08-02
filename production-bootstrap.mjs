@@ -24,8 +24,16 @@ export async function startProductionService(env = process.env) {
   await application.startOpenMcpServer();
 }
 
+const bootstrapPath = fileURLToPath(import.meta.url);
 const isMainModule = process.argv[1]
-  ? resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+  ? resolve(process.argv[1]) === bootstrapPath
+  : false;
+// PM2 fork mode starts ProcessContainerFork.js, which imports the configured
+// application instead of placing it in argv[1]. Treat only PM2's exact sealed
+// pm_exec_path as launch authority; startProductionService repeats the full
+// release, environment, PM2-policy, identity, and roster proof before import.
+const isPm2Entrypoint = process.env.pm_exec_path
+  ? resolve(process.env.pm_exec_path) === bootstrapPath
   : false;
 
-if (isMainModule) await startProductionService();
+if (isMainModule || isPm2Entrypoint) await startProductionService();

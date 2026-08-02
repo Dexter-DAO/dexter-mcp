@@ -90,7 +90,11 @@ function createReleaseCandidate(parent) {
       "if (process.env.PREIMPORT_MARKER_PATH) {",
       "  writeFileSync(process.env.PREIMPORT_MARKER_PATH, 'imported');",
       "}",
-      "export function startOpenMcpServer() {}",
+      "export function startOpenMcpServer() {",
+      "  if (process.env.START_MARKER_PATH) {",
+      "    writeFileSync(process.env.START_MARKER_PATH, 'started');",
+      "  }",
+      "}",
       "",
     ].join("\n"),
   );
@@ -833,6 +837,69 @@ test("bootstrap refuses a tampered transitive release byte before importing the 
       `${refused.stdout}${refused.stderr}`,
       /release file digest mismatch: lib\/transitive-fixture\.mjs/,
     );
+    assert.equal(existsSync(marker), false);
+  } finally {
+    removeCandidate(directory, candidate);
+  }
+});
+
+test("PM2 fork-wrapper import starts the sealed application", () => {
+  const directory = mkdtempSync(path.join(tmpdir(), "dexter-mcp-pm2-wrapper-"));
+  const candidate = createReleaseCandidate(directory);
+  const envFile = path.join(directory, "production.env");
+  const marker = path.join(directory, "application-started.marker");
+  const wrapper = path.join(directory, "ProcessContainerFork.js");
+  const unrelatedImporter = path.join(directory, "unrelated-importer.mjs");
+  writeFileSync(
+    envFile,
+    [
+      `GOVERNED_AGENT_ACTIONS_HMAC_SECRET=${"s".repeat(32)}`,
+      `START_MARKER_PATH=${marker}`,
+    ].join("\n"),
+    { mode: 0o600 },
+  );
+  writeFileSync(
+    wrapper,
+    [
+      "const { pathToFileURL } = require('node:url');",
+      "import(pathToFileURL(process.env.pm_exec_path).href).catch((error) => {",
+      "  process.stderr.write(`${error?.stack || error}\\n`);",
+      "  process.exitCode = 1;",
+      "});",
+      "",
+    ].join("\n"),
+  );
+  writeFileSync(
+    unrelatedImporter,
+    `await import(${JSON.stringify(
+      path.join(candidate.releaseDir, "production-bootstrap.mjs"),
+    )});\n`,
+  );
+  const env = {
+    ...releaseEnvironment(candidate, "dexter-open-mcp", envFile),
+    START_MARKER_PATH: marker,
+  };
+  try {
+    const result = spawnSync(process.execPath, [wrapper], {
+      cwd: candidate.releaseDir,
+      env,
+      encoding: "utf8",
+      timeout: 5_000,
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(readFileSync(marker, "utf8"), "started");
+    rmSync(marker);
+
+    const ignored = spawnSync(process.execPath, [unrelatedImporter], {
+      cwd: candidate.releaseDir,
+      env: {
+        ...env,
+        pm_exec_path: path.join(candidate.releaseDir, "direct-entrypoint.mjs"),
+      },
+      encoding: "utf8",
+      timeout: 5_000,
+    });
+    assert.equal(ignored.status, 0, ignored.stderr);
     assert.equal(existsSync(marker), false);
   } finally {
     removeCandidate(directory, candidate);
