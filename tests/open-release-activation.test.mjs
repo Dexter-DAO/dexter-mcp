@@ -1196,7 +1196,13 @@ test('rollback accepts fresh public PM2 id/PID/start time and re-proves local ma
 test('prior restart proof seals only the public release and exact environment bytes', async () => {
   const directory = await mkdtemp(resolve(tmpdir(), 'opendexter-prior-restart-'));
   const envFile = resolve(directory, 'prior.env');
-  const envBytes = Buffer.from('EXACT_APP_VALUE=preserved\n');
+  const envBytes = Buffer.from([
+    'EXACT_APP_VALUE=preserved',
+    'TOKEN_AI_MCP_PROFILE=private-only-profile',
+    'TOKEN_AI_MCP_TOOLSETS=private-only-toolsets',
+    'version=9.9.9',
+    '',
+  ].join('\n'));
   await writeFile(envFile, envBytes, { mode: 0o600 });
   await chmod(envFile, 0o600);
   const envFileSha256 = sha256(envBytes);
@@ -1221,6 +1227,10 @@ test('prior restart proof seals only the public release and exact environment by
   for (const row of rows) {
     row.pm2_env.env.EXACT_APP_VALUE = 'preserved';
     row.pm2_env.EXACT_APP_VALUE = 'preserved';
+  }
+  for (const key of ['TOKEN_AI_MCP_PROFILE', 'TOKEN_AI_MCP_TOOLSETS']) {
+    delete rows[1].pm2_env.env[key];
+    delete rows[1].pm2_env[key];
   }
   const fetchImpl = async (url) => {
     const port = Number(new URL(url).port);

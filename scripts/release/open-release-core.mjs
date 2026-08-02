@@ -1367,6 +1367,9 @@ export async function verifyPriorOpenReleaseRestartability({
     } else {
       const persisted = exactPersistedEnvironment(row);
       const applicationEnvironment = parseEnv(bytes.toString('utf8'));
+      for (const key of ECOSYSTEM_REMOVED_ENV_KEYS) {
+        delete applicationEnvironment[key];
+      }
       for (const [key, value] of Object.entries(applicationEnvironment)) {
         if (
           !Object.hasOwn(persisted, key)
