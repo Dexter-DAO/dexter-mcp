@@ -919,6 +919,8 @@ test('legacy capture freezes the one exact deployed PM2 tuple', async () => {
     (row) => { row.pm2_env.env.NODE_OPTIONS = '--require=/tmp/hostile'; },
     (row) => { row.pm2_env.env.OPEN_MCP_PORT = '4931'; },
     (row) => { row.pm2_env.listen_timeout = 'not-a-number'; },
+    (row) => { row.pm2_env.instances = null; },
+    (row) => { row.pm2_env.instances = '1'; },
     (row) => { row.pm2_env.instances = 2; },
     (row) => { row.pm2_env.autorestart = false; },
     (row) => { row.pm2_env.restart_time = 1; },

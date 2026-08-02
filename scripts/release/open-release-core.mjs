@@ -209,6 +209,11 @@ function processField(row, key) {
   return processMetadata(row)?.[key] ?? row?.[key];
 }
 
+function rawProcessField(row, key) {
+  const metadata = processMetadata(row);
+  return Object.hasOwn(metadata, key) ? metadata[key] : row?.[key];
+}
+
 function exactPm2EnvironmentNamespaceIdentity(name, row) {
   const environment = processEnvironment(row);
   const pm2Home = nullableString(environment.PM2_HOME);
@@ -959,8 +964,8 @@ function legacyProcessIdentityIsExact(name, identity, runtime, row) {
     && policy.username === 'branchmanager'
     && policy.packageVersion === LEGACY_OPEN_RELEASE_CONTRACT.packageVersion
     && (
-      processField(row, 'instances') === undefined
-      || processField(row, 'instances') === 1
+      rawProcessField(row, 'instances') === undefined
+      || rawProcessField(row, 'instances') === 1
     )
     && processField(row, 'wait_ready') === undefined
     && processField(row, 'listen_timeout') === undefined
