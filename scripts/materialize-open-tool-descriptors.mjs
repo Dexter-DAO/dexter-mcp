@@ -13,6 +13,7 @@ import {
   readFile,
   realpath,
   rm,
+  writeFile,
 } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -41,12 +42,45 @@ export const OPENDEXTER_SOURCE_CONTRACTS_PATH = resolve(
   'release/opendexter-source-contracts.json',
 );
 
-const SOURCE_CONTRACTS_KIND = 'opendexter-source-contracts/v1';
+const SOURCE_CONTRACTS_KIND = 'opendexter-source-contracts/v2';
 const DESCRIPTOR_KIND = 'opendexter-hosted-tool-descriptors/v2';
 const API_REPOSITORY = 'https://github.com/Dexter-DAO/dexter-api';
+const API_GIT_ORIGIN = `${API_REPOSITORY}.git`;
+const FACILITATOR_REPOSITORY =
+  'https://github.com/Dexter-DAO/dexter-facilitator';
+const FACILITATOR_GIT_ORIGIN = `${FACILITATOR_REPOSITORY}.git`;
 const MCP_REPOSITORY = 'https://github.com/Dexter-DAO/dexter-mcp';
 const RECONCILE_FIXTURE_PATH =
   'tests/fixtures/governed-agent-reconcile-advanced-final-c3e32885.json';
+const BINDING_FIXTURE_CONSUMER_PATH =
+  'tests/fixtures/governed-agent-trade-api-facilitator-binding-v1.json';
+const BINDING_FIXTURE_API_PATH =
+  'tests/fixtures/governed-agent-trade-api-facilitator-binding-v1.json';
+const BINDING_FIXTURE_FACILITATOR_PATH =
+  'test/fixtures/governed-agent-trade-api-facilitator-binding-v1.json';
+const API_GOVERNED_CONTRACT_PATHS = Object.freeze([
+  'src/portfolio/governedWrites',
+  'src/routes/governedDelegatedAssetActions.ts',
+  'src/routes/defaultGovernedDelegatedAssetActions.ts',
+  BINDING_FIXTURE_API_PATH,
+]);
+
+const EXPECTED_SOURCE_CONTRACTS = Object.freeze({
+  apiCommit: 'c3e32885cc39cdee47eca5a054c0fd7d8a0fdd8b',
+  apiTree: 'b8a3bdd790379f82b959663e679960f213addb5b',
+  apiFixtureSha256:
+    '449fc6b5a253d6856ae9f0990932dc6cefb84871c981229afb603a6314efa798',
+  apiCanonicalBodyDigest:
+    '48e77a936f06fe07b66fee7c2cb9126e8305d4e180c2c304513d5f0ea1636e16',
+  integratedApiCommit: 'ea2acbb7a11a696c685b6e48581362c448ef73cf',
+  integratedApiTree: 'b876e490e96843c3d37934e865966d6f6674fc48',
+  facilitatorCommit: 'df370826b7b951dfc825a689c4e6f3b1928ee5e2',
+  facilitatorTree: 'a9b4b18eb350143f3265834571c910891c83dd5c',
+  bindingFixtureSha256:
+    '66bbd343637fe9b3af245b2ace823a9dff1d8032e2dd01da7ee4bd71cc1ff7d6',
+  mcpCommit: 'c54821778f016e5bfd4942852d31ec314828a8e5',
+  mcpTree: 'c750008a28e5bb01e7ac670c826e1049461637ce',
+});
 
 async function readJson(path) {
   return JSON.parse(await readFile(path, 'utf8'));
@@ -70,31 +104,81 @@ function exactKeys(value, expected) {
       === JSON.stringify([...expected].sort());
 }
 
-function exactSourceContractsShape(sourceContracts) {
+export function hasExactOpenDexterSourceContractsShape(sourceContracts) {
   const api = sourceContracts?.api;
+  const integratedApiRelease = sourceContracts?.integratedApiRelease;
+  const facilitator = sourceContracts?.facilitator;
+  const bindingFixture = facilitator?.bindingFixture;
   const mcp = sourceContracts?.mcp;
   const fixture = api?.consumerFixture;
-  return sourceContracts?.schemaVersion === 1
+  return sourceContracts?.schemaVersion === 2
     && sourceContracts?.kind === SOURCE_CONTRACTS_KIND
-    && exactKeys(sourceContracts, ['schemaVersion', 'kind', 'api', 'mcp'])
+    && exactKeys(sourceContracts, [
+      'schemaVersion',
+      'kind',
+      'api',
+      'integratedApiRelease',
+      'facilitator',
+      'mcp',
+    ])
     && exactKeys(api, ['repository', 'commit', 'tree', 'consumerFixture'])
     && exactKeys(fixture, [
       'path', 'sha256', 'canonicalBodyDigest',
+    ])
+    && exactKeys(integratedApiRelease, [
+      'repository',
+      'commit',
+      'tree',
+      'governedContractCommit',
+      'governedContractTree',
+    ])
+    && exactKeys(facilitator, [
+      'repository', 'commit', 'tree', 'bindingFixture',
+    ])
+    && exactKeys(bindingFixture, [
+      'consumerPath', 'apiPath', 'facilitatorPath', 'sha256',
     ])
     && exactKeys(mcp, [
       'repository', 'commit', 'tree', 'toolContractPath', 'authContractPath',
     ])
     && api.repository === API_REPOSITORY
+    && api.commit === EXPECTED_SOURCE_CONTRACTS.apiCommit
+    && api.tree === EXPECTED_SOURCE_CONTRACTS.apiTree
+    && fixture.sha256 === EXPECTED_SOURCE_CONTRACTS.apiFixtureSha256
+    && fixture.canonicalBodyDigest
+      === EXPECTED_SOURCE_CONTRACTS.apiCanonicalBodyDigest
+    && integratedApiRelease.repository === API_REPOSITORY
+    && integratedApiRelease.commit
+      === EXPECTED_SOURCE_CONTRACTS.integratedApiCommit
+    && integratedApiRelease.tree
+      === EXPECTED_SOURCE_CONTRACTS.integratedApiTree
+    && integratedApiRelease.governedContractCommit === api.commit
+    && integratedApiRelease.governedContractTree === api.tree
+    && facilitator.repository === FACILITATOR_REPOSITORY
+    && facilitator.commit === EXPECTED_SOURCE_CONTRACTS.facilitatorCommit
+    && facilitator.tree === EXPECTED_SOURCE_CONTRACTS.facilitatorTree
+    && bindingFixture.consumerPath === BINDING_FIXTURE_CONSUMER_PATH
+    && bindingFixture.apiPath === BINDING_FIXTURE_API_PATH
+    && bindingFixture.facilitatorPath === BINDING_FIXTURE_FACILITATOR_PATH
+    && bindingFixture.sha256
+      === EXPECTED_SOURCE_CONTRACTS.bindingFixtureSha256
     && mcp.repository === MCP_REPOSITORY
+    && mcp.commit === EXPECTED_SOURCE_CONTRACTS.mcpCommit
+    && mcp.tree === EXPECTED_SOURCE_CONTRACTS.mcpTree
     && fixture.path === RECONCILE_FIXTURE_PATH
     && mcp.toolContractPath === 'lib/open-tool-contracts.mjs'
     && mcp.authContractPath === 'lib/open-tool-auth.mjs'
-    && /^[0-9a-f]{40}$/.test(api.commit)
-    && /^[0-9a-f]{40}$/.test(api.tree)
-    && /^[0-9a-f]{40}$/.test(mcp.commit)
-    && /^[0-9a-f]{40}$/.test(mcp.tree)
-    && /^[0-9a-f]{64}$/.test(fixture.sha256)
-    && /^[0-9a-f]{64}$/.test(fixture.canonicalBodyDigest);
+    && /^[0-9a-f]{40}$/.test(integratedApiRelease.commit)
+    && /^[0-9a-f]{40}$/.test(integratedApiRelease.tree)
+    && /^[0-9a-f]{40}$/.test(facilitator.commit)
+    && /^[0-9a-f]{40}$/.test(facilitator.tree);
+}
+
+export function verifyExactOpenDexterSourceContractsShape(sourceContracts) {
+  if (!hasExactOpenDexterSourceContractsShape(sourceContracts)) {
+    throw new Error('OpenDexter source-contract manifest is invalid');
+  }
+  return sourceContracts;
 }
 
 export async function readOpenDexterSourceContracts({
@@ -105,9 +189,7 @@ export async function readOpenDexterSourceContracts({
     'release/opendexter-source-contracts.json',
   );
   const sourceContracts = await readJson(sourceContractsPath);
-  if (!exactSourceContractsShape(sourceContracts)) {
-    throw new Error('OpenDexter source-contract manifest is invalid');
-  }
+  verifyExactOpenDexterSourceContractsShape(sourceContracts);
 
   const fixturePath = resolve(sourceRoot, RECONCILE_FIXTURE_PATH);
   const fixtureBytes = await readFile(fixturePath);
@@ -130,6 +212,19 @@ export async function readOpenDexterSourceContracts({
       'OpenDexter governed API consumer fixture differs from its source pin',
     );
   }
+  const bindingFixturePath = resolve(
+    sourceRoot,
+    sourceContracts.facilitator.bindingFixture.consumerPath,
+  );
+  const bindingFixtureBytes = await readFile(bindingFixturePath);
+  if (
+    createHash('sha256').update(bindingFixtureBytes).digest('hex')
+      !== sourceContracts.facilitator.bindingFixture.sha256
+  ) {
+    throw new Error(
+      'OpenDexter API-facilitator binding fixture differs from its source pin',
+    );
+  }
   await Promise.all([
     requirePath(
       resolve(sourceRoot, sourceContracts.mcp.toolContractPath),
@@ -141,6 +236,325 @@ export async function readOpenDexterSourceContracts({
     ),
   ]);
   return sourceContracts;
+}
+
+function commandText(result) {
+  if (typeof result?.stdout === 'string') return result.stdout;
+  if (Buffer.isBuffer(result?.stdout)) return result.stdout.toString('utf8');
+  return '';
+}
+
+function commandBytes(result) {
+  if (Buffer.isBuffer(result?.stdout)) return result.stdout;
+  if (typeof result?.stdout === 'string') return Buffer.from(result.stdout);
+  return Buffer.alloc(0);
+}
+
+function remoteAdvertises(remoteRefs, commit) {
+  return remoteRefs.split(/\r?\n/).some((line) => {
+    const [remoteCommit, refname, extra] = line.trim().split(/\s+/);
+    return remoteCommit === commit && Boolean(refname) && extra === undefined;
+  });
+}
+
+function requiredExplicitSourceRoot(value, label) {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw new Error(`${label} must be supplied explicitly`);
+  }
+  return resolve(value);
+}
+
+async function gitText({
+  root,
+  args,
+  runCommand,
+  environment,
+}) {
+  return commandText(await runCommand('git', [
+    '--no-replace-objects',
+    '-C', root,
+    ...args,
+  ], {
+    encoding: 'utf8',
+    env: environment,
+  })).trim();
+}
+
+async function gitBlob({
+  root,
+  object,
+  path,
+  runCommand,
+  environment,
+}) {
+  return commandBytes(await runCommand('git', [
+    '--no-replace-objects',
+    '-C', root,
+    'show', `${object}:${path}`,
+  ], {
+    encoding: null,
+    maxBuffer: 4 * 1024 * 1024,
+    env: environment,
+  }));
+}
+
+async function verifySourceRepository({
+  label,
+  sourceRoot,
+  expectedOrigin,
+  identities,
+  runCommand,
+  environment,
+  remoteEnvironment,
+  remoteRefsReader,
+}) {
+  const [actualRoot, topLevel, origin] = await Promise.all([
+    realpath(sourceRoot),
+    gitText({
+      root: sourceRoot,
+      args: ['rev-parse', '--show-toplevel'],
+      runCommand,
+      environment,
+    }),
+    gitText({
+      root: sourceRoot,
+      args: ['remote', 'get-url', 'origin'],
+      runCommand,
+      environment,
+    }),
+  ]);
+  if (await realpath(topLevel) !== actualRoot || origin !== expectedOrigin) {
+    throw new Error(`${label} source repository is not canonical`);
+  }
+
+  let remoteRefs;
+  try {
+    remoteRefs = await remoteRefsReader({
+      remote: expectedOrigin,
+      runCommand,
+      environment: remoteEnvironment,
+    });
+  } catch (error) {
+    throw new Error(`${label} canonical origin is unreachable`, {
+      cause: error,
+    });
+  }
+  for (const { commit, tree } of identities) {
+    const [actualCommit, actualTree] = await Promise.all([
+      gitText({
+        root: sourceRoot,
+        args: ['rev-parse', `${commit}^{commit}`],
+        runCommand,
+        environment,
+      }),
+      gitText({
+        root: sourceRoot,
+        args: ['rev-parse', `${commit}^{tree}`],
+        runCommand,
+        environment,
+      }),
+    ]);
+    if (actualCommit !== commit || actualTree !== tree) {
+      throw new Error(`${label} source commit/tree identity mismatch`);
+    }
+    if (!remoteAdvertises(remoteRefs, commit)) {
+      throw new Error(`${label} canonical origin does not advertise ${commit}`);
+    }
+  }
+  return actualRoot;
+}
+
+/**
+ * Query canonical GitHub refs without inheriting Git configuration. Private
+ * canonical repositories may use the explicitly supplied release token, held
+ * only in a mode-0600 disposable config rather than a process argument.
+ */
+async function reviewedSourceContractRemoteRefs({
+  remote,
+  runCommand = execFileAsync,
+  environment = process.env,
+} = {}) {
+  const token = environment?.GITHUB_PERSONAL_ACCESS_TOKEN
+    || environment?.GH_TOKEN;
+  if (!token) {
+    return reviewedGitRemoteRefs({ remote, runCommand, environment });
+  }
+  const workspace = await mkdtemp(
+    resolve(tmpdir(), 'opendexter-source-contract-remote-'),
+  );
+  const configPath = resolve(workspace, 'gitconfig');
+  try {
+    const basicCredential = Buffer.from(`x-access-token:${token}`)
+      .toString('base64');
+    await writeFile(
+      configPath,
+      '[http "https://github.com/"]\n'
+        + `\textraHeader = Authorization: Basic ${basicCredential}\n`,
+      { flag: 'wx', mode: 0o600 },
+    );
+    const cleanEnvironment = reviewedReleaseToolEnvironment({
+      env: environment,
+    });
+    cleanEnvironment.GIT_CONFIG_GLOBAL = configPath;
+    cleanEnvironment.GIT_TERMINAL_PROMPT = '0';
+    return commandText(await runCommand('git', [
+      '--no-replace-objects',
+      '--git-dir=/dev/null',
+      '-c', 'core.attributesFile=/dev/null',
+      'ls-remote', '--refs', remote,
+    ], {
+      cwd: workspace,
+      encoding: 'utf8',
+      env: cleanEnvironment,
+      timeout: 30_000,
+    }));
+  } finally {
+    await rm(workspace, { recursive: true, force: true });
+  }
+}
+
+/**
+ * Prove the exact API/facilitator sources that one hosted descriptor claims.
+ * Both roots are mandatory inputs: release proof must never discover a mutable
+ * sibling checkout from the caller's filesystem layout.
+ */
+export async function verifyOpenDexterCrossRepositorySourceContracts({
+  sourceRoot = repositoryRoot,
+  apiSourceRoot,
+  facilitatorSourceRoot,
+  sourceContracts,
+  runCommand = execFileAsync,
+  environment = process.env,
+  remoteRefsReader = reviewedSourceContractRemoteRefs,
+} = {}) {
+  const explicitApiRoot = requiredExplicitSourceRoot(
+    apiSourceRoot,
+    'OPENDEXTER_API_SOURCE_ROOT',
+  );
+  const explicitFacilitatorRoot = requiredExplicitSourceRoot(
+    facilitatorSourceRoot,
+    'OPENDEXTER_FACILITATOR_SOURCE_ROOT',
+  );
+  const contracts = sourceContracts
+    ?? await readOpenDexterSourceContracts({ sourceRoot });
+  verifyExactOpenDexterSourceContractsShape(contracts);
+  const cleanGitEnvironment = reviewedReleaseToolEnvironment({
+    env: environment,
+  });
+
+  await Promise.all([
+    verifySourceRepository({
+      label: 'OpenDexter API',
+      sourceRoot: explicitApiRoot,
+      expectedOrigin: API_GIT_ORIGIN,
+      identities: [
+        { commit: contracts.api.commit, tree: contracts.api.tree },
+        {
+          commit: contracts.integratedApiRelease.commit,
+          tree: contracts.integratedApiRelease.tree,
+        },
+      ],
+      runCommand,
+      environment: cleanGitEnvironment,
+      remoteEnvironment: environment,
+      remoteRefsReader,
+    }),
+    verifySourceRepository({
+      label: 'OpenDexter facilitator',
+      sourceRoot: explicitFacilitatorRoot,
+      expectedOrigin: FACILITATOR_GIT_ORIGIN,
+      identities: [{
+        commit: contracts.facilitator.commit,
+        tree: contracts.facilitator.tree,
+      }],
+      runCommand,
+      environment: cleanGitEnvironment,
+      remoteEnvironment: environment,
+      remoteRefsReader,
+    }),
+  ]);
+
+  try {
+    await runCommand('git', [
+      '--no-replace-objects',
+      '-C', explicitApiRoot,
+      'merge-base', '--is-ancestor',
+      contracts.api.commit,
+      contracts.integratedApiRelease.commit,
+    ], { encoding: 'utf8', env: cleanGitEnvironment });
+  } catch (error) {
+    throw new Error(
+      'OpenDexter integrated API release does not descend from its governed contract',
+      { cause: error },
+    );
+  }
+
+  const governedDiff = await gitText({
+    root: explicitApiRoot,
+    args: [
+      'diff', '--no-ext-diff', '--no-textconv', '--name-only',
+      contracts.api.commit,
+      contracts.integratedApiRelease.commit,
+      '--',
+      ...API_GOVERNED_CONTRACT_PATHS,
+    ],
+    runCommand,
+    environment: cleanGitEnvironment,
+  });
+  if (governedDiff.length > 0) {
+    throw new Error(
+      'OpenDexter integrated API release changes the frozen governed contract bytes',
+    );
+  }
+
+  const fixture = contracts.facilitator.bindingFixture;
+  const localFixture = await readFile(resolve(sourceRoot, fixture.consumerPath));
+  const sourceFixtures = await Promise.all([
+    gitBlob({
+      root: explicitApiRoot,
+      object: contracts.api.commit,
+      path: fixture.apiPath,
+      runCommand,
+      environment: cleanGitEnvironment,
+    }),
+    gitBlob({
+      root: explicitApiRoot,
+      object: contracts.integratedApiRelease.commit,
+      path: fixture.apiPath,
+      runCommand,
+      environment: cleanGitEnvironment,
+    }),
+    gitBlob({
+      root: explicitFacilitatorRoot,
+      object: contracts.facilitator.commit,
+      path: fixture.facilitatorPath,
+      runCommand,
+      environment: cleanGitEnvironment,
+    }),
+  ]);
+  for (const sourceFixture of sourceFixtures) {
+    if (
+      !sourceFixture.equals(localFixture)
+      || createHash('sha256').update(sourceFixture).digest('hex')
+        !== fixture.sha256
+    ) {
+      throw new Error(
+        'OpenDexter API-facilitator binding fixture source bytes differ',
+      );
+    }
+  }
+  return Object.freeze({
+    api: Object.freeze({
+      repository: contracts.api.repository,
+      governedContractCommit: contracts.api.commit,
+      integratedReleaseCommit: contracts.integratedApiRelease.commit,
+    }),
+    facilitator: Object.freeze({
+      repository: contracts.facilitator.repository,
+      commit: contracts.facilitator.commit,
+    }),
+    bindingFixtureSha256: fixture.sha256,
+  });
 }
 
 function exactNpmVersion(packageManager) {
@@ -180,7 +594,29 @@ export async function materializeOpenToolDescriptorsFromGit({
   revision = 'HEAD',
   runCommand = execFileAsync,
   environment = process.env,
+  verifyCrossRepositorySources = false,
+  apiSourceRoot = environment?.OPENDEXTER_API_SOURCE_ROOT,
+  facilitatorSourceRoot = environment?.OPENDEXTER_FACILITATOR_SOURCE_ROOT,
 } = {}) {
+  let explicitApiSourceRoot;
+  let explicitFacilitatorSourceRoot;
+  if (verifyCrossRepositorySources) {
+    explicitApiSourceRoot = requiredExplicitSourceRoot(
+      apiSourceRoot,
+      'OPENDEXTER_API_SOURCE_ROOT',
+    );
+    explicitFacilitatorSourceRoot = requiredExplicitSourceRoot(
+      facilitatorSourceRoot,
+      'OPENDEXTER_FACILITATOR_SOURCE_ROOT',
+    );
+    await verifyOpenDexterCrossRepositorySourceContracts({
+      sourceRoot,
+      apiSourceRoot: explicitApiSourceRoot,
+      facilitatorSourceRoot: explicitFacilitatorSourceRoot,
+      runCommand,
+      environment,
+    });
+  }
   const cleanGitEnvironment = reviewedReleaseToolEnvironment({
     env: environment,
   });
@@ -338,6 +774,12 @@ export async function materializeOpenToolDescriptorsFromGit({
       production: true,
       npmCache: resolve(disposableRoot, 'npm-cache'),
     });
+    if (verifyCrossRepositorySources) {
+      materializerEnv.OPENDEXTER_VERIFY_CROSS_REPO_SOURCE_CONTRACTS = '1';
+      materializerEnv.OPENDEXTER_API_SOURCE_ROOT = explicitApiSourceRoot;
+      materializerEnv.OPENDEXTER_FACILITATOR_SOURCE_ROOT =
+        explicitFacilitatorSourceRoot;
+    }
     materializerEnv.SENTRY_DSN = '';
     materializerEnv.SENTRY_OPEN_MCP_DSN = '';
     const npmVersionCommand = reviewedNpmInvocation(['--version']);
@@ -511,6 +953,13 @@ function cliMode(argv) {
 }
 
 async function emitDescriptorJson() {
+  if (process.env.OPENDEXTER_VERIFY_CROSS_REPO_SOURCE_CONTRACTS === '1') {
+    await verifyOpenDexterCrossRepositorySourceContracts({
+      apiSourceRoot: process.env.OPENDEXTER_API_SOURCE_ROOT,
+      facilitatorSourceRoot:
+        process.env.OPENDEXTER_FACILITATOR_SOURCE_ROOT,
+    });
+  }
   process.stdout.write(JSON.stringify(
     await materializeOpenToolDescriptorsFromRegistrations(),
   ));
@@ -526,9 +975,15 @@ if (isMainModule) {
       await emitDescriptorJson();
     } else {
       const mode = cliMode(process.argv.slice(2));
+      const descriptor = await materializeOpenToolDescriptorsFromGit({
+        verifyCrossRepositorySources: true,
+        apiSourceRoot: process.env.OPENDEXTER_API_SOURCE_ROOT,
+        facilitatorSourceRoot:
+          process.env.OPENDEXTER_FACILITATOR_SOURCE_ROOT,
+      });
       const descriptorPath = mode === '--write'
-        ? await writeOpenToolDescriptor()
-        : await verifyOpenToolDescriptor();
+        ? await writeOpenToolDescriptor({ descriptor })
+        : await verifyOpenToolDescriptor({ descriptor });
       process.stdout.write(
         `${mode === '--write' ? 'Wrote' : 'Verified'} ${descriptorPath}\n`,
       );
