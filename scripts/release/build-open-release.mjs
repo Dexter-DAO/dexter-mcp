@@ -33,6 +33,8 @@ export const RELEASE_PROVENANCE_SCHEMA =
 const SOURCE_COMMIT = /^[0-9a-f]{40}$/;
 const SHA256 = /^[0-9a-f]{64}$/;
 const TOOL_NAME = /^[A-Za-z0-9_.-]{1,128}$/;
+const SOURCE_CONTRACTS_SCHEMA_VERSION = 3;
+const SOURCE_CONTRACTS_KIND = 'opendexter-source-contracts/v3';
 const ENTRYPOINTS = Object.freeze({
   'dexter-open-mcp': 'production-bootstrap.mjs',
 });
@@ -145,8 +147,9 @@ function parseDescriptor(stdout) {
   if (
     descriptor?.schemaVersion !== 2
     || descriptor?.kind !== 'opendexter-hosted-tool-descriptors/v2'
-    || descriptor?.sourceContracts?.kind
-      !== 'opendexter-source-contracts/v1'
+    || descriptor?.sourceContracts?.schemaVersion
+      !== SOURCE_CONTRACTS_SCHEMA_VERSION
+    || descriptor?.sourceContracts?.kind !== SOURCE_CONTRACTS_KIND
     || descriptor?.oauth?.resource !== 'https://open.dexter.cash/mcp'
     || typeof descriptor?.oauth?.authorizationServer !== 'string'
     || typeof descriptor?.oauth?.authorizationServerMetadata !== 'string'

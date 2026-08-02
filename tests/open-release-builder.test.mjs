@@ -45,8 +45,8 @@ function sha256(value) {
 
 function sourceContractsFixture() {
   return {
-    schemaVersion: 1,
-    kind: 'opendexter-source-contracts/v1',
+    schemaVersion: 3,
+    kind: 'opendexter-source-contracts/v3',
     api: {
       repository: 'https://github.com/Dexter-DAO/dexter-api',
       commit: 'a'.repeat(40),
@@ -219,8 +219,7 @@ function removeTree(path) {
   rmSync(path, { recursive: true, force: true });
 }
 
-function fixtureRunner(source, calls = []) {
-  const descriptor = descriptorFixture();
+function fixtureRunner(source, calls = [], descriptor = descriptorFixture()) {
   return async (command, args, options = {}) => {
     const npmCall = command === REVIEWED_NPM.command
       && args[0] === REVIEWED_NPM.npmCli;
@@ -267,6 +266,30 @@ function fixtureRunner(source, calls = []) {
     }
     return execFileAsync(command, args, options);
   };
+}
+
+async function expectMaterializedDescriptorFailure(mutateDescriptor) {
+  const source = sourceFixture();
+  const outputRoot = trustedOutputRoot();
+  try {
+    const descriptor = descriptorFixture();
+    mutateDescriptor(descriptor);
+    await assert.rejects(
+      buildOpenRelease({
+        sourceRoot: source,
+        outputRoot,
+        runCommand: fixtureRunner(source, [], descriptor),
+      }),
+      /archived OpenDexter materializer returned a mismatched roster/,
+    );
+    assert.equal(
+      readdirSync(outputRoot).some((name) => /^[0-9a-f]{40}$/.test(name)),
+      false,
+    );
+  } finally {
+    removeTree(source);
+    removeTree(outputRoot);
+  }
 }
 
 async function expectPreflightFailure({ mutate, pattern }) {
@@ -658,6 +681,18 @@ test('release builder requires one committed descriptor', async () => {
       git(source, ['commit', '-qm', 'remove descriptor']);
     },
     pattern: /committed OpenDexter descriptor is missing/,
+  });
+});
+
+test('release builder rejects a legacy source-contract kind', async () => {
+  await expectMaterializedDescriptorFailure((descriptor) => {
+    descriptor.sourceContracts.kind = 'opendexter-source-contracts/v1';
+  });
+});
+
+test('release builder rejects a non-v3 source-contract schema', async () => {
+  await expectMaterializedDescriptorFailure((descriptor) => {
+    descriptor.sourceContracts.schemaVersion = 2;
   });
 });
 
