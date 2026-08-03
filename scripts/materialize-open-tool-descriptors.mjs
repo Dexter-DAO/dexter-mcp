@@ -103,14 +103,14 @@ const EXPECTED_SOURCE_CONTRACTS = Object.freeze({
     '449fc6b5a253d6856ae9f0990932dc6cefb84871c981229afb603a6314efa798',
   apiCanonicalBodyDigest:
     '48e77a936f06fe07b66fee7c2cb9126e8305d4e180c2c304513d5f0ea1636e16',
-  integratedApiCommit: '6d8de2cee71fc217559fa2a2825fa2a25faf9497',
-  integratedApiTree: 'a8f7a84e001bcd06f0418eb149da4e14fbafbfeb',
+  integratedApiCommit: '1f21c228fbbbd8a7a7bc0e67b4ade734eb8719d5',
+  integratedApiTree: 'dce42559464ab5eff3c1113c983affac33242d77',
   portfolioProjectionFixtureSha256:
     '9c4c29b0d911b490d53a375eca1ae302501397be9c56250591bafaeb34a4e625',
   portfolioProjectionCanonicalDigest:
     'f4a3f826aa1c08531d42da402f08df709642ea75a84fd74608be75cdba2fc28a',
-  facilitatorCommit: 'df370826b7b951dfc825a689c4e6f3b1928ee5e2',
-  facilitatorTree: 'a9b4b18eb350143f3265834571c910891c83dd5c',
+  facilitatorCommit: '801547315a59a48fc8dcb4d3e42e40c2ee5ac09e',
+  facilitatorTree: '5f54c0c08eb004e4e8d810abccdaefaa2d7f7898',
   bindingFixtureSha256:
     '66bbd343637fe9b3af245b2ace823a9dff1d8032e2dd01da7ee4bd71cc1ff7d6',
   mcpCommit: '0647bbdf081733ac3ca5ba82850c2c1db79307cb',

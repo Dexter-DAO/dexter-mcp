@@ -404,15 +404,15 @@ test('source materializer emits one deterministic full hosted descriptor', async
   );
   assert.deepEqual(descriptor.sourceContracts.integratedApiRelease, {
     repository: 'https://github.com/Dexter-DAO/dexter-api',
-    commit: '6d8de2cee71fc217559fa2a2825fa2a25faf9497',
-    tree: 'a8f7a84e001bcd06f0418eb149da4e14fbafbfeb',
+    commit: '1f21c228fbbbd8a7a7bc0e67b4ade734eb8719d5',
+    tree: 'dce42559464ab5eff3c1113c983affac33242d77',
     governedContractCommit: 'c3e32885cc39cdee47eca5a054c0fd7d8a0fdd8b',
     governedContractTree: 'b8a3bdd790379f82b959663e679960f213addb5b',
   });
   assert.deepEqual(descriptor.sourceContracts.portfolioProjection, {
     repository: 'https://github.com/Dexter-DAO/dexter-api',
-    commit: '6d8de2cee71fc217559fa2a2825fa2a25faf9497',
-    tree: 'a8f7a84e001bcd06f0418eb149da4e14fbafbfeb',
+    commit: '1f21c228fbbbd8a7a7bc0e67b4ade734eb8719d5',
+    tree: 'dce42559464ab5eff3c1113c983affac33242d77',
     sourcePaths: [
       'src/portfolio/approvedActionTargets.ts',
       'src/routes/passkeyMcpBinding.ts',
@@ -431,11 +431,11 @@ test('source materializer emits one deterministic full hosted descriptor', async
   });
   assert.equal(
     descriptor.sourceContracts.facilitator.commit,
-    'df370826b7b951dfc825a689c4e6f3b1928ee5e2',
+    '801547315a59a48fc8dcb4d3e42e40c2ee5ac09e',
   );
   assert.equal(
     descriptor.sourceContracts.facilitator.tree,
-    'a9b4b18eb350143f3265834571c910891c83dd5c',
+    '5f54c0c08eb004e4e8d810abccdaefaa2d7f7898',
   );
   assert.equal(
     descriptor.sourceContracts.facilitator.bindingFixture.sha256,
