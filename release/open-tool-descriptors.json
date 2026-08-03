@@ -189,7 +189,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-marketplace-search-8d945e6c",
+          "resourceUri": "ui://dexter/x402-marketplace-search-f219b145",
           "visibility": [
             "model",
             "app"
@@ -209,8 +209,8 @@
           "domain": "https://dexter.cash",
           "prefersBorder": true
         },
-        "ui/resourceUri": "ui://dexter/x402-marketplace-search-8d945e6c",
-        "openai/outputTemplate": "ui://dexter/x402-marketplace-search-8d945e6c",
+        "ui/resourceUri": "ui://dexter/x402-marketplace-search-f219b145",
+        "openai/outputTemplate": "ui://dexter/x402-marketplace-search-f219b145",
         "openai/resultCanProduceWidget": true,
         "openai/widgetAccessible": true,
         "openai/widgetDomain": "https://dexter.cash",
