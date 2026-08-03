@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "kind": "opendexter-accepted-production-receipt/v1",
+  "api": {
+    "endpoint": "https://api.dexter.cash/health",
+    "repository": "https://github.com/Dexter-DAO/dexter-api",
+    "releaseId": "577559411407-64c88c1e464c7884-0c92d24405a6",
+    "sourceCommit": "5775594114076d4ea76fcaa9d8f9ca8876919d80",
+    "sourceTree": "558288b2c7ee336042ed5fcb953fe7fb533a6c1f",
+    "toolingCommit": "5775594114076d4ea76fcaa9d8f9ca8876919d80",
+    "artifactSha256": "64c88c1e464c7884e6e73fc0eab701974a5d961c48fecc75984af919b8a9202d",
+    "metadataBindingSha256": "030ab6344540d152bbd6d0c9cfca2c1b4501c6d002facfb343003661aae4bbbf"
+  },
+  "facilitator": {
+    "endpoint": "https://x402.dexter.cash/version",
+    "repository": "https://github.com/Dexter-DAO/dexter-facilitator",
+    "namespace": "dexter-facilitator-immutable-release/v1",
+    "sourceCommit": "801547315a59a48fc8dcb4d3e42e40c2ee5ac09e",
+    "sourceTree": "5f54c0c08eb004e4e8d810abccdaefaa2d7f7898",
+    "sourceArchiveSha256": "e0f3d80bbb2a25b3a138d2d16b36bc02fefb16b9c6687a5e6402619f12255808",
+    "artifactSha256": "6144541c24b5f1dd14388b6a223b5f98f0d6311b7a573bd1a0a4ab6ebbe52952",
+    "artifactBindingDigest": "eb3759885bb5a94ab97e52525d05b16349a4a72dc1352624b53ab403e3255e5c",
+    "metadataBindingDigest": "52a4c7e5c46fa7d660cb502cdcaa81f37f04581305e39e5214d556fa0c9186cb"
+  }
+}

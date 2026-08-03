@@ -26,6 +26,7 @@
     "verify:release:registry": "npm run verify:release:runtime && npm run verify:release:lock && npm run verify:release:installed",
     "generate:open-tool-descriptors": "node scripts/materialize-open-tool-descriptors.mjs --write",
     "verify:open-tool-descriptors": "node scripts/materialize-open-tool-descriptors.mjs --check",
+    "prepare:open-accepted-production": "node scripts/prepare-open-accepted-production.mjs",
     "build:runtime-workspaces": "npm run build -w @dexterai/x402-core",
     "typecheck:open-release": "tsc --noEmit --strict --skipLibCheck --target ES2022 --module ESNext --moduleResolution Bundler --jsx react-jsx --allowImportingTsExtensions apps-sdk/ui/src/sdk/mcp-apps-bridge.ts apps-sdk/ui/src/sdk/call-tool-result.ts",
     "build:apps-sdk:local": "vite build --config apps-sdk/vite.config.ts",
