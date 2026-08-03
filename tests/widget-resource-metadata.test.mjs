@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   buildStandardWidgetCsp,
   buildWidgetCsp,
+  registerAppsSdkResources,
 } from '../apps-sdk/register.mjs';
 import {
   DIAGNOSTIC_WIDGET_URIS,
@@ -18,6 +19,45 @@ const SELECTED_URIS = [
   DIAGNOSTIC_WIDGET_URIS.passkeyProbe,
   PASSKEY_WIDGET_URIS.onboard,
 ];
+
+test('wallet resource metadata describes the multichain balance view', async (t) => {
+  const originalEnvironment = {
+    TOKEN_AI_APPS_SDK_ASSET_BASE: process.env.TOKEN_AI_APPS_SDK_ASSET_BASE,
+    TOKEN_AI_ENABLE_APPS_SDK: process.env.TOKEN_AI_ENABLE_APPS_SDK,
+    TOKEN_AI_MCP_PUBLIC_URL: process.env.TOKEN_AI_MCP_PUBLIC_URL,
+  };
+  t.after(() => {
+    for (const [key, value] of Object.entries(originalEnvironment)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+
+  process.env.TOKEN_AI_APPS_SDK_ASSET_BASE = 'https://dexter.cash/mcp/app-assets';
+  process.env.TOKEN_AI_ENABLE_APPS_SDK = '1';
+  process.env.TOKEN_AI_MCP_PUBLIC_URL = 'https://open.dexter.cash/mcp';
+
+  const registrations = [];
+  const server = {
+    registerResource(name, uri, config, readCallback) {
+      registrations.push({ name, uri, config, readCallback });
+      return {};
+    },
+  };
+  registerAppsSdkResources(server, {
+    allowedTemplateUris: [X402_WIDGET_URIS.wallet],
+  });
+
+  assert.equal(registrations.length, 1);
+  const [wallet] = registrations;
+  const expected = 'Shows wallet addresses with copy button, USDC balances across chains, and deposit QR code.';
+  assert.equal(wallet.uri, X402_WIDGET_URIS.wallet);
+  assert.equal(wallet.config._meta['openai/widgetDescription'], expected);
+  assert.doesNotMatch(wallet.config._meta['openai/widgetDescription'], /Solana only/i);
+
+  const result = await wallet.readCallback();
+  assert.equal(result.contents[0]._meta['openai/widgetDescription'], expected);
+});
 
 test('each public widget has a specific CSP with no wildcard cloud allowlist', () => {
   for (const uri of SELECTED_URIS) {
