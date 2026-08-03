@@ -67,6 +67,8 @@ export type SearchIntent = {
 export type SearchMeta = {
   mode?: string;
   note?: string;
+  rankingMode?: string;
+  degradedMessage?: string;
 };
 
 export type SearchNoMatchReason =

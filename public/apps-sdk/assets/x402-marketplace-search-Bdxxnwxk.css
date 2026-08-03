@@ -6,7 +6,7 @@
   /* Interruptions should not experience delay */
 }
   [data-transition-position="absolute"] ._TransitionItem_1o7b1_1[data-exiting],
-
+  
   [data-transition-position="absolute"] ._TransitionItem_1o7b1_1:not([data-exiting]) + ._TransitionItem_1o7b1_1[data-entering] {
     position: absolute;
     top: 0;

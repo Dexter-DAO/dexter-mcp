@@ -118,6 +118,10 @@ export interface RawCapabilityResult {
 export interface RawCapabilityResponse {
   ok: boolean;
   query: string;
+  /** `degraded` means ranking completed with a reduced fallback rather than
+   *  the normal intent/rerank pipeline. Consumers must surface this. */
+  rankingMode?: 'full' | 'degraded' | string;
+  degradedMessage?: string | null;
   intent: {
     capabilityText: string;
     expandedCapabilityText?: string;
@@ -299,6 +303,8 @@ export interface CapabilitySearchOptions {
  */
 export interface CapabilitySearchResult {
   query: string;
+  rankingMode?: 'full' | 'degraded' | string;
+  degradedMessage?: string | null;
   strongResults: FormattedResource[];
   relatedResults: FormattedResource[];
   strongCount: number;
@@ -337,10 +343,14 @@ export type SearchMode = 'direct' | 'related_only' | 'empty' | 'error';
 export interface SearchMeta {
   mode: SearchMode;
   note: string;
+  rankingMode?: 'full' | 'degraded' | string;
+  degradedMessage?: string;
 }
 
 export interface SearchResponse {
   success: boolean;
+  rankingMode?: 'full' | 'degraded' | string;
+  degradedMessage?: string | null;
   /** Total count: strongResults.length + relatedResults.length. The legacy
    *  `resources` field (a flat concatenation of the two) was removed when
    *  it was found to double the response size and push broad searches past

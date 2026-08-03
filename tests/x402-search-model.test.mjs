@@ -61,6 +61,15 @@ test('reader guidance is reserved for decisions that need extra care', () => {
   assert.equal(
     getSearchGuidance({
       count: 2,
+      rankingMode: 'degraded',
+      degradedMessage: 'Search results may be less precise than usual right now.',
+      searchMeta: { mode: 'direct' },
+    }),
+    'Search results may be less precise than usual right now.',
+  );
+  assert.equal(
+    getSearchGuidance({
+      count: 2,
       searchMeta: { mode: 'direct' },
       tip: 'Choose a service, then run x402_check.',
     }),
