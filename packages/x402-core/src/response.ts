@@ -73,6 +73,10 @@ export function buildSearchResponse(result: CapabilitySearchResult): SearchRespo
 
   return {
     success: true,
+    ...(result.rankingMode ? { rankingMode: result.rankingMode } : {}),
+    ...(result.degradedMessage !== undefined
+      ? { degradedMessage: result.degradedMessage }
+      : {}),
     count: totalCount,
     strongResults: result.strongResults,
     relatedResults: result.relatedResults,
@@ -88,7 +92,13 @@ export function buildSearchResponse(result: CapabilitySearchResult): SearchRespo
       capabilityText: result.intent.capabilityText,
       expandedCapabilityText: result.intent.expandedCapabilityText,
     },
-    searchMeta: buildSearchMeta(result),
+    searchMeta: {
+      ...buildSearchMeta(result),
+      ...(result.rankingMode ? { rankingMode: result.rankingMode } : {}),
+      ...(result.degradedMessage
+        ? { degradedMessage: result.degradedMessage }
+        : {}),
+    },
     // Honesty diagnostics — forwarded verbatim. Confidence is always present
     // when the upstream supports it; triangulate is present only when
     // actionable (top match unprofiled AND profile-backed alternates exist).

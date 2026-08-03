@@ -1161,6 +1161,9 @@ function shortRecipient(value) {
 }
 const SEARCH_WIDGET_BUILD = "2026-07-25.3";
 function getSearchGuidance(payload) {
+  if (payload.rankingMode === "degraded" || payload.searchMeta?.rankingMode === "degraded") {
+    return payload.degradedMessage?.trim() || payload.searchMeta?.degradedMessage?.trim() || "Search quality is temporarily reduced. Treat these as fallback matches and verify the fit before continuing.";
+  }
   if ((payload.triangulate?.alternateResourceIds?.length ?? 0) > 0) {
     return "The leading match has limited structured evidence. Compare a profile-backed alternative before choosing.";
   }

@@ -100,6 +100,10 @@ export async function capabilitySearch(
 
   return {
     query: data.query ?? query,
+    ...(data.rankingMode ? { rankingMode: data.rankingMode } : {}),
+    ...(data.degradedMessage !== undefined
+      ? { degradedMessage: data.degradedMessage }
+      : {}),
     strongResults: strong.map(formatResource),
     relatedResults: related.map(formatResource),
     strongCount: typeof data.strongCount === 'number' ? data.strongCount : strong.length,
