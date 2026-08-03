@@ -60,6 +60,20 @@ checkout files and ignored `node_modules` are never descriptor evidence.
 
 Use `npm run build:apps-sdk:local` for a non-deploying widget build.
 `build:apps-sdk` retains its release behavior and copies served assets.
+After the API and facilitator releases have been accepted in production, freeze
+their advertised immutable identities and regenerate the hosted derivatives in
+one step:
+
+```bash
+npm run prepare:open-accepted-production
+```
+
+Preparation reads `https://api.dexter.cash/health` and
+`https://x402.dexter.cash/version` exactly once each. It writes the generated
+`release/opendexter-accepted-production.json` receipt, derives the existing
+public `sourceContracts/v3` projection from that receipt, and regenerates the
+hosted descriptor. Release verification, construction, and activation read
+only those frozen files; they never resolve mutable production endpoints.
 Construct a sealed candidate from the current clean, canonical Git commit into
 an explicit trusted release root without activating it:
 

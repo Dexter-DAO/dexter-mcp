@@ -34,6 +34,11 @@ import {
   runOpenReleaseFinalization,
 } from '../lib/open-release-finalization.mjs';
 import { canonicalHash } from '../lib/governed-canonical-identity.mjs';
+import {
+  OPENDEXTER_API_REPOSITORY,
+  OPENDEXTER_FACILITATOR_REPOSITORY,
+  verifyOpenDexterAcceptedProductionReceipt,
+} from '../lib/open-accepted-production-receipt.mjs';
 
 const execFileAsync = promisify(execFile);
 const CANONICAL_SOURCE_ORIGIN =
@@ -48,13 +53,16 @@ export const OPENDEXTER_SOURCE_CONTRACTS_PATH = resolve(
   repositoryRoot,
   'release/opendexter-source-contracts.json',
 );
+export const OPENDEXTER_ACCEPTED_PRODUCTION_PATH = resolve(
+  repositoryRoot,
+  'release/opendexter-accepted-production.json',
+);
 
 const SOURCE_CONTRACTS_KIND = 'opendexter-source-contracts/v3';
 const DESCRIPTOR_KIND = 'opendexter-hosted-tool-descriptors/v2';
-const API_REPOSITORY = 'https://github.com/Dexter-DAO/dexter-api';
+const API_REPOSITORY = OPENDEXTER_API_REPOSITORY;
 const API_GIT_ORIGIN = `${API_REPOSITORY}.git`;
-const FACILITATOR_REPOSITORY =
-  'https://github.com/Dexter-DAO/dexter-facilitator';
+const FACILITATOR_REPOSITORY = OPENDEXTER_FACILITATOR_REPOSITORY;
 const FACILITATOR_GIT_ORIGIN = `${FACILITATOR_REPOSITORY}.git`;
 const MCP_REPOSITORY = 'https://github.com/Dexter-DAO/dexter-mcp';
 const PRIVATE_SOURCE_RECEIPT_KIND =
@@ -103,14 +111,10 @@ const EXPECTED_SOURCE_CONTRACTS = Object.freeze({
     '449fc6b5a253d6856ae9f0990932dc6cefb84871c981229afb603a6314efa798',
   apiCanonicalBodyDigest:
     '48e77a936f06fe07b66fee7c2cb9126e8305d4e180c2c304513d5f0ea1636e16',
-  integratedApiCommit: '6d8de2cee71fc217559fa2a2825fa2a25faf9497',
-  integratedApiTree: 'a8f7a84e001bcd06f0418eb149da4e14fbafbfeb',
   portfolioProjectionFixtureSha256:
     '9c4c29b0d911b490d53a375eca1ae302501397be9c56250591bafaeb34a4e625',
   portfolioProjectionCanonicalDigest:
     'f4a3f826aa1c08531d42da402f08df709642ea75a84fd74608be75cdba2fc28a',
-  facilitatorCommit: 'df370826b7b951dfc825a689c4e6f3b1928ee5e2',
-  facilitatorTree: 'a9b4b18eb350143f3265834571c910891c83dd5c',
   bindingFixtureSha256:
     '66bbd343637fe9b3af245b2ace823a9dff1d8032e2dd01da7ee4bd71cc1ff7d6',
   mcpCommit: '0647bbdf081733ac3ca5ba82850c2c1db79307cb',
@@ -139,7 +143,20 @@ function exactKeys(value, expected) {
       === JSON.stringify([...expected].sort());
 }
 
-export function hasExactOpenDexterSourceContractsShape(sourceContracts) {
+export function hasExactOpenDexterSourceContractsShape(
+  sourceContracts,
+  acceptedProduction = JSON.parse(readFileSync(
+    OPENDEXTER_ACCEPTED_PRODUCTION_PATH,
+    'utf8',
+  )),
+) {
+  try {
+    verifyOpenDexterAcceptedProductionReceipt(acceptedProduction);
+  } catch {
+    return false;
+  }
+  const acceptedApi = acceptedProduction.api;
+  const acceptedFacilitator = acceptedProduction.facilitator;
   const api = sourceContracts?.api;
   const integratedApiRelease = sourceContracts?.integratedApiRelease;
   const portfolioProjection = sourceContracts?.portfolioProjection;
@@ -193,9 +210,9 @@ export function hasExactOpenDexterSourceContractsShape(sourceContracts) {
       === EXPECTED_SOURCE_CONTRACTS.apiCanonicalBodyDigest
     && integratedApiRelease.repository === API_REPOSITORY
     && integratedApiRelease.commit
-      === EXPECTED_SOURCE_CONTRACTS.integratedApiCommit
+      === acceptedApi.sourceCommit
     && integratedApiRelease.tree
-      === EXPECTED_SOURCE_CONTRACTS.integratedApiTree
+      === acceptedApi.sourceTree
     && integratedApiRelease.governedContractCommit === api.commit
     && integratedApiRelease.governedContractTree === api.tree
     && portfolioProjection.repository === API_REPOSITORY
@@ -211,8 +228,8 @@ export function hasExactOpenDexterSourceContractsShape(sourceContracts) {
     && projectionFixture.canonicalDigest
       === EXPECTED_SOURCE_CONTRACTS.portfolioProjectionCanonicalDigest
     && facilitator.repository === FACILITATOR_REPOSITORY
-    && facilitator.commit === EXPECTED_SOURCE_CONTRACTS.facilitatorCommit
-    && facilitator.tree === EXPECTED_SOURCE_CONTRACTS.facilitatorTree
+    && facilitator.commit === acceptedFacilitator.sourceCommit
+    && facilitator.tree === acceptedFacilitator.sourceTree
     && bindingFixture.consumerPath === BINDING_FIXTURE_CONSUMER_PATH
     && bindingFixture.apiPath === BINDING_FIXTURE_API_PATH
     && bindingFixture.facilitatorPath === BINDING_FIXTURE_FACILITATOR_PATH
@@ -232,8 +249,14 @@ export function hasExactOpenDexterSourceContractsShape(sourceContracts) {
     && /^[0-9a-f]{40}$/.test(facilitator.tree);
 }
 
-export function verifyExactOpenDexterSourceContractsShape(sourceContracts) {
-  if (!hasExactOpenDexterSourceContractsShape(sourceContracts)) {
+export function verifyExactOpenDexterSourceContractsShape(
+  sourceContracts,
+  acceptedProduction,
+) {
+  if (!hasExactOpenDexterSourceContractsShape(
+    sourceContracts,
+    acceptedProduction,
+  )) {
     throw new Error('OpenDexter source-contract manifest is invalid');
   }
   return sourceContracts;
@@ -246,8 +269,18 @@ export async function readOpenDexterSourceContracts({
     sourceRoot,
     'release/opendexter-source-contracts.json',
   );
-  const sourceContracts = await readJson(sourceContractsPath);
-  verifyExactOpenDexterSourceContractsShape(sourceContracts);
+  const acceptedProductionPath = resolve(
+    sourceRoot,
+    'release/opendexter-accepted-production.json',
+  );
+  const [sourceContracts, acceptedProduction] = await Promise.all([
+    readJson(sourceContractsPath),
+    readJson(acceptedProductionPath),
+  ]);
+  verifyExactOpenDexterSourceContractsShape(
+    sourceContracts,
+    acceptedProduction,
+  );
 
   const fixturePath = resolve(sourceRoot, RECONCILE_FIXTURE_PATH);
   const fixtureBytes = await readFile(fixturePath);
@@ -317,6 +350,33 @@ export async function readOpenDexterSourceContracts({
     ),
   ]);
   return sourceContracts;
+}
+
+/**
+ * Preserve the reviewed, slow-moving contract policy while deriving every
+ * mutable API/facilitator source identity from one accepted-production
+ * receipt. The output remains sourceContracts/v3 for existing public
+ * consumers; it is generated evidence, not a hand-maintained pin table.
+ */
+export function deriveOpenDexterSourceContractsForAcceptedProduction({
+  sourceContracts,
+  acceptedProduction,
+} = {}) {
+  verifyOpenDexterAcceptedProductionReceipt(acceptedProduction);
+  if (!sourceContracts || typeof sourceContracts !== 'object') {
+    throw new Error('OpenDexter source-contract policy is invalid');
+  }
+  const derived = structuredClone(sourceContracts);
+  derived.integratedApiRelease.commit = acceptedProduction.api.sourceCommit;
+  derived.integratedApiRelease.tree = acceptedProduction.api.sourceTree;
+  derived.portfolioProjection.commit = acceptedProduction.api.sourceCommit;
+  derived.portfolioProjection.tree = acceptedProduction.api.sourceTree;
+  derived.facilitator.commit = acceptedProduction.facilitator.sourceCommit;
+  derived.facilitator.tree = acceptedProduction.facilitator.sourceTree;
+  return verifyExactOpenDexterSourceContractsShape(
+    derived,
+    acceptedProduction,
+  );
 }
 
 function commandText(result) {
@@ -1560,7 +1620,10 @@ export async function materializeOpenToolDescriptors(options = {}) {
  * This starts no listener or reaper and is suitable for ordinary schema tests;
  * release write/check still go through the strict committed-archive function.
  */
-export async function materializeOpenToolDescriptorsFromRegistrations() {
+export async function materializeOpenToolDescriptorsFromRegistrations({
+  sourceContracts: suppliedSourceContracts,
+  acceptedProduction: suppliedAcceptedProduction,
+} = {}) {
   const [
     { buildHostedOpenToolDescriptor },
     { createOpenMcpServer },
@@ -1573,13 +1636,19 @@ export async function materializeOpenToolDescriptorsFromRegistrations() {
       OPEN_MCP_PROTECTED_RESOURCE_PATHS,
       OPEN_MCP_TOKEN_ISSUER,
     },
-    sourceContracts,
+    loadedSourceContracts,
   ] = await Promise.all([
     import('../lib/open-tool-contracts.mjs'),
     import('../open-mcp-server.mjs'),
     import('../lib/open-tool-auth.mjs'),
-    readOpenDexterSourceContracts(),
+    suppliedSourceContracts
+      ? Promise.resolve(suppliedSourceContracts)
+      : readOpenDexterSourceContracts(),
   ]);
+  const sourceContracts = verifyExactOpenDexterSourceContractsShape(
+    loadedSourceContracts,
+    suppliedAcceptedProduction,
+  );
   const server = createOpenMcpServer({ includeResources: false });
   const {
     schemaVersion: _schemaVersion,

@@ -394,6 +394,10 @@ test('source materializer emits one deterministic full hosted descriptor', async
   )));
   assert.equal(descriptor.sourceContracts.schemaVersion, 3);
   assert.equal(descriptor.sourceContracts.kind, 'opendexter-source-contracts/v3');
+  const acceptedProduction = JSON.parse(readFileSync(
+    new URL('../release/opendexter-accepted-production.json', import.meta.url),
+    'utf8',
+  ));
   assert.equal(
     descriptor.sourceContracts.api.commit,
     'c3e32885cc39cdee47eca5a054c0fd7d8a0fdd8b',
@@ -404,15 +408,15 @@ test('source materializer emits one deterministic full hosted descriptor', async
   );
   assert.deepEqual(descriptor.sourceContracts.integratedApiRelease, {
     repository: 'https://github.com/Dexter-DAO/dexter-api',
-    commit: '6d8de2cee71fc217559fa2a2825fa2a25faf9497',
-    tree: 'a8f7a84e001bcd06f0418eb149da4e14fbafbfeb',
+    commit: acceptedProduction.api.sourceCommit,
+    tree: acceptedProduction.api.sourceTree,
     governedContractCommit: 'c3e32885cc39cdee47eca5a054c0fd7d8a0fdd8b',
     governedContractTree: 'b8a3bdd790379f82b959663e679960f213addb5b',
   });
   assert.deepEqual(descriptor.sourceContracts.portfolioProjection, {
     repository: 'https://github.com/Dexter-DAO/dexter-api',
-    commit: '6d8de2cee71fc217559fa2a2825fa2a25faf9497',
-    tree: 'a8f7a84e001bcd06f0418eb149da4e14fbafbfeb',
+    commit: acceptedProduction.api.sourceCommit,
+    tree: acceptedProduction.api.sourceTree,
     sourcePaths: [
       'src/portfolio/approvedActionTargets.ts',
       'src/routes/passkeyMcpBinding.ts',
@@ -431,11 +435,11 @@ test('source materializer emits one deterministic full hosted descriptor', async
   });
   assert.equal(
     descriptor.sourceContracts.facilitator.commit,
-    'df370826b7b951dfc825a689c4e6f3b1928ee5e2',
+    acceptedProduction.facilitator.sourceCommit,
   );
   assert.equal(
     descriptor.sourceContracts.facilitator.tree,
-    'a9b4b18eb350143f3265834571c910891c83dd5c',
+    acceptedProduction.facilitator.sourceTree,
   );
   assert.equal(
     descriptor.sourceContracts.facilitator.bindingFixture.sha256,
