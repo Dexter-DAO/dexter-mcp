@@ -398,6 +398,15 @@
             "type": "string"
           },
           "inputSchema": {},
+          "inputSchemaSource": {
+            "type": "string"
+          },
+          "inputSchemaRejectedSources": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "outputSchema": {},
           "error": {},
           "message": {
