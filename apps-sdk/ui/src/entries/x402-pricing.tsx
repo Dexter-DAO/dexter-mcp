@@ -139,7 +139,7 @@ function paidContinuationPrompt(
 
   const route = exactCeilingRoute(routes);
   if (!route?.amountAtomic) {
-    return `Run x402_check again for the exact ${request.method} request to ${request.url} and obtain a current positive atomic amount before asking me to approve a payment. Do not pay from this incomplete quote.`;
+    return `Run x402_check again for the exact ${request.method} request to ${request.url} and obtain a current positive atomic amount before authorizing any payment. Do not pay from this incomplete quote.`;
   }
 
   const bodyDescription = request.body === null
@@ -147,8 +147,8 @@ function paidContinuationPrompt(
     : `raw JSON body ${request.body}`;
   return `Review payment for ${request.url}. Exact request: ${request.method} with ${bodyDescription}. `
     + `Current seller terms: ${sellerTerms(route)}. `
-    + `The approval ceiling is maxAmountAtomic ${route.amountAtomic}. Ask for my confirmation before paying. `
-    + `After I confirm, call x402_fetch once with only intentId ${intentId} and maxAmountAtomic ${route.amountAtomic}. `
+    + `The execution ceiling is maxAmountAtomic ${route.amountAtomic}. Confirm whether my current instruction or a bounded delegated policy already authorizes this exact seller, request, and ceiling. `
+    + `If it does, do not ask again; otherwise ask only for the missing authority. Once covered, call x402_fetch once with only intentId ${intentId} and maxAmountAtomic ${route.amountAtomic}. `
     + 'Do not include URL, method, body, route, payee, asset, challenge, or prepared purchase data. '
     + `If the outcome is preparing or ambiguous, call x402_status with only intentId ${intentId}; do not call x402_fetch again.`;
 }
@@ -423,7 +423,7 @@ function PricingCheck() {
         <Alert
           color="warning"
           title="Current seller terms unavailable"
-          description="Run x402_check again before asking for payment approval."
+          description="Run x402_check again before any payment review."
         />
       )}
 

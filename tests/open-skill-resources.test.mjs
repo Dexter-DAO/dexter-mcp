@@ -77,14 +77,18 @@ test('served guidance requires native OAuth and bounded nonretryable spending', 
     /Never automatically retry an ambiguous or post-dispatch\s+failure/,
   );
   assert.match(WORKFLOW, /receiveAddress/);
-  assert.match(WORKFLOW, /Leave its network filter unset[\s\S]*CrossPay/);
+  assert.match(WORKFLOW, /Leave its network filter unset[\s\S]*compatible[\s\S]*server-side settlement/);
+  assert.match(WORKFLOW, /rankingMode[\s\S]*degradedMessage/);
+  assert.match(WORKFLOW, /Zero cash alone is not proof that a deposit is required/);
+  assert.match(WORKFLOW, /Reported credit[\s\S]*not a promise/);
+  assert.match(WORKFLOW, /If\s+it already does, do not ask for another approval/);
   assert.doesNotMatch(
     SERVER,
     /ALWAYS pass this when the paying wallet is chain-bound|pass "solana" there/,
   );
   assert.match(
     SERVER,
-    /Leave this unset for ordinary Dexter discovery so eligible CrossPay resources are not removed/,
+    /Leave this unset for ordinary Dexter discovery so resources reachable through compatible server-side settlement are not removed/,
   );
   assert.match(WORKFLOW, /vaultPda[\s\S]*not a deposit\s+fallback/);
   assert.match(WORKFLOW, /canonical `assetId`/);
@@ -123,6 +127,10 @@ test('generated runtime instructions contain only native OAuth wallet guidance',
   assert.match(runtime, /do not call Execute or Reconcile/);
   assert.match(runtime, /There is no model-callable authorize tool/);
   assert.match(runtime, /paymentOptions/);
+  assert.match(runtime, /zero cash balance does not by itself prove that funding is required/i);
+  assert.match(runtime, /reported credit line does not by itself prove/i);
+  assert.match(runtime, /If it already does, do not ask for another approval/);
+  assert.match(runtime, /rankingMode=degraded/);
   assert.match(runtime, /call x402_fetch once with only intentId and maxAmountAtomic/);
   assert.match(runtime, /x402_status accepts only intentId/);
   assert.match(runtime, /quoteOnly/);

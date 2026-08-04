@@ -27,8 +27,8 @@ const COPY: Record<
 > = {
   paid: {
     eyebrow: 'Current terms',
-    title: 'Ready for your approval',
-    body: 'Choose whether to continue. Nothing has been charged.',
+    title: 'Ready to review',
+    body: 'Review the exact request, seller terms, and ceiling. Nothing has been charged.',
   },
   free: {
     eyebrow: 'Current access',
@@ -47,8 +47,8 @@ const COPY: Record<
   },
   hybrid: {
     eyebrow: 'Current terms',
-    title: 'Sign in, then approve',
-    body: 'Authentication comes first. Nothing has been charged.',
+    title: 'Sign in, then review',
+    body: 'Provider authentication comes first. Nothing has been charged.',
   },
   error: {
     eyebrow: 'Live check',
@@ -253,7 +253,7 @@ function getQuoteCopy(
       title: 'Connect for a bound quote',
       body: requestBound
         ? 'Connect OpenDexter and repeat this check to create one server-held purchase intent. Nothing has been charged.'
-        : 'Connect OpenDexter, form the exact raw request body, and repeat this check before approval. Nothing has been charged.',
+        : 'Connect OpenDexter, form the exact raw request body, and repeat this check before payment review. Nothing has been charged.',
     };
   }
   return COPY[classification];

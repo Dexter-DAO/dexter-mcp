@@ -62,6 +62,16 @@ const SEARCH_OUTPUT = {
         logoUrl: null,
         twitterHandle: null,
       },
+      execution: {
+        sideEffectful: false,
+        effect: null,
+        automatedVerification: 'enabled',
+        userExecution: 'allowed',
+        confirmationRequired: false,
+        availability: 'available',
+        requiresExplicitInput: false,
+        quoteMayCreateProviderReservation: false,
+      },
       tier: 'strong',
       similarity: 0.97,
       why: 'Best fit for fresh market prices with a predictable response shape.',
@@ -106,6 +116,16 @@ const SEARCH_OUTPUT = {
         logoUrl: null,
         twitterHandle: null,
       },
+      execution: {
+        sideEffectful: false,
+        effect: null,
+        automatedVerification: 'enabled',
+        userExecution: 'allowed',
+        confirmationRequired: false,
+        availability: 'available',
+        requiresExplicitInput: true,
+        quoteMayCreateProviderReservation: false,
+      },
       tier: 'strong',
       similarity: 0.93,
       why: 'Strong fallback with two asset routes on the same network.',
@@ -122,7 +142,7 @@ const SEARCH_OUTPUT = {
     mode: 'direct',
     note: 'Fixed browser-host fixture',
   },
-  tip: 'Choose a service, then run x402_check to confirm its current access and price. Do not pay until the user explicitly approves the checked terms.',
+  tip: 'Choose a service, then run x402_check to confirm its current access and price. Before spending, confirm the current instruction or delegated policy covers the exact checked request and ceiling; if it already does, do not ask twice.',
 };
 
 const SEARCH_TOOL_RESULT = {
@@ -163,10 +183,10 @@ const CHECK_TOOL_RESULT = {
       },
     ],
     checkedRequest: {
-      url: 'https://fixture.example/beacon',
-      method: 'POST',
+      url: 'https://fixture.example/atlas',
+      method: 'GET',
       body: null,
-      requestBound: false,
+      requestBound: true,
     },
   },
   content: [
@@ -586,7 +606,9 @@ async function contrastRatio(surface, foreground, background) {
 }
 
 async function assertInitialPresentation(surface, hostName) {
-  await surface.getByRole('button', { name: 'Use this service' }).waitFor();
+  await surface.getByRole('button', {
+    name: 'Check live terms for Atlas Price Feed',
+  }).waitFor();
   await surface.getByRole('heading', { name: 'Atlas Price Feed' }).waitFor();
   await surface.getByText('Recommended', { exact: true }).waitFor();
   await surface.getByText('97/100', { exact: true }).waitFor();
@@ -596,7 +618,9 @@ async function assertInitialPresentation(surface, hostName) {
   ).waitFor();
   await surface.getByText('$0.008', { exact: true }).waitFor();
 
-  const primary = surface.getByRole('button', { name: 'Use this service' });
+  const primary = surface.getByRole('button', {
+    name: 'Check live terms for Atlas Price Feed',
+  });
   const secondary = surface.getByRole('button', { name: 'Compare all' });
   const expand = surface.getByRole('button', { name: 'Compare', exact: true });
   const [primaryStyle, secondaryStyle, expandStyle] = await Promise.all([
@@ -705,10 +729,17 @@ async function exerciseSearchFlow({
   }
   await selectAlternative(surface);
 
-  await surface.getByRole('button', { name: 'Use this service' }).click();
+  // POST listings that need a body return to chat. Reselect the complete GET
+  // fixture before exercising the widget-owned live-check path.
+  await surface.getByRole('button', { name: /Atlas Price Feed/ }).click();
+  await surface.getByRole('heading', { name: 'Atlas Price Feed' }).waitFor();
+
+  await surface.getByRole('button', {
+    name: 'Check live terms for Atlas Price Feed',
+  }).click();
   await surface.getByRole('heading', { name: 'Connect for a bound quote' }).waitFor();
   await surface.getByText(
-    'Connect OpenDexter, form the exact raw request body, and repeat this check before approval. Nothing has been charged.',
+    'Connect OpenDexter and repeat this check to create one server-held purchase intent. Nothing has been charged.',
     { exact: true },
   ).waitFor();
   await surface.getByLabel('Checked at 12:34 PM').waitFor();
@@ -764,22 +795,29 @@ async function exerciseSearchFlow({
     { exact: true },
   ).waitFor();
 
-  const atlasCard = comparison
-    .locator('article')
-    .filter({ hasText: 'Atlas Price Feed' });
   const beaconCard = comparison
     .locator('article')
     .filter({ hasText: 'Beacon Price Feed' });
-  await atlasCard.getByRole('button', { name: 'Choose', exact: true }).click();
-  await atlasCard.getByText('Current choice', { exact: true }).waitFor();
-  await beaconCard.getByRole('button', { name: 'Choose', exact: true }).click();
-  await beaconCard.getByText('Current choice', { exact: true }).waitFor();
+  const comparisonChoices = comparison.getByRole('button', {
+    name: /^Choose /,
+  });
+  assert.equal(
+    await comparisonChoices.count(),
+    1,
+    `${hostName}: exactly one non-current comparison card must be selectable`,
+  );
+  await comparisonChoices.first().click();
+  await comparison.getByText('Current choice', { exact: true }).waitFor();
 
   if (exerciseDetailAction) {
-    await beaconCard.getByRole('button', { name: 'Details', exact: true }).click();
+    await beaconCard.getByRole('button', {
+      name: 'View details for Beacon Price Feed',
+    }).click();
     const drawer = surface.locator('.dx-search-drawer');
     await drawer.getByRole('button', { name: 'Close detail' }).waitFor();
-    const drawerAction = drawer.getByRole('button', { name: 'Use this service' });
+    const drawerAction = drawer.getByRole('button', {
+      name: 'Provide details in chat for Beacon Price Feed',
+    });
     assert.ok(
       (await buttonPresentation(drawerAction)).height >= 44,
       `${hostName}: drawer action must be at least 44px tall`,
@@ -788,10 +826,11 @@ async function exerciseSearchFlow({
     await surface.getByRole('button', { name: 'Close detail' }).waitFor({
       state: 'detached',
     });
-    await surface.getByRole(
-      'heading',
-      { name: 'Connect for a bound quote' },
-    ).waitFor();
+    const detailsSent = surface.getByRole('button', {
+      name: 'Provide details in chat for Beacon Price Feed',
+    });
+    await detailsSent.waitFor();
+    assert.equal(await detailsSent.isDisabled(), true);
   }
 
   const rootMetrics = await surface.locator('.dxs-root').evaluate((element) => ({
@@ -842,8 +881,8 @@ function assertSearchHostCalls(hostName, calls, kind, expectedToolCalls = 1) {
     : lastToolCall.params?.arguments;
   assert.equal(toolName, 'x402_check');
   assert.deepEqual(toolArguments, {
-    url: 'https://fixture.example/beacon',
-    method: 'POST',
+    url: 'https://fixture.example/atlas',
+    method: 'GET',
   });
 
   const forbiddenPaymentCalls = toolCalls.filter((call) => {
@@ -877,9 +916,8 @@ function assertSearchHostCalls(hostName, calls, kind, expectedToolCalls = 1) {
     : followUpCall.params?.content?.find((item) => item.type === 'text')?.text;
   assert.equal(
     followUpText,
-    'Connect OpenDexter, then repeat x402_check for Beacon Price Feed with url '
-      + 'https://fixture.example/beacon, method POST, and first form the exact '
-      + 'raw body string required for the request. Use the authenticated re-check '
+    'Connect OpenDexter, then repeat x402_check for Atlas Price Feed with url '
+      + 'https://fixture.example/atlas, method GET, and omit body. Use the authenticated re-check '
       + 'only if it returns a non-quote-only intentId. Do not call x402_fetch from '
       + 'this quote.',
   );
@@ -899,10 +937,12 @@ async function exerciseExactPaymentHandoff({
   hostName,
   surface,
 }) {
-  await surface.getByRole('button', { name: 'Use this service' }).click();
+  await surface.getByRole('button', {
+    name: 'Check live terms for Atlas Price Feed',
+  }).click();
   await surface.getByRole(
     'heading',
-    { name: 'Ready for your approval' },
+    { name: 'Ready to review' },
   ).waitFor();
 
   assert.equal(
@@ -949,9 +989,11 @@ function assertExactPaymentHostCalls(hostName, calls, kind) {
     followUpText,
     'Review payment for Atlas Price Feed at https://fixture.example/atlas. '
       + 'Exact request: GET with no request body. Current seller terms: 8000 '
-      + 'atomic units of USDC on solana:mainnet to 0xatlas. The approval ceiling '
-      + 'is maxAmountAtomic 8000. Ask for my confirmation before paying. After I '
-      + 'confirm, call x402_fetch once with only intentId '
+      + 'atomic units of USDC on solana:mainnet to 0xatlas. The execution ceiling '
+      + 'is maxAmountAtomic 8000. Confirm whether my current instruction or a '
+      + 'bounded delegated policy already authorizes this exact seller, request, '
+      + 'and ceiling. If it does, do not ask again; otherwise ask only for the '
+      + 'missing authority. Once covered, call x402_fetch once with only intentId '
       + '11111111-1111-4111-8111-111111111111 and maxAmountAtomic 8000. Do not '
       + 'include URL, method, body, route, payee, asset, challenge, or prepared '
       + 'purchase data. If the outcome is preparing or ambiguous, call x402_status '
@@ -1222,10 +1264,12 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
       });
       await page.goto(widgetUrl);
 
-      await page.getByRole('button', { name: 'Use this service' }).click();
+      await page.getByRole('button', {
+        name: 'Check live terms for Atlas Price Feed',
+      }).click();
       await page.getByRole(
         'heading',
-        { name: 'Ready for your approval' },
+        { name: 'Ready to review' },
       ).waitFor();
       const review = page.getByRole('button', { name: 'Review payment' });
       await review.evaluate((button) => {
@@ -1347,7 +1391,9 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
       await page.goto(widgetUrl);
 
       const root = page.locator('.dxs-root');
-      await page.getByRole('button', { name: 'Use this service' }).waitFor();
+      await page.getByRole('button', {
+        name: 'Check live terms for Atlas Price Feed',
+      }).waitFor();
       const metrics = await root.evaluate((element) => ({
         clientHeight: element.clientHeight,
         scrollHeight: element.scrollHeight,
@@ -1355,10 +1401,14 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
       }));
       assert.ok(metrics.scrollHeight > metrics.clientHeight);
       assert.equal(metrics.overflowY, 'auto');
-      await page.getByRole('button', { name: 'Use this service' })
+      await page.getByRole('button', {
+        name: 'Check live terms for Atlas Price Feed',
+      })
         .scrollIntoViewIfNeeded();
       assert.equal(
-        await page.getByRole('button', { name: 'Use this service' }).isVisible(),
+        await page.getByRole('button', {
+          name: 'Check live terms for Atlas Price Feed',
+        }).isVisible(),
         true,
       );
       await page.close();
@@ -1374,10 +1424,9 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
       });
       await page.goto(widgetUrl);
 
-      const unavailable = page.getByRole(
-        'button',
-        { name: 'Unavailable in this host' },
-      );
+      const unavailable = page.getByRole('button', {
+        name: 'Check live terms for Atlas Price Feed',
+      });
       await unavailable.waitFor();
       assert.equal(await unavailable.isDisabled(), true);
       await page.getByText(
@@ -1402,10 +1451,12 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
       });
       await page.goto(widgetUrl);
 
-      await page.getByRole('button', { name: 'Use this service' }).click();
+      await page.getByRole('button', {
+        name: 'Check live terms for Atlas Price Feed',
+      }).click();
       await page.getByRole(
         'heading',
-        { name: 'Ready for your approval' },
+        { name: 'Ready to review' },
       ).waitFor();
       await page.getByText(
         'Ask Dexter in chat to continue with this checked service.',
@@ -1568,7 +1619,7 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
         ['inline', 'fullscreen'],
         'MCP Apps: search alone must advertise its validated display modes',
       );
-      assertSearchHostCalls('MCP Apps', calls, 'mcp-apps', 2);
+      assertSearchHostCalls('MCP Apps', calls, 'mcp-apps', 1);
       assert.deepEqual(pageErrors, [], 'MCP Apps: no uncaught browser errors');
       await page.close();
     });

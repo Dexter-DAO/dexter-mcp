@@ -152,7 +152,7 @@ function paidContinuationPrompt(
 
   const route = exactCeilingRoute(quote.routes);
   if (!route?.amountAtomic) {
-    return `Run x402_check again for the exact ${method} request to ${checkedUrl} and obtain a current positive atomic amount before asking me to approve a payment. Do not pay from this incomplete quote.`;
+    return `Run x402_check again for the exact ${method} request to ${checkedUrl} and obtain a current positive atomic amount before authorizing any payment. Do not pay from this incomplete quote.`;
   }
 
   const bodyDescription = body === null
@@ -163,8 +163,8 @@ function paidContinuationPrompt(
     : 'Review';
   return `${reviewLead} payment for ${resource.name} at ${checkedUrl}. `
     + `Exact request: ${method} with ${bodyDescription}. Current seller terms: ${sellerTerms(route)}. `
-    + `The approval ceiling is maxAmountAtomic ${route.amountAtomic}. Ask for my confirmation before paying. `
-    + `After I confirm, call x402_fetch once with only intentId ${quote.intentId} and maxAmountAtomic ${route.amountAtomic}. `
+    + `The execution ceiling is maxAmountAtomic ${route.amountAtomic}. Confirm whether my current instruction or a bounded delegated policy already authorizes this exact seller, request, and ceiling. `
+    + `If it does, do not ask again; otherwise ask only for the missing authority. Once covered, call x402_fetch once with only intentId ${quote.intentId} and maxAmountAtomic ${route.amountAtomic}. `
     + 'Do not include URL, method, body, route, payee, asset, challenge, or prepared purchase data. '
     + `If the outcome is preparing or ambiguous, call x402_status with only intentId ${quote.intentId}; do not call x402_fetch again.`;
 }
@@ -306,7 +306,7 @@ function MarketplaceSearch() {
         void updateModelContext({
           text: isSearchCheckRequestBound(resource.method)
             ? `Checked the current access and pricing for ${resource.name}. No payment was made.`
-            : `Checked an indicative price for ${resource.name}. The exact request still needs pricing before approval. No payment was made.`,
+            : `Checked an indicative price for ${resource.name}. The exact request still needs pricing before payment review. No payment was made.`,
           structuredContent: {
             checkedResource: {
               name: resource.name,

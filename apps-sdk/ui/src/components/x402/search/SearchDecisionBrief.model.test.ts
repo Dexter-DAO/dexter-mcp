@@ -267,6 +267,8 @@ describe('search resource action truth', () => {
     expect(prompt).toContain('may create a provider reservation');
     expect(prompt).toContain('do not ask twice');
     expect(prompt).toContain('not payment approval');
-    expect(prompt).toContain('ask for approval before any payment');
+    expect(prompt).toContain('current instruction or a bounded delegated policy');
+    expect(prompt).toContain('do not ask twice');
+    expect(prompt).toContain('ask only for the missing authority');
   });
 });

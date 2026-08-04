@@ -9,8 +9,8 @@ import { fmtUsd } from './format';
  * the draw build (#113) — nothing can be owed until draws exist, so this
  * ships the state-one shape and grows the state-two rows when they're real.
  *
- * Display law (Branch, Jul 24): the HEADLINE is spending power and never
- * negative; the debt truth lives HERE — balance · owed · net, one gesture
+ * The headline reports account capacity and never goes negative; the debt
+ * truth lives HERE — balance · owed · net, one gesture
  * down, visible never hidden. The rate line deliberately waits for the draw
  * build: quoting a price for an action that cannot happen yet is a forecast,
  * not a fact (b2 design call, Jul 25).
@@ -39,8 +39,8 @@ export function CreditSheet({ lineUsd, drawnUsd, cashUsd, onClose }: {
         <span>open <b className="dxw-mono">{fmtUsd(openUsd)}</b></span>
       </div>
       <p className="dxw-chit-body">
-        When your balance runs short, purchases can use this — and money that
-        arrives later pays it back first.
+        This is reported account capacity. Whether a purchase can use it is
+        decided on that exact checked request before payment.
       </p>
       {drawnUsd > 0 ? (
         <p className="dxw-chit-owed">
