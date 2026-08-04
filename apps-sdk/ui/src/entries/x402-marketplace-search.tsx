@@ -38,6 +38,11 @@ import { SearchComparisonPanel } from '../components/x402/search/SearchCompariso
 import { SearchQuotePanel } from '../components/x402/search/SearchQuotePanel';
 import type { SearchResource } from '../components/x402/search/types';
 import {
+  buildDirectSearchCheckInput,
+  buildDetailsFollowUpPrompt,
+  getSearchResourceAction,
+} from '../components/x402/search/SearchDecisionBrief.model';
+import {
   formatAssetLabel,
   isSearchCheckRequestBound,
 } from '../components/x402/search/utils';
@@ -64,6 +69,8 @@ type SearchToolInput = {
 type SearchCheckFlow =
   | { status: 'idle' }
   | { status: 'checking'; resourceUrl: string }
+  | { status: 'details_sending'; resourceUrl: string }
+  | { status: 'details_sent'; resourceUrl: string }
   | {
       status: 'checked';
       resourceUrl: string;
@@ -129,9 +136,11 @@ function paidContinuationPrompt(
   const requestBound =
     quote.checkedRequest?.requestBound
     ?? isSearchCheckRequestBound(resource.method);
-  const body = method === 'GET' ? null : quote.checkedRequest?.body ?? null;
+  const body = isSearchCheckRequestBound(method)
+    ? null
+    : quote.checkedRequest?.body ?? null;
   if (quote.quoteOnly || !quote.intentId || !requestBound) {
-    const bodyInstruction = method === 'GET'
+    const bodyInstruction = isSearchCheckRequestBound(method)
       ? 'and omit body'
       : body === null
         ? 'and first form the exact raw body string required for the request'
@@ -251,6 +260,18 @@ function MarketplaceSearch() {
   }, [selectedResource, selectedUrl]);
 
   const confirmCurrentTerms = useCallback(async (resource: SearchResource) => {
+    const resourceAction = getSearchResourceAction(resource);
+    const directCheckInput = buildDirectSearchCheckInput(resource);
+    if (resourceAction.kind !== 'check_live_terms' || !directCheckInput) {
+      setCheckFlow({
+        status: 'error',
+        resourceUrl: resource.url,
+        message: resourceAction.disabled
+          ? resourceAction.helperText
+          : 'Provide the exact request details in chat before checking live terms.',
+      });
+      return;
+    }
     if (!hostCapabilities.callTool) {
       setCheckFlow({
         status: 'error',
@@ -268,8 +289,7 @@ function MarketplaceSearch() {
     setQuoteContinuation({ status: 'idle' });
     try {
       const result = await callTool('x402_check', {
-        url: resource.url,
-        method: resource.method || 'GET',
+        ...directCheckInput,
       });
       if (checkRequestId.current !== requestId) return;
       const payload = toolResultPayload(result);
@@ -341,6 +361,82 @@ function MarketplaceSearch() {
       throw error;
     }
   }, [callTool, hostCapabilities.callTool, updateModelContext]);
+
+  const useSearchResource = useCallback(async (resource: SearchResource) => {
+    const resourceAction = getSearchResourceAction(resource);
+    if (resourceAction.disabled) return;
+    if (resourceAction.kind === 'check_live_terms') {
+      await confirmCurrentTerms(resource);
+      return;
+    }
+
+    if (!sendFollowUp) {
+      setCheckFlow({
+        status: 'error',
+        resourceUrl: resource.url,
+        message: 'This host can’t continue the request in chat.',
+      });
+      return;
+    }
+
+    const requestId = ++checkRequestId.current;
+    continuationRequestId.current += 1;
+    continuationInFlight.current = false;
+    setSelectedUrl(resource.url);
+    setDetailOpen(false);
+    setCheckFlow({ status: 'details_sending', resourceUrl: resource.url });
+    setQuoteContinuation({ status: 'idle' });
+    addWidgetBreadcrumb('request_details_requested', {
+      url: resource.url,
+      method: resource.method,
+    });
+    try {
+      await sendFollowUp(buildDetailsFollowUpPrompt(resource, externalQuery));
+      if (checkRequestId.current !== requestId) return;
+      if (updateModelContext) {
+        void updateModelContext({
+          text: `Selected ${resource.name}. Exact request details are required before a live terms check.`,
+          structuredContent: {
+            selectedResource: {
+              name: resource.name,
+              url: resource.url,
+              method: canonicalMethod(resource.method),
+              nextAction: 'provide_details',
+              inputSchema: resource.inputSchema ?? null,
+              pathParams: resource.pathParams ?? null,
+              schemaSource: resource.schemaSource ?? 'none',
+            },
+          },
+        }).catch((error) => {
+          captureWidgetException(error, {
+            phase: 'update_request_details_context',
+            url: resource.url,
+          });
+        });
+      }
+      setCheckFlow({ status: 'details_sent', resourceUrl: resource.url });
+    } catch (error) {
+      if (checkRequestId.current !== requestId) return;
+      captureWidgetException(error, {
+        phase: 'request_details_follow_up',
+        url: resource.url,
+      });
+      setCheckFlow({
+        status: 'error',
+        resourceUrl: resource.url,
+        message: 'Couldn’t continue the request in chat. Try again.',
+      });
+      throw error;
+    }
+  }, [confirmCurrentTerms, externalQuery, sendFollowUp, updateModelContext]);
+
+  const canUseResourceFromWidget = useCallback((resource: SearchResource) => {
+    const action = getSearchResourceAction(resource);
+    if (action.disabled) return false;
+    return action.kind === 'provide_details'
+      ? Boolean(sendFollowUp)
+      : hostCapabilities.callTool;
+  }, [hostCapabilities.callTool, sendFollowUp]);
 
   const handleSelectResource = useCallback((resource: SearchResource) => {
     checkRequestId.current += 1;
@@ -432,12 +528,20 @@ function MarketplaceSearch() {
       ? checkFlow
       : null;
   const decisionCheckState: SearchDecisionBriefCheckState =
-    checkFlow.status === 'checking'
+    checkFlow.status === 'checking' || checkFlow.status === 'details_sending'
       ? {
           status: 'checking',
           resourceUrl: checkFlow.resourceUrl,
-          message: 'Confirming the service’s current terms…',
+          message: checkFlow.status === 'details_sending'
+            ? 'Opening the exact request details in chat…'
+            : 'Checking the service’s current terms…',
         }
+      : checkFlow.status === 'details_sent'
+        ? {
+            status: 'details_sent',
+            resourceUrl: checkFlow.resourceUrl,
+            message: 'Continue in chat to provide the missing request details.',
+          }
       : checkFlow.status === 'checked'
         ? {
             status: 'checked',
@@ -502,8 +606,8 @@ function MarketplaceSearch() {
 
   const checkFromDetail = useCallback(async (resource: SearchResource) => {
     setDetailOpen(false);
-    await confirmCurrentTerms(resource);
-  }, [confirmCurrentTerms]);
+    await useSearchResource(resource);
+  }, [useSearchResource]);
 
   if (!activeOutput) {
     return (
@@ -587,10 +691,11 @@ function MarketplaceSearch() {
             checkState={decisionCheckState}
             onSelect={handleSelectResource}
             onUseService={(resource) => {
-              void confirmCurrentTerms(resource).catch(() => {});
+              void useSearchResource(resource).catch(() => {});
             }}
             onCompareAll={handleCompareAll}
             canCheckCurrentTerms={hostCapabilities.callTool}
+            canProvideDetailsInChat={Boolean(sendFollowUp)}
             canCompare={canToggleFullscreen || isFullscreen}
             heading={externalQuery ? 'Recommended for this request' : 'Best match'}
             alternativeLimit={isFullscreen ? 0 : 2}
@@ -635,8 +740,10 @@ function MarketplaceSearch() {
             <SearchVerdictDrawer
               resource={selectedResource}
               onClose={handleCloseDetail}
-              onCheckPrice={
-                hostCapabilities.callTool ? checkFromDetail : undefined
+              onUseService={
+                canUseResourceFromWidget(selectedResource)
+                  ? checkFromDetail
+                  : undefined
               }
             />
           </aside>
@@ -651,12 +758,19 @@ function MarketplaceSearch() {
             onClick={handleCloseDetail}
             aria-label="Close endpoint details"
           />
-          <div className="relative z-10 max-h-[92vh] w-full overflow-y-auto animate-[fadein_.18s_ease-out]">
+          <div
+            className="dx-search-mobile-dialog relative z-10 max-h-[92vh] w-full overflow-y-auto animate-[fadein_.18s_ease-out]"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`${selectedResource.name} details`}
+          >
             <SearchVerdictDrawer
               resource={selectedResource}
               onClose={handleCloseDetail}
-              onCheckPrice={
-                hostCapabilities.callTool ? checkFromDetail : undefined
+              onUseService={
+                canUseResourceFromWidget(selectedResource)
+                  ? checkFromDetail
+                  : undefined
               }
             />
           </div>

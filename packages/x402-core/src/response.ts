@@ -33,7 +33,70 @@ function buildSearchMeta(result: CapabilitySearchResult): SearchMeta {
   };
 }
 
+function hasPublishedInput(value: unknown): boolean {
+  if (value == null) return false;
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === 'string') return value.trim().length > 0;
+  if (typeof value !== 'object') return false;
+
+  const record = value as Record<string, unknown>;
+  if (Array.isArray(record.required) && record.required.length > 0) return true;
+  if (
+    record.properties
+    && typeof record.properties === 'object'
+    && Object.keys(record.properties as Record<string, unknown>).length > 0
+  ) {
+    return true;
+  }
+  return Object.keys(record).some(
+    (key) => ![
+      '$schema',
+      'additionalProperties',
+      'description',
+      'properties',
+      'required',
+      'title',
+      'type',
+    ].includes(key),
+  );
+}
+
 function buildTip(result: CapabilitySearchResult): string {
+  const top = result.strongResults[0] ?? result.relatedResults[0] ?? null;
+  const method = top?.method?.toUpperCase() ?? 'GET';
+  if (top && !['GET', 'POST', 'PUT', 'DELETE'].includes(method)) {
+    return `The leading result uses ${method}, which OpenDexter cannot currently check or execute. Choose a result using GET, POST, PUT, or DELETE; do not present this listing as callable.`;
+  }
+  if (
+    top?.execution.availability === 'unsupported'
+    || top?.execution.userExecution === 'unsupported'
+  ) {
+    return 'The leading result is not executable through OpenDexter. Choose a supported result; do not present this listing as callable.';
+  }
+  if (top?.execution.availability === 'catalog_only') {
+    return 'The leading result is a catalog listing but is not currently callable. Choose an available result or check again later; do not present the listing as executable.';
+  }
+  if (
+    top
+    && (
+      top.execution.sideEffectful
+      || top.execution.confirmationRequired
+      || top.execution.quoteMayCreateProviderReservation
+    )
+  ) {
+    return 'The leading result requires a pre-check review. Form and show the exact URL, method, path parameters, raw body, stated effect, and any provider-reservation warning. If the user already authorized that exact request and possible check effect, do not ask twice; otherwise obtain confirmation before x402_check. That confirmation does not approve payment.';
+  }
+  if (
+    top
+    && (
+      top.execution.requiresExplicitInput
+      || hasPublishedInput(top.inputSchema)
+      || hasPublishedInput(top.pathParams)
+      || method !== 'GET'
+    )
+  ) {
+    return 'The leading result needs exact request details before a live price check. Gather the required fields from inputSchema and pathParams, then run x402_check with the exact method, URL, and raw body. Search output does not authorize payment.';
+  }
   // Triangulation tip — load-bearing. When the top match has no structured
   // input semantics AND profile-backed alternates exist, we need the agent to
   // know NOT to blindly pay the top result on an ambiguous query. This is the

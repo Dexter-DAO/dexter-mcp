@@ -7,6 +7,7 @@ import { DoctorDexterCard } from '../../pricing/DoctorDexterCard';
 import type { HistoryRow } from '../../pricing/types';
 import { addWidgetBreadcrumb, captureWidgetException } from '../../../sdk/init-sentry';
 import { formatAssetLabel, formatListedPrice } from './utils';
+import { summarizeSearchResource } from './SearchDecisionBrief.model';
 
 const API_ORIGIN = 'https://api.dexter.cash';
 
@@ -48,10 +49,10 @@ type ResourcePayload = {
 interface Props {
   resource: SearchResource;
   onClose: () => Promise<void> | void;
-  onCheckPrice?: (resource: SearchResource) => Promise<void>;
+  onUseService?: (resource: SearchResource) => Promise<void>;
 }
 
-export function SearchVerdictDrawer({ resource, onClose, onCheckPrice }: Props) {
+export function SearchVerdictDrawer({ resource, onClose, onUseService }: Props) {
   const [payload, setPayload] = useState<ResourcePayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -107,10 +108,13 @@ export function SearchVerdictDrawer({ resource, onClose, onCheckPrice }: Props) 
     typeof resource.qualityScore === 'number' && Number.isFinite(resource.qualityScore)
       ? resource.qualityScore
       : null;
+  const resourceSummary = summarizeSearchResource(resource);
+  const resourceAction = resourceSummary.action;
   const listedRoutes = useMemo(() => {
     if (resource.chains?.length) {
       return resource.chains.map((chain) => ({
         network: chain.network,
+        networkLabel: chain.networkLabel,
         assetLabel: formatAssetLabel(chain.asset),
         priceLabel: formatListedPrice(
           chain.priceLabel,
@@ -122,26 +126,39 @@ export function SearchVerdictDrawer({ resource, onClose, onCheckPrice }: Props) 
     if (accepts.length) {
       return accepts.map((accept) => ({
         network: accept.network,
+        networkLabel: null,
         assetLabel: formatAssetLabel(accept.asset, accept.extra?.name),
         priceLabel: formatChainPrice(accept.amount, accept.extra?.decimals),
       }));
     }
     return [{
       network: resource.network,
+      networkLabel: resource.networkLabel ?? null,
       assetLabel: formatAssetLabel(resource.priceAsset),
       priceLabel: resource.price === 'free' ? 'Free' : resource.price,
     }];
-  }, [accepts, resource.chains, resource.network, resource.price, resource.priceAsset]);
+  }, [
+    accepts,
+    resource.chains,
+    resource.network,
+    resource.networkLabel,
+    resource.price,
+    resource.priceAsset,
+  ]);
 
-  async function handleCheckPrice(e: React.MouseEvent) {
+  async function handleUseService(e: React.MouseEvent) {
     e.stopPropagation();
-    if (!onCheckPrice) return;
+    if (!onUseService || resourceAction.disabled) return;
     setCheckError(null);
     setChecking(true);
     try {
-      await onCheckPrice(resource);
+      await onUseService(resource);
     } catch {
-      setCheckError('Couldn’t confirm the current terms. Try again.');
+      setCheckError(
+        resourceAction.kind === 'provide_details'
+          ? 'Couldn’t continue in chat. Try again.'
+          : 'Couldn’t confirm the current terms. Try again.',
+      );
     } finally {
       setChecking(false);
     }
@@ -222,6 +239,35 @@ export function SearchVerdictDrawer({ resource, onClose, onCheckPrice }: Props) 
         </div>
       )}
 
+      <dl className="dx-search-drawer__facts">
+        <div>
+          <dt>Evidence</dt>
+          <dd>{resourceSummary.evidenceLabel}</dd>
+        </div>
+        <div>
+          <dt>Network</dt>
+          <dd>{resourceSummary.networkLabel}</dd>
+        </div>
+        <div>
+          <dt>Next step</dt>
+          <dd>{resourceAction.label}</dd>
+        </div>
+        <div>
+          <dt>Pricing</dt>
+          <dd>
+            {resource.quoteRequired || resource.pricingMode === 'quote'
+              ? 'Live quote required'
+              : resourceSummary.priceLabel ?? resourceSummary.priceFallback}
+          </dd>
+        </div>
+      </dl>
+
+      {resourceSummary.safetyWarning && (
+        <p className="dx-search-safety-note" role="note">
+          {resourceSummary.safetyWarning}
+        </p>
+      )}
+
       {/* Loading + error states */}
       {loading && (
         <div className="dx-search-drawer__loading">
@@ -298,7 +344,9 @@ export function SearchVerdictDrawer({ resource, onClose, onCheckPrice }: Props) 
                 className="dx-search-drawer__chain-row"
               >
                 <span className="dx-search-drawer__chain-identity">
-                  <span className="dx-search-drawer__chain-network">{shortenNetwork(route.network)}</span>
+                  <span className="dx-search-drawer__chain-network">
+                    {route.networkLabel?.trim() || shortenNetwork(route.network)}
+                  </span>
                   <span className="dx-search-drawer__chain-asset" title={route.assetLabel}>
                     {route.assetLabel}
                   </span>
@@ -322,19 +370,36 @@ export function SearchVerdictDrawer({ resource, onClose, onCheckPrice }: Props) 
             variant="soft"
             color="secondary"
             size="sm"
-            onClick={handleCheckPrice}
-            disabled={checking || !onCheckPrice}
+            onClick={handleUseService}
+            disabled={checking || resourceAction.disabled || !onUseService}
+            aria-busy={checking}
+            aria-label={`${resourceAction.label} for ${resource.name}`}
           >
-            {!onCheckPrice
+            {resourceAction.disabled
+              ? resourceAction.label
+              : !onUseService
               ? 'Unavailable in this host'
               : checking
-                ? 'Confirming…'
-                : 'Use this service'}
+                ? resourceAction.kind === 'provide_details'
+                  ? 'Opening chat…'
+                  : 'Checking live terms…'
+                : resourceAction.label}
           </Button>
         </div>
       </div>
       {checkError && (
         <p className="dx-search-drawer__action-error" role="alert">{checkError}</p>
+      )}
+      {!checkError && (
+        <p className="dx-search-drawer__action-note">
+          {resourceAction.disabled
+            ? resourceAction.helperText
+            : !onUseService
+              ? resourceAction.kind === 'provide_details'
+                ? 'This host can’t continue the request in chat.'
+                : 'This host can’t check current terms from the widget.'
+              : resourceAction.helperText}
+        </p>
       )}
     </div>
   );
@@ -444,7 +509,5 @@ function formatChainPrice(amount: string | undefined, decimals: number = 6): str
   const n = Number(amount);
   if (!Number.isFinite(n)) return '—';
   const usd = n / Math.pow(10, decimals);
-  if (usd < 0.01) return `$${usd.toFixed(4)}`;
-  if (usd < 1) return `$${usd.toFixed(3)}`;
-  return `$${usd.toFixed(2)}`;
+  return formatListedPrice(null, usd, '—');
 }

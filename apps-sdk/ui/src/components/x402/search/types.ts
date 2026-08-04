@@ -7,13 +7,38 @@ export type SearchSeller = {
 
 export type SearchChainOption = {
   network: string | null;
+  networkLabel?: string | null;
   asset?: string | null;
+  scheme?: string | null;
   priceAtomic?: string | null;
   priceUsdc?: number | null;
   priceLabel?: string | null;
 };
 
 export type SearchTier = 'strong' | 'related';
+
+/** Exact method set accepted by the live x402_check tool schema. */
+export const SEARCH_CHECK_SUPPORTED_METHODS = ['GET', 'POST', 'PUT', 'DELETE'] as const;
+
+export type SearchPricingMode = 'fixed' | 'dynamic' | 'quote' | 'unknown';
+
+export type SearchTrustBasis =
+  | 'paid_test'
+  | 'quality_test'
+  | 'recent_paid_delivery'
+  | 'trusted_catalog'
+  | 'none';
+
+export type SearchResourceExecution = {
+  sideEffectful: boolean;
+  effect: string | null;
+  automatedVerification: 'enabled' | 'manual_only';
+  userExecution: 'allowed' | 'unsupported';
+  confirmationRequired: boolean;
+  availability: 'available' | 'catalog_only' | 'unsupported';
+  requiresExplicitInput: boolean;
+  quoteMayCreateProviderReservation: boolean;
+};
 
 export type SearchResource = {
   resourceId: string;
@@ -25,12 +50,19 @@ export type SearchResource = {
   priceUsdc?: number | null;
   priceAsset?: string | null;
   network: string | null;
+  networkLabel?: string | null;
+  pricingMode?: SearchPricingMode;
+  quoteRequired?: boolean;
   chains?: SearchChainOption[];
+  execution?: SearchResourceExecution;
   description: string;
   category: string;
   qualityScore: number | null;
   verified: boolean;
-  verificationStatus?: 'pass' | 'fail' | 'inconclusive' | 'skipped' | null;
+  verificationStatus?: string | null;
+  paidQualityTestPassed?: boolean;
+  trustBasis?: SearchTrustBasis;
+  trustLabel?: string;
   verificationNotes?: string | null;
   verificationFixInstructions?: string | null;
   lastVerifiedAt?: string | null;
@@ -52,6 +84,11 @@ export type SearchResource = {
   score?: number;
   gamingFlags?: string[];
   gamingSuspicious?: boolean;
+  safetyFlags?: string[];
+  inputSchema?: unknown | null;
+  outputSchema?: unknown | null;
+  pathParams?: unknown | null;
+  schemaSource?: 'bazaar' | 'openapi' | 'profile' | 'none';
 };
 
 export type SearchRerankInfo = {

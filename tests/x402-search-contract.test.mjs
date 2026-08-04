@@ -32,13 +32,19 @@ test('degraded ranking guidance remains visible when fallback search is empty', 
   );
 });
 
-test('search can only open a fresh pricing check', () => {
+test('search can only open a safe next step before payment', () => {
   assert.match(entry, /callTool\('x402_check'/);
+  assert.match(entry, /buildDirectSearchCheckInput/);
+  assert.match(entry, /buildDetailsFollowUpPrompt/);
   assert.doesNotMatch(actionSources, /callTool\(\s*['"]x402_fetch['"]/);
   assert.doesNotMatch(actionSources, /\bx402_pay\b/);
   assert.doesNotMatch(actionSources, /\bonFetch\b/);
-  assert.match(brief, /Use this service/);
-  assert.match(drawer, /Use this service/);
+  assert.match(briefModel, /Check live terms/);
+  assert.match(briefModel, /Provide details in chat/);
+  assert.match(briefModel, /SEARCH_CHECK_SUPPORTED_METHODS/);
+  assert.match(briefModel, /provider reservation/);
+  assert.doesNotMatch(brief, /Use this service/);
+  assert.doesNotMatch(drawer, /Use this service/);
   assert.doesNotMatch(actionSources, /Check fresh price/);
   assert.match(entry, /normalizeX402CheckResult/);
   assert.match(entry, /structuredContent/);
@@ -78,12 +84,16 @@ test('dual-host adapters and capability-driven fullscreen are wired locally', ()
 });
 
 test('current build stamp, result evidence, tokens, and dead-code removals are pinned', () => {
-  assert.match(model, /SEARCH_WIDGET_BUILD = '2026-08-04\.1'/);
+  assert.match(model, /SEARCH_WIDGET_BUILD = '2026-08-04\.2'/);
   assert.doesNotMatch(entry, /2026-04-16\.1/);
   assert.match(briefModel, /resource\.why/);
   assert.match(briefModel, /resource\.qualityScore/);
   assert.match(briefModel, /primaryRoute\?\.priceLabel/);
   assert.match(briefModel, /primaryRoute\?\.priceUsdc/);
+  assert.match(briefModel, /safetyWarning/);
+  assert.match(brief, /dx-search-safety-note/);
+  assert.match(comparison, /dx-search-safety-note/);
+  assert.match(drawer, /dx-search-safety-note/);
   assert.match(quote, /formatAssetLabel\(route\.asset\)/);
   assert.match(quote, /route\.routeKey/);
   assert.match(drawer, /assetLabel: formatAssetLabel\(chain\.asset\)/);

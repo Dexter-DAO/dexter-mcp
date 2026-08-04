@@ -44,12 +44,16 @@ export function formatListedPrice(
   if (label) return label;
   if (typeof priceUsdc !== 'number' || !Number.isFinite(priceUsdc)) return fallback;
   if (priceUsdc === 0) return 'Free';
+  if (priceUsdc > 0 && priceUsdc < 0.000001) return '<$0.000001';
+  if (priceUsdc > 0 && priceUsdc < 0.01) {
+    return `$${priceUsdc.toFixed(6).replace(/0+$/, '').replace(/\.$/, '')}`;
+  }
 
   return priceUsdc.toLocaleString('en-US', {
     style: 'currency',
     currency: 'USD',
-    minimumFractionDigits: priceUsdc < 0.01 ? 2 : 0,
-    maximumFractionDigits: priceUsdc < 0.01 ? 6 : 4,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 4,
   });
 }
 
@@ -68,7 +72,7 @@ export function formatAssetLabel(
 
 /**
  * A GET check binds the complete catalog URL, including its query string, and
- * has no request body. Non-GET search results still need the exact raw body
+ * has no request body. Other supported results still need the exact raw body
  * before their price can be treated as approval-ready.
  */
 export function isSearchCheckRequestBound(

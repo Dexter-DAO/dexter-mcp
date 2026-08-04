@@ -10,7 +10,14 @@
  * Add a new field HERE and it propagates to every consumer on the next build.
  */
 
-import type { RawCapabilityResult, RawPricingChain, FormattedResource } from './types.js';
+import type {
+  FormattedResource,
+  PricingMode,
+  RawCapabilityResult,
+  RawPricingChain,
+  ResourceExecution,
+  TrustBasis,
+} from './types.js';
 
 /**
  * Format a price in USDC to a human-readable label.
@@ -18,13 +25,16 @@ import type { RawCapabilityResult, RawPricingChain, FormattedResource } from './
  * Thresholds:
  *   null         → "price on request"
  *   0            → "free"
- *   < $0.01      → 4 decimal places  ("$0.0011")
+ *   < $0.01      → up to 6 decimal places ("$0.00001")
  *   >= $0.01     → 2 decimal places  ("$0.05")
  */
 export function formatPrice(priceUsdc: number | null): string {
   if (priceUsdc == null) return 'price on request';
   if (priceUsdc === 0) return 'free';
-  if (priceUsdc < 0.01) return `$${priceUsdc.toFixed(4)}`;
+  if (priceUsdc < 0.000001) return '<$0.000001';
+  if (priceUsdc < 0.01) {
+    return `$${priceUsdc.toFixed(6).replace(/0+$/, '').replace(/\.$/, '')}`;
+  }
   return `$${priceUsdc.toFixed(2)}`;
 }
 
@@ -57,8 +67,10 @@ function buildChains(pricing: RawCapabilityResult['pricing']): RawPricingChain[]
     return pricing.chains;
   }
   return [{
-    network: pricing.network ?? '',
+    network: pricing.network ?? null,
+    networkLabel: pricing.networkLabel ?? null,
     asset: pricing.asset,
+    scheme: null,
     priceAtomic: null,
     priceUsdc: pricing.usdc,
     priceLabel: formatPrice(pricing.usdc),
@@ -86,6 +98,46 @@ const EMPTY_USAGE: RawCapabilityResult['usage'] = {
   lastSettlementAt: null,
 };
 
+const EMPTY_EXECUTION: ResourceExecution = {
+  sideEffectful: false,
+  effect: null,
+  automatedVerification: 'manual_only',
+  userExecution: 'unsupported',
+  confirmationRequired: false,
+  availability: 'unsupported',
+  requiresExplicitInput: false,
+  quoteMayCreateProviderReservation: false,
+};
+
+function normalizePricingMode(value: unknown): PricingMode {
+  return value === 'fixed' || value === 'dynamic' || value === 'quote'
+    ? value
+    : 'unknown';
+}
+
+function fallbackTrustBasis(
+  verification: RawCapabilityResult['verification'],
+): TrustBasis {
+  if (verification.paidQualityTestPassed ?? verification.paid) return 'paid_test';
+  if (verification.status === 'pass') return 'quality_test';
+  return 'none';
+}
+
+function fallbackTrustLabel(basis: TrustBasis): string {
+  switch (basis) {
+    case 'paid_test':
+      return 'Paid quality test passed';
+    case 'quality_test':
+      return 'Quality test passed';
+    case 'recent_paid_delivery':
+      return 'Recent paid delivery succeeded';
+    case 'trusted_catalog':
+      return 'Trusted catalog listing; live payment offer confirmed';
+    case 'none':
+      return 'No independent paid quality test';
+  }
+}
+
 /**
  * The ONE canonical resource formatter.
  *
@@ -103,6 +155,14 @@ export function formatResource(r: RawCapabilityResult): FormattedResource {
   const verification = r.verification ?? EMPTY_VERIFICATION;
   const usage = r.usage ?? EMPTY_USAGE;
   const priceUsdc = pricing.usdc;
+  const chains = buildChains(pricing);
+  const trustBasis = verification.trustBasis ?? fallbackTrustBasis(verification);
+  const paidQualityTestPassed =
+    verification.paidQualityTestPassed ?? verification.paid === true;
+  const safetyFlags = Array.isArray(r.safetyFlags)
+    ? r.safetyFlags
+    : r.gaming?.flags ?? [];
+  const primaryPriceLabel = chains[0]?.priceLabel?.trim();
 
   return {
     // Identity
@@ -112,11 +172,15 @@ export function formatResource(r: RawCapabilityResult): FormattedResource {
     method: r.method || 'GET',
 
     // Pricing
-    price: formatPrice(priceUsdc),
+    price: primaryPriceLabel || formatPrice(priceUsdc),
     priceUsdc,
     priceAsset: pricing.asset ?? null,
     network: pricing.network ?? null,
-    chains: buildChains(pricing),
+    networkLabel: pricing.networkLabel ?? chains[0]?.networkLabel ?? null,
+    pricingMode: normalizePricingMode(pricing.mode),
+    quoteRequired: pricing.quoteRequired === true,
+    chains,
+    execution: r.execution ?? EMPTY_EXECUTION,
 
     // Content
     description: r.description ?? '',
@@ -126,6 +190,9 @@ export function formatResource(r: RawCapabilityResult): FormattedResource {
     qualityScore: verification.qualityScore,
     verified: verification.status === 'pass',
     verificationStatus: verification.status,
+    paidQualityTestPassed,
+    trustBasis,
+    trustLabel: verification.trustLabel?.trim() || fallbackTrustLabel(trustBasis),
     lastVerifiedAt: verification.lastVerifiedAt ?? null,
 
     // Usage
@@ -141,14 +208,15 @@ export function formatResource(r: RawCapabilityResult): FormattedResource {
     // Gaming — `gaming` may be absent on a raw row (e.g. a result that
     // predates gaming analysis); guard it like every other optional field
     // in this mapper rather than throwing on `.flags` of undefined.
-    gamingFlags: r.gaming?.flags ?? [],
-    gamingSuspicious: r.gaming?.suspicious ?? false,
+    gamingFlags: safetyFlags,
+    gamingSuspicious: r.gaming?.suspicious ?? safetyFlags.length > 0,
+    safetyFlags,
 
     // Ranking
     tier: r.tier,
     similarity: roundSimilarity(r.similarity),
     why: r.why,
-    score: r.score,
+    score: typeof r.score === 'number' ? r.score : 0,
 
     // Enrichment
     ogImageUrl: r.ogImage ?? null,
@@ -161,6 +229,8 @@ export function formatResource(r: RawCapabilityResult): FormattedResource {
     // Schemas (corpus-cached; null when the resource doesn't publish them)
     inputSchema: r.inputSchema ?? null,
     outputSchema: r.outputSchema ?? null,
+    pathParams: r.pathParams ?? null,
+    schemaSource: r.schemaSource ?? 'none',
 
     // Structured behavioral profile. Pass through verbatim — already shaped
     // for clients by the dexter-api response builder. NULL when the resource
