@@ -23,6 +23,9 @@ import {
 import {
   requireSealedOpenReleaseRuntime,
 } from './lib/open-release-runtime-preflight.mjs';
+import {
+  buildOpenMcpAuthorizationServerMetadata,
+} from './lib/open-tool-auth.mjs';
 
 // Load env from repo root and local MCP overrides
 // Production receives its complete environment from PM2's protected mode-0600
@@ -1122,10 +1125,11 @@ function timingSafeEqualB64(a, b) {
 // OAuth metadata endpoints (served at both root and /mcp/.well-known for compatibility)
 function serveOAuthMetadata(pathname, res, req) {
   writeCors(res);
+  const openMcpAuthorizationServerMetadata =
+    buildOpenMcpAuthorizationServerMetadata(pathname);
   const isAuthMeta = (
     pathname === '/.well-known/oauth-authorization-server' ||
-    pathname === '/mcp/.well-known/oauth-authorization-server' ||
-    pathname === '/.well-known/oauth-authorization-server/mcp'
+    pathname === '/mcp/.well-known/oauth-authorization-server'
   );
   const isProtectedMeta = (
     pathname === '/.well-known/oauth-protected-resource'
@@ -1142,6 +1146,13 @@ function serveOAuthMetadata(pathname, res, req) {
     try { console.log(`[oauth-meta] serve jwks for ${pathname} ua=${req?.headers?.['user-agent']||''}`); } catch {}
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control':'no-store' });
     res.end(JSON.stringify({ keys: [rsaPublicJwk] }));
+    return true;
+  }
+
+  if (openMcpAuthorizationServerMetadata) {
+    try { console.log(`[oauth-meta] serve OpenDexter vault metadata for ${pathname} ua=${req?.headers?.['user-agent']||''}`); } catch {}
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control':'no-store' });
+    res.end(JSON.stringify(openMcpAuthorizationServerMetadata));
     return true;
   }
 
