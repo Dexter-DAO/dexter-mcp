@@ -14,6 +14,7 @@ const persistedOpenApi = {
 
 const persistedEnrichment = {
   resource: {
+    method: 'post',
     input_schema: persistedOpenApi,
     input_schema_source: 'openapi',
     input_schema_rejected_sources: ['bazaar'],
@@ -32,6 +33,7 @@ test('informative live seller schema remains first', () => {
     liveSchema,
     enrichment: persistedEnrichment,
     resourceUrl: 'https://seller.example/v1/generate',
+    method: 'POST',
   });
 
   assert.equal(resolved.schema, liveSchema);
@@ -52,6 +54,7 @@ test('closed zero-field live schema falls back to richer persisted schema', () =
       liveSchema,
       enrichment: persistedEnrichment,
       resourceUrl: 'https://seller.example/v1/generate',
+      method: 'POST',
     }), {
       schema: persistedOpenApi,
       source: 'openapi',
@@ -74,6 +77,7 @@ test('fixed-operation sole-field phantom falls back only with richer corroborati
     liveSchema: livePhantom,
     enrichment: persistedEnrichment,
     resourceUrl,
+    method: 'POST',
   }), {
     schema: persistedOpenApi,
     source: 'openapi',
@@ -85,12 +89,14 @@ test('fixed-operation sole-field phantom falls back only with richer corroborati
     liveSchema: livePhantom,
     enrichment: {
       resource: {
+        method: 'POST',
         input_schema: livePhantom,
         input_schema_source: 'bazaar',
         input_schema_rejected_sources: [],
       },
     },
     resourceUrl,
+    method: 'POST',
   }), {
     schema: livePhantom,
     source: 'live',
@@ -108,6 +114,7 @@ test('fixed-operation sole-field input is not replaced without Bazaar rejection 
   };
   const enrichmentWithoutCorroboration = {
     resource: {
+      method: 'POST',
       input_schema: persistedOpenApi,
       input_schema_source: 'openapi',
       input_schema_rejected_sources: [],
@@ -118,6 +125,7 @@ test('fixed-operation sole-field input is not replaced without Bazaar rejection 
     liveSchema: liveOneField,
     enrichment: enrichmentWithoutCorroboration,
     resourceUrl: 'https://seller.example/v1/reports/report:run',
+    method: 'POST',
   }), {
     schema: liveOneField,
     source: 'live',
@@ -135,8 +143,9 @@ test('no persisted DB schema leaves the live schema unchanged', () => {
 
   assert.deepEqual(reconcileHostedCheckInputSchema({
     liveSchema,
-    enrichment: { resource: { input_schema_source: 'openapi' } },
+    enrichment: { resource: { method: 'POST', input_schema_source: 'openapi' } },
     resourceUrl: 'https://seller.example/v1/generate',
+    method: 'POST',
   }), {
     schema: liveSchema,
     source: 'live',
@@ -150,6 +159,7 @@ test('missing live schema uses a concrete persisted schema', () => {
     liveSchema: undefined,
     enrichment: persistedEnrichment,
     resourceUrl: 'https://seller.example/v1/generate',
+    method: 'POST',
   }), {
     schema: persistedOpenApi,
     source: 'openapi',
@@ -169,12 +179,14 @@ test('LLM profile and cached Bazaar sources never repair an exact live check sch
       liveSchema: liveClosedEmpty,
       enrichment: {
         resource: {
+          method: 'POST',
           input_schema: persistedOpenApi,
           input_schema_source: inputSchemaSource,
           input_schema_rejected_sources: [],
         },
       },
       resourceUrl: 'https://seller.example/v1/generate',
+      method: 'POST',
     }), {
       schema: liveClosedEmpty,
       source: 'live',
@@ -198,12 +210,14 @@ test('free-form and schema-valued additionalProperties count as concrete persist
       liveSchema: undefined,
       enrichment: {
         resource: {
+          method: 'POST',
           input_schema: inputSchema,
           input_schema_source: 'openapi',
           input_schema_rejected_sources: [],
         },
       },
       resourceUrl: 'https://seller.example/v1/free-form',
+      method: 'POST',
     }), {
       schema: inputSchema,
       source: 'openapi',
@@ -211,4 +225,67 @@ test('free-form and schema-valued additionalProperties count as concrete persist
       rejectedSources: [],
     });
   }
+});
+
+test('URL-only enrichment cannot repair a different checked method', () => {
+  const liveClosedEmpty = {
+    type: 'object',
+    properties: {},
+    additionalProperties: false,
+  };
+
+  for (const persistedMethod of ['GET', 'PATCH']) {
+    assert.deepEqual(reconcileHostedCheckInputSchema({
+      liveSchema: liveClosedEmpty,
+      enrichment: {
+        resource: {
+          ...persistedEnrichment.resource,
+          method: persistedMethod,
+        },
+      },
+      resourceUrl: 'https://seller.example/v1/shared-route',
+      method: 'POST',
+    }), {
+      schema: liveClosedEmpty,
+      source: 'live',
+      replaced: false,
+      rejectedSources: [],
+    });
+  }
+});
+
+test('persisted method identity is required and compared case-insensitively', () => {
+  assert.deepEqual(reconcileHostedCheckInputSchema({
+    liveSchema: undefined,
+    enrichment: {
+      resource: {
+        ...persistedEnrichment.resource,
+        method: ' post ',
+      },
+    },
+    resourceUrl: 'https://seller.example/v1/generate',
+    method: 'POST',
+  }), {
+    schema: persistedOpenApi,
+    source: 'openapi',
+    replaced: true,
+    rejectedSources: ['bazaar'],
+  });
+
+  assert.deepEqual(reconcileHostedCheckInputSchema({
+    liveSchema: undefined,
+    enrichment: {
+      resource: {
+        ...persistedEnrichment.resource,
+        method: undefined,
+      },
+    },
+    resourceUrl: 'https://seller.example/v1/generate',
+    method: 'POST',
+  }), {
+    schema: undefined,
+    source: 'live',
+    replaced: false,
+    rejectedSources: [],
+  });
 });

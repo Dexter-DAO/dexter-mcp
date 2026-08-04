@@ -147,6 +147,7 @@ test('hosted check repairs only the schema while preserving live quote evidence'
   }];
   const enrichment = {
     resource: {
+      method: 'POST',
       input_schema: persistedSchema,
       input_schema_source: 'openapi',
       input_schema_rejected_sources: ['bazaar'],
@@ -181,6 +182,49 @@ test('hosted check repairs only the schema while preserving live quote evidence'
   assert.equal(structuredContent.authMode, 'paid');
   assert.equal(structuredContent.enrichment, enrichment);
   assert.equal(structuredContent.enrichment_source, 'live_db');
+});
+
+test('hosted check never repairs from a persisted schema for another method', () => {
+  const liveSchema = {
+    type: 'object',
+    properties: {},
+    additionalProperties: false,
+  };
+  const persistedSchema = {
+    type: 'object',
+    properties: { query: { type: 'string' } },
+    required: ['query'],
+    additionalProperties: false,
+  };
+
+  const structuredContent = buildHostedCheckModelResult({
+    checkResult: {
+      requiresPayment: true,
+      statusCode: 402,
+      inputSchema: liveSchema,
+    },
+    url: 'https://seller.example/v1/shared-route',
+    method: 'POST',
+    rawBodyProvided: false,
+    enrichment: {
+      resource: {
+        method: 'GET',
+        input_schema: persistedSchema,
+        input_schema_source: 'openapi',
+        input_schema_rejected_sources: ['bazaar'],
+      },
+      history: [],
+    },
+    enrichmentSource: 'live_db',
+  });
+
+  assert.equal(structuredContent.inputSchema, liveSchema);
+  assert.equal(structuredContent.inputSchemaSource, 'live');
+  assert.equal(structuredContent.checkedRequest.method, 'POST');
+  assert.equal(
+    Object.hasOwn(structuredContent, 'inputSchemaRejectedSources'),
+    false,
+  );
 });
 
 test('hosted check labels an unchanged informative seller schema as live', () => {
