@@ -102,6 +102,24 @@ test('hosted paid guidance uses one opaque check-fetch-status path', () => {
   assert.doesNotMatch(checkDescription, /prepared seller-route|purchase-mode choices|omit purchase/i);
 });
 
+test('x402_check strict output contract carries reconciled schema provenance', () => {
+  const schema = OPEN_TOOL_CONTRACTS.x402_check.outputSchema;
+  assert.equal(Object.hasOwn(schema.shape, 'inputSchemaSource'), true);
+  assert.equal(Object.hasOwn(schema.shape, 'inputSchemaRejectedSources'), true);
+  assert.equal(schema.safeParse({
+    inputSchema: {
+      type: 'object',
+      properties: { contents: { type: 'array' } },
+    },
+    inputSchemaSource: 'openapi',
+    inputSchemaRejectedSources: ['bazaar'],
+  }).success, true);
+  assert.equal(schema.safeParse({
+    inputSchemaSource: 'openapi',
+    undeclaredSchemaAuthority: true,
+  }).success, false);
+});
+
 test('portfolio top-level output refuses undeclared fields', () => {
   assert.equal(
     OPEN_TOOL_CONTRACTS.dexter_portfolio.outputSchema.safeParse({
@@ -846,6 +864,14 @@ test('real SDK tools/list exposes executable schemas, OAuth, annotations, and me
       }
     }
     if (listed.name === 'x402_check') {
+      assert.equal(
+        Object.hasOwn(listed.outputSchema.properties ?? {}, 'inputSchemaSource'),
+        true,
+      );
+      assert.equal(
+        Object.hasOwn(listed.outputSchema.properties ?? {}, 'inputSchemaRejectedSources'),
+        true,
+      );
       for (const candidateField of [
         'purchaseContractVersion',
         'preparedPayload',
