@@ -1,14 +1,16 @@
 {
   "name": "@dexterai/x402-core",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "description": "Canonical types, formatters, and search client for the Dexter x402 ecosystem. Shared by all MCP servers, the SDK, and the ChatGPT widget.",
   "type": "module",
-  "main": "dist/index.js",
+  "main": "dist/index.cjs",
+  "module": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "require": "./dist/index.cjs"
     }
   },
   "files": [
@@ -19,7 +21,9 @@
   "scripts": {
     "build": "tsup && tsc --emitDeclarationOnly --outDir dist",
     "typecheck": "tsc --noEmit",
-    "prepublishOnly": "npm run build"
+    "release:prepare": "npm run typecheck && npm run build && node ./scripts/check-module-formats.mjs",
+    "prepublishOnly": "npm run release:prepare",
+    "release": "npm publish --access public"
   },
   "devDependencies": {
     "tsup": "^8.5.1",
