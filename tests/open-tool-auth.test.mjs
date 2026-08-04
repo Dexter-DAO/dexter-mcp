@@ -16,6 +16,7 @@ import {
   OPEN_TOOL_SECURITY_SCHEMES,
   VAULT_WWW_AUTHENTICATE,
   assertOpenToolAuthPolicyCoverage,
+  buildOpenMcpAuthorizationServerMetadata,
   buildVaultAuthenticationRequired,
   buildVaultWwwAuthenticate,
   findVaultProtectedToolCall,
@@ -239,6 +240,44 @@ test('resource metadata names the actual authorization-server issuer', () => {
     'error_description',
   ]);
   assert.deepEqual(OPEN_MCP_PRM.scopes_supported, ['vault']);
+});
+
+test('path-inserted OpenDexter authorization metadata is fixed and vault-only', () => {
+  assert.deepEqual(
+    buildOpenMcpAuthorizationServerMetadata(
+      '/.well-known/oauth-authorization-server/mcp',
+    ),
+    {
+      issuer: 'https://mcp.dexter.cash/mcp',
+      authorization_endpoint: 'https://mcp.dexter.cash/mcp/authorize',
+      token_endpoint: 'https://mcp.dexter.cash/mcp/token',
+      registration_endpoint: 'https://mcp.dexter.cash/mcp/register',
+      token_endpoint_auth_methods_supported: [
+        'none',
+        'client_secret_post',
+        'client_secret_basic',
+      ],
+      response_types_supported: ['code'],
+      grant_types_supported: ['authorization_code', 'refresh_token'],
+      code_challenge_methods_supported: ['S256'],
+      scopes_supported: ['vault'],
+    },
+  );
+});
+
+test('OpenDexter authorization metadata helper excludes both legacy discovery rails', () => {
+  assert.equal(
+    buildOpenMcpAuthorizationServerMetadata(
+      '/.well-known/oauth-authorization-server',
+    ),
+    null,
+  );
+  assert.equal(
+    buildOpenMcpAuthorizationServerMetadata(
+      '/mcp/.well-known/oauth-authorization-server',
+    ),
+    null,
+  );
 });
 
 test('both protected-resource metadata routes serve the same corrected issuer', () => {
