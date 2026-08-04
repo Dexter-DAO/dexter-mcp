@@ -102,6 +102,60 @@ describe('search resource action truth', () => {
     })).kind).toBe('provide_details');
   });
 
+  it('names published required fields in the next step without service-specific copy', () => {
+    expect(getSearchResourceAction(resource({
+      method: 'POST',
+      inputSchema: {
+        type: 'object',
+        method: 'POST',
+        bodyType: 'json',
+        body: {
+          type: 'object',
+          required: ['shippingAddress', 'email'],
+          properties: {
+            shippingAddress: { type: 'object' },
+            email: { type: 'string', format: 'email' },
+          },
+        },
+      },
+    }))).toMatchObject({
+      kind: 'provide_details',
+      label: 'Add shipping address and email',
+    });
+
+    expect(getSearchResourceAction(resource({
+      inputSchema: {
+        type: 'object',
+        required: ['type', 'method', 'queryParams'],
+        properties: {
+          type: { type: 'string' },
+          method: { type: 'string' },
+          queryParams: {
+            type: 'object',
+            required: ['q'],
+            properties: {
+              q: { type: 'string', description: 'Search query' },
+            },
+          },
+        },
+      },
+    }))).toMatchObject({
+      kind: 'provide_details',
+      label: 'Add search query',
+    });
+
+    expect(getSearchResourceAction(resource({
+      pathParams: [{
+        name: 'storeId',
+        required: true,
+        schema: { type: 'string' },
+      }],
+    }))).toMatchObject({
+      kind: 'provide_details',
+      label: 'Add store id',
+    });
+  });
+
   it('routes a reservation-capable GET through pre-check review', () => {
     const flagged = resource({
       method: 'GET',
@@ -175,6 +229,14 @@ describe('search resource action truth', () => {
         'Usage-pattern warning: circular flow, sender concentration. These signals do not affect search rank.',
       action: { kind: 'check_live_terms' },
     });
+  });
+
+  it('uses singular grammar for one safety signal', () => {
+    expect(summarizeSearchResource(resource({
+      safetyFlags: ['circular_flow'],
+    })).safetyWarning).toBe(
+      'Usage-pattern warning: circular flow. This signal does not affect search rank.',
+    );
   });
 
   it('hands the complete published schema to chat as untrusted data', () => {

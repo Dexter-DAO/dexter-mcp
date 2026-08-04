@@ -50,6 +50,126 @@ const NON_INPUT_SCHEMA_KEYS = new Set([
   'type',
 ]);
 
+const REQUEST_WRAPPER_FIELDS = new Set([
+  'body',
+  'bodyType',
+  'method',
+  'pathParams',
+  'queryParams',
+  'type',
+]);
+
+type RequiredField = {
+  key: string;
+  label: string;
+};
+
+const COMMON_FIELD_LABELS: Record<string, string> = {
+  q: 'search query',
+};
+
+function humanizeFieldName(value: string): string {
+  return value
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+function fieldLabel(name: string): string {
+  const common = COMMON_FIELD_LABELS[name.toLowerCase()];
+  if (common) return common;
+  if (!/^[A-Za-z][A-Za-z0-9_-]{0,39}$/.test(name)) return 'required field';
+  return humanizeFieldName(name);
+}
+
+function collectRequiredFields(
+  value: unknown,
+  fields: RequiredField[],
+  seen: Set<string>,
+  depth = 0,
+): void {
+  if (value == null || depth > 4) return;
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+      const parameter = item as Record<string, unknown>;
+      if (parameter.required !== true || typeof parameter.name !== 'string') continue;
+      const key = parameter.name.trim();
+      if (!key || seen.has(key.toLowerCase())) continue;
+      seen.add(key.toLowerCase());
+      fields.push({ key, label: fieldLabel(key) });
+    }
+    return;
+  }
+
+  if (typeof value !== 'object') return;
+  const record = value as Record<string, unknown>;
+  const properties = record.properties && typeof record.properties === 'object'
+    && !Array.isArray(record.properties)
+    ? record.properties as Record<string, unknown>
+    : {};
+  const requiredNames = Array.isArray(record.required)
+    ? record.required.filter((name): name is string => typeof name === 'string')
+    : [];
+  const hasPayloadContainer = ['body', 'pathParams', 'queryParams'].some(
+    (name) => requiredNames.includes(name) || name in properties || name in record,
+  );
+  const hasTransportField = ['type', 'method', 'bodyType'].some(
+    (name) => requiredNames.includes(name),
+  );
+  const isRequestWrapper = depth === 0 && hasPayloadContainer && hasTransportField;
+
+  if (requiredNames.length > 0) {
+    for (const rawName of requiredNames) {
+      const key = rawName.trim();
+      const normalized = key.toLowerCase();
+      if (
+        !key
+        || (isRequestWrapper && REQUEST_WRAPPER_FIELDS.has(key))
+        || seen.has(normalized)
+      ) continue;
+      seen.add(normalized);
+      fields.push({ key, label: fieldLabel(key) });
+    }
+  }
+
+  for (const container of ['body', 'pathParams', 'queryParams'] as const) {
+    collectRequiredFields(properties[container] ?? record[container], fields, seen, depth + 1);
+  }
+}
+
+function requiredFieldLabels(resource: SearchResource): string[] {
+  const fields: RequiredField[] = [];
+  const seen = new Set<string>();
+  collectRequiredFields(resource.pathParams, fields, seen);
+  collectRequiredFields(resource.inputSchema, fields, seen);
+  return fields.map((field) => field.label).filter(Boolean);
+}
+
+function joinRequiredFieldLabels(labels: string[]): string {
+  if (labels.length === 1) return labels[0];
+  if (labels.length === 2) return `${labels[0]} and ${labels[1]}`;
+  return `${labels[0]}, ${labels[1]}, and ${labels.length - 2} more`;
+}
+
+function detailsActionCopy(resource: SearchResource): Pick<SearchResourceAction, 'label' | 'helperText'> {
+  const labels = requiredFieldLabels(resource);
+  if (labels.length === 0) {
+    return {
+      label: 'Provide details in chat',
+      helperText: 'Review the exact request and any provider effect before Dexter checks live terms.',
+    };
+  }
+  const requiredCopy = joinRequiredFieldLabels(labels);
+  return {
+    label: `Add ${requiredCopy}`,
+    helperText: `Add ${requiredCopy} in chat, then review the exact request and any provider effect before Dexter checks live terms.`,
+  };
+}
+
 function hasPublishedInput(value: unknown): boolean {
   if (value == null) return false;
   if (Array.isArray(value)) return value.length > 0;
@@ -133,10 +253,10 @@ export function getSearchResourceAction(
     || hasPublishedInput(resource.pathParams);
 
   if (needsDetails) {
+    const copy = detailsActionCopy(resource);
     return {
       kind: 'provide_details',
-      label: 'Provide details in chat',
-      helperText: 'Review the exact request and any provider effect before Dexter checks live terms.',
+      ...copy,
       disabled: false,
     };
   }
@@ -218,7 +338,8 @@ function safetyWarning(resource: SearchResource): string | null {
     .filter(Boolean);
   if (labels.length === 0) return null;
   const signalWord = labels.length === 1 ? 'signal' : 'signals';
-  return `Usage-pattern warning: ${labels.join(', ')}. ${labels.length === 1 ? 'This' : 'These'} ${signalWord} do not affect search rank.`;
+  const rankEffect = labels.length === 1 ? 'does not' : 'do not';
+  return `Usage-pattern warning: ${labels.join(', ')}. ${labels.length === 1 ? 'This' : 'These'} ${signalWord} ${rankEffect} affect search rank.`;
 }
 
 function stringifyCatalogData(value: unknown): string {
