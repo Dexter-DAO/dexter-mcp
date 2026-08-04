@@ -16,15 +16,15 @@
     },
     "integratedApiRelease": {
       "repository": "https://github.com/Dexter-DAO/dexter-api",
-      "commit": "58228a1512d55ea1c5a022d31512a898087b1837",
-      "tree": "52988a41a806b00d6cac8cb8ed646076d731231d",
+      "commit": "024caf0652fea0bb56123aaacd5c085e3c21190b",
+      "tree": "631e2b87cda06c53b63b1c4ba421ff3a768ea910",
       "governedContractCommit": "c3e32885cc39cdee47eca5a054c0fd7d8a0fdd8b",
       "governedContractTree": "b8a3bdd790379f82b959663e679960f213addb5b"
     },
     "portfolioProjection": {
       "repository": "https://github.com/Dexter-DAO/dexter-api",
-      "commit": "58228a1512d55ea1c5a022d31512a898087b1837",
-      "tree": "52988a41a806b00d6cac8cb8ed646076d731231d",
+      "commit": "024caf0652fea0bb56123aaacd5c085e3c21190b",
+      "tree": "631e2b87cda06c53b63b1c4ba421ff3a768ea910",
       "sourcePaths": [
         "src/portfolio/approvedActionTargets.ts",
         "src/routes/passkeyMcpBinding.ts",
@@ -189,7 +189,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-marketplace-search-f219b145",
+          "resourceUri": "ui://dexter/x402-marketplace-search-dbaf2df1",
           "visibility": [
             "model",
             "app"
@@ -209,8 +209,8 @@
           "domain": "https://dexter.cash",
           "prefersBorder": true
         },
-        "ui/resourceUri": "ui://dexter/x402-marketplace-search-f219b145",
-        "openai/outputTemplate": "ui://dexter/x402-marketplace-search-f219b145",
+        "ui/resourceUri": "ui://dexter/x402-marketplace-search-dbaf2df1",
+        "openai/outputTemplate": "ui://dexter/x402-marketplace-search-dbaf2df1",
         "openai/resultCanProduceWidget": true,
         "openai/widgetAccessible": true,
         "openai/widgetDomain": "https://dexter.cash",
