@@ -158,6 +158,32 @@ test('missing live schema uses a concrete persisted schema', () => {
   });
 });
 
+test('LLM profile and cached Bazaar sources never repair an exact live check schema', () => {
+  const liveClosedEmpty = {
+    type: 'object',
+    properties: {},
+    additionalProperties: false,
+  };
+  for (const inputSchemaSource of ['profile', 'bazaar']) {
+    assert.deepEqual(reconcileHostedCheckInputSchema({
+      liveSchema: liveClosedEmpty,
+      enrichment: {
+        resource: {
+          input_schema: persistedOpenApi,
+          input_schema_source: inputSchemaSource,
+          input_schema_rejected_sources: [],
+        },
+      },
+      resourceUrl: 'https://seller.example/v1/generate',
+    }), {
+      schema: liveClosedEmpty,
+      source: 'live',
+      replaced: false,
+      rejectedSources: [],
+    });
+  }
+});
+
 test('free-form and schema-valued additionalProperties count as concrete persisted inputs', () => {
   for (const inputSchema of [
     { type: 'object', properties: {}, additionalProperties: true },
