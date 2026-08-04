@@ -102,6 +102,56 @@ test('hosted paid guidance uses one opaque check-fetch-status path', () => {
   assert.doesNotMatch(checkDescription, /prepared seller-route|purchase-mode choices|omit purchase/i);
 });
 
+test('search and wallet contracts expose current truth without route claims', () => {
+  const search = OPEN_TOOL_CONTRACTS.x402_search;
+  const wallet = OPEN_TOOL_CONTRACTS.x402_wallet;
+
+  assert.match(search.description, /rankingMode=degraded/);
+  assert.match(search.description, /do not ask twice/);
+  assert.equal(Object.hasOwn(search.outputSchema.shape, 'rankingMode'), true);
+  assert.equal(Object.hasOwn(search.outputSchema.shape, 'degradedMessage'), true);
+  assert.equal(search.outputSchema.safeParse({
+    success: true,
+    rankingMode: 'degraded',
+    degradedMessage: 'Reduced ranking is active.',
+  }).success, true);
+
+  assert.match(wallet.description, /Cash, credit capacity, and exact-intent execution eligibility are distinct/);
+  assert.match(wallet.description, /zero cash alone is not proof/i);
+  assert.equal(Object.hasOwn(wallet.outputSchema.shape, 'paymentReadiness'), true);
+  assert.equal(wallet.outputSchema.safeParse({
+    mode: 'vault_credit_available',
+    spendingPower: {
+      totalUsd: 25,
+      cashAtomic: '0',
+      creditAvailableAtomic: '25000000',
+      note: 'Capacity is reported; exact eligibility is not.',
+    },
+    credit: {
+      readStatus: 'available',
+      readStatusSource: 'reported',
+      denomination: null,
+      capAtomic: '50000000',
+      borrowedAtomic: '0',
+      availableAtomic: '25000000',
+      hardLimitAtomic: null,
+      totalOwedAtomic: '0',
+      velocityRemainingAtomic: null,
+      sharedHeadroomAtomic: null,
+      pathFrozen: false,
+      graphPaused: false,
+    },
+    paymentReadiness: {
+      status: 'credit_capacity_reported',
+      cashAvailable: false,
+      creditReadStatus: 'available',
+      creditCapacityReported: true,
+      exactIntentCheckRequired: true,
+      note: 'Check the exact intent.',
+    },
+  }).success, true);
+});
+
 test('x402_check strict output contract carries reconciled schema provenance', () => {
   const schema = OPEN_TOOL_CONTRACTS.x402_check.outputSchema;
   assert.equal(Object.hasOwn(schema.shape, 'inputSchemaSource'), true);
@@ -618,6 +668,29 @@ test('recursive scrub drops common provider credential aliases', () => {
   const visible = JSON.stringify(result.structuredContent);
   assert.doesNotMatch(visible, /credential-(?:token|api|auth|bearer|client|seed|mnemonic|passphrase)/);
   assert.equal(result.structuredContent.nested.safe, 'retained');
+});
+
+test('search policy strips legacy raw errorDetail from model-visible output', () => {
+  const result = applyOpenToolResultPolicy('x402_search', {
+    isError: true,
+    content: [{
+      type: 'text',
+      text: JSON.stringify({
+        success: false,
+        searchMeta: { mode: 'error', note: 'Search is temporarily unavailable.' },
+        errorDetail: 'raw upstream stack detail',
+      }),
+    }],
+    structuredContent: {
+      success: false,
+      searchMeta: { mode: 'error', note: 'Search is temporarily unavailable.' },
+      errorDetail: 'raw upstream stack detail',
+    },
+  });
+
+  assert.doesNotMatch(JSON.stringify(result.structuredContent), /raw upstream stack detail/);
+  assert.doesNotMatch(result.content[0].text, /raw upstream stack detail/);
+  assert.equal(result.structuredContent.searchMeta.mode, 'error');
 });
 
 test('intent output schemas reject route and prepared-purchase leakage', () => {

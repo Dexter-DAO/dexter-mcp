@@ -29,8 +29,10 @@ one another.
   OAuth, and retry the same tool once.
 - For wallet-not-ready, call `x402_wallet`; do not invent or surface a
   personalized connector or legacy pairing URL.
-- For insufficient funds, use the returned `receiveAddress`. Never use
-  `vaultPda` or Swig state as a deposit fallback.
+- For a returned `funding_required` result, use the returned `receiveAddress`.
+  Never infer insufficient funds from zero cash alone: reported credit may
+  exist, or its read may be unavailable, and exact-intent eligibility is a
+  separate fact. Never use `vaultPda` or Swig state as a deposit fallback.
 - For quote-above-limit, stop and request a new explicit ceiling from the user.
 - For `quoteOnly`, Connect and repeat the same exact check; do not invent an
   intent ID.

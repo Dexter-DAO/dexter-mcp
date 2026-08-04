@@ -1652,33 +1652,102 @@ async function x402Wallet(_args, extra) {
     'eip155:43114': { available: '0', name: 'Avalanche', tier: 'second' },
   };
 
-  // Money composition (state.money rides ?money=1): open credit line + carry
-  // position. spendingPower mirrors the dexter.cash wallet headline — cash
-  // plus open credit — so every surface quotes the same number. The honest
-  // split stays visible: purchases settle from cash until credit auto-draw
-  // ships on the payment rail.
+  // Money composition (state.money rides ?money=1): cash, a read-only credit
+  // capacity snapshot, and carry position. A wallet read can report account
+  // capacity; it cannot prove that a particular seller request is eligible to
+  // use credit. Only the exact checked purchase intent can establish that.
   const money = state.money || null;
-  const creditAvailUsd = money?.creditAvailableAtomic ? Number(money.creditAvailableAtomic) / 1e6 : 0;
-  const lineOpen = money?.creditCapAtomic != null && Number(money.creditCapAtomic) > 0;
+  const reportedCreditReadStatus = ['available', 'not_open', 'unavailable'].includes(
+    money?.creditReadStatus,
+  )
+    ? money.creditReadStatus
+    : null;
+  // Older API releases did not publish creditReadStatus. Preserve their
+  // numeric snapshot without relabelling it as execution readiness.
+  const creditReadStatus = reportedCreditReadStatus
+    ?? (money?.creditCapAtomic != null ? 'available' : 'unavailable');
+  const creditReadStatusSource = reportedCreditReadStatus ? 'reported' : 'legacy_fields';
+  const lineOpen = creditReadStatus === 'available'
+    && money?.creditCapAtomic != null
+    && Number(money.creditCapAtomic) > 0;
+  const creditAvailableAtomic = lineOpen && money?.creditAvailableAtomic != null
+    ? String(money.creditAvailableAtomic)
+    : null;
+  const creditAvailUsd = creditAvailableAtomic
+    ? Number(creditAvailableAtomic) / 1e6
+    : 0;
+  const creditCapacityReported = creditAvailUsd > 0;
   const isEarning = Boolean(money?.isEarning);
-  const spendingPowerUsd = usdcAvailable + (lineOpen ? creditAvailUsd : 0);
+  const accountCapacityUsd = usdcAvailable + creditAvailUsd;
   const spendingPower = money
     ? {
-        totalUsd: Number(spendingPowerUsd.toFixed(6)),
+        totalUsd: Number(accountCapacityUsd.toFixed(6)),
         cashAtomic: usdcAtomic,
-        creditAvailableAtomic: lineOpen ? money.creditAvailableAtomic : null,
+        creditAvailableAtomic,
         note: lineOpen
-          ? 'Total the user can spend = cash + open credit, matching the dexter.cash wallet headline. Purchases settle from cash; the credit line covers the rest of the headline number but is not yet drawn automatically at payment time.'
-          : 'No credit line open; spending power equals cash.',
+          ? 'Account capacity is cash plus reported open credit. This wallet read does not prove that credit can fund a particular endpoint; use the exact checked intent to determine execution readiness.'
+          : creditReadStatus === 'not_open'
+            ? 'No credit line is open; reported account capacity equals cash.'
+            : 'Credit capacity could not be read; reported account capacity includes cash only and payment readiness remains unknown.',
       }
     : null;
-  const credit = lineOpen
+  const credit = money
     ? {
-        capAtomic: money.creditCapAtomic,
-        borrowedAtomic: money.creditBorrowedAtomic,
-        availableAtomic: money.creditAvailableAtomic,
+        readStatus: creditReadStatus,
+        readStatusSource: creditReadStatusSource,
+        denomination: creditReadStatus === 'available'
+          ? (money.creditDenomination ?? null)
+          : null,
+        capAtomic: creditReadStatus === 'available' ? money.creditCapAtomic : null,
+        borrowedAtomic: creditReadStatus === 'available' ? money.creditBorrowedAtomic : null,
+        availableAtomic: creditAvailableAtomic,
+        hardLimitAtomic: creditReadStatus === 'available' ? (money.creditHardLimitAtomic ?? null) : null,
+        totalOwedAtomic: creditReadStatus === 'available' ? (money.creditTotalOwedAtomic ?? null) : null,
+        velocityRemainingAtomic: creditReadStatus === 'available'
+          ? (money.creditVelocityRemainingAtomic ?? null)
+          : null,
+        sharedHeadroomAtomic: creditReadStatus === 'available'
+          ? (money.creditSharedHeadroomAtomic ?? null)
+          : null,
+        pathFrozen: creditReadStatus === 'available' ? (money.creditPathFrozen ?? null) : null,
+        graphPaused: creditReadStatus === 'available' ? (money.creditGraphPaused ?? null) : null,
       }
     : null;
+  const paymentReadiness = usdcAvailable > 0
+    ? {
+        status: 'cash_available',
+        cashAvailable: true,
+        creditReadStatus,
+        creditCapacityReported,
+        exactIntentCheckRequired: true,
+        note: 'Cash is available. The exact checked intent and approved ceiling still determine whether a purchase may execute.',
+      }
+    : creditCapacityReported
+      ? {
+          status: 'credit_capacity_reported',
+          cashAvailable: false,
+          creditReadStatus,
+          creditCapacityReported: true,
+          exactIntentCheckRequired: true,
+          note: 'Credit capacity is reported, but this wallet read does not prove endpoint eligibility. Check the exact intent before asking the user to fund or promising execution.',
+        }
+      : creditReadStatus === 'unavailable'
+        ? {
+            status: 'unknown',
+            cashAvailable: false,
+            creditReadStatus,
+            creditCapacityReported: false,
+            exactIntentCheckRequired: true,
+            note: 'Cash is empty and credit could not be read. Payment readiness is unknown; do not infer that a deposit is required.',
+          }
+        : {
+            status: 'funding_required',
+            cashAvailable: false,
+            creditReadStatus,
+            creditCapacityReported: false,
+            exactIntentCheckRequired: true,
+            note: 'No cash or reported open credit is available. A deposit is required for a paid intent unless its live check reports another eligible source.',
+          };
   const earningRatePromise = money
     ? readEarningRatePct()
     : Promise.resolve(null);
@@ -1703,7 +1772,11 @@ async function x402Wallet(_args, extra) {
   const personhood = { verified: Boolean(onchain?.isVerified) };
 
   let tip;
-  if (usdcAvailable === 0) {
+  if (paymentReadiness.status === 'credit_capacity_reported') {
+    tip = `$${creditAvailUsd.toFixed(2)} of credit capacity is reported and cash is $0.00. Whether a purchase can use it is decided only for the exact checked intent. Do not request a deposit or promise credit execution from this wallet read alone.`;
+  } else if (paymentReadiness.status === 'unknown') {
+    tip = 'Cash is $0.00 and credit could not be read, so payment readiness is unknown. Retry the read or inspect the exact intent; do not tell the user to fund based only on this result.';
+  } else if (paymentReadiness.status === 'funding_required') {
     // NOTE: a missing USDC token account does NOT block deposits — the
     // sender's transfer creates it (census-verified Jul 24, board #97).
     // Only give deposit instructions when the actual receive address is
@@ -1714,14 +1787,21 @@ async function x402Wallet(_args, extra) {
   } else if (withdrawalBlocked) {
     tip = `Wallet is funded ($${usdcAvailable.toFixed(2)} USDC available). ${pendingVoucherCount} open tab(s); withdrawal is gated until they settle.`;
   } else if (lineOpen) {
-    tip = `Spending power $${spendingPowerUsd.toFixed(2)}: $${usdcAvailable.toFixed(2)} cash plus $${creditAvailUsd.toFixed(2)} open credit. ${isEarning ? 'Cash is earning.' : 'Cash is idle (can earn at dexter.cash/wallet).'} Purchases settle from cash.`;
+    tip = `Account capacity $${accountCapacityUsd.toFixed(2)}: $${usdcAvailable.toFixed(2)} cash plus $${creditAvailUsd.toFixed(2)} reported open credit. ${isEarning ? 'Cash is earning.' : 'Cash is idle (can earn at dexter.cash/wallet).'} The exact checked intent determines whether credit is eligible.`;
   } else {
     tip = `Wallet is funded ($${usdcAvailable.toFixed(2)} USDC available). ${isEarning ? 'Balance is earning.' : ''} Use x402_fetch to call paid APIs.`;
   }
 
   return {
-    // A missing USDC token account never gates readiness — deposits create it.
-    mode: usdcAvailable > 0 ? 'vault_ready' : 'vault_funding_required',
+    // A missing USDC token account never gates deposits. Empty cash also does
+    // not imply funding is required when credit exists or its read failed.
+    mode: paymentReadiness.status === 'cash_available'
+      ? 'vault_ready'
+      : paymentReadiness.status === 'credit_capacity_reported'
+        ? 'vault_credit_available'
+        : paymentReadiness.status === 'unknown'
+          ? 'vault_readiness_unknown'
+          : 'vault_funding_required',
     paySource: 'anon_vault',
     vault_status: 'ready',
     user_bound: true,
@@ -1754,6 +1834,7 @@ async function x402Wallet(_args, extra) {
     },
     spendingPower,
     credit,
+    paymentReadiness,
     earning,
     vault: {
       vaultPda: state.vault.vaultPda,
@@ -1935,10 +2016,10 @@ export function createOpenMcpServer({
 
   registerOpenTool(server, 'x402_search', {
     title: 'x402 Search',
-    description: 'Semantic capability search over the x402 marketplace across Solana and EVM chains. Pass a natural-language query and get back two tiers: strongResults (high-confidence capability hits) and relatedResults (adjacent services that cleared the similarity floor). The ranker handles synonym expansion and alternate phrasings internally — do NOT pre-filter by chain or category. The top strong results are reordered by a cross-encoder LLM rerank unless rerank:false is passed. Use the searchMeta.mode field to distinguish a direct hit (strong matches present) from related_only (only adjacencies) or empty (nothing in the index). Multi-chain resources expose every payment option they accept via each result\'s chains[] field.',
+    description: 'Semantic capability search over the x402 marketplace across Solana and EVM chains. Pass a natural-language query and get back two tiers: strongResults (high-confidence capability hits) and relatedResults (adjacent services that cleared the similarity floor). The ranker handles synonym expansion and alternate phrasings internally — do NOT pre-filter by chain or category. Use rankingMode and degradedMessage to disclose when reduced fallback ranking was used. Use searchMeta.mode to distinguish a direct hit (strong matches present) from related_only (only adjacencies), empty (nothing in the index), or error (search unavailable). Multi-chain resources expose every seller payment option through each result\'s chains[] field; listings and rank never authorize payment.',
     inputSchema: {
       query: z.string().describe('Natural-language description of the capability you want. e.g. "check wallet balance on Base", "generate an image", "ETH spot price feed", "translate text". Broad terms are valid — the ranker handles breadth internally. Do NOT pre-filter by category; the search layer handles that semantically.'),
-      network: z.string().optional().describe('Optional hard seller-network filter ("solana", "base", "ethereum", "polygon", "arbitrum", "optimism", "avalanche", or a CAIP-2 id). Leave this unset for ordinary Dexter discovery so eligible CrossPay resources are not removed merely because the wallet settles natively on Solana. Set it only when the user explicitly requires a seller on that network.'),
+      network: z.string().optional().describe('Optional hard seller-network filter ("solana", "base", "ethereum", "polygon", "arbitrum", "optimism", "avalanche", or a CAIP-2 id). Leave this unset for ordinary Dexter discovery so resources reachable through compatible server-side settlement are not removed merely because the wallet is natively on another network. Set it only when the user explicitly requires a seller on that network.'),
       limit: z.number().min(1).max(50).optional().default(20).describe('Max results across strong + related tiers combined (1-50, default 20)'),
       unverified: z.boolean().optional().describe('Include unverified resources (default false). Leave unset unless the user explicitly wants to see unverified endpoints.'),
       testnets: z.boolean().optional().describe('Include testnet-only resources (default false). Testnets are excluded by default to keep the marketplace view clean.'),
@@ -1951,6 +2032,7 @@ export function createOpenMcpServer({
       const data = await x402Search(args);
       return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }], structuredContent: data, _meta: SEARCH_META };
     } catch (err) {
+      console.warn(`[x402_search] search failed (${safeErrorLabel(err)})`);
       const data = buildSearchErrorResponse(err?.message || String(err));
       return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }], structuredContent: data, isError: true, _meta: SEARCH_META };
     }
@@ -2189,7 +2271,7 @@ export function createOpenMcpServer({
 
   registerOpenTool(server, 'x402_wallet', {
     title: 'x402 Wallet',
-    description: "Read-only view of the user's Dexter wallet, the non-custodial passkey vault bound to this session. Returns the wallet's Solana address and USDC balance after native OpenDexter authorization. A missing or stale authorization triggers the host's Connect flow; it never creates a separate connector URL. Dexter holds no keys and runs no server-side session wallet.",
+    description: "Read-only view of the user's Dexter wallet, the non-custodial passkey vault bound to this session. Returns its receive address, cash, reported credit capacity and read status, payment-readiness guidance, and recent activity after native OpenDexter authorization. Cash, reported credit, and exact-intent execution eligibility are distinct: never infer that a deposit is required from zero cash alone, and never promise that credit can fund an endpoint until its exact intent is checked. A missing or stale authorization triggers the host's Connect flow; it never creates a separate connector URL. Dexter holds no keys and runs no server-side session wallet.",
     inputSchema: {},
     annotations: { readOnlyHint: true },
     _meta: WALLET_META,
@@ -2205,7 +2287,12 @@ export function createOpenMcpServer({
       }
       return buildAnonVaultToolResult(publicResult, meta);
     } catch (err) {
-      const data = { error: err?.message || String(err) };
+      console.warn(`[x402_wallet] wallet read failed (${safeErrorLabel(err)})`);
+      const data = {
+        error: 'wallet_read_unavailable',
+        message: 'Dexter could not read the wallet just now. Retry in a moment.',
+        retryable: true,
+      };
       return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }], structuredContent: data, isError: true, _meta: WALLET_META };
     }
   });

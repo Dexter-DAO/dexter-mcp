@@ -104,3 +104,25 @@ test('hosted x402_wallet keeps verified portfolio display data in widget metadat
   assert.match(payload, /normalizePortfolioRead\(widgetPortfolio, solanaAddress\)/);
   assert.doesNotMatch(payload, /normalizePortfolioRead\(raw\.portfolio/);
 });
+
+test('wallet cash, reported credit, and exact-intent readiness remain distinct', async () => {
+  const [server, payload, walletHome, headline, creditSheet] = await Promise.all([
+    source('open-mcp-server.mjs'),
+    source('apps-sdk/ui/src/components/x402/walletPayload.ts'),
+    source('apps-sdk/ui/src/components/wallet/WalletHome.tsx'),
+    source('apps-sdk/ui/src/components/wallet/SpendHeadline.tsx'),
+    source('apps-sdk/ui/src/components/wallet/CreditSheet.tsx'),
+  ]);
+
+  assert.match(server, /status: 'credit_capacity_reported'/);
+  assert.match(server, /status: 'unknown'/);
+  assert.match(server, /do not request a deposit or promise credit execution/i);
+  assert.match(server, /mode: paymentReadiness\.status === 'cash_available'/);
+  assert.doesNotMatch(server, /mode: usdcAvailable > 0 \? 'vault_ready' : 'vault_funding_required'/);
+  assert.match(payload, /accountCapacityUsd/);
+  assert.match(payload, /paymentReadinessStatus/);
+  assert.match(walletHome, /Cash \+ reported credit/);
+  assert.match(headline, /\{label\}/);
+  assert.match(creditSheet, /Whether a purchase can use it is[\s\S]*exact checked request/);
+  assert.doesNotMatch(creditSheet, /purchases can use this/);
+});

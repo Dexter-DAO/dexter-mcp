@@ -61,7 +61,9 @@ test('search can only open a safe next step before payment', () => {
   assert.match(quote, /Nothing has been charged/);
   assert.doesNotMatch(response, /Use x402_fetch/);
   assert.match(response, /run x402_check/);
-  assert.match(response, /explicitly approves the checked terms/);
+  assert.match(response, /current instruction or delegated policy/);
+  assert.match(response, /do not ask twice/);
+  assert.doesNotMatch(response, /errorDetail:\s*error/);
 });
 
 test('featured ranking and user selection remain separate states', () => {
