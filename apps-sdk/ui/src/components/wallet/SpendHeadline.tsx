@@ -2,11 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 import { splitUsd } from './format';
 
 /**
- * The "You can spend $X" headline with a count-up on mount.
+ * The account-capacity headline with a count-up on mount.
  * Honors prefers-reduced-motion and guarantees the resting value even if
  * requestAnimationFrame stalls.
  */
-export function SpendHeadline({ value }: { value: number }) {
+export function SpendHeadline({ value, label }: { value: number; label: string }) {
   const [display, setDisplay] = useState(value);
   const raf = useRef<number | null>(null);
 
@@ -35,7 +35,7 @@ export function SpendHeadline({ value }: { value: number }) {
   const { int, cents } = splitUsd(display);
   return (
     <div className="dxw-hero">
-      <div className="dxw-spend-label">You can spend</div>
+      <div className="dxw-spend-label">{label}</div>
       <div className="dxw-spend-amount">
         <span className="dxw-cur">$</span><span>{int}</span><span className="dxw-cents">{cents}</span>
       </div>

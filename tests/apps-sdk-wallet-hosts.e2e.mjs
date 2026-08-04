@@ -184,17 +184,17 @@ async function installFixedClock(page) {
 }
 
 async function assertMoneyHome(surface, hostName) {
-  await surface.getByText('You can spend', { exact: true }).waitFor();
+  await surface.getByText('Cash + reported credit', { exact: true }).waitFor();
   const headline = surface.locator('.dxw-spend-amount');
   assert.equal(
     (await headline.locator('span').nth(1).textContent())?.trim(),
     '67',
-    `${hostName}: cash plus open credit must remain the spendable integer`,
+    `${hostName}: cash plus reported open credit must remain the account-capacity integer`,
   );
   assert.equal(
     (await headline.locator('.dxw-cents').textContent())?.trim(),
     '.25',
-    `${hostName}: spendable cents must remain independent from portfolio value`,
+    `${hostName}: account-capacity cents must remain independent from portfolio value`,
   );
   await surface.getByRole('button', { name: 'Receive', exact: true }).waitFor();
   await surface.getByRole('button', { name: 'Assets', exact: true }).waitFor();
@@ -754,7 +754,7 @@ test('wallet Money overview renders honest states in ChatGPT and MCP Apps deskto
     });
     await page.goto(widgetUrl);
     await page.getByText("Couldn't reach your wallet", { exact: true }).waitFor();
-    assert.equal(await page.getByText('You can spend', { exact: true }).count(), 0);
+    assert.equal(await page.getByText('Cash + reported credit', { exact: true }).count(), 0);
     assert.equal(await page.getByText('$0.00', { exact: true }).count(), 0);
     await context.close();
   });

@@ -22,7 +22,9 @@ export type WalletActivityItem = {
 };
 
 export type WalletMoney = {
-  /** Total spendable = cash + open credit (the dexter.cash wallet headline). */
+  /** Cash plus reported open credit. This is capacity, not endpoint eligibility. */
+  accountCapacityUsd: number;
+  /** @deprecated Compatibility alias for older wallet renderers. */
   spendableUsd: number;
   /** Cash the user actually holds, in USDC. */
   cashUsd: number;
@@ -39,6 +41,14 @@ export type WalletMoney = {
   earnRatePct: number | null;
   /** Whether a credit line is open at all (cap > 0) — drives the open-a-line invite. */
   hasCreditLine: boolean;
+  /** Whether the credit snapshot was available, absent, or could not be read. */
+  creditReadStatus: 'available' | 'not_open' | 'unavailable';
+  /** Wallet-level guidance only; the exact checked intent remains authoritative. */
+  paymentReadinessStatus:
+    | 'cash_available'
+    | 'credit_capacity_reported'
+    | 'funding_required'
+    | 'unknown';
   /** The line's total size in USD (0 when no line). */
   creditCapUsd: number;
   /** Currently drawn (owed) against the line, in USD. */
@@ -175,8 +185,9 @@ export function normalizeWalletPayload(
   const balancesRecord =
     typeof raw.balances === 'object' && raw.balances ? (raw.balances as Record<string, unknown>) : {};
 
-  // Non-custodial money composition. The server emits spendingPower (cash +
-  // open credit), credit{availableAtomic}, and earning{isEarning, baseAtomic}.
+  // Non-custodial money composition. The server emits account capacity as
+  // spendingPower for compatibility, while paymentReadiness keeps that number
+  // separate from exact-intent execution eligibility.
   const atomicToUsd = (v: unknown): number => {
     const n = typeof v === 'number' ? v : Number(v ?? 0);
     return Number.isFinite(n) ? n / 1e6 : 0;
@@ -185,18 +196,50 @@ export function normalizeWalletPayload(
     ? (raw.spendingPower as Record<string, unknown>) : null;
   const cr = raw.credit && typeof raw.credit === 'object'
     ? (raw.credit as Record<string, unknown>) : null;
+  const readiness = raw.paymentReadiness && typeof raw.paymentReadiness === 'object'
+    ? (raw.paymentReadiness as Record<string, unknown>) : null;
   const ea = raw.earning && typeof raw.earning === 'object'
     ? (raw.earning as Record<string, unknown>) : null;
   const cashUsd = sp ? atomicToUsd(sp.cashAtomic) : (typeof explicitUsdc === 'number' ? explicitUsdc : 0);
-  const creditAvailableUsd = cr ? atomicToUsd(cr.availableAtomic) : (sp ? atomicToUsd(sp.creditAvailableAtomic) : 0);
-  const spendableUsd = sp && typeof sp.totalUsd === 'number' ? sp.totalUsd : cashUsd + creditAvailableUsd;
+  const reportedCreditReadStatus = cr?.readStatus === 'available'
+    || cr?.readStatus === 'not_open'
+    || cr?.readStatus === 'unavailable'
+    ? cr.readStatus
+    : null;
+  const creditReadStatus: WalletMoney['creditReadStatus'] = reportedCreditReadStatus
+    ?? (cr ? 'available' : 'not_open');
+  const creditAvailableUsd = creditReadStatus === 'available'
+    ? (cr ? atomicToUsd(cr.availableAtomic) : (sp ? atomicToUsd(sp.creditAvailableAtomic) : 0))
+    : 0;
+  const accountCapacityUsd = sp && typeof sp.totalUsd === 'number'
+    ? sp.totalUsd
+    : cashUsd + creditAvailableUsd;
+  const readinessValue = readiness?.status;
+  const paymentReadinessStatus: WalletMoney['paymentReadinessStatus'] =
+    readinessValue === 'cash_available'
+    || readinessValue === 'credit_capacity_reported'
+    || readinessValue === 'funding_required'
+    || readinessValue === 'unknown'
+      ? readinessValue
+      : cashUsd > 0
+        ? 'cash_available'
+        : creditAvailableUsd > 0
+          ? 'credit_capacity_reported'
+          : creditReadStatus === 'unavailable'
+            ? 'unknown'
+            : 'funding_required';
   const isEarning = ea ? Boolean(ea.isEarning) : false;
   const atWorkUsd = ea ? atomicToUsd(ea.baseAtomic) : 0;
   const earnRatePct = ea && typeof ea.ratePct === 'number' && Number.isFinite(ea.ratePct) ? ea.ratePct : null;
   const money: CanonicalWalletPayload['money'] = (sp || cr || ea)
-    ? {
-        spendableUsd, cashUsd, creditAvailableUsd, atWorkUsd, isEarning, earnRatePct,
-        hasCreditLine: Boolean(cr),
+      ? {
+        accountCapacityUsd,
+        spendableUsd: accountCapacityUsd,
+        cashUsd, creditAvailableUsd, atWorkUsd, isEarning, earnRatePct,
+        hasCreditLine: creditReadStatus === 'available'
+          && atomicToUsd(cr?.capAtomic) > 0,
+        creditReadStatus,
+        paymentReadinessStatus,
         creditCapUsd: cr ? atomicToUsd(cr.capAtomic) : 0,
         creditDrawnUsd: cr ? atomicToUsd(cr.borrowedAtomic) : 0,
       }

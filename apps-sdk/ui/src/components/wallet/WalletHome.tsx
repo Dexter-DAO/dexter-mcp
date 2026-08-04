@@ -21,7 +21,7 @@ const REFRESH_MAX_MS = 15 * 60_000;
 type OpenSheet = null | 'deposit' | 'assets' | 'activity' | 'credit';
 
 /**
- * The calm home (direction B): spendable headline, composition bar, card face,
+ * The calm home (direction B): account-capacity headline, composition bar, card face,
  * a four-verb action row, and the most recent activity teaser. Every capability
  * beyond the resting view lives one gesture below it in a single sheet — only
  * one sheet is ever open, which is what keeps the surface calm.
@@ -51,10 +51,11 @@ export function WalletHome({ payload, cardToken, walletToken, onOpenExternal }: 
   const own = liveCashUsd ?? payloadCash;
   const credit = money ? money.creditAvailableUsd : 0;
   const atWork = money ? money.atWorkUsd : 0;
-  // Spendable = cash + open credit; when the live poll moves cash, move the
-  // headline by the same delta so the composition stays internally honest.
-  const payloadSpendable = money ? money.spendableUsd : payload.balances.usdc;
-  const spendable = payloadSpendable + (own - payloadCash);
+  // Account capacity = cash + reported open credit. This is not a promise that
+  // every endpoint can use credit; exact-intent eligibility stays server-side.
+  const payloadCapacity = money ? money.accountCapacityUsd : payload.balances.usdc;
+  const accountCapacity = payloadCapacity + (own - payloadCash);
+  const capacityLabel = credit > 0 ? 'Cash + reported credit' : 'Available cash';
   const address = payload.solanaAddress || payload.address;
   const activity = payload.activity ?? [];
   const latest = activity[0];
@@ -102,7 +103,7 @@ export function WalletHome({ payload, cardToken, walletToken, onOpenExternal }: 
         </span>
       </div>
 
-      <SpendHeadline value={spendable} />
+      <SpendHeadline value={accountCapacity} label={capacityLabel} />
       <CompositionBar
         own={own}
         credit={credit}

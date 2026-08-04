@@ -47,7 +47,7 @@ function WalletApp() {
     view = (
       <SimpleState
         title="Reading your money"
-        body="Checking spendable cash, assets, earning positions, and credit without moving anything."
+        body="Checking cash, reported credit capacity, assets, and earning positions without moving anything."
         onOpenExternal={openExternal}
       />
     );
