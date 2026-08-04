@@ -77,18 +77,28 @@ export function SearchComparisonPanel({
 
               <p className="dx-search-compare__why">{summary.why}</p>
 
+              {summary.safetyWarning && (
+                <p className="dx-search-safety-note" role="note">
+                  {summary.safetyWarning}
+                </p>
+              )}
+
               <dl className="dx-search-compare__facts">
-                <div>
-                  <dt>Quality</dt>
-                  <dd>
-                    {summary.qualityScore === null
-                      ? 'Not scored'
-                      : `${summary.qualityScore}/100`}
-                  </dd>
-                </div>
                 <div>
                   <dt>Listed price</dt>
                   <dd>{price}</dd>
+                </div>
+                <div>
+                  <dt>Network</dt>
+                  <dd>{summary.networkLabel}</dd>
+                </div>
+                <div>
+                  <dt>Evidence</dt>
+                  <dd>{summary.evidenceLabel}</dd>
+                </div>
+                <div>
+                  <dt>Next step</dt>
+                  <dd>{summary.action.label}</dd>
                 </div>
               </dl>
 
@@ -102,6 +112,7 @@ export function SearchComparisonPanel({
                     type="button"
                     className="dx-search-compare__choose"
                     onClick={() => onSelect(resource)}
+                    aria-label={`Choose ${resource.name}`}
                   >
                     Choose
                   </button>
@@ -112,6 +123,7 @@ export function SearchComparisonPanel({
                   variant="ghost"
                   size="sm"
                   onClick={() => onInspect(resource)}
+                  aria-label={`View details for ${resource.name}`}
                 >
                   Details
                 </Button>

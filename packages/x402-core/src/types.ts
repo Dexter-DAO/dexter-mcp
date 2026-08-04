@@ -18,24 +18,52 @@
 export interface RawPricing {
   usdc: number | null;
   network: string | null;
+  networkLabel?: string | null;
   asset: string | null;
+  mode?: PricingMode;
+  quoteRequired?: boolean;
   chains?: RawPricingChain[];
 }
 
 export interface RawPricingChain {
-  network: string;
+  network: string | null;
+  networkLabel?: string | null;
   asset: string | null;
+  scheme?: string | null;
   priceAtomic: string | null;
   priceUsdc: number | null;
   priceLabel?: string;
 }
 
+export type PricingMode = 'fixed' | 'dynamic' | 'quote' | 'unknown';
+
+export type TrustBasis =
+  | 'paid_test'
+  | 'quality_test'
+  | 'recent_paid_delivery'
+  | 'trusted_catalog'
+  | 'none';
+
 export interface RawVerification {
   status: string;
   paid: boolean;
+  paidQualityTestPassed?: boolean;
+  trustBasis?: TrustBasis;
+  trustLabel?: string;
   qualityScore: number | null;
   lastVerifiedAt: string | null;
   responseStatus?: number | null;
+}
+
+export interface ResourceExecution {
+  sideEffectful: boolean;
+  effect: string | null;
+  automatedVerification: 'enabled' | 'manual_only';
+  userExecution: 'allowed' | 'unsupported';
+  confirmationRequired: boolean;
+  availability: 'available' | 'catalog_only' | 'unsupported';
+  requiresExplicitInput: boolean;
+  quoteMayCreateProviderReservation: boolean;
 }
 
 export interface RawUsage {
@@ -87,13 +115,17 @@ export interface RawCapabilityResult {
   method: string;
   icon: string | null;
   pricing: RawPricing;
+  execution?: ResourceExecution;
   verification: RawVerification;
   usage: RawUsage;
   /** Gaming-analysis signals. Optional — absent on rows that predate or
    *  skipped gaming analysis; consumers must guard access. */
   gaming?: RawGaming;
-  score: number;
+  /** Current dexter-api sends the display-only array directly. */
+  safetyFlags?: string[];
+  score?: number;
   similarity: number;
+  band?: 'exact' | 'strong' | 'partial' | 'weak';
   why: string;
   tier: 'strong' | 'related';
   // Enrichment fields (present when enrichment pipeline has run)
@@ -107,6 +139,8 @@ export interface RawCapabilityResult {
   // cached as of the last verification pass — call `x402_check` for live data.
   inputSchema?: unknown;
   outputSchema?: unknown;
+  pathParams?: unknown;
+  schemaSource?: 'bazaar' | 'openapi' | 'profile' | 'none';
   /**
    * Structured behavioral profile (input_semantics + good_response_looks_like
    * + service_type). NULL when the catalog has no OpenAPI to derive from —
@@ -222,7 +256,13 @@ export interface FormattedResource {
   priceUsdc: number | null;
   priceAsset: string | null;
   network: string | null;
+  networkLabel: string | null;
+  pricingMode: PricingMode;
+  quoteRequired: boolean;
   chains: RawPricingChain[];
+
+  // What the listing can honestly do before a fresh x402_check.
+  execution: ResourceExecution;
 
   // Content
   description: string;
@@ -232,6 +272,9 @@ export interface FormattedResource {
   qualityScore: number | null;
   verified: boolean;
   verificationStatus: string;
+  paidQualityTestPassed: boolean;
+  trustBasis: TrustBasis;
+  trustLabel: string;
   lastVerifiedAt: string | null;
 
   // Usage
@@ -247,6 +290,7 @@ export interface FormattedResource {
   // Gaming
   gamingFlags: string[];
   gamingSuspicious: boolean;
+  safetyFlags: string[];
 
   // Ranking
   tier: 'strong' | 'related';
@@ -265,6 +309,8 @@ export interface FormattedResource {
   // Schemas (corpus-cached; call x402_check for live data)
   inputSchema: unknown | null;
   outputSchema: unknown | null;
+  pathParams: unknown | null;
+  schemaSource: 'bazaar' | 'openapi' | 'profile' | 'none';
 
   /**
    * Structured behavioral profile derived from the resource's OpenAPI spec.

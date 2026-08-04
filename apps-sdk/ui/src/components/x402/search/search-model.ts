@@ -6,7 +6,7 @@ import type {
   SearchResource,
 } from './types';
 
-export const SEARCH_WIDGET_BUILD = '2026-08-04.1';
+export const SEARCH_WIDGET_BUILD = '2026-08-04.2';
 
 export type SearchPayload = {
   success?: boolean;

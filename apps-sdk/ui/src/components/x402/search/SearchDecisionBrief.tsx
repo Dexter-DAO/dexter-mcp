@@ -11,6 +11,7 @@ import { formatListedPrice, hostLabel } from './utils';
 export type SearchDecisionBriefCheckState =
   | { status: 'idle'; resourceUrl?: null; message?: null }
   | { status: 'checking'; resourceUrl?: string | null; message?: string | null }
+  | { status: 'details_sent'; resourceUrl?: string | null; message?: string | null }
   | { status: 'checked'; resourceUrl?: string | null; message?: string | null }
   | { status: 'error'; resourceUrl?: string | null; message: string };
 
@@ -20,12 +21,14 @@ export type SearchDecisionBriefProps = {
   checkState?: SearchDecisionBriefCheckState;
   onSelect: (resource: SearchResource) => void;
   /**
-   * Advance the selected resource into a fresh price/check step.
-   * This component deliberately performs no payment action.
+   * Advance the selected resource to its honest next step: either a fresh
+   * terms check or a chat handoff for missing request details. This component
+   * deliberately performs no payment action.
    */
   onUseService: (resource: SearchResource) => void;
   onCompareAll: () => void;
   canCheckCurrentTerms?: boolean;
+  canProvideDetailsInChat?: boolean;
   canCompare?: boolean;
   heading?: string;
   alternativeLimit?: number;
@@ -39,6 +42,7 @@ export function SearchDecisionBrief({
   onUseService,
   onCompareAll,
   canCheckCurrentTerms = true,
+  canProvideDetailsInChat = true,
   canCompare = true,
   heading = 'Best match',
   alternativeLimit = 3,
@@ -91,7 +95,18 @@ export function SearchDecisionBrief({
       ? checkState
       : { status: 'idle' as const };
   const isChecking = relevantCheckState.status === 'checking';
+  const detailsSent = relevantCheckState.status === 'details_sent';
   const hasCurrentTerms = relevantCheckState.status === 'checked';
+  const resourceAction = displayedSummary.action;
+  const canPerformAction = !resourceAction.disabled && (
+    resourceAction.kind === 'provide_details'
+      ? canProvideDetailsInChat
+      : resourceAction.kind === 'check_live_terms'
+        ? canCheckCurrentTerms
+        : false
+  );
+  const unavailableInHost =
+    !resourceAction.disabled && !canPerformAction;
 
   return (
     <section
@@ -108,9 +123,16 @@ export function SearchDecisionBrief({
               <span className="dx-search-brief__badge">
                 {isShowingRecommendation ? leadingLabel : 'Selected'}
               </span>
-              {actionTarget.verified && (
-                <span className="dx-search-brief__badge dx-search-brief__badge--verified">
-                  Verified
+              <span
+                className="dx-search-brief__badge dx-search-brief__badge--evidence"
+                data-basis={displayedSummary.evidenceBasis ?? 'none'}
+                title={displayedSummary.evidenceLabel}
+              >
+                {displayedSummary.evidenceBadgeLabel}
+              </span>
+              {resourceAction.disabled && (
+                <span className="dx-search-brief__badge">
+                  {resourceAction.label}
                 </span>
               )}
             </div>
@@ -146,6 +168,12 @@ export function SearchDecisionBrief({
           )}
         </div>
 
+        {displayedSummary.safetyWarning && (
+          <p className="dx-search-safety-note mt-4" role="note">
+            {displayedSummary.safetyWarning}
+          </p>
+        )}
+
         {!hasCurrentTerms && (
           <>
             <p className="dx-search-brief__why mt-4 line-clamp-3 text-sm leading-6 text-secondary">
@@ -153,6 +181,18 @@ export function SearchDecisionBrief({
             </p>
 
             <dl className="dx-search-brief__facts mt-4 grid grid-cols-2 gap-3 border-t border-subtle pt-4">
+              <div>
+                <dt className="text-xs text-tertiary">Listed price</dt>
+                <dd className="mt-0.5 text-sm font-semibold text-primary">
+                  {displayedPrice}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs text-tertiary">Network</dt>
+                <dd className="mt-0.5 text-sm font-semibold text-primary">
+                  {displayedSummary.networkLabel}
+                </dd>
+              </div>
               <div>
                 <dt className="text-xs text-tertiary">Quality</dt>
                 <dd className="mt-0.5 text-sm font-semibold text-primary">
@@ -162,9 +202,15 @@ export function SearchDecisionBrief({
                 </dd>
               </div>
               <div>
-                <dt className="text-xs text-tertiary">Listed price</dt>
+                <dt className="text-xs text-tertiary">Next step</dt>
                 <dd className="mt-0.5 text-sm font-semibold text-primary">
-                  {displayedPrice}
+                  {resourceAction.label}
+                </dd>
+              </div>
+              <div className="col-span-2">
+                <dt className="text-xs text-tertiary">Evidence</dt>
+                <dd className="mt-0.5 text-sm font-semibold text-primary">
+                  {displayedSummary.evidenceLabel}
                 </dd>
               </div>
             </dl>
@@ -208,9 +254,7 @@ export function SearchDecisionBrief({
                         {listedPrice}
                       </span>
                       <span className="block text-xs text-tertiary">
-                        {summary.qualityScore === null
-                          ? 'Not scored'
-                          : `${summary.qualityScore}/100 quality`}
+                        {summary.action.label}
                       </span>
                     </span>
                     <span
@@ -255,29 +299,50 @@ export function SearchDecisionBrief({
               variant="solid"
               size="sm"
               onClick={() => onUseService(actionTarget)}
-              disabled={isChecking || !canCheckCurrentTerms}
+              aria-busy={isChecking}
+              aria-label={`${resourceAction.label} for ${actionTarget.name}`}
+              disabled={
+                isChecking
+                || detailsSent
+                || resourceAction.disabled
+                || !canPerformAction
+              }
             >
-              {!canCheckCurrentTerms
+              {resourceAction.disabled
+                ? resourceAction.label
+                : unavailableInHost
                 ? 'Unavailable in this host'
                 : isChecking
-                ? 'Confirming terms…'
+                ? resourceAction.kind === 'provide_details'
+                  ? 'Opening chat…'
+                  : 'Checking live terms…'
+                : detailsSent
+                  ? 'Opened in chat'
                 : relevantCheckState.status === 'error'
                   ? 'Try again'
-                  : 'Use this service'}
+                  : resourceAction.label}
             </Button>
           </div>
 
           <div className="mt-3 text-xs leading-5 text-tertiary" aria-live="polite">
-            {!canCheckCurrentTerms ? (
-              <p>This host can’t check current terms from the widget.</p>
+            {resourceAction.disabled ? (
+              <p>{resourceAction.helperText}</p>
+            ) : unavailableInHost ? (
+              <p>
+                {resourceAction.kind === 'provide_details'
+                  ? 'This host can’t continue the request in chat.'
+                  : 'This host can’t check current terms from the widget.'}
+              </p>
             ) : relevantCheckState.status === 'error' ? (
               <p className="text-danger" role="alert">
                 {relevantCheckState.message}
               </p>
             ) : relevantCheckState.status === 'checking' ? (
               <p>{relevantCheckState.message || 'Confirming the current terms…'}</p>
+            ) : relevantCheckState.status === 'details_sent' ? (
+              <p>{relevantCheckState.message || 'Continue in chat to provide the missing request details.'}</p>
             ) : (
-              <p>Dexter will confirm the current terms before approval.</p>
+              <p>{resourceAction.helperText}</p>
             )}
           </div>
         </footer>
