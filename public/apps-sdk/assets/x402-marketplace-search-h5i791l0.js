@@ -1159,7 +1159,7 @@ function shortRecipient(value) {
   const trimmed = value.trim();
   return trimmed.length <= 12 ? trimmed : `${trimmed.slice(0, 6)}…${trimmed.slice(-4)}`;
 }
-const SEARCH_WIDGET_BUILD = "2026-07-25.3";
+const SEARCH_WIDGET_BUILD = "2026-08-04.1";
 function getSearchGuidance(payload) {
   if (payload.rankingMode === "degraded" || payload.searchMeta?.rankingMode === "degraded") {
     return payload.degradedMessage?.trim() || payload.searchMeta?.degradedMessage?.trim() || "Search quality is temporarily reduced. Treat these as fallback matches and verify the fit before continuing.";
@@ -1581,7 +1581,7 @@ function MarketplaceSearch() {
     return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "data-theme": theme, className: "dxs-root p-4", style: { maxHeight: constrainedMaxHeight ?? void 0 }, children: /* @__PURE__ */ jsxRuntimeExports.jsxs(EmptyMessage, { className: "rounded-2xl border border-subtle bg-surface px-4 py-8", children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyMessage.Icon, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(Search, {}) }),
       /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyMessage.Title, { children: emptyTitle }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyMessage.Description, { children: emptyDescription })
+      /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyMessage.Description, { children: searchGuidance ? `${searchGuidance} ${emptyDescription}` : emptyDescription })
     ] }) });
   }
   return /* @__PURE__ */ jsxRuntimeExports.jsxs(

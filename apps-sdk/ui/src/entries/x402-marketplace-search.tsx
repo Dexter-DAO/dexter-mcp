@@ -542,7 +542,11 @@ function MarketplaceSearch() {
         <EmptyMessage className="rounded-2xl border border-subtle bg-surface px-4 py-8">
           <EmptyMessage.Icon><Search /></EmptyMessage.Icon>
           <EmptyMessage.Title>{emptyTitle}</EmptyMessage.Title>
-          <EmptyMessage.Description>{emptyDescription}</EmptyMessage.Description>
+          <EmptyMessage.Description>
+            {searchGuidance
+              ? `${searchGuidance} ${emptyDescription}`
+              : emptyDescription}
+          </EmptyMessage.Description>
         </EmptyMessage>
       </div>
     );
