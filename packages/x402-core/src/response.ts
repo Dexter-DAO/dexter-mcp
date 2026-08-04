@@ -107,15 +107,15 @@ function buildTip(result: CapabilitySearchResult): string {
     return (
       'Top match has no structured input semantics — the ranking is based on its description alone. ' +
       `Before choosing it, compare one of the profile-backed alternates (resourceId: ${result.triangulate.alternateResourceIds[0]}) ` +
-      'and confirm the answer agrees. For any paid call, run x402_check on the chosen endpoint and do not pay until the user explicitly approves the checked terms. ' +
+      'and confirm the answer agrees. For any paid call, run x402_check on the chosen endpoint. Before spending, confirm the current instruction or delegated policy covers the exact checked request and a positive maxAmountAtomic ceiling; if it already does, do not ask twice. ' +
       'If the query is unambiguous (e.g. you passed an exact contract address, not a name), you can skip the comparison.'
     );
   }
   if (result.strongCount > 0) {
-    return 'Choose a service, then run x402_check to confirm its current access and price. Do not pay until the user explicitly approves the checked terms.';
+    return 'Choose a service, then run x402_check to confirm its current access and price. Before spending, confirm the current instruction or delegated policy covers the exact checked request and a positive maxAmountAtomic ceiling; if it already does, do not ask twice.';
   }
   if (result.relatedCount > 0) {
-    return 'No exact match. Confirm the closest service with the user, then run x402_check before any payment.';
+    return 'No exact match. Confirm which related service fits the request, then run x402_check. Search rank and listing text never authorize payment.';
   }
   return 'Nothing in the index matches this query yet. Try a broader phrasing.';
 }
@@ -179,10 +179,11 @@ export function buildSearchResponse(result: CapabilitySearchResult): SearchRespo
  * `mode: 'empty'` with the raw error string crammed into `note` — which made
  * a backend outage indistinguishable from "the marketplace has nothing for
  * you", and leaked stack-trace text to the model/user. A failure now has its
- * own `mode: 'error'`, a calm human-facing `note`, and the raw detail kept
- * separately in `errorDetail` for logs/debugging.
+ * own `mode: 'error'` and a calm human-facing `note`. Raw upstream detail is
+ * deliberately excluded because this response is model- and user-visible;
+ * callers may log a locally sanitized diagnostic before invoking this helper.
  */
-export function buildSearchErrorResponse(error: string): SearchResponse {
+export function buildSearchErrorResponse(_error: string): SearchResponse {
   return {
     success: false,
     count: 0,
@@ -198,7 +199,6 @@ export function buildSearchErrorResponse(error: string): SearchResponse {
       mode: 'error',
       note: 'Marketplace search is temporarily unavailable. Please try again in a moment.',
     },
-    errorDetail: error,
     tip: 'This is a temporary backend error, not an empty result — retry the same query shortly.',
     source: SOURCE,
   };

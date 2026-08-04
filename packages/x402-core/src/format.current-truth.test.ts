@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { formatPrice, formatResource } from './format.js';
-import { buildSearchResponse } from './response.js';
+import { buildSearchErrorResponse, buildSearchResponse } from './response.js';
 import type {
   CapabilitySearchResult,
   RawCapabilityResult,
@@ -130,6 +130,50 @@ describe('current capability truth projection', () => {
 
     expect(buildSearchResponse(result).tip).toContain('requires a pre-check review');
     expect(buildSearchResponse(result).tip).toContain('provider-reservation warning');
+    expect(buildSearchResponse(result).tip).toContain('do not ask twice');
+  });
+
+  it('keeps raw search diagnostics out of model-visible errors', () => {
+    const response = buildSearchErrorResponse(
+      'upstream_secret_or_stack_trace_should_not_escape',
+    );
+
+    expect(response.searchMeta.mode).toBe('error');
+    expect(response).not.toHaveProperty('errorDetail');
+    expect(JSON.stringify(response)).not.toContain('upstream_secret');
+  });
+
+  it('does not demand duplicate approval when current authority already covers the call', () => {
+    const formatted = formatResource(rawResource({
+      method: 'GET',
+      inputSchema: null,
+      execution: {
+        sideEffectful: false,
+        effect: null,
+        automatedVerification: 'enabled',
+        userExecution: 'allowed',
+        confirmationRequired: false,
+        availability: 'available',
+        requiresExplicitInput: false,
+        quoteMayCreateProviderReservation: false,
+      },
+    }));
+    const result: CapabilitySearchResult = {
+      query: 'read an exact resource',
+      strongResults: [formatted],
+      relatedResults: [],
+      strongCount: 1,
+      relatedCount: 0,
+      topSimilarity: 0.9,
+      noMatchReason: null,
+      rerank: { enabled: true, applied: true },
+      intent: { capabilityText: 'read an exact resource' },
+      durationMs: 20,
+    };
+
+    expect(buildSearchResponse(result).tip).toContain(
+      'current instruction or delegated policy',
+    );
     expect(buildSearchResponse(result).tip).toContain('do not ask twice');
   });
 
