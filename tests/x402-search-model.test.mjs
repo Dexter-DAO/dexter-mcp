@@ -57,6 +57,20 @@ test('backend errors stay distinct from genuine empty search results', () => {
   assert.equal(getSearchErrorCopy(genuineEmpty), null);
 });
 
+test('the public recovery tip wins over internal backend error detail', () => {
+  assert.deepEqual(getSearchErrorCopy({
+    success: false,
+    count: 0,
+    resources: [],
+    searchMeta: { mode: 'error' },
+    errorDetail: 'upstream_auth_secret_or_internal_diagnostic',
+    tip: 'Marketplace search is temporarily unavailable. Please retry.',
+  }), {
+    title: 'Marketplace search unavailable',
+    description: 'Marketplace search is temporarily unavailable. Please retry.',
+  });
+});
+
 test('reader guidance is reserved for decisions that need extra care', () => {
   assert.equal(
     getSearchGuidance({

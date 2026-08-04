@@ -1090,6 +1090,76 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
       await route.abort('blockedbyclient');
     });
 
+    await t.test('ChatGPT distinguishes a marketplace error from no results', async () => {
+      const page = await context.newPage();
+      await page.addInitScript(installChatGptHost, {
+        searchOutput: {
+          success: false,
+          count: 0,
+          resources: [],
+          searchMeta: { mode: 'error' },
+          errorDetail: 'internal_upstream_diagnostic',
+          tip: 'Marketplace search is temporarily unavailable. Please retry.',
+        },
+        checkToolResult: CHECK_TOOL_RESULT,
+        allowToolCalls: false,
+        allowFollowUp: false,
+        allowDisplayMode: false,
+      });
+      await page.goto(widgetUrl);
+
+      await page.getByText(
+        'Marketplace search unavailable',
+        { exact: true },
+      ).waitFor();
+      await page.getByText(
+        'Marketplace search is temporarily unavailable. Please retry.',
+        { exact: true },
+      ).waitFor();
+      assert.equal(
+        await page.getByText(/No x402 APIs found/).count(),
+        0,
+      );
+      assert.doesNotMatch(
+        await page.locator('body').innerText(),
+        /internal_upstream/,
+      );
+      await page.close();
+    });
+
+    await t.test('ChatGPT surfaces degraded ranking when fallback search is empty', async () => {
+      const page = await context.newPage();
+      await page.addInitScript(installChatGptHost, {
+        searchOutput: {
+          success: true,
+          count: 0,
+          strongResults: [],
+          relatedResults: [],
+          noMatchReason: 'below_similarity_threshold',
+          rankingMode: 'degraded',
+          degradedMessage: 'Search results may be less precise than usual right now.',
+          searchMeta: { mode: 'empty' },
+        },
+        checkToolResult: CHECK_TOOL_RESULT,
+        allowToolCalls: false,
+        allowFollowUp: false,
+        allowDisplayMode: false,
+      });
+      await page.goto(widgetUrl);
+
+      await page.getByText(
+        'No x402 APIs found for "fresh market data"',
+        { exact: true },
+      ).waitFor();
+      await page.getByText(
+        /Search results may be less precise than usual right now\./,
+      ).waitFor();
+      await page.getByText(
+        /Nothing in our capability index matches that query yet\./,
+      ).waitFor();
+      await page.close();
+    });
+
     await t.test('ChatGPT Apps SDK shim', async () => {
       const page = await context.newPage();
       const pageErrors = [];

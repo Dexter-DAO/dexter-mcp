@@ -25,6 +25,13 @@ test('error rendering precedes the genuine-empty branch', () => {
   assert.match(model, /searchMeta\?\.note\?\.trim\(\)/);
 });
 
+test('degraded ranking guidance remains visible when fallback search is empty', () => {
+  assert.match(
+    entry,
+    /if \(resources\.length === 0\)[\s\S]*?<EmptyMessage\.Description>[\s\S]*?searchGuidance[\s\S]*?emptyDescription/,
+  );
+});
+
 test('search can only open a fresh pricing check', () => {
   assert.match(entry, /callTool\('x402_check'/);
   assert.doesNotMatch(actionSources, /callTool\(\s*['"]x402_fetch['"]/);
@@ -71,7 +78,7 @@ test('dual-host adapters and capability-driven fullscreen are wired locally', ()
 });
 
 test('current build stamp, result evidence, tokens, and dead-code removals are pinned', () => {
-  assert.match(model, /SEARCH_WIDGET_BUILD = '2026-07-25\.3'/);
+  assert.match(model, /SEARCH_WIDGET_BUILD = '2026-08-04\.1'/);
   assert.doesNotMatch(entry, /2026-04-16\.1/);
   assert.match(briefModel, /resource\.why/);
   assert.match(briefModel, /resource\.qualityScore/);
