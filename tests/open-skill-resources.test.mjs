@@ -112,7 +112,7 @@ test('served guidance requires native OAuth and bounded nonretryable spending', 
 
 test('generated runtime instructions contain only native OAuth wallet guidance', () => {
   const runtime = buildOpenServerInstructions();
-  assert.equal(SERVER_INSTRUCTIONS_VERSION, '2.4.0');
+  assert.equal(SERVER_INSTRUCTIONS_VERSION, '2.4.1');
   assert.doesNotMatch(runtime, /\b(?:setup|enroll) link\b|\brelay(?:ing|ed|s)?\b/i);
   assert.match(runtime, /host show its native OpenDexter Connect action/i);
   assert.match(runtime, /dexter_portfolio/);
