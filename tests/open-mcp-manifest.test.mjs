@@ -9,8 +9,11 @@ import {
 } from '../lib/open-tool-contracts.mjs';
 import {
   OPEN_MCP_AUTHORIZATION_SERVER,
+  OPEN_MCP_AUTHORIZATION_SERVER_METADATA,
+  OPEN_MCP_PRM,
   OPEN_MCP_PRM_URL,
   OPEN_MCP_VAULT_AUDIENCE,
+  buildOpenMcpAuthorizationServerMetadata,
 } from '../lib/open-tool-auth.mjs';
 
 test('well-known manifest is generated from the five-to-twelve OAuth contract', () => {
@@ -20,6 +23,13 @@ test('well-known manifest is generated from the five-to-twelve OAuth contract', 
   assert.equal(manifest.url, OPEN_MCP_VAULT_AUDIENCE);
   assert.equal(manifest.auth.protectedResourceMetadata, OPEN_MCP_PRM_URL);
   assert.equal(manifest.auth.authorizationServer, OPEN_MCP_AUTHORIZATION_SERVER);
+  assert.deepEqual(OPEN_MCP_PRM.scopes_supported, ['vault']);
+  assert.deepEqual(
+    buildOpenMcpAuthorizationServerMetadata(
+      new URL(OPEN_MCP_AUTHORIZATION_SERVER_METADATA).pathname,
+    ).scopes_supported,
+    ['vault'],
+  );
   assert.deepEqual(manifest.auth.protectedTools, [
     'x402_fetch',
     'x402_status',
@@ -68,11 +78,11 @@ test('manifest, server identity, and package use one release version', async () 
   assert.equal(packageJson.engines.node, '^20.19.0 || >=22.12.0');
   assert.equal(
     packageJson.dependencies['@dexterai/mcp-instructions'],
-    '2.4.0',
+    '2.4.1',
   );
   assert.equal(
     packageJson.dependencies['@dexterai/x402-mcp-tools'],
-    '0.8.0',
+    '0.8.2',
   );
   assert.equal(
     packageJson.dependencies['@modelcontextprotocol/sdk'],

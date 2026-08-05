@@ -3,6 +3,7 @@ import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
   access,
+  lstat,
   mkdir,
   mkdtemp,
   readFile,
@@ -65,6 +66,11 @@ function advertisedOriginRunner(
     }
     return execFileAsync(command, args, options);
   };
+}
+
+async function useFixtureRemote(fixture, remote) {
+  await git(fixture.repositoryRoot, 'remote', 'set-url', 'origin', remote);
+  return { ...fixture.repository, remote };
 }
 
 async function packedSourceFixture({ lifecycleHook } = {}) {
@@ -290,7 +296,7 @@ async function registryLockFixture(mutator = () => {}) {
     },
     'packages/x402-core': {
       name: '@dexterai/x402-core',
-      version: '1.5.0',
+      version: '1.5.2',
     },
   };
   for (const expected of [
@@ -357,9 +363,9 @@ test('hosted source declares one exact internal dependency train', async () => {
   assert.deepEqual(
     manifest.sourcePackages.map(({ name, version }) => `${name}@${version}`),
     [
-      '@dexterai/x402-core@1.5.0',
-      '@dexterai/mcp-instructions@2.4.0',
-      '@dexterai/x402-mcp-tools@0.8.0',
+      '@dexterai/x402-core@1.5.2',
+      '@dexterai/mcp-instructions@2.4.1',
+      '@dexterai/x402-mcp-tools@0.8.2',
       '@dexterai/vault@0.43.0',
     ],
   );
@@ -375,6 +381,10 @@ test('hosted source declares one exact internal dependency train', async () => {
   assert.equal(manifest.schemaVersion, 2);
   assert.equal(manifest.packageManager, 'npm@10.9.3');
   assert.equal(manifest.node, '^20.19.0 || >=22.12.0');
+  assert.deepEqual(manifest.repositories.hosted, {
+    remote: 'https://github.com/Dexter-DAO/dexter-mcp.git',
+    provenanceCommit: 'fb2753f7e9f1e7503d3c61572787decf52499a76',
+  });
   assert.deepEqual(
     manifest.sourcePackages.map(({ install }) => install),
     [
@@ -386,13 +396,13 @@ test('hosted source declares one exact internal dependency train', async () => {
   );
   assert.deepEqual(manifest.repositories['opendexter-ide'], {
     remote: 'https://github.com/Dexter-DAO/opendexter-ide.git',
-    provenanceCommit: '3c2ed36736f6f637dedd05c890e6e2d49d869794',
+    provenanceCommit: '5e7f4a2b7523ba32101346906ce61d5ad8497e47',
     rootWorkspaceBuild: {
       packageLockSha256:
-        'c096945c6d6e74c36be532ed747746df254c2aa16e7b5eec2a909a8c2e959b60',
+        '841b0dbe9e6120f75de6b52c947dcf23e3805e7ed4fc8513847b85a369ffe0bb',
       buildOrder: [
-        { workspace: '@dexterai/dextercard', script: 'build' },
         { workspace: '@dexterai/mcp-instructions', script: 'build' },
+        { workspace: '@dexterai/dextercard', script: 'build' },
         { workspace: '@dexterai/x402-mcp-tools', script: 'build' },
       ],
     },
@@ -400,11 +410,11 @@ test('hosted source declares one exact internal dependency train', async () => {
   for (const [name, tgzSha256] of [
     [
       '@dexterai/mcp-instructions',
-      '95a2ff1758345da22263e903fa3137a2e46d3f816523c8e286bf742ca25adeb8',
+      'c89d5d9bfa5254cbdd641a73c2dc9499446e3c635b024b192ec309a9500d1a3c',
     ],
     [
       '@dexterai/x402-mcp-tools',
-      'f2d35bb5827b123b9b3456c45b08891f15b47f35db04020b2e2bdd05925db2fc',
+      '7236ad530969773a1b86d6557b681db302cdb9efe4813a7a1354a7704307a767',
     ],
   ]) {
     const artifact = manifest.sourcePackages.find(
@@ -490,7 +500,7 @@ test('registry lock accepts the hosted workspace and exact registry packages', a
 test('registry lock rejects a registry copy of the hosted workspace', async () => {
   const fixture = await registryLockFixture((lock) => {
     lock.packages['node_modules/@dexterai/x402-core'] = {
-      version: '1.5.0',
+      version: '1.5.2',
       resolved: 'https://registry.example/x402-core.tgz',
       integrity: 'sha512-fixture',
     };
@@ -709,6 +719,327 @@ test('source preflight requires a reachable origin advertising the exact provena
       unreachable.join('\n'),
       /cannot verify Git provenance: fixture origin unavailable/,
     );
+  } finally {
+    await rm(fixture.repositoryRoot, { recursive: true, force: true });
+  }
+});
+
+test('source preflight stays anonymous for public remotes even when an ambient token exists', async () => {
+  const fixture = await packedSourceFixture();
+  const token = 'ambient-token-must-not-reach-anonymous-git';
+  const calls = [];
+  const ambientHome = await mkdtemp(resolve(tmpdir(), 'ambient-home-'));
+  let anonymousHome;
+  let anonymousAskpass;
+  let anonymousAskpassMode;
+  let anonymousAskpassBytes;
+  try {
+    const runner = advertisedOriginRunner(fixture.repositoryRoot, { calls });
+    const issues = await inspectPackageSourcePreflight(
+      fixture.repositoryRoot,
+      fixture.expected,
+      fixture.repository,
+      {
+        requireBuild: true,
+        environment: { HOME: ambientHome, GH_TOKEN: token },
+        runCommand: async (command, args, options = {}) => {
+          if (command === 'git' && args.includes('ls-remote')) {
+            anonymousHome = options.env.HOME;
+            anonymousAskpass = options.env.GIT_ASKPASS;
+            anonymousAskpassBytes = await readFile(anonymousAskpass, 'utf8');
+            anonymousAskpassMode = (await lstat(anonymousAskpass)).mode & 0o777;
+          }
+          return runner(command, args, options);
+        },
+      },
+    );
+    assert.deepEqual(issues, []);
+    const remoteCalls = calls.filter(
+      ({ command, args }) => command === 'git' && args.includes('ls-remote'),
+    );
+    assert.equal(remoteCalls.length, 1);
+    assert.equal(Object.hasOwn(remoteCalls[0].options.env, 'GH_TOKEN'), false);
+    assert.equal(
+      Object.hasOwn(
+        remoteCalls[0].options.env,
+        'GITHUB_PERSONAL_ACCESS_TOKEN',
+      ),
+      false,
+    );
+    assert.equal(
+      Object.hasOwn(
+        remoteCalls[0].options.env,
+        'OPENDEXTER_PRIVATE_GIT_TOKEN',
+      ),
+      false,
+    );
+    assert.equal(JSON.stringify(remoteCalls[0].args).includes(token), false);
+    assert.equal(remoteCalls[0].args.includes('credential.helper='), true);
+    assert.equal(remoteCalls[0].args.includes('http.followRedirects=false'), true);
+    assert.equal(anonymousHome, remoteCalls[0].options.env.HOME);
+    assert.equal(anonymousAskpass, remoteCalls[0].options.env.GIT_ASKPASS);
+    assert.notEqual(anonymousHome, ambientHome);
+    assert.equal(remoteCalls[0].options.env.GIT_TERMINAL_PROMPT, '0');
+    assert.equal(remoteCalls[0].options.env.GIT_ASKPASS_REQUIRE, 'force');
+    assert.equal(anonymousAskpassBytes, '#!/bin/sh\nexit 1\n');
+    assert.equal(anonymousAskpassMode, 0o700);
+    await assert.rejects(access(anonymousHome));
+    await assert.rejects(access(anonymousAskpass));
+  } finally {
+    await rm(fixture.repositoryRoot, { recursive: true, force: true });
+    await rm(ambientHome, { recursive: true, force: true });
+  }
+});
+
+test('source preflight retries one canonical private GitHub remote through isolated askpass', async () => {
+  const fixture = await packedSourceFixture();
+  const remote = 'https://github.com/Dexter-DAO/private-source-fixture.git';
+  const token = 'private-token-that-must-never-enter-diagnostics';
+  const tokenSha256 = createHash('sha256').update(token).digest('hex');
+  let remoteLookups = 0;
+  let askpassPath;
+  let anonymousHome;
+  let anonymousAskpass;
+  try {
+    const repository = await useFixtureRemote(fixture, remote);
+    const issues = await inspectPackageSourcePreflight(
+      fixture.repositoryRoot,
+      fixture.expected,
+      repository,
+      {
+        requireBuild: true,
+        environment: {
+          HOME: '/tmp',
+          GITHUB_PERSONAL_ACCESS_TOKEN: token,
+          GH_TOKEN: 'lower-priority-token',
+        },
+        runCommand: async (command, args, options = {}) => {
+          if (command === 'git' && args.includes('ls-remote')) {
+            remoteLookups += 1;
+            assert.equal(JSON.stringify(args).includes(token), false);
+            assert.equal(args.includes('http.followRedirects=false'), true);
+            assert.equal(args.includes('credential.helper='), true);
+            if (remoteLookups === 1) {
+              assert.equal(Object.hasOwn(options.env, 'GH_TOKEN'), false);
+              assert.equal(
+                Object.hasOwn(options.env, 'GITHUB_PERSONAL_ACCESS_TOKEN'),
+                false,
+              );
+              anonymousHome = options.env.HOME;
+              anonymousAskpass = options.env.GIT_ASKPASS;
+              assert.notEqual(anonymousHome, '/tmp');
+              assert.equal(options.env.GIT_TERMINAL_PROMPT, '0');
+              assert.equal(options.env.GIT_ASKPASS_REQUIRE, 'force');
+              assert.equal(
+                await readFile(anonymousAskpass, 'utf8'),
+                '#!/bin/sh\nexit 1\n',
+              );
+              assert.equal(
+                (await lstat(anonymousAskpass)).mode & 0o777,
+                0o700,
+              );
+              throw new Error('anonymous source is private');
+            }
+            assert.equal(remoteLookups, 2);
+            assert.equal(args.includes('--git-dir=/dev/null'), true);
+            assert.equal(args.includes('credential.helper='), true);
+            assert.equal(args.includes('--refs'), true);
+            assert.deepEqual(args.slice(-3), [
+              remote,
+              'refs/heads/*',
+              'refs/tags/*',
+            ]);
+            assert.equal(options.env.GIT_CONFIG_GLOBAL, '/dev/null');
+            assert.equal(options.env.GIT_CONFIG_NOSYSTEM, '1');
+            assert.equal(options.env.GIT_TERMINAL_PROMPT, '0');
+            assert.equal(options.env.GIT_ASKPASS_REQUIRE, 'force');
+            assert.equal(Object.hasOwn(options.env, 'GH_TOKEN'), false);
+            assert.equal(
+              Object.hasOwn(options.env, 'GITHUB_PERSONAL_ACCESS_TOKEN'),
+              false,
+            );
+            assert.equal(
+              createHash('sha256')
+                .update(options.env.OPENDEXTER_PRIVATE_GIT_TOKEN)
+                .digest('hex'),
+              tokenSha256,
+            );
+            askpassPath = options.env.GIT_ASKPASS;
+            const helper = await readFile(askpassPath, 'utf8');
+            assert.equal(helper.includes(token), false);
+            assert.equal(helper.includes('extraHeader'), false);
+            return {
+              stdout: `${repository.provenanceCommit}\trefs/heads/main\n`,
+              stderr: '',
+            };
+          }
+          return execFileAsync(command, args, options);
+        },
+      },
+    );
+    assert.deepEqual(issues, []);
+    assert.equal(remoteLookups, 2);
+    assert.equal(typeof askpassPath, 'string');
+    await assert.rejects(access(askpassPath));
+    await assert.rejects(access(anonymousAskpass));
+    await assert.rejects(access(anonymousHome));
+    assert.equal(issues.join('\n').includes(token), false);
+  } finally {
+    await rm(fixture.repositoryRoot, { recursive: true, force: true });
+  }
+});
+
+test('authenticated source lookup refuses redirects without a third credential contact', async () => {
+  const fixture = await packedSourceFixture();
+  const remote = 'https://github.com/Dexter-DAO/private-source-fixture.git';
+  const token = 'private-token-that-must-not-follow-a-redirect';
+  let remoteLookups = 0;
+  try {
+    const repository = await useFixtureRemote(fixture, remote);
+    const issues = await inspectPackageSourcePreflight(
+      fixture.repositoryRoot,
+      fixture.expected,
+      repository,
+      {
+        requireBuild: true,
+        environment: { HOME: '/tmp', GH_TOKEN: token },
+        runCommand: async (command, args, options = {}) => {
+          if (command === 'git' && args.includes('ls-remote')) {
+            remoteLookups += 1;
+            assert.equal(args.includes('http.followRedirects=false'), true);
+            if (remoteLookups === 1) {
+              throw new Error('anonymous source is private');
+            }
+            assert.equal(remoteLookups, 2);
+            assert.equal(
+              createHash('sha256')
+                .update(options.env.OPENDEXTER_PRIVATE_GIT_TOKEN)
+                .digest('hex'),
+              createHash('sha256').update(token).digest('hex'),
+            );
+            throw new Error(`redirect target echoed ${token}`);
+          }
+          return execFileAsync(command, args, options);
+        },
+      },
+    );
+    assert.equal(remoteLookups, 2);
+    assert.match(
+      issues.join('\n'),
+      /cannot verify Git provenance: authenticated GitHub source lookup failed/,
+    );
+    assert.doesNotMatch(issues.join('\n'), /private-token/);
+  } finally {
+    await rm(fixture.repositoryRoot, { recursive: true, force: true });
+  }
+});
+
+test('source preflight never retries authentication for noncanonical remotes', async () => {
+  const remotes = [
+    'git@github.com:Dexter-DAO/private-source-fixture.git',
+    'https://example.test/private-source-fixture.git',
+    'https://user@github.com/Dexter-DAO/private-source-fixture.git',
+    'https://github.com.evil.example/Dexter-DAO/private-source-fixture.git',
+    'https://github.com/Dexter-DAO/private-source-fixture',
+    'https://github.com/Dexter-DAO/private-source-fixture.git?redirect=1',
+  ];
+  for (const remote of remotes) {
+    const fixture = await packedSourceFixture();
+    let remoteLookups = 0;
+    try {
+      const repository = await useFixtureRemote(fixture, remote);
+      const issues = await inspectPackageSourcePreflight(
+        fixture.repositoryRoot,
+        fixture.expected,
+        repository,
+        {
+          requireBuild: true,
+          environment: { HOME: '/tmp', GH_TOKEN: 'unused-private-token' },
+          runCommand: async (command, args, options = {}) => {
+            if (command === 'git' && args.includes('ls-remote')) {
+              remoteLookups += 1;
+              throw new Error('anonymous source is unavailable');
+            }
+            return execFileAsync(command, args, options);
+          },
+        },
+      );
+      assert.equal(remoteLookups, 1);
+      assert.match(
+        issues.join('\n'),
+        /cannot verify Git provenance: anonymous source is unavailable/,
+      );
+      assert.doesNotMatch(issues.join('\n'), /unused-private-token/);
+    } finally {
+      await rm(fixture.repositoryRoot, { recursive: true, force: true });
+    }
+  }
+});
+
+test('source preflight rejects a malformed private token before authenticated contact', async () => {
+  const fixture = await packedSourceFixture();
+  const remote = 'https://github.com/Dexter-DAO/private-source-fixture.git';
+  let remoteLookups = 0;
+  try {
+    const repository = await useFixtureRemote(fixture, remote);
+    const issues = await inspectPackageSourcePreflight(
+      fixture.repositoryRoot,
+      fixture.expected,
+      repository,
+      {
+        requireBuild: true,
+        environment: { HOME: '/tmp', GH_TOKEN: 'hostile\nsecond-line' },
+        runCommand: async (command, args, options = {}) => {
+          if (command === 'git' && args.includes('ls-remote')) {
+            remoteLookups += 1;
+            throw new Error('anonymous source is private');
+          }
+          return execFileAsync(command, args, options);
+        },
+      },
+    );
+    assert.equal(remoteLookups, 1);
+    assert.match(issues.join('\n'), /private source token is invalid/);
+    assert.doesNotMatch(issues.join('\n'), /hostile|second-line/);
+  } finally {
+    await rm(fixture.repositoryRoot, { recursive: true, force: true });
+  }
+});
+
+test('authenticated source lookup retains the exact advertised-commit predicate', async () => {
+  const fixture = await packedSourceFixture();
+  const remote = 'https://github.com/Dexter-DAO/private-source-fixture.git';
+  let remoteLookups = 0;
+  try {
+    const repository = await useFixtureRemote(fixture, remote);
+    const issues = await inspectPackageSourcePreflight(
+      fixture.repositoryRoot,
+      fixture.expected,
+      repository,
+      {
+        requireBuild: true,
+        environment: { HOME: '/tmp', GH_TOKEN: 'private-token' },
+        runCommand: async (command, args, options = {}) => {
+          if (command === 'git' && args.includes('ls-remote')) {
+            remoteLookups += 1;
+            if (remoteLookups === 1) {
+              throw new Error('anonymous source is private');
+            }
+            return {
+              stdout: `${'f'.repeat(40)}\trefs/heads/main\n`,
+              stderr: '',
+            };
+          }
+          return execFileAsync(command, args, options);
+        },
+      },
+    );
+    assert.equal(remoteLookups, 2);
+    assert.match(
+      issues.join('\n'),
+      /canonical origin does not advertise provenance commit/,
+    );
+    assert.doesNotMatch(issues.join('\n'), /private-token/);
   } finally {
     await rm(fixture.repositoryRoot, { recursive: true, force: true });
   }

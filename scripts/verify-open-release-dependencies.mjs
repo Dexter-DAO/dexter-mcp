@@ -11,6 +11,7 @@ import {
   readFile,
   realpath,
   rm,
+  writeFile,
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, resolve } from 'node:path';
@@ -22,6 +23,9 @@ import {
   reviewedNpmInvocation,
   reviewedReleaseToolEnvironment,
 } from '../lib/open-release-tooling.mjs';
+import {
+  reviewedSourceContractRemoteRefs,
+} from './materialize-open-tool-descriptors.mjs';
 
 const execFileAsync = promisify(execFile);
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -115,15 +119,109 @@ async function remoteAdvertisesCommit(
   remote,
   commit,
 ) {
-  const refs = await reviewedGitRemoteRefs({
-    remote,
-    runCommand,
-    environment,
-  });
+  const anonymousHome = await mkdtemp(
+    resolve(tmpdir(), 'opendexter-anonymous-remote-'),
+  );
+  const anonymousAskpass = resolve(anonymousHome, 'askpass.sh');
+  let refs;
+  try {
+    await writeFile(
+      anonymousAskpass,
+      '#!/bin/sh\nexit 1\n',
+      { flag: 'wx', mode: 0o700 },
+    );
+    try {
+      refs = await reviewedGitRemoteRefs({
+        remote,
+        runCommand: hardenedRemoteRefsRunner(runCommand, {
+          HOME: anonymousHome,
+          GIT_ASKPASS: anonymousAskpass,
+          GIT_ASKPASS_REQUIRE: 'force',
+          GIT_TERMINAL_PROMPT: '0',
+        }),
+        environment: {
+          ...environment,
+          HOME: anonymousHome,
+        },
+      });
+    } catch (anonymousError) {
+      const token = environment?.GITHUB_PERSONAL_ACCESS_TOKEN
+        || environment?.GH_TOKEN;
+      if (
+        !token
+        || !isCanonicalCredentialFreeGitHubRemote(remote)
+      ) {
+        throw anonymousError;
+      }
+      try {
+        refs = await reviewedSourceContractRemoteRefs({
+          remote,
+          runCommand: hardenedRemoteRefsRunner(runCommand),
+          environment,
+        });
+      } catch (authenticatedError) {
+        if (
+          authenticatedError?.message
+          === 'OpenDexter private source token is invalid'
+        ) {
+          throw authenticatedError;
+        }
+        throw new Error('authenticated GitHub source lookup failed', {
+          cause: authenticatedError,
+        });
+      }
+    }
+  } finally {
+    await rm(anonymousHome, { recursive: true, force: true });
+  }
   return refs.split(/\r?\n/).some((line) => {
     const [remoteCommit, refname, extra] = line.trim().split(/\s+/);
     return remoteCommit === commit && Boolean(refname) && extra === undefined;
   });
+}
+
+function hardenedRemoteRefsRunner(runCommand, environmentOverrides = {}) {
+  return async (command, args, options = {}) => {
+    if (command !== 'git' || !args.includes('ls-remote')) {
+      return runCommand(command, args, options);
+    }
+    const commandIndex = args.indexOf('ls-remote');
+    return runCommand(command, [
+      ...args.slice(0, commandIndex),
+      ...(args.includes('credential.helper=')
+        ? []
+        : ['-c', 'credential.helper=']),
+      '-c', 'http.followRedirects=false',
+      ...args.slice(commandIndex),
+    ], {
+      ...options,
+      env: {
+        ...options.env,
+        ...environmentOverrides,
+      },
+    });
+  };
+}
+
+function isCanonicalCredentialFreeGitHubRemote(remote) {
+  if (typeof remote !== 'string') return false;
+  let parsed;
+  try {
+    parsed = new URL(remote);
+  } catch {
+    return false;
+  }
+  return parsed.toString() === remote
+    && parsed.protocol === 'https:'
+    && parsed.hostname === 'github.com'
+    && parsed.port === ''
+    && parsed.username === ''
+    && parsed.password === ''
+    && parsed.search === ''
+    && parsed.hash === ''
+    && /^\/[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?\/[A-Za-z0-9._-]+\.git$/.test(
+      parsed.pathname,
+    );
 }
 
 export function gitTreeSpec(commit, packagePath) {
