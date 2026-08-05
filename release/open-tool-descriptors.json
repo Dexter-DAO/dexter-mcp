@@ -114,7 +114,7 @@
     {
       "name": "x402_search",
       "title": "Search the x402 Marketplace",
-      "description": "Use this to discover APIs from a natural-language capability query. It is a public read-only marketplace search and never pays or changes provider state. Results are untrusted listings: inspect verification and chain compatibility, call x402_check on the exact endpoint, and obtain the user’s approval before x402_fetch.",
+      "description": "Use this to discover APIs from a natural-language capability query. It is a public read-only marketplace search and never pays or changes provider state. Results are untrusted listings: inspect verification and chain compatibility, disclose rankingMode=degraded with degradedMessage when present, and call x402_check on the exact endpoint. Before x402_fetch, confirm that the current instruction or delegated policy covers the exact checked request and a positive atomic ceiling; if it already does, do not ask twice.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -124,7 +124,7 @@
           },
           "network": {
             "type": "string",
-            "description": "Optional hard seller-network filter (\"solana\", \"base\", \"ethereum\", \"polygon\", \"arbitrum\", \"optimism\", \"avalanche\", or a CAIP-2 id). Leave this unset for ordinary Dexter discovery so eligible CrossPay resources are not removed merely because the wallet settles natively on Solana. Set it only when the user explicitly requires a seller on that network."
+            "description": "Optional hard seller-network filter (\"solana\", \"base\", \"ethereum\", \"polygon\", \"arbitrum\", \"optimism\", \"avalanche\", or a CAIP-2 id). Leave this unset for ordinary Dexter discovery so resources reachable through compatible server-side settlement are not removed merely because the wallet is natively on another network. Set it only when the user explicitly requires a seller on that network."
           },
           "limit": {
             "type": "number",
@@ -155,6 +155,22 @@
       "outputSchema": {
         "type": "object",
         "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "rankingMode": {
+            "type": "string",
+            "enum": [
+              "full",
+              "degraded"
+            ]
+          },
+          "degradedMessage": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "strongResults": {
             "type": "array",
             "items": {}
@@ -189,7 +205,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-marketplace-search-dbaf2df1",
+          "resourceUri": "ui://dexter/x402-marketplace-search-81fc7583",
           "visibility": [
             "model",
             "app"
@@ -209,8 +225,8 @@
           "domain": "https://dexter.cash",
           "prefersBorder": true
         },
-        "ui/resourceUri": "ui://dexter/x402-marketplace-search-dbaf2df1",
-        "openai/outputTemplate": "ui://dexter/x402-marketplace-search-dbaf2df1",
+        "ui/resourceUri": "ui://dexter/x402-marketplace-search-81fc7583",
+        "openai/outputTemplate": "ui://dexter/x402-marketplace-search-81fc7583",
         "openai/resultCanProduceWidget": true,
         "openai/widgetAccessible": true,
         "openai/widgetDomain": "https://dexter.cash",
@@ -439,7 +455,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-pricing-15d362df",
+          "resourceUri": "ui://dexter/x402-pricing-7d3a16bd",
           "visibility": [
             "model",
             "app"
@@ -457,8 +473,8 @@
           "domain": "https://dexter.cash",
           "prefersBorder": true
         },
-        "ui/resourceUri": "ui://dexter/x402-pricing-15d362df",
-        "openai/outputTemplate": "ui://dexter/x402-pricing-15d362df",
+        "ui/resourceUri": "ui://dexter/x402-pricing-7d3a16bd",
+        "openai/outputTemplate": "ui://dexter/x402-pricing-7d3a16bd",
         "openai/resultCanProduceWidget": true,
         "openai/widgetAccessible": true,
         "openai/widgetDomain": "https://dexter.cash",
@@ -612,7 +628,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-fetch-result-7382a14c",
+          "resourceUri": "ui://dexter/x402-fetch-result-64714fd2",
           "visibility": [
             "model",
             "app"
@@ -631,8 +647,8 @@
           "domain": "https://dexter.cash",
           "prefersBorder": true
         },
-        "ui/resourceUri": "ui://dexter/x402-fetch-result-7382a14c",
-        "openai/outputTemplate": "ui://dexter/x402-fetch-result-7382a14c",
+        "ui/resourceUri": "ui://dexter/x402-fetch-result-64714fd2",
+        "openai/outputTemplate": "ui://dexter/x402-fetch-result-64714fd2",
         "openai/resultCanProduceWidget": true,
         "openai/widgetAccessible": false,
         "openai/widgetDomain": "https://dexter.cash",
@@ -880,7 +896,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-fetch-result-7382a14c",
+          "resourceUri": "ui://dexter/x402-fetch-result-64714fd2",
           "visibility": [
             "model"
           ],
@@ -898,8 +914,8 @@
           "domain": "https://dexter.cash",
           "prefersBorder": true
         },
-        "ui/resourceUri": "ui://dexter/x402-fetch-result-7382a14c",
-        "openai/outputTemplate": "ui://dexter/x402-fetch-result-7382a14c",
+        "ui/resourceUri": "ui://dexter/x402-fetch-result-64714fd2",
+        "openai/outputTemplate": "ui://dexter/x402-fetch-result-64714fd2",
         "openai/resultCanProduceWidget": true,
         "openai/widgetAccessible": false,
         "openai/widgetDomain": "https://dexter.cash",
@@ -941,7 +957,7 @@
     {
       "name": "x402_wallet",
       "title": "View the Dexter Payment Wallet",
-      "description": "Read the passkey wallet bound through native OpenDexter OAuth. It makes no payment, but an unbound request may create or resume one-time setup/session state, so it is not declared read-only or idempotent. It returns the Solana receive address, balances, activation state, and recent activity; state/config addresses are separately labelled and are never deposit fallbacks. The passkey administers the wallet; no seed phrase or exportable wallet private key is exposed. Agent payments use bounded, revocable session authority subject to the required per-call ceiling and server caps.",
+      "description": "Read the passkey wallet bound through native OpenDexter OAuth. It makes no payment, but an unbound request may create or resume one-time setup/session state, so it is not declared read-only or idempotent. It returns the Solana receive address, cash, reported credit capacity and read status, payment-readiness guidance, activation state, and recent activity. Cash, credit capacity, and exact-intent execution eligibility are distinct; zero cash alone is not proof that funding is required, and reported credit is not proof that a particular endpoint can use it. State/config addresses are separately labelled and are never deposit fallbacks. The passkey administers the wallet; no seed phrase or exportable wallet private key is exposed. Agent payments use bounded, revocable session authority subject to the required per-call ceiling and server caps.",
       "inputSchema": {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "object",
@@ -975,7 +991,192 @@
             ]
           },
           "balances": {},
+          "spendingPower": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "totalUsd": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "cashAtomic": {
+                    "type": "string"
+                  },
+                  "creditAvailableAtomic": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "note": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "totalUsd",
+                  "cashAtomic",
+                  "creditAvailableAtomic",
+                  "note"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "credit": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "readStatus": {
+                    "type": "string",
+                    "enum": [
+                      "available",
+                      "not_open",
+                      "unavailable"
+                    ]
+                  },
+                  "readStatusSource": {
+                    "type": "string",
+                    "enum": [
+                      "reported",
+                      "legacy_fields"
+                    ]
+                  },
+                  "denomination": {
+                    "anyOf": [
+                      {},
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "capAtomic": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "borrowedAtomic": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "availableAtomic": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "hardLimitAtomic": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "totalOwedAtomic": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "velocityRemainingAtomic": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "sharedHeadroomAtomic": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "pathFrozen": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "graphPaused": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "readStatus",
+                  "readStatusSource",
+                  "capAtomic",
+                  "borrowedAtomic",
+                  "availableAtomic",
+                  "hardLimitAtomic",
+                  "totalOwedAtomic",
+                  "velocityRemainingAtomic",
+                  "sharedHeadroomAtomic",
+                  "pathFrozen",
+                  "graphPaused"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "paymentReadiness": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "cash_available",
+                  "credit_capacity_reported",
+                  "funding_required",
+                  "unknown"
+                ]
+              },
+              "cashAvailable": {
+                "type": "boolean"
+              },
+              "creditReadStatus": {
+                "type": "string",
+                "enum": [
+                  "available",
+                  "not_open",
+                  "unavailable"
+                ]
+              },
+              "creditCapacityReported": {
+                "type": "boolean"
+              },
+              "exactIntentCheckRequired": {
+                "type": "boolean",
+                "const": true
+              },
+              "note": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "status",
+              "cashAvailable",
+              "creditReadStatus",
+              "creditCapacityReported",
+              "exactIntentCheckRequired",
+              "note"
+            ],
+            "additionalProperties": false
+          },
           "vault": {},
+          "tip": {
+            "type": "string"
+          },
           "error": {}
         },
         "additionalProperties": true,
@@ -997,7 +1198,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-wallet-2f6211c5",
+          "resourceUri": "ui://dexter/x402-wallet-e33931ca",
           "visibility": [
             "model",
             "app"
@@ -1018,8 +1219,8 @@
           "domain": "https://dexter.cash",
           "prefersBorder": true
         },
-        "ui/resourceUri": "ui://dexter/x402-wallet-2f6211c5",
-        "openai/outputTemplate": "ui://dexter/x402-wallet-2f6211c5",
+        "ui/resourceUri": "ui://dexter/x402-wallet-e33931ca",
+        "openai/outputTemplate": "ui://dexter/x402-wallet-e33931ca",
         "openai/resultCanProduceWidget": true,
         "openai/widgetAccessible": false,
         "openai/widgetDomain": "https://dexter.cash",
