@@ -49,3 +49,6 @@ env-change-notes.md
 
 # Studio prompts (contain sensitive info)
 toolsets/studio/prompts/
+
+# eyebrow local snapshot cache (content-addressed; not committed)
+.eyebrow/
