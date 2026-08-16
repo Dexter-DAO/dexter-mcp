@@ -126,5 +126,16 @@ test('summarizes why, quality, and the first listed route price', () => {
     priceLabel: '0.02 USDC',
     priceUsdc: 0.02,
     priceFallback: 'Price on check',
+    networkLabel: 'solana',
+    evidenceBadgeLabel: 'Quality test',
+    evidenceLabel: 'Quality test passed',
+    evidenceBasis: undefined,
+    safetyWarning: null,
+    action: {
+      kind: 'unsupported',
+      label: 'Unsupported',
+      helperText: 'Current execution details are unavailable. Refresh search before proceeding.',
+      disabled: true,
+    },
   });
 });

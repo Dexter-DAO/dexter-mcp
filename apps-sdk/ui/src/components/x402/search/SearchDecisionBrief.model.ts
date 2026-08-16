@@ -1,7 +1,7 @@
 import {
   SEARCH_CHECK_SUPPORTED_METHODS,
   type SearchResource,
-} from './types';
+} from './types.ts';
 
 export type SearchDecision = {
   recommended: SearchResource | null;

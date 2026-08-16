@@ -38,10 +38,10 @@
   },
   "dependencies": {
     "@dexterai/mcp-instructions": "2.4.1",
-    "@dexterai/vault": "0.43.0",
-    "@dexterai/x402": "^5.4.2",
+    "@dexterai/vault": "0.43.2",
+    "@dexterai/x402": "6.0.0-rc.2",
     "@dexterai/x402-core": "1.5.2",
-    "@dexterai/x402-mcp-tools": "0.8.2",
+    "@dexterai/x402-mcp-tools": "0.9.0-rc.0",
     "@dexterai/x402-skills": "file:./packages/x402-skills",
     "@modelcontextprotocol/ext-apps": "1.6.0",
     "@modelcontextprotocol/sdk": "1.29.0",

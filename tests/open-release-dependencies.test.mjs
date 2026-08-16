@@ -365,14 +365,15 @@ test('hosted source declares one exact internal dependency train', async () => {
     [
       '@dexterai/x402-core@1.5.2',
       '@dexterai/mcp-instructions@2.4.1',
-      '@dexterai/x402-mcp-tools@0.8.2',
-      '@dexterai/vault@0.43.0',
+      '@dexterai/x402-mcp-tools@0.9.0-rc.0',
+      '@dexterai/vault@0.43.2',
     ],
   );
   assert.deepEqual(
     manifest.runtimePackages.map(({ name, version }) =>
       `${name}@${version}`),
     [
+      '@dexterai/x402@6.0.0-rc.2',
       '@modelcontextprotocol/sdk@1.29.0',
       '@modelcontextprotocol/ext-apps@1.6.0',
       'zod@3.25.76',
@@ -396,10 +397,10 @@ test('hosted source declares one exact internal dependency train', async () => {
   );
   assert.deepEqual(manifest.repositories['opendexter-ide'], {
     remote: 'https://github.com/Dexter-DAO/opendexter-ide.git',
-    provenanceCommit: '5e7f4a2b7523ba32101346906ce61d5ad8497e47',
+    provenanceCommit: '69a304652483049c637e2c389663c10255d6b916',
     rootWorkspaceBuild: {
       packageLockSha256:
-        '841b0dbe9e6120f75de6b52c947dcf23e3805e7ed4fc8513847b85a369ffe0bb',
+        'da06803ef1b745964834c7432c38d276dd29cd2c57fa92f0290b826816bb8d05',
       buildOrder: [
         { workspace: '@dexterai/mcp-instructions', script: 'build' },
         { workspace: '@dexterai/dextercard', script: 'build' },
@@ -414,7 +415,7 @@ test('hosted source declares one exact internal dependency train', async () => {
     ],
     [
       '@dexterai/x402-mcp-tools',
-      '7236ad530969773a1b86d6557b681db302cdb9efe4813a7a1354a7704307a767',
+      'b334ff52b29391f6a634c735d05e350fca7b61fd6debdd202e8b096da32ced83',
     ],
   ]) {
     const artifact = manifest.sourcePackages.find(
@@ -426,24 +427,27 @@ test('hosted source declares one exact internal dependency train', async () => {
   }
   assert.deepEqual(manifest.repositories['vault-sdk'], {
     remote: 'https://github.com/Dexter-DAO/dexter-vault-sdk.git',
-    provenanceCommit: 'dac9a9384f181341370c8fa776b1832279911a30',
+    provenanceCommit: 'd345a9579aef3179ca76026aace9a85d88231484',
   });
   assert.deepEqual(
     manifest.sourcePackages.find(({ name }) => name === '@dexterai/vault'),
     {
       name: '@dexterai/vault',
-      version: '0.43.0',
-      rootSpecifier: '0.43.0',
+      version: '0.43.2',
+      rootSpecifier: '0.43.2',
       source: 'vault-sdk',
       path: '.',
       entrypoint: 'dist/index.js',
-      treeHash: 'cafe641da3821f765708e55b59374be5cfac05f8',
+      treeHash: 'b9faf3d3576a988f4786ff5975aa42150c192b55',
       packedArtifact: {
         buildScript: 'build',
-        integrity: 'sha512-WJVc4hjVMY+xGUhs1Yct2Hin8LiPccX/Og6jP6+NDuWqopj8bEAU/7iVgAljqFDXkM3BTNFXuXalaSmCZvBeYA==',
-        shasum: 'b2d6ffa85da429d006fcfd86ce910db219f88690',
-        size: 584781,
-        unpackedSize: 2860999,
+        packLifecycleScripts: {
+          prepack: 'npm run build && npm run typecheck',
+        },
+        integrity: 'sha512-RYzML634iIEzOCEaBQ5Rur/NsMprZns3+X/1FcrmtOP62aMFnpGKK2Rcp9ncBbvoo1B7wMVLtUvYYkD5w9U/7w==',
+        shasum: '320a24ff9c64f3febc6f7c8f34266c07fd119366',
+        size: 624340,
+        unpackedSize: 3068429,
         entryCount: 91,
       },
       install: { source: 'registry', release: 'registry' },
@@ -561,6 +565,34 @@ test('every npm pack lifecycle hook is rejected before npm can run', async () =>
       new RegExp(`forbidden npm pack lifecycle hooks: ${hook}`),
     );
   }
+});
+
+test('an exact reviewed lifecycle hook is admitted only with scripts disabled', () => {
+  const pkg = {
+    name: '@dexterai/fixture',
+    scripts: { prepack: 'npm run build && npm run typecheck' },
+  };
+  const reviewed = { prepack: 'npm run build && npm run typecheck' };
+  assert.deepEqual(
+    inspectPackLifecycleScripts(pkg, pkg.name, reviewed),
+    [],
+  );
+  assert.match(
+    inspectPackLifecycleScripts(
+      { ...pkg, scripts: { prepack: 'hostile-command' } },
+      pkg.name,
+      reviewed,
+    ).join('\n'),
+    /lifecycle hooks differ from the reviewed contract/,
+  );
+  assert.match(
+    inspectPackLifecycleScripts(
+      { ...pkg, scripts: undefined },
+      pkg.name,
+      reviewed,
+    ).join('\n'),
+    /lifecycle hooks differ from the reviewed contract/,
+  );
 });
 
 test('hostile prepare is rejected without executing its marker', async () => {

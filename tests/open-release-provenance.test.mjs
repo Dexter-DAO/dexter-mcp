@@ -155,7 +155,7 @@ function legacyFixture() {
     sourceCommit,
     sourceArchiveSha256: '6'.repeat(64),
     packageLockSha256: sha256(packageLock),
-    vaultVersion: '0.43.0',
+    vaultVersion: '0.43.2',
     nodeVersion: '22.19.0',
     npmVersion: '10.9.3',
     builtAt: '2026-07-31T14:06:26.549Z',

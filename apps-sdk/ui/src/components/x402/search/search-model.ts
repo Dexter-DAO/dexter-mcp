@@ -4,7 +4,7 @@ import type {
   SearchNoMatchReason,
   SearchRerankInfo,
   SearchResource,
-} from './types';
+} from './types.ts';
 
 export const SEARCH_WIDGET_BUILD = '2026-08-04.2';
 

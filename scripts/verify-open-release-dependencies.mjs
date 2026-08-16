@@ -234,19 +234,42 @@ export const NPM_PACK_LIFECYCLE_HOOKS = Object.freeze([
   'postpack',
 ]);
 
-export function inspectPackLifecycleScripts(pkg, packageName = pkg?.name) {
+export function inspectPackLifecycleScripts(
+  pkg,
+  packageName = pkg?.name,
+  reviewedScripts = {},
+) {
   const scripts = pkg?.scripts;
-  if (scripts === undefined) return [];
+  if (
+    !reviewedScripts
+    || typeof reviewedScripts !== 'object'
+    || Array.isArray(reviewedScripts)
+  ) {
+    return [`${packageName}: reviewed npm pack lifecycle contract is invalid`];
+  }
+  const reviewedHooks = Object.keys(reviewedScripts);
+  if (scripts === undefined) {
+    return reviewedHooks.length === 0
+      ? []
+      : [`${packageName}: npm pack lifecycle hooks differ from the reviewed contract`];
+  }
   if (!scripts || typeof scripts !== 'object' || Array.isArray(scripts)) {
     return [`${packageName}: package scripts must be an object`];
   }
   const hooks = NPM_PACK_LIFECYCLE_HOOKS.filter((hook) =>
     Object.prototype.hasOwnProperty.call(scripts, hook));
-  return hooks.length === 0
-    ? []
-    : [
-      `${packageName}: forbidden npm pack lifecycle hooks: ${hooks.join(', ')}`,
+  if (
+    reviewedHooks.some((hook) => !NPM_PACK_LIFECYCLE_HOOKS.includes(hook))
+    || hooks.length !== reviewedHooks.length
+    || hooks.some((hook) => scripts[hook] !== reviewedScripts[hook])
+  ) {
+    return [
+      reviewedHooks.length === 0
+        ? `${packageName}: forbidden npm pack lifecycle hooks: ${hooks.join(', ')}`
+        : `${packageName}: npm pack lifecycle hooks differ from the reviewed contract`,
     ];
+  }
+  return [];
 }
 
 function packageManagerVersion(packageManager) {
@@ -384,7 +407,11 @@ export async function inspectPackageSourcePreflight(
     issues.push(`${expected.name}: missing built ${expected.entrypoint}`);
   }
   if (expected.packedArtifact) {
-    issues.push(...inspectPackLifecycleScripts(pkg, expected.name));
+    issues.push(...inspectPackLifecycleScripts(
+      pkg,
+      expected.name,
+      expected.packedArtifact.packLifecycleScripts,
+    ));
     const buildScript = expected.packedArtifact.buildScript;
     if (
       typeof buildScript !== 'string'
@@ -571,6 +598,7 @@ export async function rebuildPackedSourceArtifact({
     const lifecycleIssues = inspectPackLifecycleScripts(
       archivedPackage,
       expected.name,
+      expected.packedArtifact.packLifecycleScripts,
     );
     if (lifecycleIssues.length > 0) {
       throw new Error(lifecycleIssues.join('; '));
@@ -690,6 +718,7 @@ export async function rebuildPackedSourceArtifact({
     const postBuildLifecycleIssues = inspectPackLifecycleScripts(
       builtPackage,
       expected.name,
+      expected.packedArtifact.packLifecycleScripts,
     );
     if (postBuildLifecycleIssues.length > 0) {
       throw new Error(
