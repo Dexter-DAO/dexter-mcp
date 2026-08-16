@@ -1491,11 +1491,7 @@ export async function preservedPrivateProcessSnapshot(
   }
   if (selected.length === 0) return null;
   const row = selected[0];
-  const runtime = livePm2RuntimeIdentity(
-    row,
-    'private Dexter',
-    { expectedPmId: 69 },
-  );
+  const runtime = livePm2RuntimeIdentity(row, 'private Dexter');
   const { pid } = runtime;
   const cwd = processField(row, 'pm_cwd') ?? null;
   const script = processField(row, 'pm_exec_path') ?? null;
