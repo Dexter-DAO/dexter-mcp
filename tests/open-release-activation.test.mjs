@@ -28,6 +28,7 @@ import {
 import {
   PRODUCTION_NODE_EXECUTABLE,
   PRODUCTION_PM2_EXECUTABLE,
+  samePm2ProcessSnapshot,
 } from '../lib/open-release-pm2-safety.mjs';
 
 const require = createRequire(import.meta.url);
@@ -766,13 +767,14 @@ test('kernel command line requires an exact script, not a substring match', asyn
   );
 });
 
-test('private runtime snapshot binds id69, PID, counters, definition, and kernel start time', async () => {
+test('private runtime snapshot binds its exact dynamic PM2 id, PID, counters, definition, and kernel start time', async () => {
   const row = pm2Row(
     'dexter-mcp',
     '/sealed/releases/private-runtime1',
     3206769,
     PRIVATE_ROSTER,
     3930,
+    { pmId: 65 },
   );
   row.pm2_env.pm_exec_path =
     '/sealed/releases/private-runtime1/http-server-oauth.mjs';
@@ -780,7 +782,7 @@ test('private runtime snapshot binds id69, PID, counters, definition, and kernel
     [row],
     fakeProc([row]),
   );
-  assert.equal(baseline.pmId, 69);
+  assert.equal(baseline.pmId, 65);
   assert.equal(baseline.pid, 3206769);
   assert.equal(baseline.restartTime, 0);
   assert.equal(baseline.unstableRestarts, 0);
@@ -792,8 +794,8 @@ test('private runtime snapshot binds id69, PID, counters, definition, and kernel
       delete candidate.pm2_env.pm_id;
     },
     (candidate) => {
-      candidate.pm_id = '69';
-      candidate.pm2_env.pm_id = '69';
+      candidate.pm_id = '65';
+      candidate.pm2_env.pm_id = '65';
     },
     (candidate) => {
       candidate.pm_id = Number.NaN;
@@ -821,6 +823,28 @@ test('private runtime snapshot binds id69, PID, counters, definition, and kernel
     fakeProc([changedCounter]),
   );
   assert.notDeepEqual(changedCounterSnapshot, baseline);
+
+  const changedPmId = structuredClone(row);
+  changedPmId.pm_id = 66;
+  changedPmId.pm2_env.pm_id = 66;
+  changedPmId.pm2_env.pm_err_log_path = resolve(
+    PRODUCTION_PM2_HOME,
+    'logs',
+    'dexter-mcp-error-66.log',
+  );
+  changedPmId.pm2_env.pm_out_log_path = resolve(
+    PRODUCTION_PM2_HOME,
+    'logs',
+    'dexter-mcp-out-66.log',
+  );
+  const changedPmIdSnapshot = await preservedPrivateProcessSnapshot(
+    [changedPmId],
+    fakeProc([changedPmId]),
+  );
+  assert.equal(
+    samePm2ProcessSnapshot(changedPmIdSnapshot, baseline),
+    false,
+  );
 
   const changedKernelSnapshot = await preservedPrivateProcessSnapshot(
     [row],
