@@ -2333,10 +2333,9 @@ export function createOpenMcpServer({
   // ─── Dextercard tools: REMOVED (owner ruling Jul 23; card-removal runbook,
   // opendexter-ide/docs/CARD-REMOVAL-RUNBOOK-2026-07-23.md). The card is a
   // wallet-widget concern now: x402_wallet carries the read-only card summary
-  // and the /widget/card/* frame-only rail handles reveal/freeze. Instructions
-  // render card-free via @dexterai/mcp-instructions@2.4.0 HOSTED_CAPS
-  // (hasCardTools:false) — reintroducing a card tool here without flipping the
-  // cap back on would trip assertInstructionRosterParity at boot.
+  // and the /widget/card/* frame-only path handles reveal/freeze. The hosted
+  // instructions and canonical tool contracts intentionally name no card
+  // tool; reintroducing one requires updating all three surfaces together.
 
   // ─── Widget Resource Registration (uses same system as authenticated MCP) ──
 
