@@ -1179,7 +1179,7 @@ async function x402Fetch(
 
 // ─── Tool: x402_access (wallet-proof auth) ──────────────────────────────────
 
-async function x402Access({ url, method, body, sessionToken, sessionKey, network }, extra) {
+async function x402Access({ url, method, body, network }, extra) {
   // The delegated backend must repeat this at connection time; this preflight
   // prevents obviously unsafe destinations from entering the access flow.
   await assertPublicExternalUrl(url);
@@ -1188,7 +1188,7 @@ async function x402Access({ url, method, body, sessionToken, sessionKey, network
     fetchOpts.body = typeof body === 'string' ? body : JSON.stringify(body);
   }
 
-  const sessionResolution = await resolveOrCreateSessionForWallet({ sessionToken, sessionKey }, extra);
+  const sessionResolution = await resolveOrCreateSessionForWallet(extra);
   if (sessionResolution.error) {
     return {
       ...sessionResolution.error,
@@ -2248,21 +2248,17 @@ export function createOpenMcpServer({
       url: z.string().url().describe('The protected resource URL to call'),
       method: z.enum(['GET', 'POST', 'PUT', 'DELETE']).default('GET').describe('HTTP method'),
       body: z.string().optional().describe('JSON request body for POST/PUT — the RAW payload the seller expects, e.g. {"q":"latest news"}. NEVER send a schema descriptor (anything shaped like {"type":"http","method":...,"bodyType":...,"body":{...}}) — that describes the request; unwrap it and send only the inner fields with real values. Field names come from the search result\'s inputSchema or x402_check.'),
-      sessionToken: z.string().optional().describe('Token for the legacy per-session access context this tool uses for wallet-proof auth. If omitted, a fresh access session starts automatically. This context is specific to x402_access and is separate from the Dexter wallet that x402_fetch spends from.'),
-      sessionKey: z.string().optional().describe('Optional stable key for reusing the same legacy access-session context across calls (for example, caller-hash on phone).'),
       network: z.string().optional().describe('Optional preferred auth network, e.g. solana:... or eip155:8453'),
     },
     _meta: ACCESS_META,
   }, async (args, extra) => {
     try {
       const result = await x402Access(args, extra);
-      const meta = { ...ACCESS_META };
       if (result.session?.sessionToken) {
-        meta.sessionToken = result.session.sessionToken;
         const { sessionToken: _drop, ...cleanSession } = result.session;
         result.session = cleanSession;
       }
-      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }], structuredContent: result, _meta: meta };
+      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }], structuredContent: result, _meta: ACCESS_META };
     } catch (err) {
       const data = { status: 500, error: err?.message || String(err) };
       return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }], structuredContent: data, isError: true, _meta: ACCESS_META };

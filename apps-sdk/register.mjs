@@ -129,7 +129,6 @@ export function buildWidgetCsp(
     redirectDomains.push(...EXPLORER_ORIGINS);
   } else if (templateUri === X402_WIDGET_URIS.pricing) {
     resourceDomains.push('https://api.dexter.cash');
-    redirectDomains.push(...EXPLORER_ORIGINS);
   } else if (templateUri === X402_WIDGET_URIS.wallet) {
     // The visible wallet uses short-lived _meta capabilities for refresh and
     // the same-origin card-summary frame rail. No card tool is exposed.

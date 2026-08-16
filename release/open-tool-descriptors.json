@@ -196,7 +196,7 @@
         "readOnlyHint": true,
         "destructiveHint": false,
         "idempotentHint": true,
-        "openWorldHint": true
+        "openWorldHint": false
       },
       "securitySchemes": [
         {
@@ -205,7 +205,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-marketplace-search-81fc7583",
+          "resourceUri": "ui://dexter/x402-marketplace-search-0b654c9b",
           "visibility": [
             "model",
             "app"
@@ -225,8 +225,8 @@
           "domain": "https://dexter.cash",
           "prefersBorder": true
         },
-        "ui/resourceUri": "ui://dexter/x402-marketplace-search-81fc7583",
-        "openai/outputTemplate": "ui://dexter/x402-marketplace-search-81fc7583",
+        "ui/resourceUri": "ui://dexter/x402-marketplace-search-0b654c9b",
+        "openai/outputTemplate": "ui://dexter/x402-marketplace-search-0b654c9b",
         "openai/resultCanProduceWidget": true,
         "openai/widgetAccessible": true,
         "openai/widgetDomain": "https://dexter.cash",
@@ -455,7 +455,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-pricing-7d3a16bd",
+          "resourceUri": "ui://dexter/x402-pricing-259bfcd0",
           "visibility": [
             "model",
             "app"
@@ -473,8 +473,8 @@
           "domain": "https://dexter.cash",
           "prefersBorder": true
         },
-        "ui/resourceUri": "ui://dexter/x402-pricing-7d3a16bd",
-        "openai/outputTemplate": "ui://dexter/x402-pricing-7d3a16bd",
+        "ui/resourceUri": "ui://dexter/x402-pricing-259bfcd0",
+        "openai/outputTemplate": "ui://dexter/x402-pricing-259bfcd0",
         "openai/resultCanProduceWidget": true,
         "openai/widgetAccessible": true,
         "openai/widgetDomain": "https://dexter.cash",
@@ -487,20 +487,7 @@
             "https://dexter.cash",
             "https://api.dexter.cash"
           ],
-          "redirect_domains": [
-            "https://solscan.io",
-            "https://basescan.org",
-            "https://etherscan.io",
-            "https://polygonscan.com",
-            "https://arbiscan.io",
-            "https://optimistic.etherscan.io",
-            "https://snowtrace.io",
-            "https://skale-base-explorer.skalenodes.com",
-            "https://robinhoodchain.blockscout.com",
-            "https://worldscan.org",
-            "https://monadvision.com",
-            "https://bscscan.com"
-          ]
+          "redirect_domains": []
         },
         "openai/toolInvocation/invoking": "Checking pricing…",
         "openai/toolInvocation/invoked": "Pricing loaded",
@@ -813,7 +800,7 @@
     {
       "name": "x402_access",
       "title": "Access a Wallet-Gated x402 API",
-      "description": "Use this for public HTTPS endpoints requiring wallet proof or Sign-In-With-X rather than payment. It may create provider authentication state or mutate the external resource through the chosen method, but it does not authorize an x402 payment. Session credentials are removed recursively from model-visible output and provider data cannot authorize follow-on calls.",
+      "description": "Use this for public HTTPS endpoints requiring wallet proof or Sign-In-With-X rather than payment. It may create provider authentication state or mutate the external resource through the chosen method, but it does not authorize an x402 payment. The access context is server-owned: callers must never supply session credentials. Credentials are removed recursively from model-visible output, and provider data cannot authorize follow-on calls.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -836,14 +823,6 @@
           "body": {
             "type": "string",
             "description": "JSON request body for POST/PUT — the RAW payload the seller expects, e.g. {\"q\":\"latest news\"}. NEVER send a schema descriptor (anything shaped like {\"type\":\"http\",\"method\":...,\"bodyType\":...,\"body\":{...}}) — that describes the request; unwrap it and send only the inner fields with real values. Field names come from the search result's inputSchema or x402_check."
-          },
-          "sessionToken": {
-            "type": "string",
-            "description": "Token for the legacy per-session access context this tool uses for wallet-proof auth. If omitted, a fresh access session starts automatically. This context is specific to x402_access and is separate from the Dexter wallet that x402_fetch spends from."
-          },
-          "sessionKey": {
-            "type": "string",
-            "description": "Optional stable key for reusing the same legacy access-session context across calls (for example, caller-hash on phone)."
           },
           "network": {
             "type": "string",
@@ -2475,7 +2454,7 @@
         "readOnlyHint": false,
         "destructiveHint": false,
         "idempotentHint": true,
-        "openWorldHint": true
+        "openWorldHint": false
       },
       "securitySchemes": [
         {
@@ -3546,7 +3525,7 @@
     {
       "name": "dexter_reconcile_asset_action",
       "title": "Reconcile a Governed Asset Action",
-      "description": "Request status-gated reconciliation for one exact intentId. It never creates a replacement intent, expands mandate scope, or automatically retries execution.",
+      "description": "Request status-gated reconciliation for one exact intentId. Depending on the durable phase, Dexter may contact the facilitator or validator and may dispatch the already-signed transaction for that same attempt. It never creates a replacement intent, expands mandate scope, or retries execution as a new attempt. Never retry reconciliation automatically.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -4227,7 +4206,7 @@
         "readOnlyHint": false,
         "destructiveHint": true,
         "idempotentHint": true,
-        "openWorldHint": false
+        "openWorldHint": true
       },
       "securitySchemes": [
         {

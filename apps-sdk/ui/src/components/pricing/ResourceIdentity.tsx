@@ -1,5 +1,7 @@
+import { useMemo, useState } from 'react';
 import type { EnrichedResource } from './types';
 import { formatHitCount } from './types';
+import { providerImageSources } from '../x402/providerImage';
 
 interface Props {
   resource: EnrichedResource | null;
@@ -28,7 +30,17 @@ export function ResourceIdentity({ resource, fallbackUrl, resourceRef }: Props) 
     descriptionFrom(resourceRef) ||
     'Unknown endpoint';
   const meta = buildMetaLine(resource, refUrl);
-  const icon = resource?.icon_url || null;
+  const sources = useMemo(() => providerImageSources({
+    iconUrl: resource?.icon_url,
+    resourceUrl: resource?.resource_url || refUrl,
+  }), [resource?.icon_url, resource?.resource_url, refUrl]);
+  const sourceKey = sources.join('\n');
+  const [loadState, setLoadState] = useState({
+    sourceKey: '',
+    attempt: 0,
+  });
+  const attempt = loadState.sourceKey === sourceKey ? loadState.attempt : 0;
+  const icon = sources[attempt] || null;
 
   return (
     <div className="dx-pricing__identity">
@@ -42,6 +54,15 @@ export function ResourceIdentity({ resource, fallbackUrl, resourceRef }: Props) 
             className="dx-pricing__identity-icon-img"
             aria-hidden
             loading="lazy"
+            onError={() => {
+              setLoadState((current) => ({
+                sourceKey,
+                attempt:
+                  current.sourceKey === sourceKey
+                    ? current.attempt + 1
+                    : 1,
+              }));
+            }}
           />
         ) : (
           <div className="dx-pricing__identity-icon-placeholder" aria-hidden />

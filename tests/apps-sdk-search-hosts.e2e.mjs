@@ -14,15 +14,21 @@ const UI_ROOT = path.join(REPO_ROOT, 'apps-sdk', 'ui');
 const FIXED_NOW = '2026-07-25T12:34:00.000Z';
 const SCREENSHOT_DIR = '/tmp/dexter-search-host-harness';
 
-const ICON_DATA_URL = [
-  'data:image/svg+xml,',
-  encodeURIComponent(
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 44 44">'
-      + '<rect width="44" height="44" rx="12" fill="#f2681a"/>'
-      + '<circle cx="22" cy="22" r="8" fill="#fffdf9"/>'
-      + '</svg>',
-  ),
-].join('');
+const ATLAS_ICON_URL = 'https://icons.fixture.example/atlas.svg';
+const BEACON_ICON_URL = 'https://icons.fixture.example/beacon.svg';
+const BROKEN_ICON_URL = 'https://broken-provider.fixture/icon.svg';
+const BROKEN_LOGO_URL = 'https://broken-provider.fixture/logo.svg';
+const BROKEN_RESOURCE_URL = 'https://broken-provider.fixture/resource';
+const proxiedIconUrl = (url) =>
+  `https://api.dexter.cash/api/img?url=${encodeURIComponent(url)}`;
+const faviconUrl = (url) =>
+  `https://dexter.cash/api/favicon?domain=${encodeURIComponent(new URL(url).hostname)}`;
+const FIXED_WIDGET_IMAGE_URLS = new Set([
+  'https://dexter.cash/assets/chains/base.svg',
+  'https://dexter.cash/assets/chains/solana.svg',
+  'https://dexter.cash/wordmarks/dexter-wordmark.svg',
+  'https://x402gle.com/x-final-transparent.png',
+]);
 
 const SEARCH_OUTPUT = {
   success: true,
@@ -54,7 +60,7 @@ const SEARCH_OUTPUT = {
       qualityScore: 97,
       verified: true,
       totalCalls: 2401,
-      iconUrl: ICON_DATA_URL,
+      iconUrl: ATLAS_ICON_URL,
       seller: 'Atlas Labs',
       sellerMeta: {
         payTo: '0xatlas',
@@ -108,7 +114,7 @@ const SEARCH_OUTPUT = {
       qualityScore: 93,
       verified: true,
       totalCalls: 1904,
-      iconUrl: ICON_DATA_URL,
+      iconUrl: BEACON_ICON_URL,
       seller: 'Beacon Systems',
       sellerMeta: {
         payTo: '0xbeacon',
@@ -236,6 +242,21 @@ const EXACT_GET_CHECK_TOOL_RESULT = {
       method: 'GET',
       body: null,
       requestBound: true,
+    },
+    enrichment: {
+      resource: {
+        resource_url: 'https://fixture.example/atlas',
+        host: 'fixture.example',
+        display_name: 'Atlas Price Feed',
+        description: 'Fast market snapshots with source timestamps.',
+        category: 'market-data',
+        icon_url: ATLAS_ICON_URL,
+      },
+      history: {
+        count: 0,
+        recent: [],
+        summary: null,
+      },
     },
   },
   content: [
@@ -1118,7 +1139,39 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
       }
 
       if (route.request().resourceType() === 'image') {
+        const isDexterImageProxy =
+          requestUrl.origin === 'https://api.dexter.cash'
+          && requestUrl.pathname === '/api/img';
+        const isDexterFaviconProxy =
+          requestUrl.origin === 'https://dexter.cash'
+          && requestUrl.pathname === '/api/favicon';
+        const isFixedWidgetImage = FIXED_WIDGET_IMAGE_URLS.has(
+          route.request().url(),
+        );
+        if (
+          !isDexterImageProxy
+          && !isDexterFaviconProxy
+          && !isFixedWidgetImage
+        ) {
+          unexpectedExternalRequests.push(route.request().url());
+          await route.abort('blockedbyclient');
+          return;
+        }
         interceptedExternalImages.push(route.request().url());
+        const proxiedProviderUrl = isDexterImageProxy
+          ? requestUrl.searchParams.get('url')
+          : null;
+        const faviconDomain = isDexterFaviconProxy
+          ? requestUrl.searchParams.get('domain')
+          : null;
+        if (
+          proxiedProviderUrl === BROKEN_ICON_URL
+          || proxiedProviderUrl === BROKEN_LOGO_URL
+          || faviconDomain === new URL(BROKEN_RESOURCE_URL).hostname
+        ) {
+          await route.fulfill({ status: 404, body: '' });
+          return;
+        }
         await route.fulfill({
           status: 200,
           contentType: 'image/svg+xml',
@@ -1311,6 +1364,13 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
         allowDisplayMode: false,
       });
       await page.goto(pricingWidgetUrl);
+
+      const pricingIcon = page.locator('.dx-pricing__identity-icon-img');
+      await pricingIcon.waitFor();
+      assert.equal(
+        await pricingIcon.getAttribute('src'),
+        proxiedIconUrl(ATLAS_ICON_URL),
+      );
 
       const continueButton = page.getByRole(
         'button',
@@ -1539,7 +1599,9 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
 
     await t.test('service icon fallback resets when the hero changes', async () => {
       const iconOutput = structuredClone(SEARCH_OUTPUT);
-      iconOutput.strongResults[0].iconUrl = 'data:image/png;base64,invalid';
+      iconOutput.strongResults[0].iconUrl = BROKEN_ICON_URL;
+      iconOutput.strongResults[0].sellerMeta.logoUrl = BROKEN_LOGO_URL;
+      iconOutput.strongResults[0].url = BROKEN_RESOURCE_URL;
 
       const page = await context.newPage();
       await page.addInitScript(installChatGptHost, {
@@ -1552,12 +1614,25 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
       await page.locator(
         '.dx-search-brief__identity .dx-search-identity__unsigned',
       ).waitFor();
+      for (const expectedFailure of [
+        proxiedIconUrl(BROKEN_ICON_URL),
+        proxiedIconUrl(BROKEN_LOGO_URL),
+        faviconUrl(BROKEN_RESOURCE_URL),
+      ]) {
+        assert.ok(
+          interceptedExternalImages.includes(expectedFailure),
+          `Expected fallback attempt ${expectedFailure}`,
+        );
+      }
       await page.getByRole('button', { name: /Beacon Price Feed/ }).click();
       const heroIcon = page.locator(
         '.dx-search-brief__identity .dx-search-identity__img',
       );
       await heroIcon.waitFor();
-      assert.equal(await heroIcon.getAttribute('src'), ICON_DATA_URL);
+      assert.equal(
+        await heroIcon.getAttribute('src'),
+        proxiedIconUrl(BEACON_ICON_URL),
+      );
       await page.close();
     });
 
@@ -1672,6 +1747,17 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
     assert.ok(
       interceptedExternalImages.every((url) => /^https?:\/\//.test(url)),
       'Remote image references must be satisfied by deterministic in-memory fixtures',
+    );
+    assert.equal(
+      interceptedExternalImages.some((url) =>
+        new URL(url).hostname === 'icons.fixture.example'),
+      false,
+      'Widgets must never request arbitrary provider images directly',
+    );
+    assert.ok(
+      interceptedExternalImages.some((url) =>
+        url === proxiedIconUrl(ATLAS_ICON_URL)),
+      'Provider images must pass through the Dexter image proxy',
     );
     assert.deepEqual(
       unexpectedExternalRequests,

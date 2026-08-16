@@ -1,22 +1,22 @@
 import { useMemo, useState } from 'react';
 import type { SearchResource } from './types';
-import { resourceIconUrl } from './utils';
+import { providerImageSources } from '../providerImage';
 
 /**
- * Identity icon: tries the resource's own icon → seller logo → favicon proxy
- * → a quiet geometric "unsigned" mark. No letter bubbles. Letter fallbacks
+ * Identity icon: tries Dexter-proxied provider art → Dexter favicon proxy →
+ * a quiet geometric "unsigned" mark. No arbitrary provider URL is requested
+ * by the browser. No letter bubbles. Letter fallbacks
  * read as tacky contacts-app filler; a small geometric glyph reads as
  * "we don't have art for this seller yet" without making each row look
  * like a different brand entirely.
  */
 export function SearchIdentityIcon({ resource, size = 44 }: { resource: SearchResource; size?: number }) {
   const sources = useMemo(() => {
-    const list: string[] = [];
-    if (resource.iconUrl) list.push(resource.iconUrl);
-    if (resource.sellerMeta?.logoUrl) list.push(resource.sellerMeta.logoUrl);
-    const proxied = resourceIconUrl(resource);
-    if (proxied && !list.includes(proxied)) list.push(proxied);
-    return list;
+    return providerImageSources({
+      iconUrl: resource.iconUrl,
+      logoUrl: resource.sellerMeta?.logoUrl,
+      resourceUrl: resource.url,
+    });
   }, [resource]);
 
   const sourceKey = sources.join('\n');

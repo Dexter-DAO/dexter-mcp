@@ -208,6 +208,7 @@ test('operation identity never substitutes for authority or owner approval', () 
   });
   const prepare = GOVERNED_ASSET_TOOL_CONTRACTS.dexter_prepare_asset_action.description;
   const execute = GOVERNED_ASSET_TOOL_CONTRACTS.dexter_execute_asset_action.description;
+  const reconcile = GOVERNED_ASSET_TOOL_CONTRACTS.dexter_reconcile_asset_action.description;
   assert.match(prepare, /Idempotency-Key/);
   assert.match(prepare, /canonical assetId returned by dexter_portfolio/);
   assert.match(prepare, /approved holding or approvedActionTarget/);
@@ -220,4 +221,8 @@ test('operation identity never substitutes for authority or owner approval', () 
   assert.match(execute, /covered by the bound reusable mandate may execute autonomously/);
   assert.match(execute, /Never call Execute after protected_agent_send_sdk_required/);
   assert.match(execute, /Never retry automatically/);
+  assert.match(reconcile, /contact the facilitator or validator/);
+  assert.match(reconcile, /dispatch the already-signed transaction/);
+  assert.match(reconcile, /same attempt/);
+  assert.match(reconcile, /Never retry reconciliation automatically/);
 });

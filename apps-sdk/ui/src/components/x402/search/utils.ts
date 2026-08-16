@@ -1,4 +1,5 @@
 import type { SearchResource } from './types';
+import { providerImageSources } from '../providerImage';
 
 export function formatCompactNumber(value: number | null | undefined): string {
   if (value == null || Number.isNaN(value)) return '0';
@@ -26,13 +27,11 @@ export function hostLabel(url: string): string {
 }
 
 export function resourceIconUrl(resource: SearchResource): string {
-  if (resource.iconUrl) return resource.iconUrl;
-  try {
-    const hostname = new URL(resource.url).hostname;
-    return `https://dexter.cash/api/favicon?domain=${encodeURIComponent(hostname)}`;
-  } catch {
-    return resource.sellerMeta.logoUrl || '';
-  }
+  return providerImageSources({
+    iconUrl: resource.iconUrl,
+    logoUrl: resource.sellerMeta?.logoUrl,
+    resourceUrl: resource.url,
+  })[0] || '';
 }
 
 export function formatListedPrice(
