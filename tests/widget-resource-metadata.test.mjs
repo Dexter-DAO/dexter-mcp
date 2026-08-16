@@ -93,6 +93,19 @@ test('resource profiles grant only widget-specific network capabilities', () => 
   assert.ok(search.resource_domains.includes('https://x402gle.com'));
   assert.ok(!search.resource_domains.includes('https://api.qrserver.com'));
 
+  const pricing = buildWidgetCsp(
+    'https://dexter.cash/assets',
+    X402_WIDGET_URIS.pricing,
+  );
+  assert.ok(pricing.resource_domains.includes('https://api.dexter.cash'));
+  assert.deepEqual(pricing.redirect_domains, []);
+
+  const receipt = buildWidgetCsp(
+    'https://dexter.cash/assets',
+    X402_WIDGET_URIS.fetch,
+  );
+  assert.ok(receipt.redirect_domains.includes('https://solscan.io'));
+
   const wallet = buildWidgetCsp('https://dexter.cash/assets', X402_WIDGET_URIS.wallet);
   assert.ok(wallet.connect_domains.includes('https://open.dexter.cash'));
   assert.ok(wallet.resource_domains.includes('https://open.dexter.cash'));

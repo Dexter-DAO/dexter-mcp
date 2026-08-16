@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
@@ -573,7 +574,12 @@ test('both supported registration APIs close after finalization', () => {
 });
 
 test('behavior annotations reflect the canonical twelve operations', () => {
-  assert.equal(OPEN_TOOL_CONTRACTS.x402_search.annotations.readOnlyHint, true);
+  assert.deepEqual(OPEN_TOOL_CONTRACTS.x402_search.annotations, {
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  });
   assert.equal(OPEN_TOOL_CONTRACTS.x402_wallet.annotations.readOnlyHint, false);
   assert.equal(OPEN_TOOL_CONTRACTS.x402_wallet.annotations.idempotentHint, false);
   assert.equal(OPEN_TOOL_CONTRACTS.dexter_portfolio.annotations.readOnlyHint, true);
@@ -591,7 +597,7 @@ test('behavior annotations reflect the canonical twelve operations', () => {
       readOnlyHint: false,
       destructiveHint: false,
       idempotentHint: true,
-      openWorldHint: true,
+      openWorldHint: false,
     },
   );
   assert.equal(
@@ -612,8 +618,39 @@ test('behavior annotations reflect the canonical twelve operations', () => {
       readOnlyHint: false,
       destructiveHint: true,
       idempotentHint: true,
-      openWorldHint: false,
+      openWorldHint: true,
     },
+  );
+});
+
+test('x402_access exposes no caller credential input or metadata side channel', () => {
+  const serverSource = readFileSync(
+    new URL('../open-mcp-server.mjs', import.meta.url),
+    'utf8',
+  );
+  const registrationStart = serverSource.indexOf(
+    "registerOpenTool(server, 'x402_access'",
+  );
+  const registrationEnd = serverSource.indexOf(
+    "registerOpenTool(server, 'x402_wallet'",
+    registrationStart,
+  );
+  assert.ok(registrationStart >= 0);
+  assert.ok(registrationEnd > registrationStart);
+  const accessRegistration = serverSource.slice(
+    registrationStart,
+    registrationEnd,
+  );
+
+  assert.doesNotMatch(accessRegistration, /sessionKey\s*:/);
+  assert.doesNotMatch(accessRegistration, /meta\.sessionToken\s*=/);
+  assert.match(
+    OPEN_TOOL_CONTRACTS.x402_access.description,
+    /access context is server-owned/i,
+  );
+  assert.match(
+    OPEN_TOOL_CONTRACTS.x402_access.description,
+    /must never supply session credentials/i,
   );
 });
 

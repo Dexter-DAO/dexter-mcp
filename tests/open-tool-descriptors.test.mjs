@@ -510,6 +510,35 @@ test('source materializer emits one deterministic full hosted descriptor', async
   }
 
   const search = descriptor.tools.find(({ name }) => name === 'x402_search');
+  const access = descriptor.tools.find(({ name }) => name === 'x402_access');
+  const prepare = descriptor.tools.find(
+    ({ name }) => name === 'dexter_prepare_asset_action',
+  );
+  const reconcile = descriptor.tools.find(
+    ({ name }) => name === 'dexter_reconcile_asset_action',
+  );
+  assert.deepEqual(search.annotations, {
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  });
+  assert.deepEqual(prepare.annotations, {
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  });
+  assert.deepEqual(reconcile.annotations, {
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint: true,
+    openWorldHint: true,
+  });
+  assert.deepEqual(
+    Object.keys(access.inputSchema.properties).sort(),
+    ['body', 'method', 'network', 'url'],
+  );
   assert.equal(search._meta['ui/resourceUri'], search._meta.ui.resourceUri);
   assert.equal(search._meta['openai/outputTemplate'], search._meta.ui.resourceUri);
   assert.equal(search._meta['openai/widgetDomain'], search._meta.ui.domain);
