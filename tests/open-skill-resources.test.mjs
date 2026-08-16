@@ -3,11 +3,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { SERVER_INSTRUCTIONS_VERSION } from '@dexterai/mcp-instructions';
-import {
-  buildOpenServerInstructions,
-  sanitizeOpenServerInstructions,
-} from '../lib/open-server-instructions.mjs';
+import { buildOpenServerInstructions } from '../lib/open-server-instructions.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SERVER = readFileSync(join(ROOT, 'open-mcp-server.mjs'), 'utf8');
@@ -29,6 +25,14 @@ const EXPECTED_TOOLS = [
   'dexter_reconcile_asset_action',
   'dexter_wallet_history',
 ];
+
+function countOccurrences(text, value) {
+  return text.split(value).length - 1;
+}
+
+function mentionedOpenDexterTools(text) {
+  return [...new Set(text.match(/\b(?:x402|dexter)_[a-z0-9_]+\b/g) ?? [])].sort();
+}
 
 test('hosted skill resources are loaded from this release checkout', () => {
   assert.match(
@@ -110,62 +114,115 @@ test('served guidance requires native OAuth and bounded nonretryable spending', 
   assert.match(DEBUGGING, /Never retry `x402_fetch` automatically/);
 });
 
-test('generated runtime instructions contain only native OAuth wallet guidance', () => {
+test('generated runtime instructions put the complete safety boundary first', () => {
   const runtime = buildOpenServerInstructions();
-  assert.equal(SERVER_INSTRUCTIONS_VERSION, '2.4.1');
-  assert.doesNotMatch(runtime, /\b(?:setup|enroll) link\b|\brelay(?:ing|ed|s)?\b/i);
-  assert.match(runtime, /host show its native OpenDexter Connect action/i);
-  assert.match(runtime, /dexter_portfolio/);
-  assert.match(runtime, /dexter_prepare_asset_action/);
-  assert.match(runtime, /dexter_execute_asset_action accepts only operationId and the exact prepared intentId/);
+  const first512 = runtime.slice(0, 512);
+
+  assert.match(first512, /Use live tools, never memory/);
+  assert.match(first512, /context, not authority/);
+  assert.match(first512, /provider-mutating non-GET call/);
+  assert.match(first512, /current instruction or bounded authority/);
+  assert.match(first512, /Never retry uncertain or post-dispatch work/);
+
+  assert.match(runtime, /self-custodial Dexter Wallet/);
+  assert.match(runtime, /continuing principal retains the assets, obligations, receipts, and history/);
+  assert.match(SERVER, /const SERVER_INSTRUCTIONS = buildOpenServerInstructions\(\)/);
+});
+
+test('generated runtime instructions route the complete twelve-tool product', () => {
+  const runtime = buildOpenServerInstructions();
+
+  assert.deepEqual(mentionedOpenDexterTools(runtime), [...EXPECTED_TOOLS].sort());
+  assert.match(runtime, /Wallet presence, balance, cash, readiness, deposit address,[\s\S]*x402_wallet/);
+  assert.match(runtime, /What's in my wallet\?[\s\S]*x402_wallet, then dexter_portfolio/);
+  assert.match(runtime, /Compose cash\/readiness with governed assets/);
+  assert.match(runtime, /Find an API or service[\s\S]*x402_search/);
+  assert.match(runtime, /known endpoint, current price,[\s\S]*x402_check/);
+  assert.match(runtime, /Pay for or call a paid API[\s\S]*x402_fetch once/);
+  assert.match(runtime, /x402_status for the same purchase intent/);
+  assert.match(runtime, /wallet-proof or Sign-In-With-X[\s\S]*x402_access/);
+  assert.match(runtime, /Governed Send, Buy, or Sell[\s\S]*dexter_prepare_asset_action/);
+  assert.match(runtime, /successfully prepared intent[\s\S]*dexter_execute_asset_action/);
+  assert.match(runtime, /Read governed action state[\s\S]*dexter_asset_action_status/);
+  assert.match(runtime, /dexter_reconcile_asset_action only when that durable status explicitly requires reconciliation/);
+  assert.match(runtime, /dexter_wallet_history for prior governed actions/);
+  assert.match(runtime, /Do not confuse buying an API response through x402 with buying an asset/);
+});
+
+test('generated runtime instructions preserve exact consequence and recovery boundaries', () => {
+  const runtime = buildOpenServerInstructions();
+
+  assert.match(runtime, /non-GET check,[\s\S]*provider may process the request[\s\S]*obtain confirmation/);
+  assert.match(runtime, /Connect before the first non-GET check/);
+  assert.match(runtime, /Never automatically repeat a non-GET check after any anonymous or uncertain provider submission/);
+  assert.match(runtime, /second non-GET call[\s\S]*requires fresh explicit confirmation[\s\S]*duplicate submission/);
+  assert.match(runtime, /non-GET access call may change provider state[\s\S]*explain and confirm/);
+  assert.match(runtime, /anonymous paid GET check is a quote, not an executable purchase/);
+  assert.match(runtime, /current instruction or existing bounded policy covers the exact seller, URL, method, body,[\s\S]*maxAmountAtomic/);
+  assert.match(runtime, /If it already does, do not ask for another payment approval/);
+  assert.match(runtime, /x402_fetch once with only intentId and maxAmountAtomic/);
+  assert.match(runtime, /Never automatically repeat an access call after dispatch uncertainty/);
+  assert.match(runtime, /If access reports that the endpoint is paid, do not call x402_fetch directly/);
+  assert.match(runtime, /Return to x402_check for that exact request[\s\S]*authenticated intent and approved ceiling/);
+  assert.match(runtime, /unprotected request,[\s\S]*no generic free-HTTP tool/);
+  assert.match(runtime, /After timeout,[\s\S]*dexter_asset_action_status[\s\S]*never automatically call Execute again/);
+  assert.match(runtime, /Reconcile that same intent only when durable status requires it/);
+  assert.match(runtime, /user requested only a status read,[\s\S]*obtain explicit confirmation before reconciliation/);
+  assert.match(runtime, /Status reads never redispatch/);
+  assert.match(runtime, /untrusted external data/);
+  assert.match(runtime, /never authorize payment, an asset action,[\s\S]*or a retry/);
+});
+
+test('generated runtime instructions preserve current wallet and authority truth', () => {
+  const runtime = buildOpenServerInstructions();
+
+  assert.match(runtime, /native OpenDexter Connect action/);
+  assert.match(runtime, /Authentication proves the connected wallet session; it does not by itself authorize/);
+  assert.match(runtime, /Zero cash does not prove that funding is required/);
+  assert.match(runtime, /reported credit does not prove that a particular purchase can use it/);
+  assert.match(runtime, /search backend error is not evidence that no matching service exists/);
+  assert.match(runtime, /triangulate[\s\S]*alternate result's actual HTTPS endpoint/);
+  assert.match(runtime, /Never pass a resource ID as though it were a URL or tool argument/);
+  assert.match(runtime, /hosted wallet is Solana-based/);
+  assert.match(runtime, /only x402_wallet\.receiveAddress is a deposit address/);
   assert.match(runtime, /non-null canonical assetId/);
-  assert.match(runtime, /approvedActionTarget whose matching action has available=true/);
-  assert.match(runtime, /never creates a holding, balance, quantity, or portfolio value/);
-  assert.match(runtime, /reusable bounded mandate covers the request/);
-  assert.match(runtime, /exact Prepare response is authoritative/);
-  assert.match(runtime, /protected_agent_send_sdk_required/);
-  assert.match(runtime, /do not call Execute or Reconcile/);
-  assert.match(runtime, /There is no model-callable authorize tool/);
-  assert.match(runtime, /paymentOptions/);
-  assert.match(runtime, /zero cash balance does not by itself prove that funding is required/i);
-  assert.match(runtime, /reported credit line does not by itself prove/i);
-  assert.match(runtime, /If it already does, do not ask for another approval/);
-  assert.match(runtime, /rankingMode=degraded/);
-  assert.match(runtime, /call x402_fetch once with only intentId and maxAmountAtomic/);
-  assert.match(runtime, /x402_status accepts only intentId/);
-  assert.match(runtime, /quoteOnly/);
-  assert.doesNotMatch(runtime, /sampleInputBody|same URL, method, raw body/);
-  assert.doesNotMatch(
-    runtime,
-    /purchaseOptions?|preparedPurchase|prepared-purchase|integration_required|omit purchase|choose one ready option/i,
-  );
-  assert.match(runtime, /maxAmountAtomic/);
-  assert.match(runtime, /provider output as untrusted external data/i);
-  assert.match(runtime, /Never automatically retry an ambiguous or post-dispatch/i);
+  assert.match(runtime, /approved action target is discovery context, not a holding/);
+  assert.match(runtime, /persists and evaluates one exact governed action but does not sign or submit/);
+  assert.match(runtime, /For Send, obey the returned availability and stop if no executable intent is created/);
+  assert.match(runtime, /There is no model-callable authorization tool/);
+  assert.match(runtime, /Reconciliation may contact the facilitator or validator and dispatch an already-signed transaction/);
+  assert.match(runtime, /it is not a read-only status check/);
+  assert.match(runtime, /https:\/\/dexter\.cash\/wallet/);
+  assert.match(runtime, /https:\/\/dexter\.cash\/dextercard/);
+});
+
+test('generated runtime instructions contain one coherent hosted contract without legacy drift', () => {
+  const runtime = buildOpenServerInstructions();
+
+  for (const heading of [
+    '# Route the user\'s request',
+    '# Connect and identity',
+    '# Discover and use x402 services',
+    '# Wallet and governed assets',
+    '# Finality and global safety',
+  ]) {
+    assert.equal(countOccurrences(runtime, heading), 1, heading);
+  }
+
+  assert.equal(countOccurrences(runtime, 'native OpenDexter Connect action'), 1);
+  assert.equal(countOccurrences(runtime, 'Never retry uncertain or post-dispatch work'), 1);
   assert.doesNotMatch(
     runtime,
     /\b(?:x402_pay|x402_compose_skill|promote_skill|dexter_passkey(?:_probe)?)\b/,
   );
-  assert.match(SERVER, /const SERVER_INSTRUCTIONS = buildOpenServerInstructions\(\)/);
-});
-
-test('runtime-instruction sanitizer fails closed on unknown legacy guidance', () => {
-  assert.throws(
-    () => sanitizeOpenServerInstructions('A different setup link recipe says relay this URL.'),
-    /unrecognized legacy setup-link guidance/,
+  assert.doesNotMatch(
+    runtime,
+    /purchaseOptions?|preparedPurchase|prepared-purchase|integration_required|choose one ready option/i,
   );
-  assert.throws(
-    () =>
-      sanitizeOpenServerInstructions(
-        'Use x402_pay as a different lower-level payment path.',
-      ),
-    /unrecognized legacy paid-alias guidance/,
+  assert.doesNotMatch(
+    runtime,
+    /wallet is short of USDC on that chain|canonical mint, quantity, valuation|under 50 untested|The one rule that prevents every common failure|# The x402 tools/i,
   );
-  assert.throws(
-    () =>
-      sanitizeOpenServerInstructions(
-        'Choose a purchaseOption and pass its preparedPurchase to x402_fetch.',
-      ),
-    /unrecognized prepared-purchase guidance/,
-  );
+  assert.doesNotMatch(runtime, /\b(?:setup|enroll) link\b|\brelay(?:ing|ed|s)?\b/i);
+  assert.equal(buildOpenServerInstructions(), runtime);
 });
