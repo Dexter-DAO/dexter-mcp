@@ -53,21 +53,29 @@ function normalizeWalletPayload(toolOutput, widgetPortfolio) {
   };
   const sp = raw.spendingPower && typeof raw.spendingPower === "object" ? raw.spendingPower : null;
   const cr = raw.credit && typeof raw.credit === "object" ? raw.credit : null;
+  const readiness = raw.paymentReadiness && typeof raw.paymentReadiness === "object" ? raw.paymentReadiness : null;
   const ea = raw.earning && typeof raw.earning === "object" ? raw.earning : null;
   const cashUsd = sp ? atomicToUsd(sp.cashAtomic) : typeof explicitUsdc === "number" ? explicitUsdc : 0;
-  const creditAvailableUsd = cr ? atomicToUsd(cr.availableAtomic) : sp ? atomicToUsd(sp.creditAvailableAtomic) : 0;
-  const spendableUsd = sp && typeof sp.totalUsd === "number" ? sp.totalUsd : cashUsd + creditAvailableUsd;
+  const reportedCreditReadStatus = cr?.readStatus === "available" || cr?.readStatus === "not_open" || cr?.readStatus === "unavailable" ? cr.readStatus : null;
+  const creditReadStatus = reportedCreditReadStatus ?? (cr ? "available" : "not_open");
+  const creditAvailableUsd = creditReadStatus === "available" ? cr ? atomicToUsd(cr.availableAtomic) : sp ? atomicToUsd(sp.creditAvailableAtomic) : 0 : 0;
+  const accountCapacityUsd = sp && typeof sp.totalUsd === "number" ? sp.totalUsd : cashUsd + creditAvailableUsd;
+  const readinessValue = readiness?.status;
+  const paymentReadinessStatus = readinessValue === "cash_available" || readinessValue === "credit_capacity_reported" || readinessValue === "funding_required" || readinessValue === "unknown" ? readinessValue : cashUsd > 0 ? "cash_available" : creditAvailableUsd > 0 ? "credit_capacity_reported" : creditReadStatus === "unavailable" ? "unknown" : "funding_required";
   const isEarning = ea ? Boolean(ea.isEarning) : false;
   const atWorkUsd = ea ? atomicToUsd(ea.baseAtomic) : 0;
   const earnRatePct = ea && typeof ea.ratePct === "number" && Number.isFinite(ea.ratePct) ? ea.ratePct : null;
   const money = sp || cr || ea ? {
-    spendableUsd,
+    accountCapacityUsd,
+    spendableUsd: accountCapacityUsd,
     cashUsd,
     creditAvailableUsd,
     atWorkUsd,
     isEarning,
     earnRatePct,
-    hasCreditLine: Boolean(cr),
+    hasCreditLine: creditReadStatus === "available" && atomicToUsd(cr?.capAtomic) > 0,
+    creditReadStatus,
+    paymentReadinessStatus,
     creditCapUsd: cr ? atomicToUsd(cr.capAtomic) : 0,
     creditDrawnUsd: cr ? atomicToUsd(cr.borrowedAtomic) : 0
   } : void 0;
@@ -193,7 +201,7 @@ function relativeTime(iso) {
   if (secs < 86400 * 6) return new Date(then).toLocaleDateString("en-US", { weekday: "short" });
   return new Date(then).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
-function SpendHeadline({ value }) {
+function SpendHeadline({ value, label }) {
   const [display, setDisplay] = reactExports.useState(value);
   const raf = reactExports.useRef(null);
   reactExports.useEffect(() => {
@@ -219,7 +227,7 @@ function SpendHeadline({ value }) {
   }, [value]);
   const { int, cents } = splitUsd(display);
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dxw-hero", children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "dxw-spend-label", children: "You can spend" }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "dxw-spend-label", children: label }),
     /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dxw-spend-amount", children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dxw-cur", children: "$" }),
       /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: int }),
@@ -574,7 +582,7 @@ function CreditSheet({ lineUsd, drawnUsd, cashUsd, onClose }) {
         /* @__PURE__ */ jsxRuntimeExports.jsx("b", { className: "dxw-mono", children: fmtUsd(openUsd) })
       ] })
     ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "dxw-chit-body", children: "When your balance runs short, purchases can use this — and money that arrives later pays it back first." }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "dxw-chit-body", children: "This is reported account capacity. Whether a purchase can use it is decided on that exact checked request before payment." }),
     drawnUsd > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { className: "dxw-chit-owed", children: [
       "You owe ",
       /* @__PURE__ */ jsxRuntimeExports.jsx("b", { className: "dxw-mono", children: fmtUsd(drawnUsd) }),
@@ -908,8 +916,9 @@ function WalletHome({ payload, cardToken, walletToken, onOpenExternal }) {
   const own = liveCashUsd ?? payloadCash;
   const credit = money ? money.creditAvailableUsd : 0;
   const atWork = money ? money.atWorkUsd : 0;
-  const payloadSpendable = money ? money.spendableUsd : payload.balances.usdc;
-  const spendable = payloadSpendable + (own - payloadCash);
+  const payloadCapacity = money ? money.accountCapacityUsd : payload.balances.usdc;
+  const accountCapacity = payloadCapacity + (own - payloadCash);
+  const capacityLabel = credit > 0 ? "Cash + reported credit" : "Available cash";
   const address = payload.solanaAddress || payload.address;
   const activity = payload.activity ?? [];
   const latest = activity[0];
@@ -951,7 +960,7 @@ function WalletHome({ payload, cardToken, walletToken, onOpenExternal }) {
         ] }) : null
       ] })
     ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(SpendHeadline, { value: spendable }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(SpendHeadline, { value: accountCapacity, label: capacityLabel }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(
       CompositionBar,
       {
@@ -1090,7 +1099,7 @@ function WalletApp() {
       SimpleState,
       {
         title: "Reading your money",
-        body: "Checking spendable cash, assets, earning positions, and credit without moving anything.",
+        body: "Checking cash, reported credit capacity, assets, and earning positions without moving anything.",
         onOpenExternal: openExternal
       }
     );

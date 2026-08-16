@@ -1,6 +1,6 @@
-import { j as jsxRuntimeExports, r as reactExports, u as useToolOutput, i as useToolInput, f as useAdaptiveSendFollowUp, g as useAdaptiveTheme } from "./adapter-G-K6R9j_.js";
+import { r as reactExports, j as jsxRuntimeExports, u as useToolOutput, i as useToolInput, f as useAdaptiveSendFollowUp, g as useAdaptiveTheme } from "./adapter-G-K6R9j_.js";
 /* empty css             */
-import { b as formatHitCount, a as formatAssetLabel, c as formatBytes, d as normalizeX402PaymentRoutes, p as pickPrimaryRun, e as pickFixInstructions, P as ProfessorDexterCard, D as DoctorDexterCard } from "./check-result-model-DOyOodt4.js";
+import { p as providerImageSources, b as formatHitCount, a as formatAssetLabel, c as formatBytes, d as normalizeX402PaymentRoutes, e as pickPrimaryRun, g as pickFixInstructions, P as ProfessorDexterCard, D as DoctorDexterCard } from "./check-result-model-BILsdGyO.js";
 import { c as clientExports } from "./client-C4wamDB_.js";
 import { B as Badge } from "./index-C_A-DVaj.js";
 import { A as Alert } from "./Alert-Dzb3k_lS.js";
@@ -17,7 +17,17 @@ function ResourceIdentity({ resource, fallbackUrl, resourceRef }) {
   const refUrl = fallbackUrl || resourceUrlFrom(resourceRef);
   const name = resource?.display_name?.trim() || prettyHost(resource?.host) || hostPath(refUrl) || descriptionFrom(resourceRef) || "Unknown endpoint";
   const meta = buildMetaLine(resource, refUrl);
-  const icon = resource?.icon_url || null;
+  const sources = reactExports.useMemo(() => providerImageSources({
+    iconUrl: resource?.icon_url,
+    resourceUrl: resource?.resource_url || refUrl
+  }), [resource?.icon_url, resource?.resource_url, refUrl]);
+  const sourceKey = sources.join("\n");
+  const [loadState, setLoadState] = reactExports.useState({
+    sourceKey: "",
+    attempt: 0
+  });
+  const attempt = loadState.sourceKey === sourceKey ? loadState.attempt : 0;
+  const icon = sources[attempt] || null;
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-pricing__identity", children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "dx-pricing__identity-icon", children: icon ? /* @__PURE__ */ jsxRuntimeExports.jsx(
       "img",
@@ -28,7 +38,13 @@ function ResourceIdentity({ resource, fallbackUrl, resourceRef }) {
         height: 32,
         className: "dx-pricing__identity-icon-img",
         "aria-hidden": true,
-        loading: "lazy"
+        loading: "lazy",
+        onError: () => {
+          setLoadState((current) => ({
+            sourceKey,
+            attempt: current.sourceKey === sourceKey ? current.attempt + 1 : 1
+          }));
+        }
       }
     ) : /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "dx-pricing__identity-icon-placeholder", "aria-hidden": true }) }),
     /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-pricing__identity-text", children: [
@@ -274,10 +290,10 @@ function paidContinuationPrompt(request, routes, intentId, quoteOnly) {
   }
   const route = exactCeilingRoute(routes);
   if (!route?.amountAtomic) {
-    return `Run x402_check again for the exact ${request.method} request to ${request.url} and obtain a current positive atomic amount before asking me to approve a payment. Do not pay from this incomplete quote.`;
+    return `Run x402_check again for the exact ${request.method} request to ${request.url} and obtain a current positive atomic amount before authorizing any payment. Do not pay from this incomplete quote.`;
   }
   const bodyDescription = request.body === null ? "no request body" : `raw JSON body ${request.body}`;
-  return `Review payment for ${request.url}. Exact request: ${request.method} with ${bodyDescription}. Current seller terms: ${sellerTerms(route)}. The approval ceiling is maxAmountAtomic ${route.amountAtomic}. Ask for my confirmation before paying. After I confirm, call x402_fetch once with only intentId ${intentId} and maxAmountAtomic ${route.amountAtomic}. Do not include URL, method, body, route, payee, asset, challenge, or prepared purchase data. If the outcome is preparing or ambiguous, call x402_status with only intentId ${intentId}; do not call x402_fetch again.`;
+  return `Review payment for ${request.url}. Exact request: ${request.method} with ${bodyDescription}. Current seller terms: ${sellerTerms(route)}. The execution ceiling is maxAmountAtomic ${route.amountAtomic}. Confirm whether my current instruction or a bounded delegated policy already authorizes this exact seller, request, and ceiling. If it does, do not ask again; otherwise ask only for the missing authority. Once covered, call x402_fetch once with only intentId ${intentId} and maxAmountAtomic ${route.amountAtomic}. Do not include URL, method, body, route, payee, asset, challenge, or prepared purchase data. If the outcome is preparing or ambiguous, call x402_status with only intentId ${intentId}; do not call x402_fetch again.`;
 }
 function useElapsedSeconds(pending) {
   const [elapsed, setElapsed] = reactExports.useState(0);
@@ -471,7 +487,7 @@ function PricingCheck() {
       {
         color: "warning",
         title: "Current seller terms unavailable",
-        description: "Run x402_check again before asking for payment approval."
+        description: "Run x402_check again before any payment review."
       }
     ),
     /* @__PURE__ */ jsxRuntimeExports.jsx(

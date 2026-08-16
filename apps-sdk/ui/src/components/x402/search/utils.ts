@@ -1,5 +1,5 @@
-import type { SearchResource } from './types';
-import { providerImageSources } from '../providerImage';
+import type { SearchResource } from './types.ts';
+import { providerImageSources } from '../providerImage.ts';
 
 export function formatCompactNumber(value: number | null | undefined): string {
   if (value == null || Number.isNaN(value)) return '0';
