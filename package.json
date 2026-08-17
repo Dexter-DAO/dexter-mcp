@@ -37,11 +37,11 @@
     "deploy:mcp": "npm run verify:release:runtime && npm run verify:release:installed && node scripts/release/activate-open-release.mjs"
   },
   "dependencies": {
-    "@dexterai/mcp-instructions": "2.4.1",
-    "@dexterai/vault": "0.43.2",
-    "@dexterai/x402": "6.0.0-rc.3",
+    "@dexterai/mcp-instructions": "2.4.2-rc.1",
+    "@dexterai/vault": "0.43.3-rc.1",
+    "@dexterai/x402": "6.0.0-rc.4",
     "@dexterai/x402-core": "1.5.2",
-    "@dexterai/x402-mcp-tools": "0.9.0-rc.1",
+    "@dexterai/x402-mcp-tools": "0.9.0-rc.2",
     "@dexterai/x402-skills": "file:./packages/x402-skills",
     "@modelcontextprotocol/ext-apps": "1.6.0",
     "@modelcontextprotocol/sdk": "1.29.0",
