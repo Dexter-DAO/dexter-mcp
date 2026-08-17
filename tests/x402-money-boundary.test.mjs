@@ -33,7 +33,8 @@ test('public fetch accepts exactly opaque intent and approved ceiling', () => {
     schema,
     /\b(?:url|method|body|multipart|tab|purchase|route|payTo|asset|network|challenge):/,
   );
-  assert.match(source, /x402IntentFetch\(args, extra\)/);
+  assert.match(source, /x402IntentFetch\(args, extra, \{ checkedSessionId \}\)/);
+  assert.match(source, /legacyIntentBridge\.checkedSessionId/);
   assert.doesNotMatch(source, /x402Fetch\(args, extra\)/);
 });
 
@@ -80,4 +81,25 @@ test('intent handlers never expose caller-carried route or prepared JSON', () =>
   );
   assert.match(fetchAndStatus, /sanitizeOpenX402IntentResult/);
   assert.match(fetchAndStatus, /retryWithSameIntentOnly/);
+});
+
+test('retired fetch compatibility runs only after OAuth proof and preserves the checked session', () => {
+  const rawStart = serverSource.indexOf('const protectedCall = findVaultProtectedToolCall');
+  const verified = serverSource.indexOf('if (verification.ok)', rawStart);
+  const rewrite = serverSource.indexOf('legacyIntentBridge.rewrite(parsedBody', rawStart);
+  const dispatch = serverSource.indexOf('transport.handleRequest(req, res, parsedBody)', rewrite);
+  assert.ok(rawStart >= 0 && verified > rawStart, 'OAuth boundary missing');
+  assert.ok(rewrite > verified, 'legacy rewrite must follow current Bearer verification');
+  assert.ok(dispatch > rewrite, 'legacy rewrite must precede SDK input validation/dispatch');
+
+  const source = registration('x402_fetch', 'x402_status');
+  assert.match(source, /oauthVaultIdentityOf\(sessionMeta\.get\(sessionId\)\)/);
+  assert.match(source, /legacyIntentBridge\.checkedSessionId\(\{\s*identity,/);
+  assert.match(source, /x402IntentFetch\(args, extra, \{ checkedSessionId \}\)/);
+
+  const fetchFunction = serverSource.slice(
+    serverSource.indexOf('async function x402IntentFetch'),
+    serverSource.indexOf('async function x402IntentStatus'),
+  );
+  assert.match(fetchFunction, /sessionId: checkedSessionId \|\| session\.sessionId/);
 });

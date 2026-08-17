@@ -85,6 +85,7 @@ import {
   buildAnonVaultToolResult,
   normalizeAnonVaultFetchResponse,
 } from './lib/anon-vault-response.mjs';
+import { createLegacyIntentBridge } from './lib/open-legacy-intent-bridge.mjs';
 import {
   DEFAULT_MULTIPART_MAX_BYTES,
   loadSafeUploadFiles,
@@ -135,6 +136,7 @@ import {
   isVaultBound,
   markAccountBound,
   markVaultBound,
+  oauthVaultIdentityOf,
   oauthVaultIdentityStatus,
   pinOAuthVaultIdentity,
   touchOpenSessionMeta,
@@ -172,6 +174,7 @@ const LOG_CORRELATION_KEY =
 const logRef = createLogRef(LOG_CORRELATION_KEY);
 const WEBAUTHN_PROBE_TELEMETRY_ENABLED =
   isWebauthnProbeTelemetryEnabled(process.env);
+const legacyIntentBridge = createLegacyIntentBridge();
 /**
  * Capability search endpoint — semantic vector search over the x402 corpus
  * with synonym expansion, similarity floor, strong/related tiering, and
@@ -671,7 +674,11 @@ function intentConsentResult({ intentId, maxAmountAtomic, data }) {
   });
 }
 
-async function x402IntentFetch({ intentId, maxAmountAtomic }, extra) {
+async function x402IntentFetch(
+  { intentId, maxAmountAtomic },
+  extra,
+  { checkedSessionId = null } = {},
+) {
   const session = await resolveIntentSession(extra);
   if (!session.sessionId || !session.authenticated) {
     if (session.lookupFailed) {
@@ -696,7 +703,7 @@ async function x402IntentFetch({ intentId, maxAmountAtomic }, extra) {
     });
   }
   const response = await callOpenX402IntentApi('fetch', {
-    sessionId: session.sessionId,
+    sessionId: checkedSessionId || session.sessionId,
     intentId,
     maxAmountAtomic,
   });
@@ -2048,8 +2055,21 @@ export function createOpenMcpServer({
     annotations: { destructiveHint: true },
     _meta: FETCH_META,
   }, async (args, extra) => {
+    const sessionId = extra ? extractMcpSessionId(extra) : null;
+    const identity = oauthVaultIdentityOf(sessionMeta.get(sessionId));
     try {
-      const result = await x402IntentFetch(args, extra);
+      const checkedSessionId = legacyIntentBridge.checkedSessionId({
+        identity,
+        intentId: args.intentId,
+        sessionId,
+      });
+      const result = await x402IntentFetch(args, extra, { checkedSessionId });
+      legacyIntentBridge.complete({
+        identity,
+        intentId: args.intentId,
+        sessionId,
+        result,
+      });
       const meta = { ...FETCH_META };
       if (isVaultAuthenticationRequired(result)) {
         return vaultAuthenticationResult(result, meta);
@@ -2061,6 +2081,14 @@ export function createOpenMcpServer({
         _meta: meta,
       };
     } catch (err) {
+      // A transport/API exception after the compatibility claim is uncertain.
+      // Keep that record consumed so a stale client cannot auto-dispatch twice.
+      legacyIntentBridge.complete({
+        identity,
+        intentId: args.intentId,
+        sessionId,
+        result: null,
+      });
       console.warn(
         `[x402_fetch] intent API failed (${safeErrorLabel(err)}) `
         + `intentRef=${logRef(args.intentId)}`,
@@ -2220,6 +2248,13 @@ export function createOpenMcpServer({
         enrichment,
         enrichmentSource,
       });
+      if (session.authenticated && session.sessionId) {
+        legacyIntentBridge.recordCheck({
+          identity: oauthVaultIdentityOf(sessionMeta.get(session.sessionId)),
+          sessionId: session.sessionId,
+          modelResult,
+        });
+      }
       // Keep the text content LEAN — the widget reads structuredContent, the
       // LLM reads text. Dumping the full enriched payload (with embedded
       // response_preview JSON-in-JSON strings) into text was tripping the
@@ -3152,6 +3187,18 @@ const httpServer = http.createServer(async (req, res) => {
           writeVaultChallenge(res);
           return; // session state untouched — the client retries on the same id
         }
+      }
+
+      const bridged = legacyIntentBridge.rewrite(parsedBody, {
+        identity: oauthVaultIdentityOf(sessionMeta.get(sessionId)),
+        sessionId,
+      });
+      if (bridged.rewritten) {
+        parsedBody = bridged.body;
+        console.log(
+          `[open-mcp] translated retired x402_fetch schema `
+          + `sessionRef=${logRef(sessionId)} intentRef=${logRef(bridged.intentId)}`,
+        );
       }
 
       const transport = transports.get(sessionId);
