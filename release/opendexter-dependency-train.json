@@ -13,9 +13,9 @@
     },
     "opendexter-ide": {
       "remote": "https://github.com/Dexter-DAO/opendexter-ide.git",
-      "provenanceCommit": "d0af97fdff2638042626720e5e69c26d4e7d2ffe",
+      "provenanceCommit": "1fe25b170ef17ed15f62ee73cd5128978d8868f9",
       "rootWorkspaceBuild": {
-        "packageLockSha256": "0d59c0ccaa147e852586a4c0e9e15af4aea8de36042b63a0a0371c06c0c39c45",
+        "packageLockSha256": "8bd1f28803e84d2d8e9d0e53c82c2835d337e62a4fada13c49f8a05b63a59a60",
         "buildOrder": [
           {
             "workspace": "@dexterai/mcp-instructions",
@@ -34,7 +34,7 @@
     },
     "vault-sdk": {
       "remote": "https://github.com/Dexter-DAO/dexter-vault-sdk.git",
-      "provenanceCommit": "d345a9579aef3179ca76026aace9a85d88231484"
+      "provenanceCommit": "cbf56cfb84ec78fe4086cdd665a777f78077efd0"
     }
   },
   "sourcePackages": [
@@ -53,21 +53,21 @@
     },
     {
       "name": "@dexterai/mcp-instructions",
-      "version": "2.4.1",
-      "rootSpecifier": "2.4.1",
+      "version": "2.4.2-rc.1",
+      "rootSpecifier": "2.4.2-rc.1",
       "source": "opendexter-ide",
       "path": "packages/mcp-instructions",
       "entrypoint": "dist/index.js",
-      "treeHash": "626d5c3f283f8af7db692139def511b3e4c7d655",
+      "treeHash": "7077664ec7f405438177e6949c3f449a1e1c674e",
       "packedArtifact": {
         "buildMode": "root-workspace",
         "buildScript": "build",
-        "integrity": "sha512-oqeDqHB76YghgP5434rwFJiqa7ArzIHeUtH4P5cmYQGwle6OS2tvbdxNEu/2lH0FZlbjdo0jbYRYesoe9rLUoA==",
-        "shasum": "1963daf5263698c192e68b30dfba8ed830ea568b",
-        "size": 11797,
-        "unpackedSize": 46073,
+        "integrity": "sha512-ldjU9xxfg6JCsF+dhJTYOJGcTfQIjRQwyKND1iUKs8UcNT2LEq73M3CAurq9xs/LHU7pIxQ7rVThTkoj24NeuA==",
+        "shasum": "f2e3fd8e93f5f837155fb73fe194632f9378d92a",
+        "size": 11801,
+        "unpackedSize": 46076,
         "entryCount": 6,
-        "tgzSha256": "c89d5d9bfa5254cbdd641a73c2dc9499446e3c635b024b192ec309a9500d1a3c"
+        "tgzSha256": "cca551e7302b874479499b57bb2544a4f822e7d5e6a80e1c9d5130c6f45fa2d9"
       },
       "install": {
         "source": "linked-source",
@@ -76,21 +76,21 @@
     },
     {
       "name": "@dexterai/x402-mcp-tools",
-      "version": "0.9.0-rc.1",
-      "rootSpecifier": "0.9.0-rc.1",
+      "version": "0.9.0-rc.2",
+      "rootSpecifier": "0.9.0-rc.2",
       "source": "opendexter-ide",
       "path": "packages/x402-mcp-tools",
       "entrypoint": "dist/index.js",
-      "treeHash": "aff991cc7f3ad562b28e2c1b65f5da17f9fda8c5",
+      "treeHash": "78854a5a5a6d5d47ffe8cf1f65f85d23136dc9a8",
       "packedArtifact": {
         "buildMode": "root-workspace",
         "buildScript": "build",
-        "integrity": "sha512-SisZigkBz5XuKdA6MHNXaoFmF6LwITpcjkH4MeGU7zeJ9A5EnA6HKvaRFxzzvqE/vi4RMBO7Hty4+G5A0309DA==",
-        "shasum": "54a3ed095fa123ae5f09e01239887c52e099d2e0",
-        "size": 70360,
-        "unpackedSize": 284248,
+        "integrity": "sha512-RZm2BjeshtvfqyvZQBtVaH4p0eZlGA15qN4ooioL0svynIA/JLp9NoztT8R3yB34Ix571MZNM/Fdb5+nWmWq8g==",
+        "shasum": "a913eef0b4f3676ff94efa225f32c8c2905334b5",
+        "size": 70359,
+        "unpackedSize": 284258,
         "entryCount": 21,
-        "tgzSha256": "97a132871d8cd1e0e32446ea3b3d7b1afe41a6a0b89fc98d75173f2a48f313a0"
+        "tgzSha256": "13bfb95fc1eae30588879a0ac173d1e473ac9117d44464116245b8882709d5e9"
       },
       "install": {
         "source": "linked-source",
@@ -99,22 +99,23 @@
     },
     {
       "name": "@dexterai/vault",
-      "version": "0.43.2",
-      "rootSpecifier": "0.43.2",
+      "version": "0.43.3-rc.1",
+      "rootSpecifier": "0.43.3-rc.1",
       "source": "vault-sdk",
       "path": ".",
       "entrypoint": "dist/index.js",
-      "treeHash": "b9faf3d3576a988f4786ff5975aa42150c192b55",
+      "treeHash": "806e479d12f648e1b69281bec8ed3c01c163a026",
       "packedArtifact": {
         "buildScript": "build",
         "packLifecycleScripts": {
           "prepack": "npm run build && npm run typecheck"
         },
-        "integrity": "sha512-RYzML634iIEzOCEaBQ5Rur/NsMprZns3+X/1FcrmtOP62aMFnpGKK2Rcp9ncBbvoo1B7wMVLtUvYYkD5w9U/7w==",
-        "shasum": "320a24ff9c64f3febc6f7c8f34266c07fd119366",
-        "size": 624340,
-        "unpackedSize": 3068429,
-        "entryCount": 91
+        "integrity": "sha512-KBxgQf3pEuz+7fsmyjIlm7xYxa/h1d+2ULoG/EpzTHolxcEuLyPLv4Kz8nbzOTJK8ca7SggHeWIiio/ek3IOiQ==",
+        "shasum": "8822a0b9840cf4e29a33daf311824919272c3bdf",
+        "size": 624351,
+        "unpackedSize": 3068434,
+        "entryCount": 91,
+        "tgzSha256": "1eca5e65d5a2efc2a3fa2bad63b57d1080fa8fd2e33d14a370d7291e749d59d4"
       },
       "install": {
         "source": "registry",
@@ -125,8 +126,8 @@
   "runtimePackages": [
     {
       "name": "@dexterai/x402",
-      "version": "6.0.0-rc.3",
-      "rootSpecifier": "6.0.0-rc.3"
+      "version": "6.0.0-rc.4",
+      "rootSpecifier": "6.0.0-rc.4"
     },
     {
       "name": "@modelcontextprotocol/sdk",
