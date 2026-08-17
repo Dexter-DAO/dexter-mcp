@@ -365,7 +365,7 @@ test('hosted source declares one exact internal dependency train', async () => {
     [
       '@dexterai/x402-core@1.5.2',
       '@dexterai/mcp-instructions@2.4.1',
-      '@dexterai/x402-mcp-tools@0.9.0-rc.0',
+      '@dexterai/x402-mcp-tools@0.9.0-rc.1',
       '@dexterai/vault@0.43.2',
     ],
   );
@@ -373,7 +373,7 @@ test('hosted source declares one exact internal dependency train', async () => {
     manifest.runtimePackages.map(({ name, version }) =>
       `${name}@${version}`),
     [
-      '@dexterai/x402@6.0.0-rc.2',
+      '@dexterai/x402@6.0.0-rc.3',
       '@modelcontextprotocol/sdk@1.29.0',
       '@modelcontextprotocol/ext-apps@1.6.0',
       'zod@3.25.76',
@@ -397,10 +397,10 @@ test('hosted source declares one exact internal dependency train', async () => {
   );
   assert.deepEqual(manifest.repositories['opendexter-ide'], {
     remote: 'https://github.com/Dexter-DAO/opendexter-ide.git',
-    provenanceCommit: '69a304652483049c637e2c389663c10255d6b916',
+    provenanceCommit: 'd0af97fdff2638042626720e5e69c26d4e7d2ffe',
     rootWorkspaceBuild: {
       packageLockSha256:
-        'da06803ef1b745964834c7432c38d276dd29cd2c57fa92f0290b826816bb8d05',
+        '0d59c0ccaa147e852586a4c0e9e15af4aea8de36042b63a0a0371c06c0c39c45',
       buildOrder: [
         { workspace: '@dexterai/mcp-instructions', script: 'build' },
         { workspace: '@dexterai/dextercard', script: 'build' },
@@ -415,7 +415,7 @@ test('hosted source declares one exact internal dependency train', async () => {
     ],
     [
       '@dexterai/x402-mcp-tools',
-      'b334ff52b29391f6a634c735d05e350fca7b61fd6debdd202e8b096da32ced83',
+      '97a132871d8cd1e0e32446ea3b3d7b1afe41a6a0b89fc98d75173f2a48f313a0',
     ],
   ]) {
     const artifact = manifest.sourcePackages.find(

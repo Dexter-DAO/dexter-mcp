@@ -82,7 +82,7 @@ test('manifest, server identity, and package use one release version', async () 
   );
   assert.equal(
     packageJson.dependencies['@dexterai/x402-mcp-tools'],
-    '0.9.0-rc.0',
+    '0.9.0-rc.1',
   );
   assert.equal(
     packageJson.dependencies['@modelcontextprotocol/sdk'],

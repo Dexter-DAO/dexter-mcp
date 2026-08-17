@@ -13,9 +13,9 @@
     },
     "opendexter-ide": {
       "remote": "https://github.com/Dexter-DAO/opendexter-ide.git",
-      "provenanceCommit": "69a304652483049c637e2c389663c10255d6b916",
+      "provenanceCommit": "d0af97fdff2638042626720e5e69c26d4e7d2ffe",
       "rootWorkspaceBuild": {
-        "packageLockSha256": "da06803ef1b745964834c7432c38d276dd29cd2c57fa92f0290b826816bb8d05",
+        "packageLockSha256": "0d59c0ccaa147e852586a4c0e9e15af4aea8de36042b63a0a0371c06c0c39c45",
         "buildOrder": [
           {
             "workspace": "@dexterai/mcp-instructions",
@@ -76,21 +76,21 @@
     },
     {
       "name": "@dexterai/x402-mcp-tools",
-      "version": "0.9.0-rc.0",
-      "rootSpecifier": "0.9.0-rc.0",
+      "version": "0.9.0-rc.1",
+      "rootSpecifier": "0.9.0-rc.1",
       "source": "opendexter-ide",
       "path": "packages/x402-mcp-tools",
       "entrypoint": "dist/index.js",
-      "treeHash": "8219c6dc6dd85e3957725d40c8afd088643334a5",
+      "treeHash": "aff991cc7f3ad562b28e2c1b65f5da17f9fda8c5",
       "packedArtifact": {
         "buildMode": "root-workspace",
         "buildScript": "build",
-        "integrity": "sha512-kARs5sKDFWMcLoBujeyq8a1zNpMjRQooTpTAdiHpqDFhmGe2SQ80BC//ITxlXiDgVtdck+Mzo9RSI7axSfT+rg==",
-        "shasum": "25885e4406070983da38018ed49370c9decb31f6",
-        "size": 70351,
+        "integrity": "sha512-SisZigkBz5XuKdA6MHNXaoFmF6LwITpcjkH4MeGU7zeJ9A5EnA6HKvaRFxzzvqE/vi4RMBO7Hty4+G5A0309DA==",
+        "shasum": "54a3ed095fa123ae5f09e01239887c52e099d2e0",
+        "size": 70360,
         "unpackedSize": 284248,
         "entryCount": 21,
-        "tgzSha256": "b334ff52b29391f6a634c735d05e350fca7b61fd6debdd202e8b096da32ced83"
+        "tgzSha256": "97a132871d8cd1e0e32446ea3b3d7b1afe41a6a0b89fc98d75173f2a48f313a0"
       },
       "install": {
         "source": "linked-source",
@@ -125,8 +125,8 @@
   "runtimePackages": [
     {
       "name": "@dexterai/x402",
-      "version": "6.0.0-rc.2",
-      "rootSpecifier": "6.0.0-rc.2"
+      "version": "6.0.0-rc.3",
+      "rootSpecifier": "6.0.0-rc.3"
     },
     {
       "name": "@modelcontextprotocol/sdk",
