@@ -6,11 +6,11 @@
     "kind": "opendexter-source-contracts/v3",
     "api": {
       "repository": "https://github.com/Dexter-DAO/dexter-api",
-      "commit": "c3e32885cc39cdee47eca5a054c0fd7d8a0fdd8b",
-      "tree": "b8a3bdd790379f82b959663e679960f213addb5b",
+      "commit": "6c243154e9e06f4e40830300c4027721645a33cc",
+      "tree": "ce2976ada70af9234291aa6a472b3d96a7a84989",
       "consumerFixture": {
-        "path": "tests/fixtures/governed-agent-reconcile-advanced-final-c3e32885.json",
-        "sha256": "449fc6b5a253d6856ae9f0990932dc6cefb84871c981229afb603a6314efa798",
+        "path": "tests/fixtures/governed-agent-reconcile-advanced-final-6c243154.json",
+        "sha256": "ce947da8dbc22b602d5254949787b777b66095bb2530a707fb1db6d73b1b41d4",
         "canonicalBodyDigest": "48e77a936f06fe07b66fee7c2cb9126e8305d4e180c2c304513d5f0ea1636e16"
       }
     },
@@ -18,8 +18,8 @@
       "repository": "https://github.com/Dexter-DAO/dexter-api",
       "commit": "6c243154e9e06f4e40830300c4027721645a33cc",
       "tree": "ce2976ada70af9234291aa6a472b3d96a7a84989",
-      "governedContractCommit": "c3e32885cc39cdee47eca5a054c0fd7d8a0fdd8b",
-      "governedContractTree": "b8a3bdd790379f82b959663e679960f213addb5b"
+      "governedContractCommit": "6c243154e9e06f4e40830300c4027721645a33cc",
+      "governedContractTree": "ce2976ada70af9234291aa6a472b3d96a7a84989"
     },
     "portfolioProjection": {
       "repository": "https://github.com/Dexter-DAO/dexter-api",
