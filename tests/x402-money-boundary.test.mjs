@@ -34,7 +34,10 @@ test('public fetch accepts exactly opaque intent and approved ceiling', () => {
     /\b(?:url|method|body|multipart|tab|purchase|route|payTo|asset|network|challenge):/,
   );
   assert.match(source, /x402IntentFetch\(args, extra, \{ checkedSessionId \}\)/);
-  assert.match(source, /legacyIntentBridge\.checkedSessionId/);
+  assert.match(source, /legacyIntentBridge\.beginFetch/);
+  assert.match(source, /intent_session_handoff_unavailable/);
+  assert.match(source, /intent_status_required/);
+  assert.match(source, /retryWithSameIntentOnly:\s*true/);
   assert.doesNotMatch(source, /x402Fetch\(args, extra\)/);
 });
 
@@ -86,16 +89,20 @@ test('intent handlers never expose caller-carried route or prepared JSON', () =>
 test('retired fetch compatibility runs only after OAuth proof and preserves the checked session', () => {
   const rawStart = serverSource.indexOf('const protectedCall = findVaultProtectedToolCall');
   const verified = serverSource.indexOf('if (verification.ok)', rawStart);
-  const rewrite = serverSource.indexOf('legacyIntentBridge.rewrite(parsedBody', rawStart);
-  const dispatch = serverSource.indexOf('transport.handleRequest(req, res, parsedBody)', rewrite);
+  const reserve = serverSource.indexOf('legacyIntentBridge.reserve(parsedBody', rawStart);
+  const dispatch = serverSource.indexOf('transport.handleRequest(req, res, parsedBody)', reserve);
   assert.ok(rawStart >= 0 && verified > rawStart, 'OAuth boundary missing');
-  assert.ok(rewrite > verified, 'legacy rewrite must follow current Bearer verification');
-  assert.ok(dispatch > rewrite, 'legacy rewrite must precede SDK input validation/dispatch');
+  assert.ok(reserve > verified, 'intent reservation must follow current Bearer verification');
+  assert.ok(dispatch > reserve, 'intent reservation must precede SDK input validation/dispatch');
 
   const source = registration('x402_fetch', 'x402_status');
   assert.match(source, /oauthVaultIdentityOf\(sessionMeta\.get\(sessionId\)\)/);
-  assert.match(source, /legacyIntentBridge\.checkedSessionId\(\{\s*identity,/);
+  assert.match(source, /legacyIntentBridge\.beginFetch\(\{\s*identity,/);
   assert.match(source, /x402IntentFetch\(args, extra, \{ checkedSessionId \}\)/);
+  const begin = source.indexOf('legacyIntentBridge.beginFetch');
+  const refused = source.indexOf('handoff.matched && !handoff.acquired', begin);
+  const api = source.indexOf('x402IntentFetch(args, extra', refused);
+  assert.ok(begin >= 0 && refused > begin && api > refused, 'refused reservation must return before API fetch');
 
   const fetchFunction = serverSource.slice(
     serverSource.indexOf('async function x402IntentFetch'),

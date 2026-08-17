@@ -2058,11 +2058,30 @@ export function createOpenMcpServer({
     const sessionId = extra ? extractMcpSessionId(extra) : null;
     const identity = oauthVaultIdentityOf(sessionMeta.get(sessionId));
     try {
-      const checkedSessionId = legacyIntentBridge.checkedSessionId({
+      const handoff = legacyIntentBridge.beginFetch({
         identity,
         intentId: args.intentId,
+        maxAmountAtomic: args.maxAmountAtomic,
         sessionId,
       });
+      if (handoff.matched && !handoff.acquired) {
+        const result = sanitizeOpenX402IntentResult({
+          ok: false,
+          intentId: args.intentId,
+          status: 'reconciliation_required',
+          error: 'intent_status_required',
+          reason: 'intent_session_handoff_unavailable',
+          retryable: false,
+          retryWithSameIntentOnly: true,
+        });
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+          structuredContent: result,
+          isError: true,
+          _meta: FETCH_META,
+        };
+      }
+      const checkedSessionId = handoff.checkedSessionId;
       const result = await x402IntentFetch(args, extra, { checkedSessionId });
       legacyIntentBridge.complete({
         identity,
@@ -3189,14 +3208,19 @@ const httpServer = http.createServer(async (req, res) => {
         }
       }
 
-      const bridged = legacyIntentBridge.rewrite(parsedBody, {
+      const bridged = legacyIntentBridge.reserve(parsedBody, {
         identity: oauthVaultIdentityOf(sessionMeta.get(sessionId)),
         sessionId,
       });
+      parsedBody = bridged.body;
       if (bridged.rewritten) {
-        parsedBody = bridged.body;
         console.log(
           `[open-mcp] translated retired x402_fetch schema `
+          + `sessionRef=${logRef(sessionId)} intentRef=${logRef(bridged.intentId)}`,
+        );
+      } else if (bridged.reserved) {
+        console.log(
+          `[open-mcp] reserved x402 intent session handoff `
           + `sessionRef=${logRef(sessionId)} intentRef=${logRef(bridged.intentId)}`,
         );
       }

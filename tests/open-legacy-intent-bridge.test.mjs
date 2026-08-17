@@ -50,186 +50,209 @@ function call(args, id = 1) {
   };
 }
 
-test('same OAuth surface rewrites one exact stale fetch to the opaque intent', () => {
-  let clock = Date.parse('2026-08-17T17:00:00.000Z');
-  const bridge = createLegacyIntentBridge({ now: () => clock });
+test('same OAuth surface reserves and begins one exact stale fetch', () => {
+  const bridge = createLegacyIntentBridge({ now: () => Date.parse('2026-08-17T17:00:00.000Z') });
   assert.equal(bridge.recordCheck({ identity: IDENTITY, sessionId: CHECK_SESSION, modelResult: checked() }), true);
-
   const original = call({ url: URL, method: 'GET', maxAmountAtomic: '50000' });
-  const translated = bridge.rewrite(original, {
-    identity: { ...IDENTITY },
-    sessionId: 'new-mcp-session',
-  });
-  assert.equal(translated.rewritten, true);
-  assert.deepEqual(translated.body.params.arguments, {
-    intentId: 'intent-1',
-    maxAmountAtomic: '50000',
-  });
-  assert.equal(bridge.checkedSessionId({
+  const reserved = bridge.reserve(original, { identity: { ...IDENTITY }, sessionId: 'fetch-session' });
+  assert.equal(reserved.rewritten, true);
+  assert.equal(reserved.reserved, true);
+  assert.deepEqual(reserved.body.params.arguments, { intentId: 'intent-1', maxAmountAtomic: '50000' });
+  assert.deepEqual(bridge.beginFetch({
     identity: IDENTITY,
     intentId: 'intent-1',
-    sessionId: 'new-mcp-session',
-  }), CHECK_SESSION);
-  assert.equal(bridge.checkedSessionId({
-    identity: OTHER_IDENTITY,
-    intentId: 'intent-1',
-    sessionId: 'new-mcp-session',
-  }), null);
-  assert.deepEqual(original.params.arguments, {
-    url: URL,
-    method: 'GET',
     maxAmountAtomic: '50000',
-  });
-
-  // Once claimed, a concurrent/repeated stale call cannot dispatch again.
-  assert.equal(bridge.rewrite(original, {
+    sessionId: 'fetch-session',
+  }), { matched: true, acquired: true, checkedSessionId: CHECK_SESSION });
+  assert.equal(bridge.reserve(original, {
     identity: IDENTITY,
-    sessionId: 'new-mcp-session',
-  }).rewritten, false);
-  clock += 1;
+    sessionId: 'fetch-session',
+  }).reserved, false);
+  assert.equal(bridge.beginFetch({
+    identity: IDENTITY,
+    intentId: 'intent-1',
+    maxAmountAtomic: '50000',
+    sessionId: 'fetch-session',
+  }).acquired, false);
 });
 
-test('known pre-dispatch authorization releases only the same claimed intent', () => {
-  const bridge = createLegacyIntentBridge({
-    now: () => Date.parse('2026-08-17T17:00:00.000Z'),
-  });
+test('canonical fetch reserves after a session change and begins exactly once', () => {
+  const bridge = createLegacyIntentBridge({ now: () => Date.parse('2026-08-17T17:00:00.000Z') });
   bridge.recordCheck({ identity: IDENTITY, sessionId: CHECK_SESSION, modelResult: checked() });
-  const original = call({ url: URL, maxAmountAtomic: '50000' });
-  const first = bridge.rewrite(original, {
-    identity: IDENTITY,
-    sessionId: 'session-a',
+  const canonical = call({ intentId: 'intent-1', maxAmountAtomic: '50000' });
+  const reserved = bridge.reserve(canonical, { identity: IDENTITY, sessionId: 'fetch-session' });
+  assert.deepEqual(reserved, {
+    body: canonical,
+    matched: true,
+    reserved: true,
+    rewritten: false,
+    intentId: 'intent-1',
   });
-  assert.equal(first.rewritten, true);
-  assert.equal(bridge.complete({
+  assert.deepEqual(bridge.beginFetch({
     identity: IDENTITY,
     intentId: 'intent-1',
-    sessionId: 'session-a',
-    result: {
-      status: 'authorization_required',
-      authorizationRequired: true,
-      retryWithSameIntentOnly: true,
-    },
-  }), true);
-  assert.equal(bridge.rewrite(original, {
+    maxAmountAtomic: '50000',
+    sessionId: 'fetch-session',
+  }), { matched: true, acquired: true, checkedSessionId: CHECK_SESSION });
+  assert.equal(bridge.beginFetch({
     identity: IDENTITY,
-    sessionId: 'session-b',
-  }).rewritten, true);
+    intentId: 'intent-1',
+    maxAmountAtomic: '50000',
+    sessionId: 'fetch-session',
+  }).acquired, false);
 });
 
-test('success, error, or uncertainty consumes the bridge record', () => {
-  for (const result of [
-    { status: 'complete', ok: true },
-    { status: 'authorization_required', authorizationRequired: true },
-    null,
-  ]) {
-    const bridge = createLegacyIntentBridge({
-      now: () => Date.parse('2026-08-17T17:00:00.000Z'),
-    });
-    bridge.recordCheck({ identity: IDENTITY, sessionId: CHECK_SESSION, modelResult: checked() });
-    const original = call({ url: URL, maxAmountAtomic: '50000' });
-    assert.equal(bridge.rewrite(original, {
-      identity: IDENTITY,
-      sessionId: 'session-a',
-    }).rewritten, true);
-    bridge.complete({ identity: IDENTITY, intentId: 'intent-1', sessionId: 'session-a', result });
-    assert.equal(bridge.rewrite(original, {
-      identity: IDENTITY,
-      sessionId: 'session-b',
-    }).rewritten, false);
-  }
-});
-
-test('identity, exact request bytes, and quoted amount are all hard bindings', () => {
-  const bridge = createLegacyIntentBridge({
-    now: () => Date.parse('2026-08-17T17:00:00.000Z'),
-  });
+test('identity, intent, amount, reservation session, and request bytes are hard bindings', () => {
+  const bridge = createLegacyIntentBridge({ now: () => Date.parse('2026-08-17T17:00:00.000Z') });
   bridge.recordCheck({
     identity: IDENTITY,
     sessionId: CHECK_SESSION,
     modelResult: checked({ method: 'POST', body: '{"q":"exact"}' }),
   });
-  const variants = [
-    [OTHER_IDENTITY, { url: URL, method: 'POST', body: '{"q":"exact"}', maxAmountAtomic: '50000' }],
-    [IDENTITY, { url: `${URL}&extra=1`, method: 'POST', body: '{"q":"exact"}', maxAmountAtomic: '50000' }],
-    [IDENTITY, { url: URL, method: 'PUT', body: '{"q":"exact"}', maxAmountAtomic: '50000' }],
-    [IDENTITY, { url: URL, method: 'POST', body: '{"q": "exact"}', maxAmountAtomic: '50000' }],
-    [IDENTITY, { url: URL, method: 'POST', body: '{"q":"exact"}', maxAmountAtomic: '50001' }],
-    [IDENTITY, { url: URL, method: 'POST', body: '{"q":"exact"}', maxAmountAtomic: '50000', purchase: {} }],
-  ];
-  for (const [identity, args] of variants) {
-    assert.equal(bridge.rewrite(call(args), {
-      identity,
-      sessionId: 'session-a',
-    }).rewritten, false);
+  const canonical = call({ intentId: 'intent-1', maxAmountAtomic: '50000' });
+  for (const identity of [
+    OTHER_IDENTITY,
+    { ...IDENTITY, subject: 'user-2' },
+    { ...IDENTITY, issuer: 'https://issuer.example' },
+    { ...IDENTITY, audience: 'https://resource.example/mcp' },
+  ]) {
+    assert.equal(bridge.reserve(canonical, { identity, sessionId: 'session-a' }).matched, false);
   }
-  assert.equal(bridge.rewrite(call({
-    url: URL,
-    method: 'POST',
-    body: '{"q":"exact"}',
-    maxAmountAtomic: '50000',
-  }), {
+  assert.equal(bridge.reserve(call({ intentId: 'intent-x', maxAmountAtomic: '50000' }), {
     identity: IDENTITY,
     sessionId: 'session-a',
-  }).rewritten, true);
+  }).matched, false);
+  assert.deepEqual(bridge.reserve(call({ intentId: 'intent-1', maxAmountAtomic: '50001' }), {
+    identity: IDENTITY,
+    sessionId: 'session-a',
+  }), {
+    body: call({ intentId: 'intent-1', maxAmountAtomic: '50001' }),
+    matched: true,
+    reserved: false,
+    rewritten: false,
+    intentId: 'intent-1',
+  });
+  const exact = call({ url: URL, method: 'POST', body: '{"q":"exact"}', maxAmountAtomic: '50000' });
+  assert.equal(bridge.reserve(exact, { identity: IDENTITY, sessionId: 'session-a' }).reserved, true);
+  assert.equal(bridge.beginFetch({
+    identity: IDENTITY,
+    intentId: 'intent-1',
+    maxAmountAtomic: '50000',
+    sessionId: 'session-b',
+  }).acquired, false);
 });
 
-test('ambiguous, expired, quote-only, or multi-call inputs fail closed', () => {
+test('ambiguous, expired, quote-only, malformed, and batch inputs fail closed', () => {
   let clock = Date.parse('2026-08-17T17:00:00.000Z');
   const bridge = createLegacyIntentBridge({ now: () => clock });
-  assert.equal(bridge.recordCheck({ identity: IDENTITY, sessionId: CHECK_SESSION, modelResult: checked() }), true);
-  assert.equal(bridge.recordCheck({
-    identity: IDENTITY,
-    sessionId: CHECK_SESSION,
-    modelResult: checked({ intentId: 'intent-2' }),
-  }), false);
-  const stale = call({ url: URL, maxAmountAtomic: '50000' });
-  assert.equal(bridge.rewrite(stale, {
+  bridge.recordCheck({ identity: IDENTITY, sessionId: CHECK_SESSION, modelResult: checked() });
+  bridge.recordCheck({ identity: IDENTITY, sessionId: 'check-2', modelResult: checked({ intentId: 'intent-2' }) });
+  assert.equal(bridge.reserve(call({ url: URL, maxAmountAtomic: '50000' }), {
     identity: IDENTITY,
     sessionId: 'session-a',
-  }).rewritten, false);
+  }).reserved, false);
+  assert.equal(bridge.reserve(call({ intentId: 'intent-2', maxAmountAtomic: '50000' }), {
+    identity: IDENTITY,
+    sessionId: 'session-a',
+  }).reserved, true);
 
   const expired = createLegacyIntentBridge({ now: () => clock });
   expired.recordCheck({ identity: IDENTITY, sessionId: CHECK_SESSION, modelResult: checked() });
   clock = Date.parse('2026-08-17T17:02:00.001Z');
-  assert.equal(expired.rewrite(stale, {
+  assert.equal(expired.reserve(call({ intentId: 'intent-1', maxAmountAtomic: '50000' }), {
     identity: IDENTITY,
     sessionId: 'session-a',
-  }).rewritten, false);
+  }).matched, false);
 
   const quoteOnly = checked();
   quoteOnly.quoteOnly = true;
   assert.equal(expired.recordCheck({ identity: IDENTITY, sessionId: CHECK_SESSION, modelResult: quoteOnly }), false);
-
-  const batch = createLegacyIntentBridge({
-    now: () => Date.parse('2026-08-17T17:00:00.000Z'),
-  });
-  batch.recordCheck({ identity: IDENTITY, sessionId: CHECK_SESSION, modelResult: checked() });
-  const body = [stale, call({ url: URL, maxAmountAtomic: '50000' }, 2)];
-  assert.equal(batch.rewrite(body, {
+  const batch = [
+    call({ intentId: 'intent-1', maxAmountAtomic: '50000' }),
+    call({ intentId: 'intent-1', maxAmountAtomic: '50000' }, 2),
+  ];
+  assert.equal(bridge.reserve(batch, { identity: IDENTITY, sessionId: 'batch-session' }).reserved, false);
+  assert.equal(bridge.beginFetch({
+    identity: IDENTITY,
+    intentId: 'intent-1',
+    maxAmountAtomic: '50000',
+    sessionId: 'batch-session',
+  }).acquired, false);
+  assert.equal(bridge.reserve(call({ intentId: 'intent-1', maxAmountAtomic: '50000', url: URL }), {
     identity: IDENTITY,
     sessionId: 'session-a',
-  }).rewritten, false);
-
-  const invalidSession = createLegacyIntentBridge({ now: () => clock });
-  assert.equal(invalidSession.recordCheck({
-    identity: IDENTITY,
-    sessionId: 'session with spaces',
-    modelResult: checked(),
-  }), false);
+  }).matched, false);
 });
 
-test('canonical intent calls are never rewritten or claimed', () => {
-  const bridge = createLegacyIntentBridge({
-    now: () => Date.parse('2026-08-17T17:00:00.000Z'),
-  });
+test('canonical and legacy callers race to one reservation and one acquire', () => {
+  const bridge = createLegacyIntentBridge({ now: () => Date.parse('2026-08-17T17:00:00.000Z') });
   bridge.recordCheck({ identity: IDENTITY, sessionId: CHECK_SESSION, modelResult: checked() });
-  const canonical = call({ intentId: 'intent-1', maxAmountAtomic: '50000' });
-  assert.deepEqual(bridge.rewrite(canonical, {
+  assert.equal(bridge.reserve(call({ intentId: 'intent-1', maxAmountAtomic: '50000' }), {
     identity: IDENTITY,
-    sessionId: 'session-a',
-  }), { body: canonical, rewritten: false });
-  assert.equal(bridge.rewrite(call({ url: URL, maxAmountAtomic: '50000' }), {
+    sessionId: 'canonical-session',
+  }).reserved, true);
+  assert.equal(bridge.reserve(call({ url: URL, maxAmountAtomic: '50000' }), {
     identity: IDENTITY,
-    sessionId: 'session-a',
-  }).rewritten, true);
+    sessionId: 'legacy-session',
+  }).reserved, false);
+  assert.equal(bridge.beginFetch({
+    identity: IDENTITY,
+    intentId: 'intent-1',
+    maxAmountAtomic: '50000',
+    sessionId: 'canonical-session',
+  }).acquired, true);
+  assert.equal(bridge.beginFetch({
+    identity: IDENTITY,
+    intentId: 'intent-1',
+    maxAmountAtomic: '50000',
+    sessionId: 'legacy-session',
+  }).acquired, false);
+});
+
+test('canonical fetch also reserves when Codex preserves the checked session', () => {
+  const bridge = createLegacyIntentBridge({ now: () => Date.parse('2026-08-17T17:00:00.000Z') });
+  bridge.recordCheck({ identity: IDENTITY, sessionId: CHECK_SESSION, modelResult: checked() });
+  assert.equal(bridge.reserve(call({ intentId: 'intent-1', maxAmountAtomic: '50000' }), {
+    identity: IDENTITY,
+    sessionId: CHECK_SESSION,
+  }).reserved, true);
+  assert.deepEqual(bridge.beginFetch({
+    identity: IDENTITY,
+    intentId: 'intent-1',
+    maxAmountAtomic: '50000',
+    sessionId: CHECK_SESSION,
+  }), { matched: true, acquired: true, checkedSessionId: CHECK_SESSION });
+});
+
+test('typed authorization reopens; success, error, and uncertainty consume', () => {
+  const outcomes = [
+    [{ status: 'authorization_required', authorizationRequired: true, retryWithSameIntentOnly: true }, true],
+    [{ status: 'complete', ok: true }, false],
+    [{ status: 'authorization_required', authorizationRequired: true }, false],
+    [null, false],
+  ];
+  for (const [result, reopens] of outcomes) {
+    const bridge = createLegacyIntentBridge({ now: () => Date.parse('2026-08-17T17:00:00.000Z') });
+    bridge.recordCheck({ identity: IDENTITY, sessionId: CHECK_SESSION, modelResult: checked() });
+    bridge.reserve(call({ intentId: 'intent-1', maxAmountAtomic: '50000' }), {
+      identity: IDENTITY,
+      sessionId: 'session-a',
+    });
+    bridge.beginFetch({
+      identity: IDENTITY,
+      intentId: 'intent-1',
+      maxAmountAtomic: '50000',
+      sessionId: 'session-a',
+    });
+    assert.equal(bridge.complete({
+      identity: IDENTITY,
+      intentId: 'intent-1',
+      sessionId: 'session-a',
+      result,
+    }), true);
+    assert.equal(bridge.reserve(call({ intentId: 'intent-1', maxAmountAtomic: '50000' }), {
+      identity: IDENTITY,
+      sessionId: 'session-b',
+    }).reserved, reopens);
+  }
 });
