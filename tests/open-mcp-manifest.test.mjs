@@ -78,11 +78,11 @@ test('manifest, server identity, and package use one release version', async () 
   assert.equal(packageJson.engines.node, '^20.19.0 || >=22.12.0');
   assert.equal(
     packageJson.dependencies['@dexterai/mcp-instructions'],
-    '2.4.1',
+    '2.4.2-rc.1',
   );
   assert.equal(
     packageJson.dependencies['@dexterai/x402-mcp-tools'],
-    '0.9.0-rc.1',
+    '0.9.0-rc.2',
   );
   assert.equal(
     packageJson.dependencies['@modelcontextprotocol/sdk'],

@@ -364,16 +364,16 @@ test('hosted source declares one exact internal dependency train', async () => {
     manifest.sourcePackages.map(({ name, version }) => `${name}@${version}`),
     [
       '@dexterai/x402-core@1.5.2',
-      '@dexterai/mcp-instructions@2.4.1',
-      '@dexterai/x402-mcp-tools@0.9.0-rc.1',
-      '@dexterai/vault@0.43.2',
+      '@dexterai/mcp-instructions@2.4.2-rc.1',
+      '@dexterai/x402-mcp-tools@0.9.0-rc.2',
+      '@dexterai/vault@0.43.3-rc.1',
     ],
   );
   assert.deepEqual(
     manifest.runtimePackages.map(({ name, version }) =>
       `${name}@${version}`),
     [
-      '@dexterai/x402@6.0.0-rc.3',
+      '@dexterai/x402@6.0.0-rc.4',
       '@modelcontextprotocol/sdk@1.29.0',
       '@modelcontextprotocol/ext-apps@1.6.0',
       'zod@3.25.76',
@@ -397,10 +397,10 @@ test('hosted source declares one exact internal dependency train', async () => {
   );
   assert.deepEqual(manifest.repositories['opendexter-ide'], {
     remote: 'https://github.com/Dexter-DAO/opendexter-ide.git',
-    provenanceCommit: 'd0af97fdff2638042626720e5e69c26d4e7d2ffe',
+    provenanceCommit: '1fe25b170ef17ed15f62ee73cd5128978d8868f9',
     rootWorkspaceBuild: {
       packageLockSha256:
-        '0d59c0ccaa147e852586a4c0e9e15af4aea8de36042b63a0a0371c06c0c39c45',
+        '8bd1f28803e84d2d8e9d0e53c82c2835d337e62a4fada13c49f8a05b63a59a60',
       buildOrder: [
         { workspace: '@dexterai/mcp-instructions', script: 'build' },
         { workspace: '@dexterai/dextercard', script: 'build' },
@@ -411,11 +411,11 @@ test('hosted source declares one exact internal dependency train', async () => {
   for (const [name, tgzSha256] of [
     [
       '@dexterai/mcp-instructions',
-      'c89d5d9bfa5254cbdd641a73c2dc9499446e3c635b024b192ec309a9500d1a3c',
+      'cca551e7302b874479499b57bb2544a4f822e7d5e6a80e1c9d5130c6f45fa2d9',
     ],
     [
       '@dexterai/x402-mcp-tools',
-      '97a132871d8cd1e0e32446ea3b3d7b1afe41a6a0b89fc98d75173f2a48f313a0',
+      '13bfb95fc1eae30588879a0ac173d1e473ac9117d44464116245b8882709d5e9',
     ],
   ]) {
     const artifact = manifest.sourcePackages.find(
@@ -427,28 +427,29 @@ test('hosted source declares one exact internal dependency train', async () => {
   }
   assert.deepEqual(manifest.repositories['vault-sdk'], {
     remote: 'https://github.com/Dexter-DAO/dexter-vault-sdk.git',
-    provenanceCommit: 'd345a9579aef3179ca76026aace9a85d88231484',
+    provenanceCommit: 'cbf56cfb84ec78fe4086cdd665a777f78077efd0',
   });
   assert.deepEqual(
     manifest.sourcePackages.find(({ name }) => name === '@dexterai/vault'),
     {
       name: '@dexterai/vault',
-      version: '0.43.2',
-      rootSpecifier: '0.43.2',
+      version: '0.43.3-rc.1',
+      rootSpecifier: '0.43.3-rc.1',
       source: 'vault-sdk',
       path: '.',
       entrypoint: 'dist/index.js',
-      treeHash: 'b9faf3d3576a988f4786ff5975aa42150c192b55',
+      treeHash: '806e479d12f648e1b69281bec8ed3c01c163a026',
       packedArtifact: {
         buildScript: 'build',
         packLifecycleScripts: {
           prepack: 'npm run build && npm run typecheck',
         },
-        integrity: 'sha512-RYzML634iIEzOCEaBQ5Rur/NsMprZns3+X/1FcrmtOP62aMFnpGKK2Rcp9ncBbvoo1B7wMVLtUvYYkD5w9U/7w==',
-        shasum: '320a24ff9c64f3febc6f7c8f34266c07fd119366',
-        size: 624340,
-        unpackedSize: 3068429,
+        integrity: 'sha512-KBxgQf3pEuz+7fsmyjIlm7xYxa/h1d+2ULoG/EpzTHolxcEuLyPLv4Kz8nbzOTJK8ca7SggHeWIiio/ek3IOiQ==',
+        shasum: '8822a0b9840cf4e29a33daf311824919272c3bdf',
+        size: 624351,
+        unpackedSize: 3068434,
         entryCount: 91,
+        tgzSha256: '1eca5e65d5a2efc2a3fa2bad63b57d1080fa8fd2e33d14a370d7291e749d59d4',
       },
       install: { source: 'registry', release: 'registry' },
     },

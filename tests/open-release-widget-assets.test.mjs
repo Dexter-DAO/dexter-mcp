@@ -38,6 +38,10 @@ async function fixture() {
     '<script type="module" src="./assets/entry-AAAA.js"></script>',
   ].join('\n'));
   await writeFile(join(targetAssets, 'historical-OLD.js'), 'old bytes stay\n');
+  await chmod(targetAssets, 0o700);
+  await chmod(targetRoot, 0o700);
+  await chmod(releaseAssets, 0o500);
+  await chmod(appsRoot, 0o500);
   await chmod(releaseDir, 0o500);
   return {
     root,
@@ -65,6 +69,8 @@ test('sealed release plan binds every HTML reference and all JS/CSS bytes', asyn
     ]);
   } finally {
     await chmod(current.release.releaseDir, 0o700);
+    await chmod(join(current.release.releaseDir, 'public/apps-sdk'), 0o700);
+    await chmod(current.releaseAssets, 0o700);
     await rm(current.root, { recursive: true, force: true });
   }
 });
@@ -93,6 +99,8 @@ test('publish is append-only, atomic by name, and refuses a hash collision', asy
     );
   } finally {
     await chmod(current.release.releaseDir, 0o700);
+    await chmod(join(current.release.releaseDir, 'public/apps-sdk'), 0o700);
+    await chmod(current.releaseAssets, 0o700);
     await rm(current.root, { recursive: true, force: true });
   }
 });
@@ -148,6 +156,8 @@ test('public gate requires 200, exact MIME, and exact sealed bytes', async () =>
     }
   } finally {
     await chmod(current.release.releaseDir, 0o700);
+    await chmod(join(current.release.releaseDir, 'public/apps-sdk'), 0o700);
+    await chmod(current.releaseAssets, 0o700);
     await rm(current.root, { recursive: true, force: true });
   }
 });
@@ -173,6 +183,8 @@ test('public gate also rejects a broken lazy chunk not named by widget HTML', as
     );
   } finally {
     await chmod(current.release.releaseDir, 0o700);
+    await chmod(join(current.release.releaseDir, 'public/apps-sdk'), 0o700);
+    await chmod(current.releaseAssets, 0o700);
     await rm(current.root, { recursive: true, force: true });
   }
 });
@@ -186,10 +198,12 @@ test('plan refuses missing and noncanonical HTML asset references', async () => 
     const current = await fixture();
     try {
       await chmod(current.release.releaseDir, 0o700);
+      await chmod(join(current.release.releaseDir, 'public/apps-sdk'), 0o700);
       await writeFile(join(
         current.release.releaseDir,
         'public/apps-sdk/widget.html',
       ), body);
+      await chmod(join(current.release.releaseDir, 'public/apps-sdk'), 0o500);
       await chmod(current.release.releaseDir, 0o500);
       await assert.rejects(
         readOpenWidgetAssetPlan(current.release),
@@ -197,6 +211,8 @@ test('plan refuses missing and noncanonical HTML asset references', async () => 
       );
     } finally {
       await chmod(current.release.releaseDir, 0o700);
+      await chmod(join(current.release.releaseDir, 'public/apps-sdk'), 0o700);
+      await chmod(current.releaseAssets, 0o700);
       await rm(current.root, { recursive: true, force: true });
     }
   }
