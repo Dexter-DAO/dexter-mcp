@@ -372,6 +372,7 @@ test('private source receipts bind exact repository refs and descriptor source',
   );
   assert.deepEqual(fixture.receipt.identities[0].refs, [
     'refs/heads/governed-contract',
+    'refs/heads/integrated',
     'refs/tags/governed-contract',
   ]);
 
@@ -812,7 +813,7 @@ test('cross-repository source verifier rejects every identity and byte attack', 
     ['wrong tree', { wrongTree: true }, /commit\/tree identity mismatch/],
     ['non-ancestor release', { nonAncestor: true }, /does not descend/],
     ['governed byte drift', { governedDrift: true }, /changes the frozen/],
-    ['API fixture drift', { fixtureDrift: 'api-integrated' }, /source bytes differ/],
+    ['API fixture drift', { fixtureDrift: 'api-contract' }, /source bytes differ/],
     ['facilitator fixture drift', { fixtureDrift: 'facilitator' }, /source bytes differ/],
     ['portfolio fixture drift', { projectionFixtureDrift: true }, /projection source bytes differ/],
     ['portfolio source missing', {
