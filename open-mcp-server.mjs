@@ -50,7 +50,7 @@ import {
   OPEN_X402_INTENT_API_PATHS,
   callOpenX402IntentApi,
   isOpenX402AuthorityRequired,
-  readOpenX402ConsentUrl,
+  projectOpenX402AuthorizationRequired,
   sanitizeOpenX402IntentResult,
 } from './lib/open-x402-intent-api.mjs';
 import {
@@ -640,40 +640,6 @@ async function resolveIntentSession(extra) {
   };
 }
 
-function intentConsentResult({ intentId, maxAmountAtomic, data }) {
-  const retry = {
-    intentId,
-    ...(maxAmountAtomic ? { maxAmountAtomic } : {}),
-  };
-  const consentUrl = readOpenX402ConsentUrl(data);
-  if (consentUrl) {
-    return sanitizeOpenX402IntentResult({
-      ok: false,
-      intentId,
-      status: 'authorization_required',
-      authorizationRequired: true,
-      consentUrl,
-      retry,
-      reason: typeof data.error === 'string' ? data.error : 'authorization_required',
-      retryable: false,
-      retryWithSameIntentOnly: true,
-    });
-  }
-  return sanitizeOpenX402IntentResult({
-    ok: false,
-    intentId,
-    status: 'authorization_required',
-    authorizationRequired: true,
-    error: 'hosted_consent_unavailable',
-    reason: typeof data?.error === 'string'
-      ? data.error
-      : 'governed_principal_required',
-    retry,
-    retryable: false,
-    retryWithSameIntentOnly: true,
-  });
-}
-
 async function x402IntentFetch(
   { intentId, maxAmountAtomic },
   extra,
@@ -708,8 +674,7 @@ async function x402IntentFetch(
     maxAmountAtomic,
   });
   if (isOpenX402AuthorityRequired(response.data)) {
-    return intentConsentResult({
-      tool: 'x402_fetch',
+    return projectOpenX402AuthorizationRequired({
       intentId,
       maxAmountAtomic,
       data: response.data,
@@ -750,8 +715,7 @@ async function x402IntentStatus({ intentId }, extra) {
     intentId,
   });
   if (isOpenX402AuthorityRequired(response.data)) {
-    return intentConsentResult({
-      tool: 'x402_status',
+    return projectOpenX402AuthorizationRequired({
       intentId,
       data: response.data,
     });

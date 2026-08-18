@@ -6,6 +6,7 @@ import {
   buildOpenX402IntentRequest,
   callOpenX402IntentApi,
   isOpenX402AuthorityRequired,
+  projectOpenX402AuthorizationRequired,
   readOpenX402ConsentUrl,
   sanitizeOpenX402IntentResult,
 } from '../lib/open-x402-intent-api.mjs';
@@ -223,6 +224,98 @@ test('rail-neutral owner approval becomes one safe hosted-consent continuation',
     Object.hasOwn(sanitizeOpenX402IntentResult(source), 'approval'),
     false,
   );
+});
+
+test('Native Tab consent admits only one bounded canonical req on the exact hosted URL', () => {
+  const req = Buffer.from(JSON.stringify({
+    v: 1,
+    kind: 'dexter.spendGrantRequest',
+  })).toString('base64url');
+  const consentUrl = `https://dexter.cash/tabs/new?req=${req}`;
+
+  assert.equal(readOpenX402ConsentUrl({ consentUrl }), consentUrl);
+  for (const rejected of [
+    'https://dexter.cash/tabs/new',
+    'https://dexter.cash/tabs/new?req=',
+    `https://dexter.cash/tabs/new/?req=${req}`,
+    `https://dexter.cash:443/tabs/new?req=${req}`,
+    `https://dexter.cash/tabs/new?req=${req}&next=x`,
+    `https://dexter.cash/tabs/new?req=${req}&req=${req}`,
+    `https://dexter.cash/tabs/new?req=${encodeURIComponent(req)}`.replace(
+      req,
+      `%${req.charCodeAt(0).toString(16)}${req.slice(1)}`,
+    ),
+    'https://dexter.cash/tabs/new?req=A',
+    `https://dexter.cash/tabs/new?req=${req}=`,
+    `https://dexter.cash/tabs/new?req=${'a'.repeat(4_100)}`,
+    `https://dexter.cash/tabs/new?req=${req}#fragment`,
+    `https://user@dexter.cash/tabs/new?req=${req}`,
+    `https://DEXTER.CASH/tabs/new?req=${req}`,
+    `https://dexter.cash.evil.example/tabs/new?req=${req}`,
+  ]) {
+    assert.equal(readOpenX402ConsentUrl({ consentUrl: rejected }), undefined, rejected);
+  }
+  assert.equal(readOpenX402ConsentUrl({
+    approval: {
+      namespace: 'dexter-native-exact-owner-consent-link/v1',
+      consentUrl,
+    },
+  }), undefined);
+  assert.equal(readOpenX402ConsentUrl({
+    consentUrl: '',
+    approval: {
+      namespace: 'dexter-gateway-owner-consent-link/v1',
+      consentUrl:
+        'https://dexter.cash/wallet/approvals/x402/018f47dd-1f5f-7abc-8def-0123456789ab',
+    },
+  }), undefined);
+});
+
+test('x402_fetch authorization projection exposes the valid Native Tab continuation on the same intent', () => {
+  const req = Buffer.from('{"native":"tab"}').toString('base64url');
+  const consentUrl = `https://dexter.cash/tabs/new?req=${req}`;
+
+  assert.deepEqual(projectOpenX402AuthorizationRequired({
+    intentId: 'intent-native-tab-1',
+    maxAmountAtomic: '50000',
+    data: {
+      ok: false,
+      error: 'authorization_required',
+      consentUrl,
+      sessionId: 'private-provider-session',
+    },
+  }), {
+    ok: false,
+    intentId: 'intent-native-tab-1',
+    status: 'authorization_required',
+    authorizationRequired: true,
+    consentUrl,
+    retry: {
+      intentId: 'intent-native-tab-1',
+      maxAmountAtomic: '50000',
+    },
+    reason: 'authorization_required',
+    retryable: false,
+    retryWithSameIntentOnly: true,
+  });
+});
+
+test('x402_fetch authorization projection fails closed when Native Tab consent is malformed', () => {
+  const result = projectOpenX402AuthorizationRequired({
+    intentId: 'intent-native-tab-1',
+    maxAmountAtomic: '50000',
+    data: {
+      error: 'authorization_required',
+      consentUrl: 'https://dexter.cash/tabs/new?req=not%2Fcanonical',
+    },
+  });
+
+  assert.equal(result.error, 'hosted_consent_unavailable');
+  assert.equal(Object.hasOwn(result, 'consentUrl'), false);
+  assert.deepEqual(result.retry, {
+    intentId: 'intent-native-tab-1',
+    maxAmountAtomic: '50000',
+  });
 });
 
 test('hosted consent rejects lookalike origins and unknown nested contracts', () => {
