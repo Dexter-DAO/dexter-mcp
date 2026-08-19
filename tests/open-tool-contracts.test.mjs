@@ -16,6 +16,7 @@ import {
 } from '../lib/open-tool-contracts.mjs';
 import {
   OPEN_TOOL_SECURITY_SCHEMES,
+  VAULT_WWW_AUTHENTICATE,
   installCanonicalSecuritySchemeProjection,
 } from '../lib/open-tool-auth.mjs';
 import {
@@ -93,6 +94,8 @@ test('hosted paid guidance uses one opaque check-fetch-status path', () => {
 
   assert.match(fetchDescription, /opaque intentId/);
   assert.match(fetchDescription, /maxAmountAtomic/);
+  assert.match(fetchDescription, /dispatch\.boundary is crossed/);
+  assert.match(fetchDescription, /host-disabled\/pre-server invocation is not dispatch evidence/);
   assert.match(fetchDescription, /x402_status/);
   assert.doesNotMatch(fetchDescription, /same URL|same method|same body|CrossPay/);
   assert.doesNotMatch(fetchDescription, /preparedPurchase|purchase mode|omit purchase/i);
@@ -101,6 +104,24 @@ test('hosted paid guidance uses one opaque check-fetch-status path', () => {
   assert.match(checkDescription, /raw JSON string/);
   assert.match(checkDescription, /intentId/);
   assert.doesNotMatch(checkDescription, /prepared seller-route|purchase-mode choices|omit purchase/i);
+});
+
+test('fetch and status declare the route-neutral dispatch evidence contract', () => {
+  for (const name of ['x402_fetch', 'x402_status']) {
+    const schema = OPEN_TOOL_CONTRACTS[name].outputSchema;
+    assert.equal(schema.safeParse({
+      dispatch: {
+        boundary: 'crossed',
+        evidence: 'backend_delivery_state',
+      },
+    }).success, true, name);
+    assert.equal(schema.safeParse({
+      dispatch: {
+        boundary: 'crossed',
+        evidence: 'model_inference',
+      },
+    }).success, false, name);
+  }
 });
 
 test('search and wallet contracts expose current truth without route claims', () => {
@@ -1062,21 +1083,39 @@ for (const clientName of ['Generic MCP', 'ChatGPT', 'Claude']) {
   });
 }
 
-test('tools/list promotes exactly fetch and status after OAuth binding', async (t) => {
-  let connected = false;
-  const server = new McpServer({ name: 'dynamic-roster-test', version: '0.4.0' });
-  installOpenToolContracts(server);
-  for (const name of EXPECTED_TOOLS) {
-    server.registerTool(name, { inputSchema: {} }, async () => ({
-      content: [{ type: 'text', text: '{}' }],
-      structuredContent: {},
-    }));
+test('fresh and refreshed real hosted transports retain the exact protected roster', async () => {
+  const { createOpenMcpServer } = await import('../open-mcp-server.mjs');
+  for (const phase of ['fresh', 'refreshed']) {
+    const server = createOpenMcpServer({ includeResources: false });
+    const client = new Client({ name: `${phase}-client`, version: '1.0.0' });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+    try {
+      const listed = (await client.listTools()).tools;
+      const names = listed.map((tool) => tool.name);
+      assert.deepEqual(names, OPEN_TOOL_NAMES, phase);
+      for (const protectedName of ['x402_fetch', 'x402_status']) {
+        const tool = listed.find(({ name }) => name === protectedName);
+        assert.deepEqual(
+          tool?._meta?.securitySchemes,
+          [{ type: 'oauth2', scopes: ['vault'] }],
+          `${phase}:${protectedName}`,
+        );
+      }
+    } finally {
+      await client.close();
+      await server.close();
+    }
   }
-  finalizeOpenToolContracts(server, {
-    listedToolNames: () => connected ? OPEN_TOOL_NAMES : OPEN_ANONYMOUS_TOOL_NAMES,
-  });
+  assert.deepEqual(OPEN_ANONYMOUS_TOOL_NAMES, OPEN_TOOL_NAMES);
+  assert.deepEqual(OPEN_OAUTH_PROMOTED_TOOL_NAMES, []);
+});
 
-  const client = new Client({ name: 'dynamic-client', version: '1.0.0' });
+test('an unbound session keeps fetch and status while requesting native Connect', async (t) => {
+  const { createOpenMcpServer } = await import('../open-mcp-server.mjs');
+  const server = createOpenMcpServer({ includeResources: false });
+
+  const client = new Client({ name: 'unbound-client', version: '1.0.0' });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   t.after(async () => {
     await client.close();
@@ -1084,22 +1123,27 @@ test('tools/list promotes exactly fetch and status after OAuth binding', async (
   });
   await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
 
+  const before = (await client.listTools()).tools.map((tool) => tool.name);
+  assert.equal(before.includes('x402_fetch'), true);
+  assert.equal(before.includes('x402_status'), true);
+
+  const result = await client.callTool({
+    name: 'x402_fetch',
+    arguments: {
+      intentId: 'intent-unbound',
+      maxAmountAtomic: '50000',
+    },
+  });
+  assert.equal(result.isError, true);
+  assert.equal(result.structuredContent.status, 'authentication_required');
+  assert.equal(result.structuredContent.dispatch.boundary, 'not_crossed');
+  assert.equal(result.structuredContent.payment.confirmed, false);
+  assert.deepEqual(
+    result._meta['mcp/www_authenticate'],
+    [VAULT_WWW_AUTHENTICATE],
+  );
   assert.deepEqual(
     (await client.listTools()).tools.map((tool) => tool.name),
-    OPEN_ANONYMOUS_TOOL_NAMES,
+    before,
   );
-  connected = true;
-  assert.deepEqual(
-    (await client.listTools()).tools.map((tool) => tool.name),
-    OPEN_TOOL_NAMES,
-  );
-  assert.deepEqual(OPEN_OAUTH_PROMOTED_TOOL_NAMES, [
-    'x402_fetch',
-    'x402_status',
-    'dexter_prepare_asset_action',
-    'dexter_execute_asset_action',
-    'dexter_asset_action_status',
-    'dexter_reconcile_asset_action',
-    'dexter_wallet_history',
-  ]);
 });

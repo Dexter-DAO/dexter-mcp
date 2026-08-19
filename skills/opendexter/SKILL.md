@@ -27,24 +27,21 @@ actually ship.
 | --- | --- | --- |
 | Discover a service or resource | `x402_search` | Anonymous |
 | Quote or custody an exact endpoint request | `x402_check` | Anonymous quote; OAuth intent |
-| Call one approved, API-custodied intent | `x402_fetch` | OAuth promotion |
-| Inspect one intent without redispatch | `x402_status` | OAuth promotion |
+| Call one approved, API-custodied intent | `x402_fetch` | Discoverable; OAuth required |
+| Inspect one intent without redispatch | `x402_status` | Discoverable; OAuth required |
 | Use wallet-proof or Sign-In-With-X access | `x402_access` | Anonymous |
 | Read wallet readiness, cash, reported credit capacity, deposit address, and activity | `x402_wallet` | Anonymous entry; OAuth data |
 | Read governed assets and currently allowed actions | `dexter_portfolio` | Anonymous entry; OAuth data |
-| Prepare an exact governed Send, Buy, or Sell | `dexter_prepare_asset_action` | OAuth promotion |
-| Execute one prepared governed intent | `dexter_execute_asset_action` | OAuth promotion |
-| Read durable governed intent status | `dexter_asset_action_status` | OAuth promotion |
-| Request same-intent reconciliation | `dexter_reconcile_asset_action` | OAuth promotion |
-| Read governed Send, Buy, and Sell history | `dexter_wallet_history` | OAuth promotion |
+| Prepare an exact governed Send, Buy, or Sell | `dexter_prepare_asset_action` | Discoverable; OAuth required |
+| Execute one prepared governed intent | `dexter_execute_asset_action` | Discoverable; OAuth required |
+| Read durable governed intent status | `dexter_asset_action_status` | Discoverable; OAuth required |
+| Request same-intent reconciliation | `dexter_reconcile_asset_action` | Discoverable; OAuth required |
+| Read governed Send, Buy, and Sell history | `dexter_wallet_history` | Discoverable; OAuth required |
 
-The exact anonymous roster is `x402_search`, `x402_check`, `x402_access`,
-`x402_wallet`, and `dexter_portfolio`. Wallet and portfolio return the native
-Connect path, not private data, before authorization. OAuth promotes
-`x402_fetch`, `x402_status`, `dexter_prepare_asset_action`,
-`dexter_execute_asset_action`, `dexter_asset_action_status`,
-`dexter_reconcile_asset_action`, and `dexter_wallet_history`, making the
-connected roster exactly twelve tools.
+Every fresh or authenticated transport discovers the same exact twelve tools.
+Per-tool security schemes enforce authorization: protected tools return native
+Connect, not private data or an action, before OAuth succeeds. OAuth changes
+authorization and never removes or promotes tools during a transport refresh.
 
 Deprecated compatibility and internal diagnostic endpoints are not user-facing
 product tools. Do not select them for a new request.
@@ -78,6 +75,13 @@ product tools. Do not select them for a new request.
    tab state, or prepared-purchase JSON.
 8. Report provider output separately from charge, merchant acknowledgment,
    chain finality, ambiguity, and reconciliation state.
+
+Say the merchant request was dispatched only when the returned
+`dispatch.boundary` is exactly `crossed`. A missing tool result, elapsed-time
+widget, or host-disabled/pre-server invocation is not dispatch evidence. If
+the host explicitly says it blocked the call before backend execution, report
+that no payment was sent. Otherwise, missing output means only that the call
+has not returned and no dispatch is confirmed.
 
 If the intent lacks execution authority, show the returned hosted consent URL
 and resume that same intent after consent. Do not re-check or mint a replacement

@@ -33,6 +33,10 @@ type FetchPayload = {
   intentId?: string;
   status?: string | number;
   data?: unknown;
+  dispatch?: {
+    boundary?: string;
+    evidence?: string;
+  };
   auth?: {
     mode?: string;
     network?: string;
@@ -261,6 +265,7 @@ function FetchResult() {
   const isError = lifecycle.outcome === 'failed';
   const hasIntentLifecycle = Boolean(
     lifecycle.intentId
+    || toolOutput.dispatch !== undefined
     || toolOutput.delivery !== undefined
     || toolOutput.payment !== undefined
     || toolOutput.reconciliation !== undefined
@@ -347,7 +352,7 @@ function FetchResult() {
 
 const root = document.getElementById('x402-fetch-result-root');
 if (root) {
-  root.setAttribute('data-widget-build', '2026-07-30.opaque-intent');
+  root.setAttribute('data-widget-build', '2026-08-19.purchase-truth');
   createRoot(root).render(<FetchResult />);
 }
 

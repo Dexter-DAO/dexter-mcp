@@ -86,6 +86,9 @@ test('served guidance requires native OAuth and bounded nonretryable spending', 
   assert.match(WORKFLOW, /Zero cash alone is not proof that a deposit is required/);
   assert.match(WORKFLOW, /Reported credit[\s\S]*not a promise/);
   assert.match(WORKFLOW, /If\s+it already does, do not ask for another approval/);
+  assert.match(WORKFLOW, /dispatch\.boundary` is exactly `crossed`/);
+  assert.match(WORKFLOW, /host-disabled\/pre-server invocation is not dispatch evidence/);
+  assert.match(WORKFLOW, /report[\s\S]*no payment was sent/);
   assert.doesNotMatch(
     SERVER,
     /ALWAYS pass this when the paying wallet is chain-bound|pass "solana" there/,
@@ -161,6 +164,10 @@ test('generated runtime instructions preserve exact consequence and recovery bou
   assert.match(runtime, /current instruction or existing bounded policy covers the exact seller, URL, method, body,[\s\S]*maxAmountAtomic/);
   assert.match(runtime, /If it already does, do not ask for another payment approval/);
   assert.match(runtime, /x402_fetch once with only intentId and maxAmountAtomic/);
+  assert.match(runtime, /Say the merchant request crossed the dispatch boundary only when structuredContent\.dispatch\.boundary is exactly "crossed"/);
+  assert.match(runtime, /host explicitly rejects or disables the tool before backend execution[\s\S]*no payment was sent/);
+  assert.match(runtime, /If no result returns[\s\S]*call has not returned and no dispatch is confirmed/);
+  assert.match(runtime, /Never infer dispatch from silence/);
   assert.match(runtime, /Never automatically repeat an access call after dispatch uncertainty/);
   assert.match(runtime, /If access reports that the endpoint is paid, do not call x402_fetch directly/);
   assert.match(runtime, /Return to x402_check for that exact request[\s\S]*authenticated intent and approved ceiling/);
@@ -169,6 +176,7 @@ test('generated runtime instructions preserve exact consequence and recovery bou
   assert.match(runtime, /Reconcile that same intent only when durable status requires it/);
   assert.match(runtime, /user requested only a status read,[\s\S]*obtain explicit confirmation before reconciliation/);
   assert.match(runtime, /Status reads never redispatch/);
+  assert.match(runtime, /dispatch\.boundary "unknown"[\s\S]*x402_status only/);
   assert.match(runtime, /untrusted external data/);
   assert.match(runtime, /never authorize payment, an asset action,[\s\S]*or a retry/);
 });

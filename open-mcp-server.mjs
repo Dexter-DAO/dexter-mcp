@@ -111,7 +111,6 @@ import {
   vaultAuthenticationResult,
 } from './lib/open-tool-auth.mjs';
 import {
-  OPEN_ANONYMOUS_TOOL_NAMES,
   OPEN_TOOL_NAMES,
   finalizeOpenToolContracts,
   installOpenToolContracts,
@@ -229,7 +228,7 @@ function widgetMeta(templateUri, invoking, invoked, description) {
 }
 
 const SEARCH_META = widgetMeta(X402_WIDGET_URIS.search, 'Searching marketplace…', 'Results ready', 'Shows paid API search results as interactive cards with quality rings, prices, and fetch buttons.');
-const FETCH_META = widgetMeta(X402_WIDGET_URIS.fetch, 'Calling API…', 'Response received', 'Shows API response data with payment receipt, transaction link, and settlement status.');
+const FETCH_META = widgetMeta(X402_WIDGET_URIS.fetch, 'Waiting for OpenDexter…', 'OpenDexter result received', 'Shows returned dispatch, delivery, payment, and reconciliation evidence without inferring finality.');
 const ACCESS_META = widgetMeta(X402_WIDGET_URIS.fetch, 'Signing access proof…', 'Access response ready', 'Shows identity-gated API responses with wallet proof details and any follow-up requirements.');
 const CHECK_META = widgetMeta(X402_WIDGET_URIS.pricing, 'Checking pricing…', 'Pricing loaded', 'Shows endpoint pricing per blockchain with payment amounts and a pay button.');
 const WALLET_META = widgetMeta(X402_WIDGET_URIS.wallet, 'Loading wallet…', 'Wallet loaded', 'Shows wallet addresses with copy button, USDC balances across chains, and deposit QR code.');
@@ -653,6 +652,9 @@ async function x402IntentFetch(
         intentId,
         status: 'binding_unavailable',
         error: 'vault_state_unavailable',
+        delivery: { state: 'not_dispatched' },
+        payment: { state: 'not_built', confirmed: false },
+        reconciliation: { required: false, performed: false },
         retryable: false,
         retryWithSameIntentOnly: true,
       });
@@ -664,6 +666,9 @@ async function x402IntentFetch(
       authorizationRequired: true,
       error: 'authentication_required',
       reason: 'no_vault_bound',
+      delivery: { state: 'not_dispatched' },
+      payment: { state: 'not_built', confirmed: false },
+      reconciliation: { required: false, performed: false },
       retryable: false,
       retryWithSameIntentOnly: true,
     });
@@ -1950,7 +1955,6 @@ const SERVER_INSTRUCTIONS = buildOpenServerInstructions();
 
 export function createOpenMcpServer({
   includeResources = true,
-  listedToolNames,
 } = {}) {
   assertOpenToolAuthPolicyCoverage(ALL_TOOLS);
   const server = new McpServer({
@@ -2011,7 +2015,7 @@ export function createOpenMcpServer({
 
   registerOpenTool(server, 'x402_fetch', {
     title: 'x402 Fetch',
-    description: 'Execute one API-custodied purchase intent. Pass only the opaque intentId from an authenticated x402_check and the exact maxAmountAtomic ceiling approved by the user or delegated policy. Never pass URL, body, seller terms, route data, or a prepared purchase. Never automatically retry an ambiguous or post-dispatch outcome; use x402_status on the same intent.',
+    description: 'Execute one API-custodied purchase intent. Pass only the opaque intentId from an authenticated x402_check and the exact maxAmountAtomic ceiling approved by the user or delegated policy. Never pass URL, body, seller terms, route data, or a prepared purchase. Say dispatched only when dispatch.boundary is crossed. Never automatically retry an ambiguous or post-dispatch outcome; use x402_status on the same intent.',
     inputSchema: {
       intentId: z.string().min(1).max(256).describe('Opaque server-owned purchase-intent handle returned by the authenticated x402_check. Do not parse, reconstruct, or replace it.'),
       maxAmountAtomic: z.string().regex(MAX_AMOUNT_ATOMIC_RE).describe('Required approved maximum charge in USDC atomic units (positive 1-20 digit decimal string). The API binds it to this intent and rejects a different or larger charge.'),
@@ -2029,15 +2033,22 @@ export function createOpenMcpServer({
         sessionId,
       });
       if (handoff.matched && !handoff.acquired) {
-        const result = sanitizeOpenX402IntentResult({
-          ok: false,
-          intentId: args.intentId,
-          status: 'reconciliation_required',
-          error: 'intent_status_required',
-          reason: 'intent_session_handoff_unavailable',
-          retryable: false,
-          retryWithSameIntentOnly: true,
-        });
+        const result = {
+          ...sanitizeOpenX402IntentResult({
+            ok: false,
+            intentId: args.intentId,
+            status: 'reconciliation_required',
+            error: 'intent_status_required',
+            reason: 'intent_session_handoff_unavailable',
+            reconciliation: { required: true, performed: false },
+            retryable: false,
+            retryWithSameIntentOnly: true,
+          }),
+          dispatch: {
+            boundary: 'unknown',
+            evidence: 'backend_result_unavailable',
+          },
+        };
         return {
           content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
           structuredContent: result,
@@ -2081,6 +2092,11 @@ export function createOpenMcpServer({
         intentId: args.intentId,
         error: 'x402_intent_fetch_unavailable',
         reason: 'internal_api_unavailable',
+        dispatch: {
+          boundary: 'unknown',
+          evidence: 'backend_result_unavailable',
+        },
+        reconciliation: { required: true, performed: false },
         retryable: false,
         retryWithSameIntentOnly: true,
       };
@@ -2379,13 +2395,7 @@ export function createOpenMcpServer({
   // Physics, not vigilance: if the served instructions ever name a tool this
   // connector doesn't register, refuse to boot (drift register R1).
   assertInstructionRosterParity(SERVER_INSTRUCTIONS, ALL_TOOLS);
-  finalizeOpenToolContracts(server, {
-    listedToolNames: listedToolNames ?? ((_request, extra) => (
-      isVaultBound(sessionMeta.get(extractMcpSessionId(extra)))
-        ? OPEN_TOOL_NAMES
-        : OPEN_ANONYMOUS_TOOL_NAMES
-    )),
-  });
+  finalizeOpenToolContracts(server);
 
   return server;
 }

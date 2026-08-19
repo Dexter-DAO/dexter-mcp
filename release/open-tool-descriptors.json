@@ -80,19 +80,18 @@
   "anonymousToolNames": [
     "x402_search",
     "x402_check",
-    "x402_access",
-    "x402_wallet",
-    "dexter_portfolio"
-  ],
-  "oauthPromotedToolNames": [
     "x402_fetch",
     "x402_status",
+    "x402_access",
+    "x402_wallet",
+    "dexter_portfolio",
     "dexter_prepare_asset_action",
     "dexter_execute_asset_action",
     "dexter_asset_action_status",
     "dexter_reconcile_asset_action",
     "dexter_wallet_history"
   ],
+  "oauthPromotedToolNames": [],
   "connectedToolNames": [
     "x402_search",
     "x402_check",
@@ -508,7 +507,7 @@
     {
       "name": "x402_fetch",
       "title": "Call and Pay for an x402 API",
-      "description": "Execute one server-owned x402 purchase intent after approval. Accepts only the opaque intentId returned by an authenticated x402_check and maxAmountAtomic, the exact positive atomic ceiling approved by the user or delegated policy. URL, method, request body, seller offer, route, payee, network, asset, and challenge remain API-custodied. Never automatically retry an ambiguous or post-dispatch outcome; inspect the same intent with x402_status.",
+      "description": "Execute one server-owned x402 purchase intent after approval. Accepts only the opaque intentId returned by an authenticated x402_check and maxAmountAtomic, the exact positive atomic ceiling approved by the user or delegated policy. URL, method, request body, seller offer, route, payee, network, asset, and challenge remain API-custodied. Say the merchant request was dispatched only when the returned dispatch.boundary is crossed. A missing result or a host-disabled/pre-server invocation is not dispatch evidence. Never automatically retry an ambiguous or post-dispatch outcome; inspect the same intent with x402_status.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -547,6 +546,31 @@
             ]
           },
           "data": {},
+          "dispatch": {
+            "type": "object",
+            "properties": {
+              "boundary": {
+                "type": "string",
+                "enum": [
+                  "not_crossed",
+                  "crossed",
+                  "unknown"
+                ]
+              },
+              "evidence": {
+                "type": "string",
+                "enum": [
+                  "backend_delivery_state",
+                  "backend_result_unavailable"
+                ]
+              }
+            },
+            "required": [
+              "boundary",
+              "evidence"
+            ],
+            "additionalProperties": false
+          },
           "payment": {},
           "delivery": {},
           "reconciliation": {},
@@ -615,7 +639,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-fetch-result-64714fd2",
+          "resourceUri": "ui://dexter/x402-fetch-result-8996d1b0",
           "visibility": [
             "model",
             "app"
@@ -634,8 +658,8 @@
           "domain": "https://dexter.cash",
           "prefersBorder": true
         },
-        "ui/resourceUri": "ui://dexter/x402-fetch-result-64714fd2",
-        "openai/outputTemplate": "ui://dexter/x402-fetch-result-64714fd2",
+        "ui/resourceUri": "ui://dexter/x402-fetch-result-8996d1b0",
+        "openai/outputTemplate": "ui://dexter/x402-fetch-result-8996d1b0",
         "openai/resultCanProduceWidget": true,
         "openai/widgetAccessible": false,
         "openai/widgetDomain": "https://dexter.cash",
@@ -664,9 +688,9 @@
             "https://bscscan.com"
           ]
         },
-        "openai/toolInvocation/invoking": "Calling API…",
-        "openai/toolInvocation/invoked": "Response received",
-        "openai/widgetDescription": "Shows API response data with payment receipt, transaction link, and settlement status.",
+        "openai/toolInvocation/invoking": "Waiting for OpenDexter…",
+        "openai/toolInvocation/invoked": "OpenDexter result received",
+        "openai/widgetDescription": "Shows returned dispatch, delivery, payment, and reconciliation evidence without inferring finality.",
         "securitySchemes": [
           {
             "type": "oauth2",
@@ -680,7 +704,7 @@
     {
       "name": "x402_status",
       "title": "Inspect an x402 Purchase Intent",
-      "description": "Read delivery, payment, reconciliation, and reservation state for one opaque intentId. This never creates another purchase, redispatches the provider request, rebroadcasts a transaction, or changes routes. Use it after any preparing, ambiguous, or post-dispatch x402_fetch result.",
+      "description": "Read dispatch-boundary, delivery, payment, reconciliation, and reservation state for one opaque intentId. This never creates another purchase, redispatches the provider request, rebroadcasts a transaction, or changes routes. Use it after any genuinely pending, ambiguous, or post-dispatch x402_fetch result.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -711,6 +735,31 @@
               "string",
               "number"
             ]
+          },
+          "dispatch": {
+            "type": "object",
+            "properties": {
+              "boundary": {
+                "type": "string",
+                "enum": [
+                  "not_crossed",
+                  "crossed",
+                  "unknown"
+                ]
+              },
+              "evidence": {
+                "type": "string",
+                "enum": [
+                  "backend_delivery_state",
+                  "backend_result_unavailable"
+                ]
+              }
+            },
+            "required": [
+              "boundary",
+              "evidence"
+            ],
+            "additionalProperties": false
           },
           "payment": {},
           "delivery": {},
@@ -875,7 +924,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-fetch-result-64714fd2",
+          "resourceUri": "ui://dexter/x402-fetch-result-8996d1b0",
           "visibility": [
             "model"
           ],
@@ -893,8 +942,8 @@
           "domain": "https://dexter.cash",
           "prefersBorder": true
         },
-        "ui/resourceUri": "ui://dexter/x402-fetch-result-64714fd2",
-        "openai/outputTemplate": "ui://dexter/x402-fetch-result-64714fd2",
+        "ui/resourceUri": "ui://dexter/x402-fetch-result-8996d1b0",
+        "openai/outputTemplate": "ui://dexter/x402-fetch-result-8996d1b0",
         "openai/resultCanProduceWidget": true,
         "openai/widgetAccessible": false,
         "openai/widgetDomain": "https://dexter.cash",

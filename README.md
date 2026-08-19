@@ -91,7 +91,7 @@ deterministic provenance, the exact descriptor, and a complete file manifest
 that also authenticates the provenance bytes. It replaces only
 `dexter-open-mcp`, while proving the separate legacy `dexter-mcp` PID, path,
 configuration, and restart counters remain unchanged. It verifies the new
-public process's PM2 and kernel paths, health, exact 5/12 roster, and release
+public process's PM2 and kernel paths, health, exact twelve-tool roster, and release
 identity before `pm2 save`. Any mismatch independently restores and re-verifies
 the prior public OpenDexter process without restarting the private service. It
 never reloads or updates an existing process in place. This is still activation,
@@ -102,15 +102,14 @@ proof.
 
 ## OpenDexter: the hosted x402 buyer
 
-OpenDexter is the hosted MCP server behind the OpenDexter connector. Its
-anonymous roster contains search, quote-only price inspection,
-identity-gated access, and the wallet and portfolio entrypoints. The latter
-two return the host-native Connect path rather than private data until the
-session has OAuth `scope=vault` and a durable wallet binding.
+OpenDexter is the hosted MCP server behind the OpenDexter connector. Every
+fresh transport advertises the exact same twelve tools so protected tools do
+not disappear during an OAuth or transport refresh. Per-tool security schemes
+still separate public calls from protected calls. An unbound protected call
+returns the host-native Connect challenge rather than private data or a
+payment attempt.
 
-OAuth promotes `x402_fetch`, `x402_status`, and five governed-asset tools,
-producing this exact twelve-tool
-connected roster:
+The exact discoverable roster is:
 
 1. `x402_search`
 2. `x402_check`
@@ -126,10 +125,9 @@ connected roster:
 12. `dexter_wallet_history`
 
 There are no hosted compatibility aliases, composed-skill, passkey-probe, or
-card tools. The anonymous roster is exactly `x402_search`, `x402_check`,
-`x402_access`, `x402_wallet`, and `dexter_portfolio`; it does not include fetch
-or status, and it does not include any governed-asset mutation or history
-tool.
+card tools. OAuth changes authorization, never tool existence. `x402_fetch`,
+`x402_status`, wallet, portfolio, and governed-asset tools remain discoverable
+before authorization and request native Connect when invoked unbound.
 
 Search never pays. `x402_check` accepts the endpoint URL, method, and optional
 exact raw request-body string. Anonymous checks are quote-only. An
@@ -141,8 +139,11 @@ URL, body, route, tab, seller, or caller-carried prepared-purchase JSON.
 redispatching.
 
 If execution authority is missing, the hosted consent handoff must preserve
-the same intent. After any ambiguous or post-dispatch result, OpenDexter does
-not retry the purchase; it checks status and reconciliation on that intent.
+the same intent. Only a returned `dispatch.boundary: "crossed"` permits the
+agent to say the merchant request was dispatched. A missing result or
+host-disabled invocation never does. After a returned pending, ambiguous, or
+post-dispatch result, OpenDexter does not retry the purchase; it checks status
+on that same intent.
 Internal settlement-rail choice remains API-owned and is not a public tool or
 mode menu.
 
@@ -223,7 +224,7 @@ install guidance, and seller-side `opendexter audition <url>` command live in
 | Transport | Hosted HTTP MCP | Local stdio MCP |
 | Authorization | Mixed per-tool OAuth contract | Local process and signer |
 | Wallet identity | Durable passkey wallet bound to the authenticated MCP session | User-controlled local signer |
-| Executable roster | Five anonymous entry tools; twelve after OAuth promotion | Independently versioned; verify the installed package |
+| Executable roster | Twelve discoverable tools; protected calls require OAuth | Independently versioned; verify the installed package |
 | Seller onboarding | Not exposed as a hosted tool | `opendexter audition <url>` |
 | Best for | ChatGPT, Claude, hosted agents | Codex, Claude Code, CLI agents |
 
