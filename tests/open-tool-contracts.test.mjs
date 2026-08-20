@@ -88,6 +88,26 @@ test('contract is exactly the canonical hosted twelve', () => {
   }
 });
 
+test('governed trade results remain model-visible while only the receipt app renders', () => {
+  for (const name of [
+    'dexter_prepare_asset_action',
+    'dexter_execute_asset_action',
+    'dexter_asset_action_status',
+    'dexter_reconcile_asset_action',
+  ]) {
+    assert.deepEqual(OPEN_TOOL_CONTRACTS[name].visibility, ['model', 'app'], name);
+    assert.equal(OPEN_TOOL_CONTRACTS[name].widgetAccessible, false, name);
+  }
+  assert.deepEqual(
+    OPEN_TOOL_CONTRACTS.dexter_wallet_history.visibility,
+    ['model'],
+  );
+  assert.equal(
+    OPEN_TOOL_CONTRACTS.dexter_wallet_history.widgetAccessible,
+    false,
+  );
+});
+
 test('hosted paid guidance uses one opaque check-fetch-status path', () => {
   const fetchDescription = OPEN_TOOL_CONTRACTS.x402_fetch.description;
   const checkDescription = OPEN_TOOL_CONTRACTS.x402_check.description;

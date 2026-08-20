@@ -50,6 +50,10 @@ const API_6C243_ADVANCED_FINAL_FIXTURE_BYTES = readFileSync(new URL(
 const API_6C243_ADVANCED_FINAL_FIXTURE = JSON.parse(
   API_6C243_ADVANCED_FINAL_FIXTURE_BYTES.toString('utf8'),
 );
+const API_SPCX_SHARE_PREPARED_FIXTURE = JSON.parse(readFileSync(new URL(
+  './fixtures/spcx-share-quantity-delegated-prepared-response.json',
+  import.meta.url,
+), 'utf8'));
 
 function jsonResponse(status, body, headers = {}) {
   return {
@@ -145,6 +149,28 @@ function preparedResponse() {
       assetId: 'dexter',
       symbol: 'DEXTER',
       amountAtomic: '1000000',
+      productIdentity: {
+        assetId: 'dexter',
+        assetClass: 'token',
+        companyName: null,
+        productName: 'Dexter',
+        symbol: 'DEXTER',
+        issuer: null,
+        network: 'solana-mainnet',
+        mint: ADDRESS,
+        tokenProgram: 'spl-token',
+        decimals: 6,
+        registryIdentityDigest: '1'.repeat(64),
+      },
+      feeSummary: {
+        summary: 'Trading fees are included in this quote; network fee is calculated at execution.',
+        platformFee: null,
+        routeFees: [],
+        networkFee: {
+          status: 'not-yet-calculated',
+          amountLamports: null,
+        },
+      },
       inputMint: ADDRESS,
       outputMint: ADDRESS,
       destinationOwner: null,
@@ -177,6 +203,18 @@ function shareQuantityPreparedResponse({
   response.preview.assetId = 'scaled-stock-42';
   response.preview.symbol = 'STK42';
   response.preview.amountAtomic = inputAmountAtomic;
+  response.preview.productIdentity = {
+    ...response.preview.productIdentity,
+    assetId: 'scaled-stock-42',
+    assetClass: 'stock',
+    companyName: 'Example Company',
+    productName: 'Example Company Stock',
+    symbol: 'STK42',
+    issuer: 'Example Issuer',
+    tokenProgram: 'token-2022',
+    decimals: 8,
+    registryIdentityDigest: '2'.repeat(64),
+  };
   response.preview.requestAmountKind = 'share-quantity';
   response.preview.requestedShareQuantity = shareQuantity;
   response.preview.expectedShareQuantity = '10.1';
@@ -787,6 +825,22 @@ test('share-quantity Buy sends the human target and never caller-derived token a
     'minimum-receive',
   );
   assert.equal(result.body.preview.overfillPossible, true);
+});
+
+test('prepare output accepts the exact API SPCX share-quantity fixture', () => {
+  const parsed = GOVERNED_ASSET_TOOL_OUTPUT_SCHEMAS.prepare.safeParse(
+    API_SPCX_SHARE_PREPARED_FIXTURE,
+  );
+  assert.equal(
+    parsed.success,
+    true,
+    parsed.success ? undefined : JSON.stringify(parsed.error.issues),
+  );
+  assert.equal(parsed.data.preview.productIdentity.companyName, 'SpaceX');
+  assert.equal(parsed.data.preview.productIdentity.issuer, 'Backpack Securities');
+  assert.equal(parsed.data.preview.requestedShareQuantity, '10');
+  assert.equal(parsed.data.preview.minimumShareQuantity, '10.006782');
+  assert.equal(parsed.data.preview.feeSummary.networkFee.status, 'not-yet-calculated');
 });
 
 test('fractional share-quantity Buy may omit the user ceiling', async () => {
@@ -1928,6 +1982,55 @@ test('execute accepts only the canonical durable API outcome variants', async ()
     assert.deepEqual(result.body, responseBody);
     assert.notEqual(result.body.code, 'governed_backend_response_invalid');
   }
+});
+
+test('landed program errors remain structured so the receipt can render failure', () => {
+  const failed = executeResponse({
+    executed: false,
+    code: 'landed_program_error',
+    explanation: 'The protected program reported an execution error.',
+    business: {
+      executionSucceeded: false,
+      programError: true,
+    },
+  });
+  const result = buildGovernedAssetToolResult({
+    body: failed,
+    httpStatus: 200,
+    isError: true,
+  });
+  const projected = applyOpenToolResultPolicy(
+    'dexter_execute_asset_action',
+    result,
+  );
+
+  assert.equal(projected.isError, true);
+  assert.deepEqual(projected.structuredContent, failed);
+  assert.equal(projected.structuredContent.business.executionSucceeded, false);
+  assert.equal(projected.structuredContent.business.programError, true);
+});
+
+test('schema-valid execute refusals remain text-only', () => {
+  const refused = canonicalExecuteVariants()
+    .find(([, body]) => body.status === 'refused')[1];
+  assert.equal(
+    GOVERNED_ASSET_TOOL_OUTPUT_SCHEMAS.execute.safeParse(refused).success,
+    true,
+  );
+
+  const result = buildGovernedAssetToolResult({
+    body: refused,
+    httpStatus: 409,
+    isError: true,
+  });
+  const projected = applyOpenToolResultPolicy(
+    'dexter_execute_asset_action',
+    result,
+  );
+
+  assert.equal(projected.isError, true);
+  assert.equal(projected.structuredContent, undefined);
+  assert.equal(JSON.parse(projected.content[0].text).status, 'refused');
 });
 
 test('execute rejects structurally valid contradictory durable outcomes', async () => {

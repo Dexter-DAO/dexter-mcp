@@ -1,0 +1,124 @@
+{
+  "namespace": "dexter-governed-agent-action/v1",
+  "status": "prepared",
+  "executed": false,
+  "requestId": "buy-spcx-shares-0001",
+  "intentId": "33333333-3333-4333-8333-333333333333",
+  "planId": "170758fdf91ccef4137d9812a4ddacfaab76056f5b94ce7a2781c7f873fbbe56",
+  "replayed": false,
+  "attribution": {
+    "actor": "agent",
+    "runtime": {
+      "source": "mcp-link-token",
+      "agentId": "00000000-0000-4000-8000-000000000002",
+      "linkTokenId": "00000000-0000-4000-8000-000000000001",
+      "surfaceBindingDigest": "aaf59f7ead677b9482b0d5bdc6bd3227b6cbddcbf67cd02e23ea3a079497c2c1",
+      "sessionBindingDigest": "a2be490c252db16d707ba58c92ad70707f15fbffbf3f04592ddab8a5dc9e3aba"
+    },
+    "wallet": {
+      "vaultPda": "7v54NWdBtkjuAFJrLGsS2SXnuk8nKam81mZJeeYxVFi9",
+      "swigAddress": "mBKqcnGotbsSb5vNrdyhzZ5EhqZdids9QYiTRckvi7v",
+      "walletAddress": "AoVsGaj8MSJ6xwKxfFxo9iZWH3enC8RRTXKH2fx2F8os"
+    },
+    "grant": {
+      "id": "00000000-0000-4000-8000-000000000003",
+      "revision": 1,
+      "revisionDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "ruleId": "00000000-0000-4000-8000-000000000004",
+      "riskPolicyDigest": "23157a336566b500b29bf0c0817c28c2f139855f3369010e9fea7f776a45041a",
+      "validFrom": "2026-07-26T00:00:00.000Z",
+      "expiresAt": "2026-07-28T00:00:00.000Z"
+    }
+  },
+  "approval": {
+    "status": "owner-approval-required",
+    "reasons": []
+  },
+  "effectiveExpiresAt": "2026-07-27T00:01:00.000Z",
+  "riskEvidenceDigest": "5a9e01636d36a07e515e5ff16b4b5035d54a1fff3a84425739faa9aac527de5c",
+  "authoritySnapshotDigest": "9999999999999999999999999999999999999999999999999999999999999999",
+  "preview": {
+    "action": "buy",
+    "assetId": "backpack-spcx",
+    "symbol": "SPCX",
+    "amountAtomic": "1349344730",
+    "requestAmountKind": "share-quantity",
+    "requestedShareQuantity": "10",
+    "expectedShareQuantity": "10.05",
+    "minimumShareQuantity": "10.006782",
+    "shareQuantityUnit": "underlying-share-equivalent",
+    "shareQuantitySemantics": "minimum-receive",
+    "shareQuantityConversion": {
+      "assetVersionId": "registry:e76fe20bf636a71a6143f8562dbcdd80f57b75b6a89af56b35f6a0793ca0a3e0",
+      "rawMinimumOutputAtomic": "10006782",
+      "rawOutputDecimals": 6,
+      "displayMultiplier": "1",
+      "multiplierSource": "token-2022-scaled-ui",
+      "multiplierObservedAtSlot": "435300000",
+      "multiplierEffectiveAtUnixMs": null
+    },
+    "requestedMaximumSpendAtomic": "1500000000",
+    "maximumInputAmountAtomic": "1349344730",
+    "overfillPossible": true,
+    "productIdentity": {
+      "assetId": "backpack-spcx",
+      "assetClass": "stock",
+      "companyName": "SpaceX",
+      "productName": "SpaceX",
+      "symbol": "SPCX",
+      "issuer": "Backpack Securities",
+      "network": "solana-mainnet",
+      "mint": "SPCXxcqXj6e5dJDVNovHN8744zkbhM2bYudU45BimGb",
+      "tokenProgram": "token-2022",
+      "decimals": 6,
+      "registryIdentityDigest": "e76fe20bf636a71a6143f8562dbcdd80f57b75b6a89af56b35f6a0793ca0a3e0"
+    },
+    "feeSummary": {
+      "summary": "Trading fees are included in this quote; network fee is calculated at execution.",
+      "platformFee": null,
+      "routeFees": [],
+      "networkFee": {
+        "status": "not-yet-calculated",
+        "amountLamports": null
+      }
+    },
+    "inputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "outputMint": "SPCXxcqXj6e5dJDVNovHN8744zkbhM2bYudU45BimGb",
+    "destinationOwner": null,
+    "expectedOutputAtomic": "10050000",
+    "minimumOutputAtomic": "10006782",
+    "slippageBps": 50,
+    "priceImpactBps": 80,
+    "quoteExpiresAtUnixMs": 1785024030000
+  },
+  "account": {
+    "status": "already-exists",
+    "tokenAccountAddress": "7TQdn2fhS1TgaCPLzmkm7duCNcQTtU7bY4FyLN9DxWnW"
+  },
+  "business": {
+    "action": "buy",
+    "assetId": "backpack-spcx",
+    "amountAtomic": "1349344730",
+    "destinationOwner": null,
+    "protocolId": "jupiter-v2",
+    "lifecycle": "prepared",
+    "settlement": "not-submitted",
+    "finality": "not-final",
+    "executionSucceeded": null,
+    "programError": false,
+    "refusalOrEscalationReasons": [],
+    "ambiguity": {
+      "status": "none",
+      "retrySameRequestOnly": false
+    },
+    "reconciliation": {
+      "required": false,
+      "availableToOwner": false
+    }
+  },
+  "execution": {
+    "status": "not-executed",
+    "signed": false,
+    "submitted": false
+  }
+}

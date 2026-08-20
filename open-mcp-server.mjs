@@ -31,7 +31,12 @@ if (process.env.NODE_ENV !== 'production') {
   dotenv.config({ path: '.env.local' });
 }
 import { createOpenSessionResolver } from './lib/open-session-resolution.mjs';
-import { X402_WIDGET_URIS, DIAGNOSTIC_WIDGET_URIS, PASSKEY_WIDGET_URIS } from './apps-sdk/widget-uris.mjs';
+import {
+  X402_WIDGET_URIS,
+  DIAGNOSTIC_WIDGET_URIS,
+  PASSKEY_WIDGET_URIS,
+  GOVERNED_ASSET_WIDGET_URIS,
+} from './apps-sdk/widget-uris.mjs';
 // Card TOOLS are gone (runbook Jul 23); createRemoteCardOperations remains the
 // HMAC client for the wallet widget's read-only card summary + frame-only rail.
 import { createRemoteCardOperations } from '@dexterai/x402-mcp-tools';
@@ -227,6 +232,32 @@ function widgetMeta(templateUri, invoking, invoked, description) {
   };
 }
 
+function readOnlyResultWidgetMeta(templateUri, invoking, invoked, description) {
+  const csp = getWidgetCsp(templateUri);
+  const standardCsp = buildStandardWidgetCsp(csp, WIDGET_DOMAIN);
+  return Object.freeze({
+    ui: {
+      resourceUri: templateUri,
+      visibility: ['model', 'app'],
+      csp: standardCsp,
+      domain: WIDGET_DOMAIN,
+      prefersBorder: true,
+    },
+    'ui/resourceUri': templateUri,
+    'openai/outputTemplate': templateUri,
+    'openai/resultCanProduceWidget': true,
+    // The card is a receipt surface. It may open the exact Solscan link, but
+    // it cannot call execute or any other MCP tool.
+    'openai/widgetAccessible': false,
+    'openai/widgetDomain': WIDGET_DOMAIN,
+    'openai/widgetPrefersBorder': true,
+    'openai/widgetCSP': csp,
+    'openai/toolInvocation/invoking': invoking,
+    'openai/toolInvocation/invoked': invoked,
+    'openai/widgetDescription': description,
+  });
+}
+
 const SEARCH_META = widgetMeta(X402_WIDGET_URIS.search, 'Searching marketplace…', 'Results ready', 'Shows paid API search results as interactive cards with quality rings, prices, and fetch buttons.');
 const FETCH_META = widgetMeta(X402_WIDGET_URIS.fetch, 'Waiting for OpenDexter…', 'OpenDexter result received', 'Shows returned dispatch, delivery, payment, and reconciliation evidence without inferring finality.');
 const ACCESS_META = widgetMeta(X402_WIDGET_URIS.fetch, 'Signing access proof…', 'Access response ready', 'Shows identity-gated API responses with wallet proof details and any follow-up requirements.');
@@ -239,6 +270,34 @@ const PORTFOLIO_META = Object.freeze({
 const STATUS_META = Object.freeze({
   'openai/toolInvocation/invoking': 'Checking purchase…',
   'openai/toolInvocation/invoked': 'Purchase status loaded',
+});
+const STOCK_TRADE_WIDGET_DESCRIPTION =
+  'Shows the exact Solana stock product, requested and quoted share equivalents, fees, and truthful transaction state. Confirmed requires an exact signature, Solana confirmation, and successful execution.';
+const GOVERNED_ASSET_META = Object.freeze({
+  prepare: readOnlyResultWidgetMeta(
+    GOVERNED_ASSET_WIDGET_URIS.stockTrade,
+    'Preparing stock trade…',
+    'Trade preview ready',
+    STOCK_TRADE_WIDGET_DESCRIPTION,
+  ),
+  execute: readOnlyResultWidgetMeta(
+    GOVERNED_ASSET_WIDGET_URIS.stockTrade,
+    'Sending approved stock trade…',
+    'Trade update ready',
+    STOCK_TRADE_WIDGET_DESCRIPTION,
+  ),
+  status: readOnlyResultWidgetMeta(
+    GOVERNED_ASSET_WIDGET_URIS.stockTrade,
+    'Checking stock trade…',
+    'Trade status ready',
+    STOCK_TRADE_WIDGET_DESCRIPTION,
+  ),
+  reconcile: readOnlyResultWidgetMeta(
+    GOVERNED_ASSET_WIDGET_URIS.stockTrade,
+    'Reconciling stock trade…',
+    'Trade reconciliation update ready',
+    STOCK_TRADE_WIDGET_DESCRIPTION,
+  ),
 });
 
 // Card and compatibility tools are retired from the hosted MCP. Every client
@@ -1927,7 +1986,7 @@ async function governedAssetAction(operation, args, extra) {
       code: 'governed_backend_configuration_unavailable',
     });
   }
-  return buildGovernedAssetToolResult(result);
+  return buildGovernedAssetToolResult(result, GOVERNED_ASSET_META[operation]);
 }
 
 // ─── MCP Server Setup ───────────────────────────────────────────────────────
@@ -2361,6 +2420,9 @@ export function createOpenMcpServer({
     const tool = GOVERNED_ASSET_TOOL_NAMES[operation];
     registerOpenTool(server, tool, {
       inputSchema: GOVERNED_ASSET_INPUT_SCHEMAS[operation],
+      ...(GOVERNED_ASSET_META[operation]
+        ? { _meta: GOVERNED_ASSET_META[operation] }
+        : {}),
     }, (args, extra) => governedAssetAction(operation, args, extra));
   }
 
@@ -2381,6 +2443,7 @@ export function createOpenMcpServer({
           X402_WIDGET_URIS.fetch,
           X402_WIDGET_URIS.pricing,
           X402_WIDGET_URIS.wallet,
+          GOVERNED_ASSET_WIDGET_URIS.stockTrade,
           // Preserve already-served resource bytes for cached host renders.
           // Neither compatibility resource has a callable tool in this release.
           DIAGNOSTIC_WIDGET_URIS.passkeyProbe,

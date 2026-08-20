@@ -2,7 +2,13 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { promises as fsp } from 'node:fs';
 import { buildWidgetBootstrapScript } from './bootstrap.js';
-import { X402_WIDGET_URIS, CARD_WIDGET_URIS, DIAGNOSTIC_WIDGET_URIS, PASSKEY_WIDGET_URIS } from './widget-uris.mjs';
+import {
+  X402_WIDGET_URIS,
+  CARD_WIDGET_URIS,
+  DIAGNOSTIC_WIDGET_URIS,
+  PASSKEY_WIDGET_URIS,
+  GOVERNED_ASSET_WIDGET_URIS,
+} from './widget-uris.mjs';
 import { resolveAppsSdkRelease } from '../scripts/apps-sdk-release.mjs';
 import { registerAppResource, RESOURCE_MIME_TYPE } from '@modelcontextprotocol/ext-apps/server';
 import { isWebauthnProbeTelemetryEnabled } from '../lib/webauthn-probe-telemetry.mjs';
@@ -146,6 +152,10 @@ export function buildWidgetCsp(
     redirectDomains.push('https://dexter.cash');
   } else if (templateUri === PASSKEY_WIDGET_URIS.onboard) {
     redirectDomains.push('https://dexter.cash', 'https://solscan.io');
+  } else if (templateUri === GOVERNED_ASSET_WIDGET_URIS.stockTrade) {
+    // This receipt is read-only. Its sole outbound action is the exact
+    // transaction explorer link rendered from a validated Solana signature.
+    redirectDomains.push('https://solscan.io');
   }
 
   return {
@@ -664,6 +674,16 @@ export function registerAppsSdkResources(server, options = {}) {
       widgetDescription: 'Passkey wallet status — asks the user to use the host Connect control when authorization is required, then shows the bound wallet when ready.',
       invoking: 'Checking wallet…',
       invoked: 'Wallet status loaded',
+    },
+    {
+      name: 'dexter_stock_trade',
+      templateUri: GOVERNED_ASSET_WIDGET_URIS.stockTrade,
+      file: 'stock-trade.html',
+      title: 'OpenDexter stock trade',
+      description: 'Read-only ChatGPT Apps receipt for a governed Solana tokenized-stock preview, execution, status check, or reconciliation result.',
+      widgetDescription: 'Shows the exact Solana stock product, requested and quoted share equivalents, fees, and truthful transaction state. Confirmed means an exact signature, Solana confirmation, and successful execution are all present.',
+      invoking: 'Loading stock trade…',
+      invoked: 'Stock trade update ready',
     },
   ];
 
