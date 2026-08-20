@@ -204,7 +204,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-marketplace-search-0b654c9b",
+          "resourceUri": "ui://dexter/x402-marketplace-search-23910bce",
           "visibility": [
             "model",
             "app"
@@ -224,8 +224,8 @@
           "domain": "https://dexter.cash",
           "prefersBorder": true
         },
-        "ui/resourceUri": "ui://dexter/x402-marketplace-search-0b654c9b",
-        "openai/outputTemplate": "ui://dexter/x402-marketplace-search-0b654c9b",
+        "ui/resourceUri": "ui://dexter/x402-marketplace-search-23910bce",
+        "openai/outputTemplate": "ui://dexter/x402-marketplace-search-23910bce",
         "openai/resultCanProduceWidget": true,
         "openai/widgetAccessible": true,
         "openai/widgetDomain": "https://dexter.cash",
@@ -454,7 +454,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-pricing-259bfcd0",
+          "resourceUri": "ui://dexter/x402-pricing-95890725",
           "visibility": [
             "model",
             "app"
@@ -472,8 +472,8 @@
           "domain": "https://dexter.cash",
           "prefersBorder": true
         },
-        "ui/resourceUri": "ui://dexter/x402-pricing-259bfcd0",
-        "openai/outputTemplate": "ui://dexter/x402-pricing-259bfcd0",
+        "ui/resourceUri": "ui://dexter/x402-pricing-95890725",
+        "openai/outputTemplate": "ui://dexter/x402-pricing-95890725",
         "openai/resultCanProduceWidget": true,
         "openai/widgetAccessible": true,
         "openai/widgetDomain": "https://dexter.cash",
@@ -639,7 +639,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-fetch-result-8996d1b0",
+          "resourceUri": "ui://dexter/x402-fetch-result-af524c99",
           "visibility": [
             "model",
             "app"
@@ -658,8 +658,8 @@
           "domain": "https://dexter.cash",
           "prefersBorder": true
         },
-        "ui/resourceUri": "ui://dexter/x402-fetch-result-8996d1b0",
-        "openai/outputTemplate": "ui://dexter/x402-fetch-result-8996d1b0",
+        "ui/resourceUri": "ui://dexter/x402-fetch-result-af524c99",
+        "openai/outputTemplate": "ui://dexter/x402-fetch-result-af524c99",
         "openai/resultCanProduceWidget": true,
         "openai/widgetAccessible": false,
         "openai/widgetDomain": "https://dexter.cash",
@@ -924,7 +924,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-fetch-result-8996d1b0",
+          "resourceUri": "ui://dexter/x402-fetch-result-af524c99",
           "visibility": [
             "model"
           ],
@@ -942,8 +942,8 @@
           "domain": "https://dexter.cash",
           "prefersBorder": true
         },
-        "ui/resourceUri": "ui://dexter/x402-fetch-result-8996d1b0",
-        "openai/outputTemplate": "ui://dexter/x402-fetch-result-8996d1b0",
+        "ui/resourceUri": "ui://dexter/x402-fetch-result-af524c99",
+        "openai/outputTemplate": "ui://dexter/x402-fetch-result-af524c99",
         "openai/resultCanProduceWidget": true,
         "openai/widgetAccessible": false,
         "openai/widgetDomain": "https://dexter.cash",
@@ -1226,7 +1226,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-wallet-e33931ca",
+          "resourceUri": "ui://dexter/x402-wallet-3760bc3b",
           "visibility": [
             "model",
             "app"
@@ -1247,8 +1247,8 @@
           "domain": "https://dexter.cash",
           "prefersBorder": true
         },
-        "ui/resourceUri": "ui://dexter/x402-wallet-e33931ca",
-        "openai/outputTemplate": "ui://dexter/x402-wallet-e33931ca",
+        "ui/resourceUri": "ui://dexter/x402-wallet-3760bc3b",
+        "openai/outputTemplate": "ui://dexter/x402-wallet-3760bc3b",
         "openai/resultCanProduceWidget": true,
         "openai/widgetAccessible": false,
         "openai/widgetDomain": "https://dexter.cash",
@@ -1745,7 +1745,7 @@
     {
       "name": "dexter_prepare_asset_action",
       "title": "Prepare a Governed Send, Buy, or Sell",
-      "description": "Persist and evaluate one exact Send, Buy, or Sell without signing or submitting it. Tool/schema presence is not runtime capability; only this Prepare response is authoritative. In the current integrated release, covered Buy and Sell may continue autonomously, while Send is preserved in the input contract but fails closed with protected_agent_send_sdk_required before capacity reservation or intent creation. Pass only a canonical assetId returned by dexter_portfolio from an approved holding or approvedActionTarget with the requested action available; Dexter resolves and binds its exact network, mint, token program, decimals, and supported actions. Buy amountAtomic is the USDC budget to spend; Sell and Send amountAtomic are selected-asset input. operationId is only the Idempotency-Key. The server resolves the wallet and reusable bounded mandate; enrollment, extension, or owner escalation happens outside model-callable tools only when the request is not already covered.",
+      "description": "Persist and evaluate one exact Send, Buy, or Sell without signing or submitting it. Tool/schema presence is not runtime capability; only this Prepare response is authoritative. In the current integrated release, covered Buy and Sell may continue autonomously, while Send is preserved in the input contract but fails closed with protected_agent_send_sdk_required before capacity reservation or intent creation. Pass only a canonical assetId returned by dexter_portfolio from an approved holding or approvedActionTarget with the requested action available; Dexter resolves and binds its exact network, mint, token program, decimals, and supported actions. A Buy uses exactly one amount mode: amountAtomic is the exact USDC budget to spend, while shareQuantity is the human decimal underlying-share-equivalent quantity requested and may be paired with maximumSpendAtomic as a USDC ceiling. Never convert shareQuantity to token atomic units; Dexter resolves the exact product version, current display multiplier, and raw minimum output. Never send both modes, and never treat shareQuantity as exact output because slight overfill is possible. Sell and Send amountAtomic are selected-asset input. operationId is only the Idempotency-Key. The server resolves the wallet and reusable bounded mandate; enrollment, extension, or owner escalation happens outside model-callable tools only when the request is not already covered.",
       "inputSchema": {
         "anyOf": [
           {
@@ -1835,6 +1835,47 @@
               "action",
               "assetId",
               "amountAtomic"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "operationId": {
+                "$ref": "#/anyOf/0/properties/operationId"
+              },
+              "action": {
+                "type": "string",
+                "const": "buy"
+              },
+              "assetId": {
+                "$ref": "#/anyOf/0/properties/assetId"
+              },
+              "shareQuantity": {
+                "type": "string",
+                "maxLength": 39,
+                "pattern": "^(?:0|[1-9][0-9]{0,19})(?:\\.[0-9]{1,18})?$",
+                "description": "Minimum underlying-share-equivalent quantity requested for an approved Solana stock product, expressed as a human decimal such as 10 or 0.25. Dexter resolves the exact product version, current display multiplier, and raw token amount. This is a minimum-receive target and execution may receive slightly more."
+              },
+              "maximumSpendAtomic": {
+                "$ref": "#/anyOf/0/properties/amountAtomic",
+                "description": "Optional maximum USDC input permitted for this share-quantity Buy, in atomic units with 6 decimals. It is valid only with shareQuantity; 1000000 means 1 USDC."
+              },
+              "memo": {
+                "$ref": "#/anyOf/1/properties/memo"
+              },
+              "maxSlippageBps": {
+                "$ref": "#/anyOf/1/properties/maxSlippageBps"
+              },
+              "maxPriceImpactBps": {
+                "$ref": "#/anyOf/1/properties/maxSlippageBps"
+              }
+            },
+            "required": [
+              "operationId",
+              "action",
+              "assetId",
+              "shareQuantity"
             ],
             "additionalProperties": false
           },
@@ -2245,6 +2286,307 @@
               "amountAtomic": {
                 "$ref": "#/properties/business/properties/amountAtomic"
               },
+              "requestAmountKind": {
+                "type": "string",
+                "enum": [
+                  "input",
+                  "share-quantity"
+                ]
+              },
+              "requestedShareQuantity": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 39,
+                    "pattern": "^(?:0|[1-9][0-9]{0,19})(?:\\.[0-9]{1,18})?$",
+                    "description": "Positive decimal underlying-share-equivalent quantity, such as 10 or 0.25. Do not convert it to token atomic units; Dexter resolves the selected product version, token decimals, and current display multiplier."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Positive decimal underlying-share-equivalent quantity, such as 10 or 0.25. Do not convert it to token atomic units; Dexter resolves the selected product version, token decimals, and current display multiplier."
+              },
+              "expectedShareQuantity": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/preview/properties/requestedShareQuantity/anyOf/0"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Positive decimal underlying-share-equivalent quantity, such as 10 or 0.25. Do not convert it to token atomic units; Dexter resolves the selected product version, token decimals, and current display multiplier."
+              },
+              "minimumShareQuantity": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/preview/properties/requestedShareQuantity/anyOf/0"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Positive decimal underlying-share-equivalent quantity, such as 10 or 0.25. Do not convert it to token atomic units; Dexter resolves the selected product version, token decimals, and current display multiplier."
+              },
+              "maximumInputAmountAtomic": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/business/properties/amountAtomic"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "requestedMaximumSpendAtomic": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/business/properties/amountAtomic"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "shareQuantityUnit": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "const": "underlying-share-equivalent"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "shareQuantitySemantics": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "const": "minimum-receive"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "overfillPossible": {
+                "type": "boolean"
+              },
+              "productIdentity": {
+                "type": "object",
+                "properties": {
+                  "assetId": {
+                    "$ref": "#/properties/business/properties/assetId"
+                  },
+                  "assetClass": {
+                    "type": "string",
+                    "enum": [
+                      "cash",
+                      "yield",
+                      "token",
+                      "stock",
+                      "fund",
+                      "nft",
+                      "rwa"
+                    ]
+                  },
+                  "companyName": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "productName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "symbol": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 32
+                  },
+                  "issuer": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "network": {
+                    "type": "string",
+                    "const": "solana-mainnet"
+                  },
+                  "mint": {
+                    "$ref": "#/properties/attribution/properties/wallet/properties/vaultPda"
+                  },
+                  "tokenProgram": {
+                    "type": "string",
+                    "enum": [
+                      "spl-token",
+                      "token-2022"
+                    ]
+                  },
+                  "decimals": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 18
+                  },
+                  "registryIdentityDigest": {
+                    "$ref": "#/properties/attribution/properties/runtime/properties/surfaceBindingDigest"
+                  }
+                },
+                "required": [
+                  "assetId",
+                  "assetClass",
+                  "companyName",
+                  "productName",
+                  "symbol",
+                  "issuer",
+                  "network",
+                  "mint",
+                  "tokenProgram",
+                  "decimals",
+                  "registryIdentityDigest"
+                ],
+                "additionalProperties": false
+              },
+              "feeSummary": {
+                "type": "object",
+                "properties": {
+                  "summary": {
+                    "type": "string",
+                    "const": "Trading fees are included in this quote; network fee is calculated at execution."
+                  },
+                  "platformFee": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "amountAtomic": {
+                            "type": "string",
+                            "maxLength": 20,
+                            "pattern": "^(0|[1-9][0-9]*)$"
+                          },
+                          "mint": {
+                            "$ref": "#/properties/attribution/properties/wallet/properties/vaultPda"
+                          }
+                        },
+                        "required": [
+                          "amountAtomic",
+                          "mint"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "routeFees": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/properties/preview/properties/feeSummary/properties/platformFee/anyOf/0"
+                    },
+                    "maxItems": 32
+                  },
+                  "networkFee": {
+                    "type": "object",
+                    "properties": {
+                      "status": {
+                        "type": "string",
+                        "const": "not-yet-calculated"
+                      },
+                      "amountLamports": {
+                        "type": "null"
+                      }
+                    },
+                    "required": [
+                      "status",
+                      "amountLamports"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "summary",
+                  "platformFee",
+                  "routeFees",
+                  "networkFee"
+                ],
+                "additionalProperties": false
+              },
+              "shareQuantityConversion": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "assetVersionId": {
+                        "$ref": "#/properties/requestId"
+                      },
+                      "rawMinimumOutputAtomic": {
+                        "$ref": "#/properties/business/properties/amountAtomic"
+                      },
+                      "rawOutputDecimals": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 255
+                      },
+                      "displayMultiplier": {
+                        "$ref": "#/properties/preview/properties/requestedShareQuantity/anyOf/0"
+                      },
+                      "multiplierSource": {
+                        "type": "string",
+                        "enum": [
+                          "token-2022-scaled-ui",
+                          "identity"
+                        ]
+                      },
+                      "multiplierObservedAtSlot": {
+                        "$ref": "#/properties/preview/properties/feeSummary/properties/platformFee/anyOf/0/properties/amountAtomic"
+                      },
+                      "multiplierEffectiveAtUnixMs": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "assetVersionId",
+                      "rawMinimumOutputAtomic",
+                      "rawOutputDecimals",
+                      "displayMultiplier",
+                      "multiplierSource",
+                      "multiplierObservedAtSlot",
+                      "multiplierEffectiveAtUnixMs"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
               "inputMint": {
                 "anyOf": [
                   {
@@ -2272,9 +2614,7 @@
               "expectedOutputAtomic": {
                 "anyOf": [
                   {
-                    "type": "string",
-                    "maxLength": 20,
-                    "pattern": "^(0|[1-9][0-9]*)$"
+                    "$ref": "#/properties/preview/properties/feeSummary/properties/platformFee/anyOf/0/properties/amountAtomic"
                   },
                   {
                     "type": "null"
@@ -2284,7 +2624,7 @@
               "minimumOutputAtomic": {
                 "anyOf": [
                   {
-                    "$ref": "#/properties/preview/properties/expectedOutputAtomic/anyOf/0"
+                    "$ref": "#/properties/preview/properties/feeSummary/properties/platformFee/anyOf/0/properties/amountAtomic"
                   },
                   {
                     "type": "null"
@@ -2333,6 +2673,8 @@
               "assetId",
               "symbol",
               "amountAtomic",
+              "productIdentity",
+              "feeSummary",
               "inputMint",
               "outputMint",
               "destinationOwner",
@@ -2387,7 +2729,7 @@
                         "$ref": "#/properties/attribution/properties/wallet/properties/vaultPda"
                       },
                       "exactRentLamports": {
-                        "$ref": "#/properties/preview/properties/expectedOutputAtomic/anyOf/0"
+                        "$ref": "#/properties/preview/properties/feeSummary/properties/platformFee/anyOf/0/properties/amountAtomic"
                       },
                       "fundingPolicy": {
                         "type": "string",
@@ -2406,7 +2748,7 @@
                       "fundedLamports": {
                         "anyOf": [
                           {
-                            "$ref": "#/properties/preview/properties/expectedOutputAtomic/anyOf/0"
+                            "$ref": "#/properties/preview/properties/feeSummary/properties/platformFee/anyOf/0/properties/amountAtomic"
                           },
                           {
                             "type": "null"
@@ -2514,6 +2856,44 @@
         }
       ],
       "_meta": {
+        "ui": {
+          "resourceUri": "ui://dexter/stock-trade-475980c7",
+          "visibility": [
+            "model",
+            "app"
+          ],
+          "csp": {
+            "resourceDomains": [
+              "https://dexter.cash"
+            ],
+            "connectDomains": [
+              "https://dexter.cash",
+              "https://o4510869152923648.ingest.us.sentry.io"
+            ]
+          },
+          "domain": "https://dexter.cash",
+          "prefersBorder": true
+        },
+        "ui/resourceUri": "ui://dexter/stock-trade-475980c7",
+        "openai/outputTemplate": "ui://dexter/stock-trade-475980c7",
+        "openai/resultCanProduceWidget": true,
+        "openai/widgetAccessible": false,
+        "openai/widgetDomain": "https://dexter.cash",
+        "openai/widgetPrefersBorder": true,
+        "openai/widgetCSP": {
+          "connect_domains": [
+            "https://o4510869152923648.ingest.us.sentry.io"
+          ],
+          "resource_domains": [
+            "https://dexter.cash"
+          ],
+          "redirect_domains": [
+            "https://solscan.io"
+          ]
+        },
+        "openai/toolInvocation/invoking": "Preparing stock trade…",
+        "openai/toolInvocation/invoked": "Trade preview ready",
+        "openai/widgetDescription": "Shows the exact Solana stock product, requested and quoted share equivalents, fees, and truthful transaction state. Confirmed requires an exact signature, Solana confirmation, and successful execution.",
         "securitySchemes": [
           {
             "type": "oauth2",
@@ -2521,13 +2901,7 @@
               "vault"
             ]
           }
-        ],
-        "ui": {
-          "visibility": [
-            "model"
-          ]
-        },
-        "openai/widgetAccessible": false
+        ]
       }
     },
     {
@@ -2939,6 +3313,44 @@
         }
       ],
       "_meta": {
+        "ui": {
+          "resourceUri": "ui://dexter/stock-trade-475980c7",
+          "visibility": [
+            "model",
+            "app"
+          ],
+          "csp": {
+            "resourceDomains": [
+              "https://dexter.cash"
+            ],
+            "connectDomains": [
+              "https://dexter.cash",
+              "https://o4510869152923648.ingest.us.sentry.io"
+            ]
+          },
+          "domain": "https://dexter.cash",
+          "prefersBorder": true
+        },
+        "ui/resourceUri": "ui://dexter/stock-trade-475980c7",
+        "openai/outputTemplate": "ui://dexter/stock-trade-475980c7",
+        "openai/resultCanProduceWidget": true,
+        "openai/widgetAccessible": false,
+        "openai/widgetDomain": "https://dexter.cash",
+        "openai/widgetPrefersBorder": true,
+        "openai/widgetCSP": {
+          "connect_domains": [
+            "https://o4510869152923648.ingest.us.sentry.io"
+          ],
+          "resource_domains": [
+            "https://dexter.cash"
+          ],
+          "redirect_domains": [
+            "https://solscan.io"
+          ]
+        },
+        "openai/toolInvocation/invoking": "Sending approved stock trade…",
+        "openai/toolInvocation/invoked": "Trade update ready",
+        "openai/widgetDescription": "Shows the exact Solana stock product, requested and quoted share equivalents, fees, and truthful transaction state. Confirmed requires an exact signature, Solana confirmation, and successful execution.",
         "securitySchemes": [
           {
             "type": "oauth2",
@@ -2946,13 +3358,7 @@
               "vault"
             ]
           }
-        ],
-        "ui": {
-          "visibility": [
-            "model"
-          ]
-        },
-        "openai/widgetAccessible": false
+        ]
       }
     },
     {
@@ -3555,6 +3961,44 @@
         }
       ],
       "_meta": {
+        "ui": {
+          "resourceUri": "ui://dexter/stock-trade-475980c7",
+          "visibility": [
+            "model",
+            "app"
+          ],
+          "csp": {
+            "resourceDomains": [
+              "https://dexter.cash"
+            ],
+            "connectDomains": [
+              "https://dexter.cash",
+              "https://o4510869152923648.ingest.us.sentry.io"
+            ]
+          },
+          "domain": "https://dexter.cash",
+          "prefersBorder": true
+        },
+        "ui/resourceUri": "ui://dexter/stock-trade-475980c7",
+        "openai/outputTemplate": "ui://dexter/stock-trade-475980c7",
+        "openai/resultCanProduceWidget": true,
+        "openai/widgetAccessible": false,
+        "openai/widgetDomain": "https://dexter.cash",
+        "openai/widgetPrefersBorder": true,
+        "openai/widgetCSP": {
+          "connect_domains": [
+            "https://o4510869152923648.ingest.us.sentry.io"
+          ],
+          "resource_domains": [
+            "https://dexter.cash"
+          ],
+          "redirect_domains": [
+            "https://solscan.io"
+          ]
+        },
+        "openai/toolInvocation/invoking": "Checking stock trade…",
+        "openai/toolInvocation/invoked": "Trade status ready",
+        "openai/widgetDescription": "Shows the exact Solana stock product, requested and quoted share equivalents, fees, and truthful transaction state. Confirmed requires an exact signature, Solana confirmation, and successful execution.",
         "securitySchemes": [
           {
             "type": "oauth2",
@@ -3562,13 +4006,7 @@
               "vault"
             ]
           }
-        ],
-        "ui": {
-          "visibility": [
-            "model"
-          ]
-        },
-        "openai/widgetAccessible": false
+        ]
       }
     },
     {
@@ -4266,6 +4704,44 @@
         }
       ],
       "_meta": {
+        "ui": {
+          "resourceUri": "ui://dexter/stock-trade-475980c7",
+          "visibility": [
+            "model",
+            "app"
+          ],
+          "csp": {
+            "resourceDomains": [
+              "https://dexter.cash"
+            ],
+            "connectDomains": [
+              "https://dexter.cash",
+              "https://o4510869152923648.ingest.us.sentry.io"
+            ]
+          },
+          "domain": "https://dexter.cash",
+          "prefersBorder": true
+        },
+        "ui/resourceUri": "ui://dexter/stock-trade-475980c7",
+        "openai/outputTemplate": "ui://dexter/stock-trade-475980c7",
+        "openai/resultCanProduceWidget": true,
+        "openai/widgetAccessible": false,
+        "openai/widgetDomain": "https://dexter.cash",
+        "openai/widgetPrefersBorder": true,
+        "openai/widgetCSP": {
+          "connect_domains": [
+            "https://o4510869152923648.ingest.us.sentry.io"
+          ],
+          "resource_domains": [
+            "https://dexter.cash"
+          ],
+          "redirect_domains": [
+            "https://solscan.io"
+          ]
+        },
+        "openai/toolInvocation/invoking": "Reconciling stock trade…",
+        "openai/toolInvocation/invoked": "Trade reconciliation update ready",
+        "openai/widgetDescription": "Shows the exact Solana stock product, requested and quoted share equivalents, fees, and truthful transaction state. Confirmed requires an exact signature, Solana confirmation, and successful execution.",
         "securitySchemes": [
           {
             "type": "oauth2",
@@ -4273,13 +4749,7 @@
               "vault"
             ]
           }
-        ],
-        "ui": {
-          "visibility": [
-            "model"
-          ]
-        },
-        "openai/widgetAccessible": false
+        ]
       }
     },
     {
