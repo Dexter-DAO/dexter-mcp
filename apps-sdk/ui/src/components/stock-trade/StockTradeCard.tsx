@@ -101,7 +101,7 @@ function ProductIdentity({ model }: { model: StockTradeViewModel }) {
             {product.symbol ? <span>{product.symbol}</span> : null}
           </div>
           <p>
-            {product.issuer ? `Issued by ${product.issuer}` : 'Issuer information unavailable'}
+            {product.issuer ? `Provider: ${product.issuer}` : 'Provider information unavailable'}
           </p>
         </div>
         <span className="dx-stock-network">Solana</span>

@@ -500,7 +500,7 @@ function ProductIdentity({ model }) {
               /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: productName(model) }),
               product.symbol ? /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: product.symbol }) : null
             ] }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: product.issuer ? `Issued by ${product.issuer}` : "Issuer information unavailable" })
+            /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: product.issuer ? `Provider: ${product.issuer}` : "Provider information unavailable" })
           ] }),
           /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-stock-network", children: "Solana" })
         ] }),
