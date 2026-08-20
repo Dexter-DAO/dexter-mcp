@@ -166,6 +166,40 @@ function preparedResponse() {
   };
 }
 
+function shareQuantityPreparedResponse({
+  shareQuantity = '10',
+  maximumSpendAtomic = '5000000000',
+  inputAmountAtomic = '2500000000',
+} = {}) {
+  const response = preparedResponse();
+  response.business.assetId = 'scaled-stock-42';
+  response.business.amountAtomic = inputAmountAtomic;
+  response.preview.assetId = 'scaled-stock-42';
+  response.preview.symbol = 'STK42';
+  response.preview.amountAtomic = inputAmountAtomic;
+  response.preview.requestAmountKind = 'share-quantity';
+  response.preview.requestedShareQuantity = shareQuantity;
+  response.preview.expectedShareQuantity = '10.1';
+  response.preview.minimumShareQuantity = '10';
+  response.preview.maximumInputAmountAtomic = inputAmountAtomic;
+  response.preview.requestedMaximumSpendAtomic = maximumSpendAtomic;
+  response.preview.shareQuantityUnit = 'underlying-share-equivalent';
+  response.preview.shareQuantitySemantics = 'minimum-receive';
+  response.preview.overfillPossible = true;
+  response.preview.expectedOutputAtomic = '808000000';
+  response.preview.minimumOutputAtomic = '800000000';
+  response.preview.shareQuantityConversion = {
+    assetVersionId: 'scaled-stock-42-version-20260820',
+    rawMinimumOutputAtomic: '800000000',
+    rawOutputDecimals: 8,
+    displayMultiplier: '1.25',
+    multiplierSource: 'token-2022-scaled-ui',
+    multiplierObservedAtSlot: '350000000',
+    multiplierEffectiveAtUnixMs: null,
+  };
+  return response;
+}
+
 function statusResponse() {
   return {
     namespace: 'dexter-governed-transaction-status/v1',
@@ -707,6 +741,165 @@ test('generic approved asset identity passes without a named-token output enum',
   assert.equal(result.isError, false);
   assert.equal(result.body.business.assetId, 'approved-token-42');
   assert.equal(result.body.preview.symbol, 'TOK42');
+});
+
+test('share-quantity Buy sends the human target and never caller-derived token atoms', async () => {
+  const input = {
+    operationId: OPERATION_ID,
+    action: 'buy',
+    assetId: 'scaled-stock-42',
+    shareQuantity: '10',
+    maximumSpendAtomic: '5000000000',
+    maxSlippageBps: 50,
+  };
+  const expected = shareQuantityPreparedResponse();
+  let calls = 0;
+  const result = await callGovernedAssetBackend({
+    apiBase: 'https://api.dexter.test',
+    secret: SECRET,
+    operation: 'prepare',
+    input,
+    mcpSessionId: SESSION_ID,
+    now: NOW,
+    fetchImpl: async (url, options) => {
+      calls += 1;
+      assert.equal(url, `https://api.dexter.test${PREPARE_PATH}`);
+      assert.deepEqual(JSON.parse(options.body), {
+        action: 'buy',
+        assetId: 'scaled-stock-42',
+        shareQuantity: '10',
+        maximumSpendAtomic: '5000000000',
+        maxSlippageBps: 50,
+      });
+      return jsonResponse(200, expected);
+    },
+  });
+
+  assert.equal(calls, 1);
+  assert.equal(result.isError, false);
+  assert.deepEqual(result.body, expected);
+  assert.equal(result.body.preview.requestAmountKind, 'share-quantity');
+  assert.equal(result.body.preview.requestedShareQuantity, '10');
+  assert.equal(result.body.preview.minimumShareQuantity, '10');
+  assert.equal(result.body.preview.minimumOutputAtomic, '800000000');
+  assert.equal(
+    result.body.preview.shareQuantitySemantics,
+    'minimum-receive',
+  );
+  assert.equal(result.body.preview.overfillPossible, true);
+});
+
+test('fractional share-quantity Buy may omit the user ceiling', async () => {
+  const expected = shareQuantityPreparedResponse({
+    shareQuantity: '0.25',
+    maximumSpendAtomic: null,
+  });
+  expected.preview.requestedShareQuantity = '0.25';
+  expected.preview.expectedShareQuantity = '0.26';
+  expected.preview.minimumShareQuantity = '0.25';
+  expected.preview.expectedOutputAtomic = '20800000';
+  expected.preview.minimumOutputAtomic = '20000000';
+  expected.preview.shareQuantityConversion.rawMinimumOutputAtomic = '20000000';
+  const result = await callGovernedAssetBackend({
+    apiBase: 'https://api.dexter.test',
+    secret: SECRET,
+    operation: 'prepare',
+    input: {
+      operationId: OPERATION_ID,
+      action: 'buy',
+      assetId: 'scaled-stock-42',
+      shareQuantity: '0.25',
+    },
+    mcpSessionId: SESSION_ID,
+    now: NOW,
+    fetchImpl: async () => jsonResponse(200, expected),
+  });
+
+  assert.equal(result.isError, false);
+  assert.equal(result.body.preview.maximumInputAmountAtomic, '2500000000');
+  assert.equal(result.body.preview.requestedMaximumSpendAtomic, null);
+  assert.equal(result.body.preview.minimumShareQuantity, '0.25');
+});
+
+test('share-quantity normalization rejects substituted human terms or conversion proof', async () => {
+  const input = {
+    operationId: OPERATION_ID,
+    action: 'buy',
+    assetId: 'scaled-stock-42',
+    shareQuantity: '10',
+    maximumSpendAtomic: '5000000000',
+  };
+  const hostile = [
+    (body) => { body.preview.requestAmountKind = 'input'; },
+    (body) => { body.preview.requestedShareQuantity = '9'; },
+    (body) => { body.preview.minimumShareQuantity = '9.999999'; },
+    (body) => { body.preview.expectedShareQuantity = '9.9'; },
+    (body) => { body.preview.maximumInputAmountAtomic = '2500000001'; },
+    (body) => { body.preview.requestedMaximumSpendAtomic = '6000000000'; },
+    (body) => { body.preview.shareQuantityUnit = null; },
+    (body) => { body.preview.shareQuantitySemantics = null; },
+    (body) => { body.preview.overfillPossible = false; },
+    (body) => { body.preview.minimumOutputAtomic = '799999999'; },
+    (body) => {
+      body.preview.shareQuantityConversion.rawMinimumOutputAtomic = '799999999';
+    },
+    (body) => { body.preview.shareQuantityConversion.displayMultiplier = '0'; },
+    (body) => { body.preview.shareQuantityConversion.displayMultiplier = '0.5'; },
+    (body) => { delete body.preview.shareQuantityConversion; },
+    (body) => { body.business.amountAtomic = '5000000001'; },
+    (body) => { body.preview.amountAtomic = '2500000001'; },
+    (body) => { delete body.preview.requestedShareQuantity; },
+  ];
+
+  for (const mutate of hostile) {
+    const response = shareQuantityPreparedResponse();
+    mutate(response);
+    const result = await callGovernedAssetBackend({
+      apiBase: 'https://api.dexter.test',
+      secret: SECRET,
+      operation: 'prepare',
+      input,
+      mcpSessionId: SESSION_ID,
+      now: NOW,
+      fetchImpl: async () => jsonResponse(200, response),
+    });
+    assert.equal(result.isError, true);
+    assert.equal(result.body.code, 'governed_backend_response_invalid');
+  }
+});
+
+test('legacy USDC-budget Buy response remains valid without quantity metadata', async () => {
+  const expected = preparedResponse();
+  for (const field of [
+    'requestAmountKind',
+    'requestedShareQuantity',
+    'expectedShareQuantity',
+    'minimumShareQuantity',
+    'maximumInputAmountAtomic',
+    'requestedMaximumSpendAtomic',
+    'shareQuantityUnit',
+    'shareQuantitySemantics',
+    'overfillPossible',
+    'shareQuantityConversion',
+  ]) {
+    assert.equal(field in expected.preview, false, field);
+  }
+  const result = await callGovernedAssetBackend({
+    apiBase: 'https://api.dexter.test',
+    secret: SECRET,
+    operation: 'prepare',
+    input: {
+      operationId: OPERATION_ID,
+      action: 'buy',
+      assetId: 'dexter',
+      amountAtomic: '1000000',
+    },
+    mcpSessionId: SESSION_ID,
+    now: NOW,
+    fetchImpl: async () => jsonResponse(200, expected),
+  });
+  assert.equal(result.isError, false);
+  assert.deepEqual(result.body, expected);
 });
 
 test('governed result policy preserves valid opaque identities that resemble bearer tokens', () => {

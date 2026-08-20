@@ -1094,6 +1094,30 @@ test('fresh and refreshed real hosted transports retain the exact protected rost
       const listed = (await client.listTools()).tools;
       const names = listed.map((tool) => tool.name);
       assert.deepEqual(names, OPEN_TOOL_NAMES, phase);
+      const prepare = listed.find(
+        ({ name }) => name === 'dexter_prepare_asset_action',
+      );
+      const prepareVariants = prepare?.inputSchema?.anyOf ?? [];
+      assert.equal(
+        prepareVariants.some((variant) =>
+          Object.hasOwn(variant.properties ?? {}, 'amountAtomic')
+          && variant.properties?.action?.const === 'buy'),
+        true,
+        `${phase}:USDC-budget Buy`,
+      );
+      assert.equal(
+        prepareVariants.some((variant) =>
+          Object.hasOwn(variant.properties ?? {}, 'shareQuantity')
+          && variant.properties?.action?.const === 'buy'),
+        true,
+        `${phase}:share-quantity Buy`,
+      );
+      assert.equal(
+        prepareVariants.some((variant) =>
+          Object.hasOwn(variant.properties ?? {}, 'quantityAtomic')),
+        false,
+        `${phase}:no caller-derived quantity atoms`,
+      );
       for (const protectedName of ['x402_fetch', 'x402_status']) {
         const tool = listed.find(({ name }) => name === protectedName);
         assert.deepEqual(

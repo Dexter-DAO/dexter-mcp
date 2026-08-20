@@ -140,15 +140,42 @@ borrow, or pay execution.
    substitute a symbol or send a mint, token program, network, or decimals as
    authority.
 2. Call `dexter_prepare_asset_action` with one stable `operationId` and the
-   exact action fields. For Buy, `amountAtomic` is the USDC budget in atomic
-   units (6 decimals). For Sell and Send, it is the selected asset amount using
-   the server-certified decimals. Send has no memo. Tool presence and input
+   exact action fields. A Buy has exactly one amount mode:
+   - Dollar-budget wording such as “buy $100 of SpaceX” uses `amountAtomic` as
+     the exact USDC budget to spend, in atomic units with 6 decimals.
+   - Ordinary approved-stock quantity wording such as “buy 10 shares of
+     SpaceX” uses `shareQuantity: "10"`; “buy a quarter share” uses
+     `shareQuantity: "0.25"`. This is an underlying-share-equivalent display
+     quantity for Dexter's exact approved Solana product. Never convert it to
+     token atomic units using token decimals or a remembered multiplier;
+     Dexter resolves the current product version, display multiplier, and raw
+     token target. This is minimum-receive semantics and the fill may be
+     slightly larger. If the user also says “spend no more than $5,000,” pass
+     `maximumSpendAtomic` as `5000000000`, using USDC's 6 decimals.
+   Never pass both `amountAtomic` and `shareQuantity`, and never pass
+   `maximumSpendAtomic` without `shareQuantity`. If the user says “exactly,”
+   “no more than,” or otherwise forbids receiving extra shares, explain that
+   this route guarantees a minimum and may overfill; ask whether an at-least
+   target is acceptable instead of silently weakening the request. For Sell and Send,
+   `amountAtomic` is the selected asset amount using the
+   server-certified decimals. Send has no memo. Tool presence and input
    acceptance are not runtime capability; only the exact Prepare result is.
 3. Read the returned `intentId`, policy result, approval state, expiry, and
-   preview. Prepare never signs or submits. `operationId` is only the
-   Idempotency-Key for an exact replay and grants no authority. A prepared
-   result with `approval.status=not-required` is covered by the reusable
-   mandate and may execute autonomously.
+   preview. For a share-quantity Buy, verify `requestAmountKind` is
+   `share-quantity`, `requestedShareQuantity` exactly echoes the request,
+   `minimumShareQuantity` meets or exceeds it, and
+   `maximumInputAmountAtomic` exactly matches the frozen ExactIn
+   `amountAtomic`. `requestedMaximumSpendAtomic` separately echoes the user's
+   optional ceiling, and the frozen input must not exceed it.
+   `shareQuantityUnit=underlying-share-equivalent`,
+   `shareQuantitySemantics=minimum-receive`, and `overfillPossible=true` must
+   be disclosed as an at-least target, not an exact share count. The
+   `shareQuantityConversion` must bind the asset version, raw minimum output,
+   decimals, display multiplier, multiplier source, and observation slot.
+   Prepare never signs or submits. `operationId` is only the Idempotency-Key
+   for an exact replay and grants no authority. A prepared result with
+   `approval.status=not-required` is covered by the reusable mandate and may
+   execute autonomously.
 4. In the current integrated release, Send is preserved in this contract but
    Prepare refuses it with `protected_agent_send_sdk_required` before capacity
    reservation or intent creation. Stop there: do not call Execute or Reconcile

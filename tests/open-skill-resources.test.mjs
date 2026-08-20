@@ -102,6 +102,11 @@ test('served guidance requires native OAuth and bounded nonretryable spending', 
   assert.match(WORKFLOW, /approvedActionTargets/);
   assert.match(WORKFLOW, /never add to holdings, balances, quantities,[\s\S]*or value/);
   assert.match(WORKFLOW, /Buy[\s\S]*USDC budget[\s\S]*6\s+decimals/);
+  assert.match(WORKFLOW, /shareQuantity: "10"/);
+  assert.match(WORKFLOW, /shareQuantity: "0\.25"/);
+  assert.match(WORKFLOW, /Never convert it to[\s\S]*token atomic units/);
+  assert.match(WORKFLOW, /shareQuantityConversion[\s\S]*display multiplier/);
+  assert.doesNotMatch(WORKFLOW, /quantityAtomic/);
   assert.match(WORKFLOW, /Sell and Send[\s\S]*selected asset amount/);
   assert.match(WORKFLOW, /reusable\s+mandate[\s\S]*execute autonomously/i);
   assert.match(WORKFLOW, /mandate_enrollment_required/);
@@ -202,6 +207,15 @@ test('generated runtime instructions preserve current wallet and authority truth
   assert.match(runtime, /it is not a read-only status check/);
   assert.match(runtime, /https:\/\/dexter\.cash\/wallet/);
   assert.match(runtime, /https:\/\/dexter\.cash\/dextercard/);
+});
+
+test('generated runtime instructions preserve human share quantities', () => {
+  const runtime = buildOpenServerInstructions();
+  assert.match(runtime, /shareQuantity[\s\S]*human decimal string/);
+  assert.match(runtime, /Never convert shareQuantity using token decimals/);
+  assert.match(runtime, /requestedShareQuantity exactly echoes the request/);
+  assert.match(runtime, /underlying-share-equivalent/);
+  assert.doesNotMatch(runtime, /quantityAtomic/);
 });
 
 test('generated runtime instructions contain one coherent hosted contract without legacy drift', () => {

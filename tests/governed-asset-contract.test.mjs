@@ -8,6 +8,7 @@ import {
   GOVERNED_ASSET_TOOL_NAMES,
   GOVERNED_HISTORY_CURSOR_MAX_LENGTH,
   GOVERNED_OPERATION_SEMANTICS,
+  GOVERNED_SHARE_QUANTITY_SCHEMA,
   REGISTERED_GOVERNED_ASSET_TOOL_NAMES,
   assertNoGovernedAuthorityOverrides,
 } from '../lib/governed-asset-contract.mjs';
@@ -120,6 +121,104 @@ test('prepare accepts any canonical registry assetId and keeps denomination expl
   assert.match(sellSchema.shape.amountAtomic.description, /server-certified decimals/i);
 });
 
+test('approved-stock Buy supports one strict spend or human share-quantity mode', () => {
+  const quantityBuy = {
+    operationId: OPERATION_ID,
+    action: 'buy',
+    assetId: 'backpack-spcx',
+    shareQuantity: '10',
+    maximumSpendAtomic: '5000000000',
+    maxSlippageBps: 50,
+  };
+  assert.equal(
+    GOVERNED_ASSET_INPUT_SCHEMAS.prepare.safeParse(quantityBuy).success,
+    true,
+  );
+  assert.equal(
+    GOVERNED_ASSET_INPUT_SCHEMAS.prepare.safeParse({
+      ...quantityBuy,
+      maximumSpendAtomic: undefined,
+    }).success,
+    true,
+  );
+
+  for (const invalid of [
+    {
+      operationId: OPERATION_ID,
+      action: 'buy',
+      assetId: 'backpack-spcx',
+    },
+    {
+      ...quantityBuy,
+      amountAtomic: '1000000',
+    },
+    {
+      operationId: OPERATION_ID,
+      action: 'buy',
+      assetId: 'backpack-spcx',
+      maximumSpendAtomic: '5000000000',
+    },
+    {
+      operationId: OPERATION_ID,
+      action: 'sell',
+      assetId: 'backpack-spcx',
+      shareQuantity: '10',
+    },
+    {
+      operationId: OPERATION_ID,
+      action: 'send',
+      assetId: 'backpack-spcx',
+      shareQuantity: '10',
+      destinationOwner: ADDRESS,
+    },
+    {
+      operationId: OPERATION_ID,
+      action: 'buy',
+      assetId: 'backpack-spcx',
+      quantityAtomic: '10000000',
+    },
+  ]) {
+    assert.equal(
+      GOVERNED_ASSET_INPUT_SCHEMAS.prepare.safeParse(invalid).success,
+      false,
+      JSON.stringify(invalid),
+    );
+  }
+
+  const options = GOVERNED_ASSET_INPUT_SCHEMAS.prepare._def.options;
+  const quantitySchema = options.find((schema) =>
+    schema.shape.action.safeParse('buy').success
+    && schema.shape.shareQuantity !== undefined);
+  assert.match(quantitySchema.shape.shareQuantity.description, /minimum/i);
+  assert.match(quantitySchema.shape.shareQuantity.description, /underlying-share-equivalent/i);
+  assert.match(quantitySchema.shape.shareQuantity.description, /may receive slightly more/i);
+  assert.match(quantitySchema.shape.shareQuantity.description, /current display multiplier/i);
+  assert.match(quantitySchema.shape.maximumSpendAtomic.description, /maximum USDC input/i);
+  assert.match(quantitySchema.shape.maximumSpendAtomic.description, /only with shareQuantity/i);
+
+  for (const valid of ['10', '0.25', '10.0', '18446744073709551615.123456789012345678']) {
+    assert.equal(GOVERNED_SHARE_QUANTITY_SCHEMA.safeParse(valid).success, true, valid);
+  }
+  for (const invalid of [
+    '0',
+    '0.0',
+    '.25',
+    '01',
+    '1.',
+    '-1',
+    '1e1',
+    '10 shares',
+    '123456789012345678901',
+    '0.1234567890123456789',
+  ]) {
+    assert.equal(
+      GOVERNED_SHARE_QUANTITY_SCHEMA.safeParse(invalid).success,
+      false,
+      invalid,
+    );
+  }
+});
+
 test('execute accepts only operationId and intentId', () => {
   assert.equal(GOVERNED_ASSET_INPUT_SCHEMAS.execute.safeParse({
     operationId: OPERATION_ID,
@@ -217,6 +316,11 @@ test('operation identity never substitutes for authority or owner approval', () 
   assert.match(prepare, /only this Prepare response is authoritative/);
   assert.match(prepare, /protected_agent_send_sdk_required/);
   assert.match(prepare, /before capacity reservation or intent creation/);
+  assert.match(prepare, /exactly one amount mode/);
+  assert.match(prepare, /shareQuantity is the human decimal underlying-share-equivalent quantity/);
+  assert.match(prepare, /Never convert shareQuantity to token atomic units/);
+  assert.match(prepare, /maximumSpendAtomic as a USDC ceiling/);
+  assert.match(prepare, /overfill is possible/);
   assert.match(execute, /grants no authority/);
   assert.match(execute, /covered by the bound reusable mandate may execute autonomously/);
   assert.match(execute, /Never call Execute after protected_agent_send_sdk_required/);
