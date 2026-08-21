@@ -2414,6 +2414,30 @@
                     "minLength": 1,
                     "maxLength": 32
                   },
+                  "providerName": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "legalIssuerName": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
                   "issuer": {
                     "anyOf": [
                       {
@@ -2857,7 +2881,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/stock-trade-475980c7",
+          "resourceUri": "ui://dexter/stock-trade-78ddf07f",
           "visibility": [
             "model",
             "app"
@@ -2874,8 +2898,8 @@
           "domain": "https://dexter.cash",
           "prefersBorder": true
         },
-        "ui/resourceUri": "ui://dexter/stock-trade-475980c7",
-        "openai/outputTemplate": "ui://dexter/stock-trade-475980c7",
+        "ui/resourceUri": "ui://dexter/stock-trade-78ddf07f",
+        "openai/outputTemplate": "ui://dexter/stock-trade-78ddf07f",
         "openai/resultCanProduceWidget": true,
         "openai/widgetAccessible": false,
         "openai/widgetDomain": "https://dexter.cash",
@@ -3314,7 +3338,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/stock-trade-475980c7",
+          "resourceUri": "ui://dexter/stock-trade-78ddf07f",
           "visibility": [
             "model",
             "app"
@@ -3331,8 +3355,8 @@
           "domain": "https://dexter.cash",
           "prefersBorder": true
         },
-        "ui/resourceUri": "ui://dexter/stock-trade-475980c7",
-        "openai/outputTemplate": "ui://dexter/stock-trade-475980c7",
+        "ui/resourceUri": "ui://dexter/stock-trade-78ddf07f",
+        "openai/outputTemplate": "ui://dexter/stock-trade-78ddf07f",
         "openai/resultCanProduceWidget": true,
         "openai/widgetAccessible": false,
         "openai/widgetDomain": "https://dexter.cash",
@@ -3962,7 +3986,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/stock-trade-475980c7",
+          "resourceUri": "ui://dexter/stock-trade-78ddf07f",
           "visibility": [
             "model",
             "app"
@@ -3979,8 +4003,8 @@
           "domain": "https://dexter.cash",
           "prefersBorder": true
         },
-        "ui/resourceUri": "ui://dexter/stock-trade-475980c7",
-        "openai/outputTemplate": "ui://dexter/stock-trade-475980c7",
+        "ui/resourceUri": "ui://dexter/stock-trade-78ddf07f",
+        "openai/outputTemplate": "ui://dexter/stock-trade-78ddf07f",
         "openai/resultCanProduceWidget": true,
         "openai/widgetAccessible": false,
         "openai/widgetDomain": "https://dexter.cash",
@@ -4705,7 +4729,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/stock-trade-475980c7",
+          "resourceUri": "ui://dexter/stock-trade-78ddf07f",
           "visibility": [
             "model",
             "app"
@@ -4722,8 +4746,8 @@
           "domain": "https://dexter.cash",
           "prefersBorder": true
         },
-        "ui/resourceUri": "ui://dexter/stock-trade-475980c7",
-        "openai/outputTemplate": "ui://dexter/stock-trade-475980c7",
+        "ui/resourceUri": "ui://dexter/stock-trade-78ddf07f",
+        "openai/outputTemplate": "ui://dexter/stock-trade-78ddf07f",
         "openai/resultCanProduceWidget": true,
         "openai/widgetAccessible": false,
         "openai/widgetDomain": "https://dexter.cash",
