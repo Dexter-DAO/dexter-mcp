@@ -2745,27 +2745,34 @@
                     "const": "Trading fees are included in this quote; network fee is calculated at execution."
                   },
                   "platformFee": {
-                    "type": "null"
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "amountAtomic": {
+                            "type": "string",
+                            "maxLength": 20,
+                            "pattern": "^(0|[1-9][0-9]*)$"
+                          },
+                          "mint": {
+                            "$ref": "#/properties/attribution/properties/wallet/properties/vaultPda"
+                          }
+                        },
+                        "required": [
+                          "amountAtomic",
+                          "mint"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "routeFees": {
                     "type": "array",
                     "items": {
-                      "type": "object",
-                      "properties": {
-                        "amountAtomic": {
-                          "type": "string",
-                          "maxLength": 20,
-                          "pattern": "^(0|[1-9][0-9]*)$"
-                        },
-                        "mint": {
-                          "$ref": "#/properties/attribution/properties/wallet/properties/vaultPda"
-                        }
-                      },
-                      "required": [
-                        "amountAtomic",
-                        "mint"
-                      ],
-                      "additionalProperties": false
+                      "$ref": "#/properties/preview/properties/feeSummary/properties/platformFee/anyOf/0"
                     },
                     "maxItems": 32
                   },
@@ -2822,7 +2829,7 @@
                         ]
                       },
                       "multiplierObservedAtSlot": {
-                        "$ref": "#/properties/preview/properties/feeSummary/properties/routeFees/items/properties/amountAtomic"
+                        "$ref": "#/properties/preview/properties/feeSummary/properties/platformFee/anyOf/0/properties/amountAtomic"
                       },
                       "multiplierEffectiveAtUnixMs": {
                         "anyOf": [
@@ -2880,7 +2887,7 @@
               "expectedOutputAtomic": {
                 "anyOf": [
                   {
-                    "$ref": "#/properties/preview/properties/feeSummary/properties/routeFees/items/properties/amountAtomic"
+                    "$ref": "#/properties/preview/properties/feeSummary/properties/platformFee/anyOf/0/properties/amountAtomic"
                   },
                   {
                     "type": "null"
@@ -2890,7 +2897,7 @@
               "minimumOutputAtomic": {
                 "anyOf": [
                   {
-                    "$ref": "#/properties/preview/properties/feeSummary/properties/routeFees/items/properties/amountAtomic"
+                    "$ref": "#/properties/preview/properties/feeSummary/properties/platformFee/anyOf/0/properties/amountAtomic"
                   },
                   {
                     "type": "null"
@@ -2995,7 +3002,7 @@
                         "$ref": "#/properties/attribution/properties/wallet/properties/vaultPda"
                       },
                       "exactRentLamports": {
-                        "$ref": "#/properties/preview/properties/feeSummary/properties/routeFees/items/properties/amountAtomic"
+                        "$ref": "#/properties/preview/properties/feeSummary/properties/platformFee/anyOf/0/properties/amountAtomic"
                       },
                       "fundingPolicy": {
                         "type": "string",
@@ -3014,7 +3021,7 @@
                       "fundedLamports": {
                         "anyOf": [
                           {
-                            "$ref": "#/properties/preview/properties/feeSummary/properties/routeFees/items/properties/amountAtomic"
+                            "$ref": "#/properties/preview/properties/feeSummary/properties/platformFee/anyOf/0/properties/amountAtomic"
                           },
                           {
                             "type": "null"
