@@ -83,12 +83,17 @@ function productName(model: StockTradeViewModel): string {
 
 function ProductIdentity({ model }: { model: StockTradeViewModel }) {
   const product = model.product;
+  const isStock = product.assetClass === 'stock';
+  const provider = product.providerName
+    ?? (isStock && product.legalIssuerName === null ? product.issuer : null);
   const mint = shortenSolanaIdentity(product.mint);
   const digest = shortenSolanaIdentity(product.registryIdentityDigest, 6);
   return (
     <WidgetSection
-      title="Solana product"
-      description="The exact tokenized product Dexter selected for this company."
+      title={isStock ? 'Solana product' : 'Solana asset'}
+      description={isStock
+        ? 'The exact tokenized product Dexter selected for this company.'
+        : 'The exact Solana asset Dexter selected for this trade.'}
       framed
     >
       <div className="dx-stock-product">
@@ -101,7 +106,11 @@ function ProductIdentity({ model }: { model: StockTradeViewModel }) {
             {product.symbol ? <span>{product.symbol}</span> : null}
           </div>
           <p>
-            {product.issuer ? `Provider: ${product.issuer}` : 'Provider information unavailable'}
+            {provider
+              ? `Provider: ${provider}`
+              : !isStock && product.issuer
+                ? `Issuer: ${product.issuer}`
+                : 'Provider information unavailable'}
           </p>
         </div>
         <span className="dx-stock-network">Solana</span>
@@ -117,6 +126,12 @@ function ProductIdentity({ model }: { model: StockTradeViewModel }) {
           <div>
             <dt>Token standard</dt>
             <dd>{product.tokenProgram === 'token-2022' ? 'Token-2022' : product.tokenProgram}</dd>
+          </div>
+        ) : null}
+        {product.legalIssuerName ? (
+          <div>
+            <dt>Legal issuer</dt>
+            <dd>{product.legalIssuerName}</dd>
           </div>
         ) : null}
         {digest ? (
@@ -135,15 +150,24 @@ function TradeFlow({ model }: { model: StockTradeViewModel }) {
   const expected = displayShareQuantity(model.expectedShareQuantity);
   const minimum = displayShareQuantity(model.minimumShareQuantity);
   const symbol = model.product.symbol ?? 'shares';
-  const shareValue = requested ?? expected ?? minimum;
+  const shareValue = model.isShareQuantityOrder
+    ? requested ?? expected ?? minimum
+    : null;
   const spend = model.quotedSpend ?? model.requestedMaximumSpend;
-  const spendLabel = model.quotedSpend
-    ? 'Spend'
-    : model.requestedMaximumSpend
-      ? 'Limit'
-      : model.action === 'buy'
-        ? 'Order'
-        : 'Order';
+  const outputValue = shareValue ?? model.expectedOutput ?? model.minimumOutput;
+  const isBuy = model.action === 'buy';
+  const isSell = model.action === 'sell';
+  const leftValue = isBuy ? spend : model.inputAssetAmount;
+  const leftLabel = isBuy
+    ? model.quotedSpend
+      ? 'Spend'
+      : model.requestedMaximumSpend
+        ? 'Limit'
+        : 'Order'
+    : isSell
+      ? 'Sell'
+      : 'Amount';
+  const outputSymbol = isBuy ? symbol : isSell ? 'USDC' : symbol;
   const orderState = model.stage === 'success'
     ? 'Confirmed'
     : model.stage === 'failure'
@@ -155,24 +179,32 @@ function TradeFlow({ model }: { model: StockTradeViewModel }) {
   return (
     <section className="dx-stock-flow" aria-label="Trade terms">
       <div className="dx-stock-flow__side">
-        <span className="dx-stock-flow__label">{spendLabel}</span>
+        <span className="dx-stock-flow__label">{leftLabel}</span>
         <strong className="dx-stock-flow__amount">
-          {spend ? `$${spend}` : orderState}
+          {leftValue ? `${isBuy ? '$' : ''}${leftValue}` : orderState}
         </strong>
         <span className="dx-stock-flow__unit">
-          {spend ? 'USDC' : model.action === 'buy' ? 'Governed purchase' : 'Governed trade'}
+          {leftValue
+            ? isBuy ? 'USDC' : symbol
+            : isBuy ? 'Governed purchase' : 'Governed trade'}
         </span>
       </div>
       <span className="dx-stock-flow__arrow"><ArrowIcon /></span>
       <div className="dx-stock-flow__side dx-stock-flow__side--receive">
         <span className="dx-stock-flow__label">
-          {model.action === 'buy' ? 'Buy' : model.action === 'sell' ? 'Sell' : 'Amount'}
+          {isBuy ? 'Receive' : isSell ? 'Est. receive' : 'Result'}
         </span>
         <strong className="dx-stock-flow__amount">
-          {shareValue ?? '—'}
+          {outputValue ?? '—'}
         </strong>
         <span className="dx-stock-flow__unit">
-          {shareValue ? `${symbol} share equivalent${shareValue === '1' ? '' : 's'}` : symbol}
+          {shareValue
+            ? `${symbol} share equivalent${shareValue === '1' ? '' : 's'}`
+            : outputValue
+              ? model.product.assetClass === 'stock' && isBuy
+                ? `${outputSymbol} token units`
+                : outputSymbol
+              : outputSymbol}
         </span>
       </div>
     </section>
@@ -236,9 +268,18 @@ function QuoteDetails({ model }: { model: StockTradeViewModel }) {
   const slippage = formatBps(model.slippageBps);
   const priceImpact = formatBps(model.priceImpactBps);
   const expiry = formatExpiry(model.quoteExpiresAtUnixMs);
+  const outputSymbol = model.action === 'sell'
+    ? 'USDC'
+    : model.product.symbol ?? 'tokens';
   const items = [
-    expected ? ['Expected', `${expected} shares`] : null,
-    minimum ? ['Minimum', `${minimum} shares`] : null,
+    model.isShareQuantityOrder && expected ? ['Expected', `${expected} shares`] : null,
+    model.isShareQuantityOrder && minimum ? ['Minimum', `${minimum} shares`] : null,
+    !model.isShareQuantityOrder && model.expectedOutput
+      ? ['Expected', `${model.expectedOutput} ${outputSymbol}`]
+      : null,
+    !model.isShareQuantityOrder && model.minimumOutput
+      ? ['Minimum', `${model.minimumOutput} ${outputSymbol}`]
+      : null,
     model.requestedMaximumSpend && model.quotedSpend
       ? ['Your limit', `$${model.requestedMaximumSpend} USDC`]
       : null,
@@ -428,7 +469,11 @@ export function StockTradeCard() {
 
         <footer className="dx-stock-footer">
           <p>
-            Share amounts are underlying-share equivalents represented by the selected Solana tokenized product.
+            {model.isShareQuantityOrder
+              ? 'Share amounts are underlying-share equivalents represented by the selected Solana tokenized product.'
+              : model.product.assetClass === 'stock' && model.action === 'buy'
+                ? 'Dollar orders show the exact token amount from the prepared quote.'
+                : 'Amounts come from the exact prepared Solana quote.'}
           </p>
           {model.solscanUrl ? (
             <button

@@ -837,10 +837,28 @@ test('prepare output accepts the exact API SPCX share-quantity fixture', () => {
     parsed.success ? undefined : JSON.stringify(parsed.error.issues),
   );
   assert.equal(parsed.data.preview.productIdentity.companyName, 'SpaceX');
-  assert.equal(parsed.data.preview.productIdentity.issuer, 'Backpack Securities');
+  assert.equal(parsed.data.preview.productIdentity.providerName, 'Backpack Securities');
+  assert.equal(parsed.data.preview.productIdentity.legalIssuerName, 'Trek Nexus Markets Ltd');
+  assert.equal(parsed.data.preview.productIdentity.issuer, 'Trek Nexus Markets Ltd');
   assert.equal(parsed.data.preview.requestedShareQuantity, '10');
   assert.equal(parsed.data.preview.minimumShareQuantity, '10.006782');
   assert.equal(parsed.data.preview.feeSummary.networkFee.status, 'not-yet-calculated');
+});
+
+test('prepare output rejects a provider substituted for the legal issuer', () => {
+  const mismatched = structuredClone(API_SPCX_SHARE_PREPARED_FIXTURE);
+  mismatched.preview.productIdentity.issuer = 'Backpack Securities';
+
+  const parsed = GOVERNED_ASSET_TOOL_OUTPUT_SCHEMAS.prepare.safeParse(mismatched);
+
+  assert.equal(parsed.success, false);
+  assert.equal(
+    parsed.error.issues.some((issue) => (
+      issue.path.join('.') === 'preview.productIdentity.issuer'
+      && issue.message.includes('formal legal issuer')
+    )),
+    true,
+  );
 });
 
 test('fractional share-quantity Buy may omit the user ceiling', async () => {

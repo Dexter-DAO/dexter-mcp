@@ -4,7 +4,7 @@
   "executed": false,
   "requestId": "buy-spcx-shares-0001",
   "intentId": "33333333-3333-4333-8333-333333333333",
-  "planId": "170758fdf91ccef4137d9812a4ddacfaab76056f5b94ce7a2781c7f873fbbe56",
+  "planId": "9dadb35d5d2b78332125ec347567dd6a01c28e2431694d5ed9d80b585a569d38",
   "replayed": false,
   "attribution": {
     "actor": "agent",
@@ -35,7 +35,7 @@
     "reasons": []
   },
   "effectiveExpiresAt": "2026-07-27T00:01:00.000Z",
-  "riskEvidenceDigest": "5a9e01636d36a07e515e5ff16b4b5035d54a1fff3a84425739faa9aac527de5c",
+  "riskEvidenceDigest": "e88ee1cd627ac77adf4f7d5bdf11753969c879d8f4ce8766db870cd050fdff1b",
   "authoritySnapshotDigest": "9999999999999999999999999999999999999999999999999999999999999999",
   "preview": {
     "action": "buy",
@@ -49,7 +49,7 @@
     "shareQuantityUnit": "underlying-share-equivalent",
     "shareQuantitySemantics": "minimum-receive",
     "shareQuantityConversion": {
-      "assetVersionId": "registry:e76fe20bf636a71a6143f8562dbcdd80f57b75b6a89af56b35f6a0793ca0a3e0",
+      "assetVersionId": "registry:46531f07c6804d3b525a10a32570c3a629e7c3f602e36cdf9dbc9ac144b31d0c",
       "rawMinimumOutputAtomic": "10006782",
       "rawOutputDecimals": 6,
       "displayMultiplier": "1",
@@ -66,12 +66,14 @@
       "companyName": "SpaceX",
       "productName": "SpaceX",
       "symbol": "SPCX",
-      "issuer": "Backpack Securities",
+      "issuer": "Trek Nexus Markets Ltd",
+      "providerName": "Backpack Securities",
+      "legalIssuerName": "Trek Nexus Markets Ltd",
       "network": "solana-mainnet",
       "mint": "SPCXxcqXj6e5dJDVNovHN8744zkbhM2bYudU45BimGb",
       "tokenProgram": "token-2022",
       "decimals": 6,
-      "registryIdentityDigest": "e76fe20bf636a71a6143f8562dbcdd80f57b75b6a89af56b35f6a0793ca0a3e0"
+      "registryIdentityDigest": "46531f07c6804d3b525a10a32570c3a629e7c3f602e36cdf9dbc9ac144b31d0c"
     },
     "feeSummary": {
       "summary": "Trading fees are included in this quote; network fee is calculated at execution.",

@@ -16,7 +16,9 @@ function productIdentity() {
     companyName: 'SpaceX',
     productName: 'SpaceX',
     symbol: 'SPCX',
-    issuer: 'Backpack Securities',
+    providerName: 'Backpack Securities',
+    legalIssuerName: 'Trek Nexus Markets Ltd',
+    issuer: 'Trek Nexus Markets Ltd',
     network: 'solana-mainnet',
     mint: MINT,
     tokenProgram: 'token-2022',
@@ -97,7 +99,9 @@ test('normalizes a share-quantity preview without claiming a purchase', () => {
   assert.equal(model.minimumShareQuantity, '10.006782');
   assert.equal(model.quotedSpend, '1,349.34473');
   assert.equal(model.requestedMaximumSpend, '1,500');
-  assert.equal(model.product.issuer, 'Backpack Securities');
+  assert.equal(model.product.issuer, 'Trek Nexus Markets Ltd');
+  assert.equal(model.product.providerName, 'Backpack Securities');
+  assert.equal(model.product.legalIssuerName, 'Trek Nexus Markets Ltd');
   assert.equal(model.fees?.networkFeeStatus, 'not-yet-calculated');
 });
 
@@ -196,4 +200,97 @@ test('atomic decimal formatting keeps financial values exact', () => {
   assert.equal(formatAtomicDecimal('1500000000', 6, 6), '1,500');
   assert.equal(formatAtomicDecimal('1', 9, 9), '0.000000001');
   assert.equal(formatAtomicDecimal('1.5', 6), null);
+});
+
+test('normalizes a generic dollar-budget buy without inventing shares', () => {
+  const payload = preparedPayload();
+  payload.preview.assetId = 'dexter';
+  payload.preview.symbol = 'DEXTER';
+  payload.preview.amountAtomic = '1000000';
+  payload.preview.expectedOutputAtomic = '2500000';
+  payload.preview.minimumOutputAtomic = '2400000';
+  payload.preview.productIdentity = {
+    ...productIdentity(),
+    assetId: 'dexter',
+    assetClass: 'token',
+    companyName: null,
+    productName: 'Dexter',
+    symbol: 'DEXTER',
+    providerName: null,
+    legalIssuerName: null,
+    issuer: 'Dexter',
+    tokenProgram: 'spl-token',
+  };
+  delete payload.preview.requestedMaximumSpendAtomic;
+  delete payload.preview.maximumInputAmountAtomic;
+  delete payload.preview.requestedShareQuantity;
+  delete payload.preview.expectedShareQuantity;
+  delete payload.preview.minimumShareQuantity;
+  delete payload.preview.shareQuantityUnit;
+  delete payload.preview.shareQuantitySemantics;
+  delete payload.preview.overfillPossible;
+
+  const model = normalizeStockTrade(payload);
+
+  assert.ok(model);
+  assert.equal(model.isShareQuantityOrder, false);
+  assert.equal(model.requestAmountKind, 'input');
+  assert.equal(model.headline, 'Buy $1 of Dexter');
+  assert.equal(model.quotedSpend, '1');
+  assert.equal(model.expectedOutput, '2.5');
+  assert.equal(model.minimumOutput, '2.4');
+  assert.equal(model.requestedShareQuantity, null);
+});
+
+test('stock dollar-budget output stays token-denominated without a multiplier claim', () => {
+  const payload = preparedPayload();
+  payload.preview.amountAtomic = '500000000';
+  payload.preview.expectedOutputAtomic = '3750000';
+  payload.preview.minimumOutputAtomic = '3700000';
+  delete payload.preview.requestedMaximumSpendAtomic;
+  delete payload.preview.maximumInputAmountAtomic;
+  delete payload.preview.requestedShareQuantity;
+  delete payload.preview.expectedShareQuantity;
+  delete payload.preview.minimumShareQuantity;
+  delete payload.preview.shareQuantityUnit;
+  delete payload.preview.shareQuantitySemantics;
+  delete payload.preview.overfillPossible;
+
+  const model = normalizeStockTrade(payload);
+
+  assert.ok(model);
+  assert.equal(model.product.assetClass, 'stock');
+  assert.equal(model.isShareQuantityOrder, false);
+  assert.equal(model.expectedOutput, '3.75');
+  assert.equal(model.minimumOutput, '3.7');
+  assert.equal(model.expectedShareQuantity, null);
+});
+
+test('sell preview uses sell wording and token-denominated proceeds', () => {
+  const payload = preparedPayload();
+  payload.preview.action = 'sell';
+  payload.preview.amountAtomic = '2000000';
+  payload.preview.expectedOutputAtomic = '265000000';
+  payload.preview.minimumOutputAtomic = '262000000';
+  for (const field of [
+    'requestedMaximumSpendAtomic',
+    'maximumInputAmountAtomic',
+    'requestedShareQuantity',
+    'expectedShareQuantity',
+    'minimumShareQuantity',
+    'shareQuantityUnit',
+    'shareQuantitySemantics',
+    'overfillPossible',
+  ]) {
+    delete payload.preview[field];
+  }
+
+  const model = normalizeStockTrade(payload);
+
+  assert.ok(model);
+  assert.equal(model.headline, 'Sell SpaceX');
+  assert.equal(model.supporting, 'Review the exact Solana asset and quote. This is prepared, not yet sold.');
+  assert.equal(model.inputAssetAmount, '2');
+  assert.equal(model.expectedOutput, '265');
+  assert.equal(model.minimumOutput, '262');
 });

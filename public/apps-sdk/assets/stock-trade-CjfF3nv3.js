@@ -163,6 +163,8 @@ function normalizeProduct(identity, preview, business, status) {
     companyName: firstString(identity?.companyName),
     productName: firstString(identity?.productName),
     symbol: firstString(identity?.symbol, preview?.symbol),
+    providerName: firstString(identity?.providerName),
+    legalIssuerName: firstString(identity?.legalIssuerName),
     issuer: firstString(identity?.issuer),
     network: firstString(identity?.network, "solana-mainnet"),
     mint: firstString(
@@ -263,10 +265,11 @@ function stageCopy(input) {
     };
   }
   if (input.stage === "prepared") {
+    const preparedState = input.action === "buy" ? "bought" : input.action === "sell" ? "sold" : input.action === "send" ? "sent" : "submitted";
     return {
       stageLabel: "Preview",
-      headline: input.action === "buy" ? `Buy ${target} of ${product}` : `${action[0]?.toUpperCase() ?? ""}${action.slice(1)} ${product}`,
-      supporting: "Review the exact Solana product and quote. This is prepared, not yet bought."
+      headline: input.action === "buy" ? input.isShareQuantityOrder ? `Buy ${target} of ${product}` : input.quotedSpend ? `Buy $${input.quotedSpend} of ${product}` : `Buy ${product}` : `${action[0]?.toUpperCase() ?? ""}${action.slice(1)} ${product}`,
+      supporting: `Review the exact Solana asset and quote. This is prepared, not yet ${preparedState}.`
     };
   }
   if (input.commitment !== null && input.executionSucceeded !== true) {
@@ -336,6 +339,7 @@ function normalizeStockTrade(payload, toolInput = null) {
     status.minimumShareQuantity,
     root2.minimumShareQuantity
   );
+  const requestAmountKind = firstString(preview?.requestAmountKind) === "share-quantity" || requestedShares !== null ? "share-quantity" : "input";
   const rawStatus = (firstString(status.status, business?.lifecycle, root2.status, root2.outcome) ?? (preview ? "prepared" : "unknown")).toLowerCase();
   const signature = exactSignature(
     status.transactionSignature,
@@ -366,27 +370,43 @@ function normalizeStockTrade(payload, toolInput = null) {
     programError,
     definitiveNonlandingProof
   });
-  const copy = stageCopy({
-    stage,
-    action,
-    product,
-    requestedShares,
-    minimumShares,
-    rawStatus,
-    commitment,
-    executionSucceeded
-  });
   const quotedInputAtomic = firstInteger(
     preview?.maximumInputAmountAtomic,
     preview?.amountAtomic,
     business?.amountAtomic,
     status.amountAtomic
   );
+  const expectedOutputAtomic = firstInteger(
+    preview?.expectedOutputAtomic,
+    status.expectedOutputAtomic,
+    business?.expectedOutputAtomic,
+    root2.expectedOutputAtomic
+  );
+  const minimumOutputAtomic = firstInteger(
+    preview?.minimumOutputAtomic,
+    status.minimumOutputAtomic,
+    business?.minimumOutputAtomic,
+    root2.minimumOutputAtomic
+  );
   const requestedMaximumSpendAtomic = firstInteger(
     preview?.requestedMaximumSpendAtomic,
     share?.requestedMaximumSpendAtomic,
     input?.maximumSpendAtomic
   );
+  const quotedSpend = action === "buy" ? formatAtomicDecimal(quotedInputAtomic, 6, 6) : null;
+  const outputDecimals = action === "buy" ? product.decimals : action === "sell" ? 6 : null;
+  const copy = stageCopy({
+    stage,
+    action,
+    product,
+    requestedShares,
+    minimumShares,
+    quotedSpend,
+    isShareQuantityOrder: requestAmountKind === "share-quantity",
+    rawStatus,
+    commitment,
+    executionSucceeded
+  });
   const delta = firstRecord(
     status.accountDeltaEvidence,
     business?.accountDeltaEvidence,
@@ -405,6 +425,8 @@ function normalizeStockTrade(payload, toolInput = null) {
     needsStatusCheck,
     intentId,
     product,
+    requestAmountKind,
+    isShareQuantityOrder: requestAmountKind === "share-quantity",
     requestedShareQuantity: requestedShares,
     expectedShareQuantity: expectedShares,
     minimumShareQuantity: minimumShares,
@@ -420,8 +442,13 @@ function normalizeStockTrade(payload, toolInput = null) {
     ),
     overfillPossible: firstBoolean(preview?.overfillPossible, share?.overfillPossible) === true,
     quotedInputAtomic,
+    expectedOutputAtomic,
+    minimumOutputAtomic,
     requestedMaximumSpendAtomic,
-    quotedSpend: action === "buy" ? formatAtomicDecimal(quotedInputAtomic, 6, 6) : null,
+    quotedSpend,
+    inputAssetAmount: action === "buy" || product.decimals === null ? null : formatAtomicDecimal(quotedInputAtomic, product.decimals, product.decimals),
+    expectedOutput: outputDecimals === null ? null : formatAtomicDecimal(expectedOutputAtomic, outputDecimals, outputDecimals),
+    minimumOutput: outputDecimals === null ? null : formatAtomicDecimal(minimumOutputAtomic, outputDecimals, outputDecimals),
     requestedMaximumSpend: formatAtomicDecimal(requestedMaximumSpendAtomic, 6, 6),
     slippageBps: safeNumber(preview?.slippageBps),
     priceImpactBps: safeNumber(preview?.priceImpactBps),
@@ -484,13 +511,15 @@ function productName(model) {
 }
 function ProductIdentity({ model }) {
   const product = model.product;
+  const isStock = product.assetClass === "stock";
+  const provider = product.providerName ?? (isStock && product.legalIssuerName === null ? product.issuer : null);
   const mint = shortenSolanaIdentity(product.mint);
   const digest = shortenSolanaIdentity(product.registryIdentityDigest, 6);
   return /* @__PURE__ */ jsxRuntimeExports.jsxs(
     WidgetSection,
     {
-      title: "Solana product",
-      description: "The exact tokenized product Dexter selected for this company.",
+      title: isStock ? "Solana product" : "Solana asset",
+      description: isStock ? "The exact tokenized product Dexter selected for this company." : "The exact Solana asset Dexter selected for this trade.",
       framed: true,
       children: [
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-stock-product", children: [
@@ -500,7 +529,7 @@ function ProductIdentity({ model }) {
               /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: productName(model) }),
               product.symbol ? /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: product.symbol }) : null
             ] }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: product.issuer ? `Provider: ${product.issuer}` : "Provider information unavailable" })
+            /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: provider ? `Provider: ${provider}` : !isStock && product.issuer ? `Issuer: ${product.issuer}` : "Provider information unavailable" })
           ] }),
           /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-stock-network", children: "Solana" })
         ] }),
@@ -512,6 +541,10 @@ function ProductIdentity({ model }) {
           product.tokenProgram ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx("dt", { children: "Token standard" }),
             /* @__PURE__ */ jsxRuntimeExports.jsx("dd", { children: product.tokenProgram === "token-2022" ? "Token-2022" : product.tokenProgram })
+          ] }) : null,
+          product.legalIssuerName ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("dt", { children: "Legal issuer" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("dd", { children: product.legalIssuerName })
           ] }) : null,
           digest ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx("dt", { children: "Registry proof" }),
@@ -527,21 +560,26 @@ function TradeFlow({ model }) {
   const expected = displayShareQuantity(model.expectedShareQuantity);
   const minimum = displayShareQuantity(model.minimumShareQuantity);
   const symbol = model.product.symbol ?? "shares";
-  const shareValue = requested ?? expected ?? minimum;
+  const shareValue = model.isShareQuantityOrder ? requested ?? expected ?? minimum : null;
   const spend = model.quotedSpend ?? model.requestedMaximumSpend;
-  const spendLabel = model.quotedSpend ? "Spend" : model.requestedMaximumSpend ? "Limit" : model.action === "buy" ? "Order" : "Order";
+  const outputValue = shareValue ?? model.expectedOutput ?? model.minimumOutput;
+  const isBuy = model.action === "buy";
+  const isSell = model.action === "sell";
+  const leftValue = isBuy ? spend : model.inputAssetAmount;
+  const leftLabel = isBuy ? model.quotedSpend ? "Spend" : model.requestedMaximumSpend ? "Limit" : "Order" : isSell ? "Sell" : "Amount";
+  const outputSymbol = isBuy ? symbol : isSell ? "USDC" : symbol;
   const orderState = model.stage === "success" ? "Confirmed" : model.stage === "failure" ? "Failed" : model.stage === "pending" ? "Pending" : "Prepared";
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("section", { className: "dx-stock-flow", "aria-label": "Trade terms", children: [
     /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-stock-flow__side", children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-stock-flow__label", children: spendLabel }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { className: "dx-stock-flow__amount", children: spend ? `$${spend}` : orderState }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-stock-flow__unit", children: spend ? "USDC" : model.action === "buy" ? "Governed purchase" : "Governed trade" })
+      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-stock-flow__label", children: leftLabel }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { className: "dx-stock-flow__amount", children: leftValue ? `${isBuy ? "$" : ""}${leftValue}` : orderState }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-stock-flow__unit", children: leftValue ? isBuy ? "USDC" : symbol : isBuy ? "Governed purchase" : "Governed trade" })
     ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-stock-flow__arrow", children: /* @__PURE__ */ jsxRuntimeExports.jsx(ArrowIcon, {}) }),
     /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-stock-flow__side dx-stock-flow__side--receive", children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-stock-flow__label", children: model.action === "buy" ? "Buy" : model.action === "sell" ? "Sell" : "Amount" }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { className: "dx-stock-flow__amount", children: shareValue ?? "—" }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-stock-flow__unit", children: shareValue ? `${symbol} share equivalent${shareValue === "1" ? "" : "s"}` : symbol })
+      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-stock-flow__label", children: isBuy ? "Receive" : isSell ? "Est. receive" : "Result" }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { className: "dx-stock-flow__amount", children: outputValue ?? "—" }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-stock-flow__unit", children: shareValue ? `${symbol} share equivalent${shareValue === "1" ? "" : "s"}` : outputValue ? model.product.assetClass === "stock" && isBuy ? `${outputSymbol} token units` : outputSymbol : outputSymbol })
     ] })
   ] });
 }
@@ -589,9 +627,12 @@ function QuoteDetails({ model }) {
   const slippage = formatBps(model.slippageBps);
   const priceImpact = formatBps(model.priceImpactBps);
   const expiry = formatExpiry(model.quoteExpiresAtUnixMs);
+  const outputSymbol = model.action === "sell" ? "USDC" : model.product.symbol ?? "tokens";
   const items = [
-    expected ? ["Expected", `${expected} shares`] : null,
-    minimum ? ["Minimum", `${minimum} shares`] : null,
+    model.isShareQuantityOrder && expected ? ["Expected", `${expected} shares`] : null,
+    model.isShareQuantityOrder && minimum ? ["Minimum", `${minimum} shares`] : null,
+    !model.isShareQuantityOrder && model.expectedOutput ? ["Expected", `${model.expectedOutput} ${outputSymbol}`] : null,
+    !model.isShareQuantityOrder && model.minimumOutput ? ["Minimum", `${model.minimumOutput} ${outputSymbol}`] : null,
     model.requestedMaximumSpend && model.quotedSpend ? ["Your limit", `$${model.requestedMaximumSpend} USDC`] : null,
     slippage ? ["Slippage", slippage] : null,
     priceImpact ? ["Price impact", priceImpact] : null,
@@ -716,7 +757,7 @@ function StockTradeCard() {
     /* @__PURE__ */ jsxRuntimeExports.jsx(StatusEvidence, { model }),
     model.stage === "failure" && model.explanation ? /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "dx-stock-failure", role: "alert", children: model.explanation }) : null,
     /* @__PURE__ */ jsxRuntimeExports.jsxs("footer", { className: "dx-stock-footer", children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: "Share amounts are underlying-share equivalents represented by the selected Solana tokenized product." }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: model.isShareQuantityOrder ? "Share amounts are underlying-share equivalents represented by the selected Solana tokenized product." : model.product.assetClass === "stock" && model.action === "buy" ? "Dollar orders show the exact token amount from the prepared quote." : "Amounts come from the exact prepared Solana quote." }),
       model.solscanUrl ? /* @__PURE__ */ jsxRuntimeExports.jsxs(
         "button",
         {

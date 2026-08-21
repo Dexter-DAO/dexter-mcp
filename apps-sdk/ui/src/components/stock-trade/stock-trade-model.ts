@@ -6,6 +6,9 @@ export type StockProductIdentity = {
   companyName: string | null;
   productName: string | null;
   symbol: string | null;
+  providerName: string | null;
+  legalIssuerName: string | null;
+  /** Deprecated compatibility field. New responses use legalIssuerName. */
   issuer: string | null;
   network: string | null;
   mint: string | null;
@@ -37,6 +40,8 @@ export type StockTradeViewModel = {
   needsStatusCheck: boolean;
   intentId: string | null;
   product: StockProductIdentity;
+  requestAmountKind: 'input' | 'share-quantity';
+  isShareQuantityOrder: boolean;
   requestedShareQuantity: string | null;
   expectedShareQuantity: string | null;
   minimumShareQuantity: string | null;
@@ -44,8 +49,13 @@ export type StockTradeViewModel = {
   shareQuantitySemantics: string | null;
   overfillPossible: boolean;
   quotedInputAtomic: string | null;
+  expectedOutputAtomic: string | null;
+  minimumOutputAtomic: string | null;
   requestedMaximumSpendAtomic: string | null;
   quotedSpend: string | null;
+  inputAssetAmount: string | null;
+  expectedOutput: string | null;
+  minimumOutput: string | null;
   requestedMaximumSpend: string | null;
   slippageBps: number | null;
   priceImpactBps: number | null;
@@ -161,6 +171,8 @@ function normalizeProduct(
     companyName: firstString(identity?.companyName),
     productName: firstString(identity?.productName),
     symbol: firstString(identity?.symbol, preview?.symbol),
+    providerName: firstString(identity?.providerName),
+    legalIssuerName: firstString(identity?.legalIssuerName),
     issuer: firstString(identity?.issuer),
     network: firstString(identity?.network, 'solana-mainnet'),
     mint: firstString(
@@ -293,6 +305,8 @@ function stageCopy(input: {
   product: StockProductIdentity;
   requestedShares: string | null;
   minimumShares: string | null;
+  quotedSpend: string | null;
+  isShareQuantityOrder: boolean;
   rawStatus: string;
   commitment: 'confirmed' | 'finalized' | null;
   executionSucceeded: boolean | null;
@@ -322,12 +336,23 @@ function stageCopy(input: {
     };
   }
   if (input.stage === 'prepared') {
+    const preparedState = input.action === 'buy'
+      ? 'bought'
+      : input.action === 'sell'
+        ? 'sold'
+        : input.action === 'send'
+          ? 'sent'
+          : 'submitted';
     return {
       stageLabel: 'Preview',
       headline: input.action === 'buy'
-        ? `Buy ${target} of ${product}`
+        ? input.isShareQuantityOrder
+          ? `Buy ${target} of ${product}`
+          : input.quotedSpend
+            ? `Buy $${input.quotedSpend} of ${product}`
+            : `Buy ${product}`
         : `${action[0]?.toUpperCase() ?? ''}${action.slice(1)} ${product}`,
-      supporting: 'Review the exact Solana product and quote. This is prepared, not yet bought.',
+      supporting: `Review the exact Solana asset and quote. This is prepared, not yet ${preparedState}.`,
     };
   }
   if (input.commitment !== null && input.executionSucceeded !== true) {
@@ -410,6 +435,10 @@ export function normalizeStockTrade(
     status.minimumShareQuantity,
     root.minimumShareQuantity,
   );
+  const requestAmountKind = firstString(preview?.requestAmountKind) === 'share-quantity'
+    || requestedShares !== null
+    ? 'share-quantity' as const
+    : 'input' as const;
   const rawStatus = (
     firstString(status.status, business?.lifecycle, root.status, root.outcome)
     ?? (preview ? 'prepared' : 'unknown')
@@ -443,27 +472,49 @@ export function normalizeStockTrade(
     programError,
     definitiveNonlandingProof,
   });
-  const copy = stageCopy({
-    stage,
-    action,
-    product,
-    requestedShares,
-    minimumShares,
-    rawStatus,
-    commitment,
-    executionSucceeded,
-  });
   const quotedInputAtomic = firstInteger(
     preview?.maximumInputAmountAtomic,
     preview?.amountAtomic,
     business?.amountAtomic,
     status.amountAtomic,
   );
+  const expectedOutputAtomic = firstInteger(
+    preview?.expectedOutputAtomic,
+    status.expectedOutputAtomic,
+    business?.expectedOutputAtomic,
+    root.expectedOutputAtomic,
+  );
+  const minimumOutputAtomic = firstInteger(
+    preview?.minimumOutputAtomic,
+    status.minimumOutputAtomic,
+    business?.minimumOutputAtomic,
+    root.minimumOutputAtomic,
+  );
   const requestedMaximumSpendAtomic = firstInteger(
     preview?.requestedMaximumSpendAtomic,
     share?.requestedMaximumSpendAtomic,
     input?.maximumSpendAtomic,
   );
+  const quotedSpend = action === 'buy'
+    ? formatAtomicDecimal(quotedInputAtomic, 6, 6)
+    : null;
+  const outputDecimals = action === 'buy'
+    ? product.decimals
+    : action === 'sell'
+      ? 6
+      : null;
+  const copy = stageCopy({
+    stage,
+    action,
+    product,
+    requestedShares,
+    minimumShares,
+    quotedSpend,
+    isShareQuantityOrder: requestAmountKind === 'share-quantity',
+    rawStatus,
+    commitment,
+    executionSucceeded,
+  });
   const delta = firstRecord(
     status.accountDeltaEvidence,
     business?.accountDeltaEvidence,
@@ -493,6 +544,8 @@ export function normalizeStockTrade(
     needsStatusCheck,
     intentId,
     product,
+    requestAmountKind,
+    isShareQuantityOrder: requestAmountKind === 'share-quantity',
     requestedShareQuantity: requestedShares,
     expectedShareQuantity: expectedShares,
     minimumShareQuantity: minimumShares,
@@ -508,10 +561,19 @@ export function normalizeStockTrade(
     ),
     overfillPossible: firstBoolean(preview?.overfillPossible, share?.overfillPossible) === true,
     quotedInputAtomic,
+    expectedOutputAtomic,
+    minimumOutputAtomic,
     requestedMaximumSpendAtomic,
-    quotedSpend: action === 'buy'
-      ? formatAtomicDecimal(quotedInputAtomic, 6, 6)
-      : null,
+    quotedSpend,
+    inputAssetAmount: action === 'buy' || product.decimals === null
+      ? null
+      : formatAtomicDecimal(quotedInputAtomic, product.decimals, product.decimals),
+    expectedOutput: outputDecimals === null
+      ? null
+      : formatAtomicDecimal(expectedOutputAtomic, outputDecimals, outputDecimals),
+    minimumOutput: outputDecimals === null
+      ? null
+      : formatAtomicDecimal(minimumOutputAtomic, outputDecimals, outputDecimals),
     requestedMaximumSpend: formatAtomicDecimal(requestedMaximumSpendAtomic, 6, 6),
     slippageBps: safeNumber(preview?.slippageBps),
     priceImpactBps: safeNumber(preview?.priceImpactBps),

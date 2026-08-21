@@ -21,7 +21,10 @@ test('stock-trade widget is a read-only receipt and never initiates execution', 
   assert.match(component, /View on Solscan/);
   assert.match(component, /data-evidence="commitment"/);
   assert.match(component, /data-evidence="execution"/);
-  assert.match(component, /Provider: \$\{product\.issuer\}/);
+  assert.match(component, /Provider: \$\{provider\}/);
+  assert.match(component, /<dt>Legal issuer<\/dt>/);
+  assert.match(component, /model\.isShareQuantityOrder/);
+  assert.match(component, /token units/);
   assert.doesNotMatch(component, /Issued by/);
   assert.match(server, /'openai\/widgetAccessible': false/);
   assert.match(server, /GOVERNED_ASSET_WIDGET_URIS\.stockTrade/);
