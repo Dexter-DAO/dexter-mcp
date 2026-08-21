@@ -5,38 +5,21 @@ import {
   formatAtomicDecimal,
   normalizeStockTrade,
 } from '../apps-sdk/ui/src/components/stock-trade/stock-trade-model.ts';
+import {
+  SPCX_MINT,
+  spcxProductIdentity,
+  spcxShareQuantityTradeSummary,
+  stockFeeSummary,
+} from './fixtures/stock-trade-summary.fixtures.mjs';
 
 const SIGNATURE = '5'.repeat(88);
-const MINT = 'S'.repeat(44);
 
 function productIdentity() {
-  return {
-    assetId: 'backpack-spcx',
-    assetClass: 'stock',
-    companyName: 'SpaceX',
-    productName: 'SpaceX',
-    symbol: 'SPCX',
-    providerName: 'Backpack Securities',
-    legalIssuerName: 'Trek Nexus Markets Ltd',
-    issuer: 'Trek Nexus Markets Ltd',
-    network: 'solana-mainnet',
-    mint: MINT,
-    tokenProgram: 'token-2022',
-    decimals: 6,
-    registryIdentityDigest: 'e'.repeat(64),
-  };
+  return spcxProductIdentity();
 }
 
 function feeSummary() {
-  return {
-    summary: 'Trading fees are included in this quote; network fee is calculated at execution.',
-    platformFee: null,
-    routeFees: [],
-    networkFee: {
-      status: 'not-yet-calculated',
-      amountLamports: null,
-    },
-  };
+  return stockFeeSummary();
 }
 
 function preparedPayload() {
@@ -75,13 +58,32 @@ function executionPayload(overrides = {}) {
     business: {
       action: 'buy',
       assetId: 'backpack-spcx',
+      amountAtomic: '1349344730',
       lifecycle: 'confirmed',
       finality: 'confirmed',
       executionSucceeded: true,
       programError: false,
       definitiveNonlandingProof: false,
-      productIdentity: productIdentity(),
     },
+    tradeSummary: spcxShareQuantityTradeSummary(),
+    ...overrides,
+  };
+}
+
+function statusPayload(overrides = {}) {
+  return {
+    namespace: 'dexter-governed-transaction-status/v1',
+    status: 'confirmed',
+    intentId: '33333333-3333-4333-8333-333333333333',
+    action: 'buy',
+    assetId: 'backpack-spcx',
+    assetMint: SPCX_MINT,
+    tokenProgram: 'token-2022',
+    amountAtomic: '1349344730',
+    transactionSignature: SIGNATURE,
+    confirmationCommitment: 'confirmed',
+    executionSucceeded: true,
+    tradeSummary: spcxShareQuantityTradeSummary(),
     ...overrides,
   };
 }
@@ -111,13 +113,40 @@ test('confirmed signature plus successful execution is success', () => {
   assert.ok(model);
   assert.equal(model.stage, 'success');
   assert.equal(model.stageLabel, 'Confirmed');
-  assert.equal(model.headline, 'SpaceX purchase confirmed');
+  assert.equal(model.headline, '10-share SpaceX purchase confirmed');
   assert.match(model.supporting, /Dexter reports that execution succeeded/);
   assert.equal(model.confirmationCommitment, 'confirmed');
   assert.equal(model.executionSucceeded, true);
   assert.equal(model.transactionSignature, SIGNATURE);
   assert.equal(model.solscanUrl, `https://solscan.io/tx/${SIGNATURE}`);
   assert.equal(model.finalizedEvidence, false);
+});
+
+test('status reconnect restores the exact 10-share SpaceX receipt terms', () => {
+  const model = normalizeStockTrade(statusPayload());
+
+  assert.ok(model);
+  assert.equal(model.stage, 'success');
+  assert.equal(model.headline, '10-share SpaceX purchase confirmed');
+  assert.equal(model.requestedShareQuantity, '10');
+  assert.equal(model.minimumShareQuantity, '10.006782');
+  assert.equal(model.requestedMaximumSpend, '1,500');
+  assert.equal(model.product.mint, SPCX_MINT);
+  assert.equal(model.product.tokenProgram, 'token-2022');
+});
+
+test('reconcile reconnect reads the durable terms from statusAfter', () => {
+  const model = normalizeStockTrade({
+    namespace: 'dexter-governed-agent-reconcile/v1',
+    outcome: 'advanced',
+    statusAfter: statusPayload(),
+  });
+
+  assert.ok(model);
+  assert.equal(model.stage, 'success');
+  assert.equal(model.headline, '10-share SpaceX purchase confirmed');
+  assert.equal(model.expectedShareQuantity, '10.05');
+  assert.equal(model.fees?.networkFeeStatus, 'not-yet-calculated');
 });
 
 test('the confirmed success evidence has no second lifecycle-label gate', () => {

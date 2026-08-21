@@ -26,9 +26,14 @@ import {
 } from '../lib/governed-asset-service-config.mjs';
 import {
   GOVERNED_ASSET_TOOL_OUTPUT_SCHEMAS,
+  GOVERNED_STOCK_TRADE_SUMMARY_SCHEMA,
   buildGovernedAssetToolResult,
 } from '../lib/governed-asset-result.mjs';
 import { applyOpenToolResultPolicy } from '../lib/open-tool-contracts.mjs';
+import {
+  SPCX_MINT,
+  spcxShareQuantityTradeSummary,
+} from './fixtures/stock-trade-summary.fixtures.mjs';
 
 const SECRET = ' test-only-governed-secret-at-least-thirty-two-bytes ';
 const OPERATION_ID = '019f981c-9215-7141-84f2-d89ffe9cbece';
@@ -363,6 +368,34 @@ function executeResponse(overrides = {}) {
     }),
     evidenceDigest: 'e'.repeat(64),
     ...responseOverrides,
+  };
+}
+
+function stockExecuteResponse(overrides = {}) {
+  const {
+    business: businessOverrides = {},
+    ...responseOverrides
+  } = overrides;
+  return executeResponse({
+    business: {
+      assetId: 'backpack-spcx',
+      amountAtomic: '1349344730',
+      ...businessOverrides,
+    },
+    tradeSummary: spcxShareQuantityTradeSummary(),
+    ...responseOverrides,
+  });
+}
+
+function stockStatusResponse(overrides = {}) {
+  return {
+    ...statusResponse(),
+    assetId: 'backpack-spcx',
+    assetMint: SPCX_MINT,
+    tokenProgram: 'token-2022',
+    amountAtomic: '1349344730',
+    tradeSummary: spcxShareQuantityTradeSummary(),
+    ...overrides,
   };
 }
 
@@ -972,6 +1005,174 @@ test('legacy USDC-budget Buy response remains valid without quantity metadata', 
   });
   assert.equal(result.isError, false);
   assert.deepEqual(result.body, expected);
+});
+
+test('selected-stock execute, status, reconcile, and history carry one strict durable trade summary', async () => {
+  const execute = stockExecuteResponse();
+  const status = stockStatusResponse();
+  const reconcile = reconcileResponse({ statusAfter: status });
+  const history = {
+    namespace: 'dexter-governed-transaction-history/v1',
+    items: [status],
+    nextCursor: null,
+  };
+
+  assert.equal(
+    GOVERNED_STOCK_TRADE_SUMMARY_SCHEMA.safeParse(
+      execute.tradeSummary,
+    ).success,
+    true,
+  );
+  assert.deepEqual(
+    Object.keys(execute.tradeSummary).sort(),
+    [
+      'action',
+      'amountAtomic',
+      'assetId',
+      'expectedShareQuantity',
+      'feeSummary',
+      'minimumShareQuantity',
+      'namespace',
+      'overfillPossible',
+      'productIdentity',
+      'requestAmountKind',
+      'requestedMaximumSpendAtomic',
+      'requestedShareQuantity',
+      'shareQuantitySemantics',
+      'shareQuantityUnit',
+      'symbol',
+    ].sort(),
+  );
+  assert.equal(execute.tradeSummary.requestedShareQuantity, '10');
+  assert.equal(status.tradeSummary.requestedShareQuantity, '10');
+  assert.equal(
+    reconcile.statusAfter.tradeSummary.requestedShareQuantity,
+    '10',
+  );
+  assert.equal(
+    history.items[0].tradeSummary.requestedShareQuantity,
+    '10',
+  );
+
+  const cases = [
+    ['execute', { operationId: OPERATION_ID, intentId: INTENT_ID }, 200, execute],
+    ['status', { intentId: INTENT_ID }, 200, status],
+    ['reconcile', { intentId: INTENT_ID }, 202, reconcile],
+    ['history', { limit: 25 }, 200, history],
+  ];
+  for (const [operation, input, httpStatus, responseBody] of cases) {
+    const result = await callGovernedAssetBackend({
+      apiBase: 'https://api.dexter.test',
+      secret: SECRET,
+      operation,
+      input,
+      mcpSessionId: SESSION_ID,
+      now: NOW,
+      fetchImpl: async () => jsonResponse(httpStatus, responseBody),
+    });
+    assert.equal(result.isError, false, operation);
+    assert.deepEqual(result.body, responseBody, operation);
+  }
+});
+
+test('confirmed stock execution is successful without waiting for finalized', async () => {
+  const responseBody = stockExecuteResponse({
+    business: {
+      finality: 'confirmed',
+      reconciliation: { required: true, availableToOwner: false },
+    },
+  });
+  const result = await callGovernedAssetBackend({
+    apiBase: 'https://api.dexter.test',
+    secret: SECRET,
+    operation: 'execute',
+    input: { operationId: OPERATION_ID, intentId: INTENT_ID },
+    mcpSessionId: SESSION_ID,
+    now: NOW,
+    fetchImpl: async () => jsonResponse(200, responseBody),
+  });
+
+  assert.equal(result.isError, false);
+  assert.equal(result.body.status, 'confirmed');
+  assert.equal(result.body.business.finality, 'confirmed');
+  assert.equal(result.body.business.executionSucceeded, true);
+  assert.equal(result.body.tradeSummary.requestedShareQuantity, '10');
+});
+
+test('trade summary fails closed on business, mint, token-program, or hidden stock evidence substitution', async () => {
+  const hostileExecute = [
+    (body) => { body.tradeSummary.amountAtomic = '1349344731'; },
+    (body) => {
+      body.tradeSummary.assetId = 'backpack-spcx-v2';
+      body.tradeSummary.productIdentity.assetId = 'backpack-spcx-v2';
+    },
+    (body) => {
+      Object.assign(body.tradeSummary, {
+        action: 'sell',
+        requestAmountKind: 'input',
+        requestedShareQuantity: null,
+        expectedShareQuantity: null,
+        minimumShareQuantity: null,
+        shareQuantityUnit: null,
+        shareQuantitySemantics: null,
+        requestedMaximumSpendAtomic: null,
+        overfillPossible: false,
+      });
+    },
+    (body) => { body.stockSelection = { mint: SPCX_MINT }; },
+    (body) => { body.quoteAttestation = { digest: 'a'.repeat(64) }; },
+  ];
+  for (const mutate of hostileExecute) {
+    const body = stockExecuteResponse();
+    mutate(body);
+    const result = await callGovernedAssetBackend({
+      apiBase: 'https://api.dexter.test',
+      secret: SECRET,
+      operation: 'execute',
+      input: { operationId: OPERATION_ID, intentId: INTENT_ID },
+      mcpSessionId: SESSION_ID,
+      now: NOW,
+      fetchImpl: async () => jsonResponse(200, body),
+    });
+    assert.equal(result.isError, true);
+    assert.equal(result.body.code, 'governed_backend_response_invalid');
+  }
+
+  const hostileStatus = [
+    (body) => { body.tradeSummary.productIdentity.mint = ADDRESS; },
+    (body) => { body.tradeSummary.productIdentity.tokenProgram = 'spl-token'; },
+    (body) => { body.tradeSummary.unexpected = true; },
+  ];
+  for (const mutate of hostileStatus) {
+    const body = stockStatusResponse();
+    mutate(body);
+    const result = await callGovernedAssetBackend({
+      apiBase: 'https://api.dexter.test',
+      secret: SECRET,
+      operation: 'status',
+      input: { intentId: INTENT_ID },
+      mcpSessionId: SESSION_ID,
+      now: NOW,
+      fetchImpl: async () => jsonResponse(200, body),
+    });
+    assert.equal(result.isError, true);
+    assert.equal(result.body.code, 'governed_backend_response_invalid');
+  }
+});
+
+test('legacy execute and status envelopes remain valid without tradeSummary', () => {
+  const execute = executeResponse();
+  const status = statusResponse();
+  assert.equal('tradeSummary' in execute, false);
+  assert.equal('tradeSummary' in status, false);
+  assert.equal(
+    GOVERNED_ASSET_TOOL_OUTPUT_SCHEMAS.execute.safeParse(execute).success,
+    true,
+  );
+  assert.equal(
+    GOVERNED_ASSET_TOOL_OUTPUT_SCHEMAS.status.safeParse(status).success,
+    true,
+  );
 });
 
 test('governed result policy preserves valid opaque identities that resemble bearer tokens', () => {

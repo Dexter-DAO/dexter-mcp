@@ -251,9 +251,12 @@ function stageCopy(input) {
   const action = input.action === "unknown" ? "trade" : input.action;
   const target = sharePhrase(input.requestedShares ?? input.minimumShares);
   if (input.stage === "success") {
+    const shareTarget = displayQuantity(
+      input.requestedShares ?? input.minimumShares
+    );
     return {
       stageLabel: "Confirmed",
-      headline: input.action === "buy" ? `${product} purchase confirmed` : `${product} ${action} confirmed`,
+      headline: input.action === "buy" ? shareTarget ? `${shareTarget}-share ${product} purchase confirmed` : `${product} purchase confirmed` : `${product} ${action} confirmed`,
       supporting: input.action === "buy" ? `Solana confirmed the transaction, and Dexter reports that execution succeeded${input.requestedShares ? ` for at least ${target}` : ""}.` : `Solana confirmed this ${action}.`
     };
   }
@@ -300,6 +303,7 @@ function normalizeStockTrade(payload, toolInput = null) {
   const status = statusAfter ?? root2;
   const preview = firstRecord(root2.preview, status.preview);
   const business = firstRecord(status.business, root2.business);
+  const tradeSummary = firstRecord(status.tradeSummary, root2.tradeSummary);
   const share = firstRecord(
     preview?.shareQuantity,
     status.shareQuantity,
@@ -307,20 +311,30 @@ function normalizeStockTrade(payload, toolInput = null) {
     root2.shareQuantity
   );
   const productIdentity = firstRecord(
+    tradeSummary?.productIdentity,
     preview?.productIdentity,
     status.productIdentity,
     business?.productIdentity,
     root2.productIdentity
   );
   const feeSummary = firstRecord(
+    tradeSummary?.feeSummary,
     preview?.feeSummary,
     status.feeSummary,
     business?.feeSummary,
     root2.feeSummary
   );
-  const action = actionOf(preview?.action, status.action, business?.action, root2.action, input?.action);
+  const action = actionOf(
+    tradeSummary?.action,
+    preview?.action,
+    status.action,
+    business?.action,
+    root2.action,
+    input?.action
+  );
   const product = normalizeProduct(productIdentity, preview, business, status);
   const requestedShares = firstDecimal(
+    tradeSummary?.requestedShareQuantity,
     preview?.requestedShareQuantity,
     share?.requestedShareQuantity,
     status.requestedShareQuantity,
@@ -328,18 +342,23 @@ function normalizeStockTrade(payload, toolInput = null) {
     input?.shareQuantity
   );
   const expectedShares = firstDecimal(
+    tradeSummary?.expectedShareQuantity,
     preview?.expectedShareQuantity,
     share?.expectedShareQuantity,
     status.expectedShareQuantity,
     root2.expectedShareQuantity
   );
   const minimumShares = firstDecimal(
+    tradeSummary?.minimumShareQuantity,
     preview?.minimumShareQuantity,
     share?.minimumShareQuantity,
     status.minimumShareQuantity,
     root2.minimumShareQuantity
   );
-  const requestAmountKind = firstString(preview?.requestAmountKind) === "share-quantity" || requestedShares !== null ? "share-quantity" : "input";
+  const requestAmountKind = firstString(
+    tradeSummary?.requestAmountKind,
+    preview?.requestAmountKind
+  ) === "share-quantity" || requestedShares !== null ? "share-quantity" : "input";
   const rawStatus = (firstString(status.status, business?.lifecycle, root2.status, root2.outcome) ?? (preview ? "prepared" : "unknown")).toLowerCase();
   const signature = exactSignature(
     status.transactionSignature,
@@ -371,6 +390,7 @@ function normalizeStockTrade(payload, toolInput = null) {
     definitiveNonlandingProof
   });
   const quotedInputAtomic = firstInteger(
+    tradeSummary?.amountAtomic,
     preview?.maximumInputAmountAtomic,
     preview?.amountAtomic,
     business?.amountAtomic,
@@ -389,6 +409,7 @@ function normalizeStockTrade(payload, toolInput = null) {
     root2.minimumOutputAtomic
   );
   const requestedMaximumSpendAtomic = firstInteger(
+    tradeSummary?.requestedMaximumSpendAtomic,
     preview?.requestedMaximumSpendAtomic,
     share?.requestedMaximumSpendAtomic,
     input?.maximumSpendAtomic
@@ -431,16 +452,22 @@ function normalizeStockTrade(payload, toolInput = null) {
     expectedShareQuantity: expectedShares,
     minimumShareQuantity: minimumShares,
     shareQuantityUnit: firstString(
+      tradeSummary?.shareQuantityUnit,
       preview?.shareQuantityUnit,
       share?.shareQuantityUnit,
       share?.unit
     ),
     shareQuantitySemantics: firstString(
+      tradeSummary?.shareQuantitySemantics,
       preview?.shareQuantitySemantics,
       share?.shareQuantitySemantics,
       share?.semantics
     ),
-    overfillPossible: firstBoolean(preview?.overfillPossible, share?.overfillPossible) === true,
+    overfillPossible: firstBoolean(
+      tradeSummary?.overfillPossible,
+      preview?.overfillPossible,
+      share?.overfillPossible
+    ) === true,
     quotedInputAtomic,
     expectedOutputAtomic,
     minimumOutputAtomic,
