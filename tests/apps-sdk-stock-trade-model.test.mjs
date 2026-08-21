@@ -245,6 +245,11 @@ test('stock success fails closed when the envelope substitutes identity', () => 
     (payload) => {
       payload.stockV2Identity.intentId = '11111111-1111-4111-8111-111111111111';
     },
+    (payload) => {
+      payload.stockSelection.companyName = 'Attacker Corp';
+      payload.tradeSummary.productIdentity.companyName = 'Attacker Corp';
+    },
+    (payload) => { delete payload.stockV2Identity; },
   ];
   for (const mutate of mutations) {
     const payload = structuredClone(fixture.status);

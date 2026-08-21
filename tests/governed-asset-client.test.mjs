@@ -54,6 +54,10 @@ const API_6C243_ADVANCED_FINAL_FIXTURE_BYTES = readFileSync(new URL(
 const API_6C243_ADVANCED_FINAL_FIXTURE = JSON.parse(
   API_6C243_ADVANCED_FINAL_FIXTURE_BYTES.toString('utf8'),
 );
+const STOCK_SNAPSHOT_DIGESTS = Object.freeze({
+  tesla: '689bdce48ab7a92835d4c6b461813886cef33fc479c84affdcd572df001c25eb',
+  nvidia: '132f1adfe3e75990e64f47f90543d1e1a77ee7ed05b6f07612ab5683d821c7df',
+});
 
 function jsonResponse(status, body, headers = {}) {
   return {
@@ -1059,6 +1063,10 @@ test('dynamic non-SPCX Buy and Sell preserve full stock envelopes at every publi
     assert.equal(fixture.prepared.preview.stockSelection.assetId, fixture.status.assetId);
     assert.equal(fixture.status.stockSelection.assetId, fixture.status.assetId);
     assert.equal(fixture.status.stockV2Identity.intentId, fixture.status.intentId);
+    assert.equal(
+      fixture.status.stockV2Identity.tradeSummarySnapshotDigest,
+      STOCK_SNAPSHOT_DIGESTS[name],
+    );
     assert.equal(fixture.execute.tradeSummary.assetId, fixture.status.assetId);
     assert.equal(fixture.history.items[0].tradeSummary.assetId, fixture.status.assetId);
     assert.equal(
@@ -1362,6 +1370,11 @@ test('trade summary fails closed on business, mint, token-program, or hidden sto
     (body) => { body.tradeSummary.productIdentity.tokenProgram = 'spl-token'; },
     (body) => { body.stockSelection.assetId = 'xstocks-other'; },
     (body) => { body.stockV2Identity.intentId = '11111111-1111-4111-8111-111111111111'; },
+    (body) => {
+      body.stockSelection.companyName = 'Attacker Corp';
+      body.tradeSummary.productIdentity.companyName = 'Attacker Corp';
+    },
+    (body) => { delete body.stockV2Identity; },
     (body) => { body.tradeSummary.unexpected = true; },
   ];
   for (const mutate of hostileStatus) {

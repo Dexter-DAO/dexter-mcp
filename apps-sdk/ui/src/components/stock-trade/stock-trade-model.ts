@@ -1,3 +1,6 @@
+import { sha256 } from '@noble/hashes/sha256';
+import { bytesToHex, utf8ToBytes } from '@noble/hashes/utils';
+
 export type StockTradeStage = 'prepared' | 'pending' | 'success' | 'failure';
 
 export type StockProductIdentity = {
@@ -79,6 +82,7 @@ const BASE58_INDEX = new Map(
 );
 const INTEGER = /^(0|[1-9][0-9]*)$/;
 const DECIMAL = /^(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$/;
+const SHA256_HEX = /^[0-9a-f]{64}$/;
 
 function record(value: unknown): UnknownRecord | null {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -313,6 +317,75 @@ function exactStockProductIdentity(product: UnknownRecord): boolean {
     && exactNumberAgreement(product.decimals);
 }
 
+function canonicalJson(value: unknown): string {
+  if (value === null || typeof value === 'boolean' || typeof value === 'string') {
+    return JSON.stringify(value);
+  }
+  if (typeof value === 'number') {
+    if (!Number.isSafeInteger(value)) throw new TypeError('non_integer_identity_number');
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => canonicalJson(item)).join(',')}]`;
+  }
+  if (
+    !value
+    || typeof value !== 'object'
+    || Object.getPrototypeOf(value) !== Object.prototype
+  ) {
+    throw new TypeError('unsupported_governed_identity_value');
+  }
+  const entries = Object.entries(value as UnknownRecord).sort(([left], [right]) =>
+    left < right ? -1 : left > right ? 1 : 0);
+  return `{${entries.map(([key, item]) => {
+    if (item === undefined) {
+      throw new TypeError(`undefined_governed_identity_value:${key}`);
+    }
+    return `${JSON.stringify(key)}:${canonicalJson(item)}`;
+  }).join(',')}}`;
+}
+
+function stockTradeSummarySnapshotDigest(summary: UnknownRecord): string | null {
+  const product = record(summary.productIdentity);
+  if (
+    product === null
+    || summary.namespace !== 'dexter-governed-stock-trade-summary/v1'
+  ) return null;
+  try {
+    const snapshot = {
+      namespace: 'dexter-governed-stock-prepare-summary-snapshot/v1',
+      action: summary.action,
+      assetId: summary.assetId,
+      symbol: summary.symbol,
+      amountAtomic: summary.amountAtomic,
+      requestAmountKind: summary.requestAmountKind,
+      requestedShareQuantity: summary.requestedShareQuantity,
+      shareQuantityUnit: summary.shareQuantityUnit,
+      shareQuantitySemantics: summary.shareQuantitySemantics,
+      requestedMaximumSpendAtomic: summary.requestedMaximumSpendAtomic,
+      overfillPossible: summary.overfillPossible,
+      productIdentity: {
+        assetId: product.assetId,
+        assetClass: product.assetClass,
+        companyName: product.companyName,
+        productName: product.productName,
+        symbol: product.symbol,
+        providerName: product.providerName,
+        legalIssuerName: product.legalIssuerName,
+        issuer: product.issuer,
+        mint: product.mint,
+        tokenProgram: product.tokenProgram,
+        decimals: product.decimals,
+        network: product.network,
+        registryIdentityDigest: product.registryIdentityDigest,
+      },
+    };
+    return bytesToHex(sha256(utf8ToBytes(canonicalJson(snapshot))));
+  } catch {
+    return null;
+  }
+}
+
 function exactSuccessEnvelopeIdentity(input: {
   root: UnknownRecord;
   status: UnknownRecord;
@@ -323,6 +396,9 @@ function exactSuccessEnvelopeIdentity(input: {
   const durableIdentity = record(input.status.stockV2Identity);
   const product = record(input.tradeSummary?.productIdentity);
   const intentId = firstString(input.status.intentId, input.root.intentId);
+  const durableSummaryDigest = firstString(
+    durableIdentity?.tradeSummarySnapshotDigest,
+  );
   if (
     intentId === null
     || !exactStringAgreement(
@@ -337,8 +413,15 @@ function exactSuccessEnvelopeIdentity(input: {
       selection === null
       || input.tradeSummary === null
       || firstString(durableIdentity.intentId) !== intentId
+      || durableIdentity.namespace
+        !== 'dexter-governed-stock-v2-durable-identity/v1'
+      || durableSummaryDigest === null
+      || !SHA256_HEX.test(durableSummaryDigest)
+      || stockTradeSummarySnapshotDigest(input.tradeSummary)
+        !== durableSummaryDigest
     )
   ) return false;
+  if (selection !== null && durableIdentity === null) return false;
   if (input.tradeSummary === null) {
     return exactStringAgreement(input.status.action, input.business?.action)
       && exactStringAgreement(input.status.assetId, input.business?.assetId)

@@ -1,4 +1,7 @@
 import { canonicalHash } from '../../lib/governed-canonical-identity.mjs';
+import {
+  governedStockTradeSummarySnapshotDigest,
+} from '../../lib/governed-asset-result.mjs';
 
 export const FIXTURE_USDC_MINT =
   'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
@@ -176,7 +179,7 @@ function tradeSummary(stock) {
   };
 }
 
-function durableIdentity(intentId = IDS.intentId) {
+function durableIdentity(summary, intentId = IDS.intentId) {
   return {
     namespace: 'dexter-governed-stock-v2-durable-identity/v1',
     runtimeReleaseDigest: digest('8'),
@@ -188,7 +191,8 @@ function durableIdentity(intentId = IDS.intentId) {
     planDigest: digest('d'),
     attestationId: 'a0000000-0000-4000-8000-000000000008',
     prepareDraftDigest: digest('e'),
-    tradeSummarySnapshotDigest: digest('f'),
+    tradeSummarySnapshotDigest:
+      governedStockTradeSummarySnapshotDigest(summary),
     requestClaimDigest: digest('1'),
     executionCapabilityReceiptDigest: digest('2'),
   };
@@ -255,6 +259,7 @@ function business(stock, overrides = {}) {
 }
 
 function status(stock, operationId) {
+  const summary = tradeSummary(stock);
   return {
     namespace: 'dexter-governed-transaction-status/v1',
     intentId: IDS.intentId,
@@ -272,8 +277,8 @@ function status(stock, operationId) {
     assetMint: stock.mint,
     tokenProgram: stock.tokenProgram,
     stockSelection: stockSelection(stock),
-    tradeSummary: tradeSummary(stock),
-    stockV2Identity: durableIdentity(),
+    tradeSummary: summary,
+    stockV2Identity: durableIdentity(summary),
     amountAtomic: stock.amountAtomic,
     destinationOwner: null,
     protocolId: 'jupiter-v2',
