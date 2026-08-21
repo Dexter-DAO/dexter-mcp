@@ -1091,6 +1091,14 @@ test('dynamic non-SPCX Buy and Sell preserve full stock envelopes at every publi
 
 test('DEXTER non-stock controls remain valid across every public placement', async () => {
   const prepared = preparedResponse();
+  prepared.preview.feeSummary.platformFee = {
+    amountAtomic: '7',
+    mint: ADDRESS,
+  };
+  prepared.preview.feeSummary.routeFees = [
+    { amountAtomic: '2', mint: ADDRESS },
+    { amountAtomic: '3', mint: ADDRESS },
+  ];
   const execute = executeResponse();
   const status = statusResponse();
   status.transactionSignature = 'legacy-durable-signature';
@@ -1131,6 +1139,40 @@ test('DEXTER non-stock controls remain valid across every public placement', asy
   assert.equal('tradeSummary' in execute, false);
   assert.equal('stockSelection' in status, false);
   assert.equal('stockV2Identity' in status, false);
+});
+
+test('stock Prepare requires the exact stock fee summary without narrowing non-stock', async () => {
+  const fixture = dynamicStockV2Fixture('tesla', OPERATION_ID);
+  const hostile = [
+    (body) => {
+      body.preview.feeSummary.platformFee = {
+        amountAtomic: '1',
+        mint: body.preview.productIdentity.mint,
+      };
+    },
+    (body) => { body.preview.feeSummary.routeFees.reverse(); },
+    (body) => {
+      body.preview.feeSummary.routeFees[1] = {
+        ...body.preview.feeSummary.routeFees[0],
+      };
+    },
+  ];
+
+  for (const mutate of hostile) {
+    const response = structuredClone(fixture.prepared);
+    mutate(response);
+    const result = await callGovernedAssetBackend({
+      apiBase: 'https://api.dexter.test',
+      secret: SECRET,
+      operation: 'prepare',
+      input: fixture.input,
+      mcpSessionId: SESSION_ID,
+      now: NOW,
+      fetchImpl: async () => jsonResponse(200, response),
+    });
+    assert.equal(result.isError, true);
+    assert.equal(result.body.code, 'governed_backend_response_invalid');
+  }
 });
 
 test('stock trade summaries require exact public identity, fee, order, and canonical-share semantics', () => {
