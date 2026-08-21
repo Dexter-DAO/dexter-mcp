@@ -133,35 +133,47 @@ borrow, or pay execution.
 
 ## Governed Send, Buy, and Sell
 
-1. Use `dexter_portfolio` to identify the exact supported asset from an approved
-   holding or `approvedActionTarget` and confirm the requested action is
-   currently displayed as available. That display is context, not authority.
-   Pass only its non-null canonical `assetId`; never
-   substitute a symbol or send a mint, token program, network, or decimals as
-   authority.
+1. For Send and non-stock Buy or Sell, use `dexter_portfolio` to identify the
+   exact supported asset from an approved holding or `approvedActionTarget`
+   and confirm the requested action is currently displayed as available. Pass
+   only its non-null canonical `assetId`; never substitute a symbol or send a
+   mint, token program, network, or decimals as authority. For a natural-language
+   stock Buy or Sell, pass the user's exact human company name as
+   `companyQuery` instead. Dexter's catalog resolves and freezes the current
+   approved Solana product. Never replace a stock `companyQuery` with a
+   remembered or portfolio-derived `assetId`, symbol, or mint. Portfolio
+   remains useful inventory context for a stock Sell, but it does not select
+   the catalog route.
 2. Call `dexter_prepare_asset_action` with one stable `operationId` and the
    exact action fields. A Buy has exactly one amount mode:
-   - Dollar-budget wording such as “buy $100 of SpaceX” uses `amountAtomic` as
-     the exact USDC budget to spend, in atomic units with 6 decimals.
+   - Dollar-budget wording such as “buy $100 of Tesla” uses
+     `companyQuery: "Tesla"` and `amountAtomic` as the exact USDC budget to
+     spend, in atomic units with 6 decimals.
    - Ordinary approved-stock quantity wording such as “buy 10 shares of
-     SpaceX” uses `shareQuantity: "10"`; “buy a quarter share” uses
-     `shareQuantity: "0.25"`. This is an underlying-share-equivalent display
-     quantity for Dexter's exact approved Solana product. Never convert it to
-     token atomic units using token decimals or a remembered multiplier;
-     Dexter resolves the current product version, display multiplier, and raw
-     token target. This is minimum-receive semantics and the fill may be
-     slightly larger. If the user also says “spend no more than $5,000,” pass
-     `maximumSpendAtomic` as `5000000000`, using USDC's 6 decimals.
+     NVIDIA” uses `companyQuery: "NVIDIA"` and `shareQuantity: "10"`; “buy a
+     quarter share” uses `shareQuantity: "0.25"`. This is an
+     underlying-share-equivalent display quantity for Dexter's exact
+     catalog-selected Solana product. Never convert it to token atomic units
+     using token decimals or a remembered multiplier; Dexter resolves the
+     current product version, display multiplier, and raw token target. This
+     is minimum-receive semantics and the fill may be slightly larger. If the
+     user also says “spend no more than $5,000,” pass `maximumSpendAtomic` as
+     `5000000000`, using USDC's 6 decimals.
    Never pass both `amountAtomic` and `shareQuantity`, and never pass
    `maximumSpendAtomic` without `shareQuantity`. If the user says “exactly,”
    “no more than,” or otherwise forbids receiving extra shares, explain that
    this route guarantees a minimum and may overfill; ask whether an at-least
-   target is acceptable instead of silently weakening the request. For Sell and Send,
-   `amountAtomic` is the selected asset amount using the
-   server-certified decimals. Send has no memo. Tool presence and input
-   acceptance are not runtime capability; only the exact Prepare result is.
+   target is acceptable instead of silently weakening the request. Stock Sell
+   supports direct token input only: pass `companyQuery` plus `amountAtomic`
+   using the server-certified decimals; it does not accept `shareQuantity`.
+   For non-stock Sell and Send, pass `assetId` plus `amountAtomic`. Send has no
+   memo. Tool presence and input acceptance are not runtime capability; only
+   the exact Prepare result is.
 3. Read the returned `intentId`, policy result, approval state, expiry, and
-   preview. For a share-quantity Buy, verify `requestAmountKind` is
+   preview. A prepared stock result must include the exact release binding in
+   top-level `stockRuntime` and the frozen catalog pin in
+   `preview.stockSelection`; refuse a missing or substituted identity. For a
+   share-quantity Buy, verify `requestAmountKind` is
    `share-quantity`, `requestedShareQuantity` exactly echoes the request,
    `minimumShareQuantity` meets or exceeds it, and
    `maximumInputAmountAtomic` exactly matches the frozen ExactIn
@@ -192,7 +204,11 @@ borrow, or pay execution.
    authorization, wallet, agent, or grant fields.
 7. After any timeout, uncertainty, pending state, or missing finality, call
    `dexter_asset_action_status` with that same `intentId`. Do not call Execute
-   again automatically.
+   again automatically. Stock Execute returns top-level `tradeSummary`; stock
+   Status returns top-level `stockSelection`, `tradeSummary`, and
+   `stockV2Identity`. A successful stock result requires a canonical 64-byte
+   Solana signature, confirmed or finalized commitment,
+   `executionSucceeded=true`, and one exact matching public identity envelope.
 8. When status says reconciliation is required, call
    `dexter_reconcile_asset_action` once for the same intent. It cannot expand
    mandate scope or create a replacement intent. Read its exact outcome and

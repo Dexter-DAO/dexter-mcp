@@ -6,6 +6,7 @@ import {
   GOVERNED_ASSET_INPUT_SCHEMAS,
   GOVERNED_ASSET_TOOL_CONTRACTS,
   GOVERNED_ASSET_TOOL_NAMES,
+  GOVERNED_COMPANY_QUERY_SCHEMA,
   GOVERNED_HISTORY_CURSOR_MAX_LENGTH,
   GOVERNED_OPERATION_SEMANTICS,
   GOVERNED_SHARE_QUANTITY_SCHEMA,
@@ -121,11 +122,11 @@ test('prepare accepts any canonical registry assetId and keeps denomination expl
   assert.match(sellSchema.shape.amountAtomic.description, /server-certified decimals/i);
 });
 
-test('approved-stock Buy supports one strict spend or human share-quantity mode', () => {
+test('natural-language stock Buy and Sell use one strict companyQuery catalog mode', () => {
   const quantityBuy = {
     operationId: OPERATION_ID,
     action: 'buy',
-    assetId: 'backpack-spcx',
+    companyQuery: 'Tesla',
     shareQuantity: '10',
     maximumSpendAtomic: '5000000000',
     maxSlippageBps: 50,
@@ -146,7 +147,7 @@ test('approved-stock Buy supports one strict spend or human share-quantity mode'
     {
       operationId: OPERATION_ID,
       action: 'buy',
-      assetId: 'backpack-spcx',
+      companyQuery: 'Tesla',
     },
     {
       ...quantityBuy,
@@ -155,27 +156,33 @@ test('approved-stock Buy supports one strict spend or human share-quantity mode'
     {
       operationId: OPERATION_ID,
       action: 'buy',
-      assetId: 'backpack-spcx',
+      companyQuery: 'Tesla',
       maximumSpendAtomic: '5000000000',
     },
     {
       operationId: OPERATION_ID,
       action: 'sell',
-      assetId: 'backpack-spcx',
+      companyQuery: 'Tesla',
       shareQuantity: '10',
     },
     {
       operationId: OPERATION_ID,
       action: 'send',
-      assetId: 'backpack-spcx',
+      companyQuery: 'Tesla',
       shareQuantity: '10',
       destinationOwner: ADDRESS,
     },
     {
       operationId: OPERATION_ID,
       action: 'buy',
-      assetId: 'backpack-spcx',
+      companyQuery: 'Tesla',
       quantityAtomic: '10000000',
+    },
+    {
+      operationId: OPERATION_ID,
+      action: 'buy',
+      assetId: 'backpack-spcx',
+      shareQuantity: '10',
     },
   ]) {
     assert.equal(
@@ -188,7 +195,8 @@ test('approved-stock Buy supports one strict spend or human share-quantity mode'
   const options = GOVERNED_ASSET_INPUT_SCHEMAS.prepare._def.options;
   const quantitySchema = options.find((schema) =>
     schema.shape.action.safeParse('buy').success
-    && schema.shape.shareQuantity !== undefined);
+    && schema.shape.shareQuantity !== undefined
+    && schema.shape.companyQuery !== undefined);
   assert.match(quantitySchema.shape.shareQuantity.description, /minimum/i);
   assert.match(quantitySchema.shape.shareQuantity.description, /underlying-share-equivalent/i);
   assert.match(quantitySchema.shape.shareQuantity.description, /may receive slightly more/i);
@@ -199,6 +207,26 @@ test('approved-stock Buy supports one strict spend or human share-quantity mode'
   for (const valid of ['10', '0.25', '10.0', '18446744073709551615.123456789012345678']) {
     assert.equal(GOVERNED_SHARE_QUANTITY_SCHEMA.safeParse(valid).success, true, valid);
   }
+  assert.equal(GOVERNED_SHARE_QUANTITY_SCHEMA.parse('10.0'), '10');
+  assert.equal(GOVERNED_COMPANY_QUERY_SCHEMA.safeParse('NVIDIA').success, true);
+  assert.equal(GOVERNED_COMPANY_QUERY_SCHEMA.safeParse(' NVIDIA ').success, false);
+
+  const spendBuy = GOVERNED_ASSET_INPUT_SCHEMAS.prepare.safeParse({
+    operationId: OPERATION_ID,
+    action: 'buy',
+    companyQuery: 'Tesla',
+    amountAtomic: '1000000',
+  });
+  const sell = GOVERNED_ASSET_INPUT_SCHEMAS.prepare.safeParse({
+    operationId: OPERATION_ID,
+    action: 'sell',
+    companyQuery: 'NVIDIA',
+    amountAtomic: '1000000',
+  });
+  assert.equal(spendBuy.success, true);
+  assert.equal(sell.success, true);
+  assert.equal('assetId' in spendBuy.data, false);
+  assert.equal('assetId' in sell.data, false);
   for (const invalid of [
     '0',
     '0.0',
@@ -309,7 +337,9 @@ test('operation identity never substitutes for authority or owner approval', () 
   const execute = GOVERNED_ASSET_TOOL_CONTRACTS.dexter_execute_asset_action.description;
   const reconcile = GOVERNED_ASSET_TOOL_CONTRACTS.dexter_reconcile_asset_action.description;
   assert.match(prepare, /Idempotency-Key/);
-  assert.match(prepare, /canonical assetId returned by dexter_portfolio/);
+  assert.match(prepare, /natural-language stock Buy or Sell, pass companyQuery/);
+  assert.match(prepare, /never pass a remembered stock assetId, mint, or symbol/);
+  assert.match(prepare, /assetId variants remain for a non-stock/);
   assert.match(prepare, /approved holding or approvedActionTarget/);
   assert.match(prepare, /reusable bounded mandate/);
   assert.match(prepare, /outside model-callable tools/);

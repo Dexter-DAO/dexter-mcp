@@ -53,13 +53,26 @@ const RETIRED_TOOLS = [
   'dexter_authorize_asset_action',
 ];
 
+function outputUnknownKeys(schema) {
+  let current = schema;
+  const visited = new Set();
+  while (current && typeof current === 'object' && !visited.has(current)) {
+    visited.add(current);
+    if (current._def?.unknownKeys !== undefined) {
+      return current._def.unknownKeys;
+    }
+    current = current._def?.schema ?? current._def?.innerType ?? null;
+  }
+  return undefined;
+}
+
 test('contract is exactly the canonical hosted twelve', () => {
   assert.deepEqual(OPEN_TOOL_NAMES, EXPECTED_TOOLS);
   assert.deepEqual(Object.keys(OPEN_TOOL_CONTRACTS).sort(), [...EXPECTED_TOOLS].sort());
   assert.doesNotMatch(OPEN_TOOL_NAMES.join(','), /card_/);
   for (const [name, toolContract] of Object.entries(OPEN_TOOL_CONTRACTS)) {
     assert.equal(
-      toolContract.outputSchema?._def?.unknownKeys,
+      outputUnknownKeys(toolContract.outputSchema),
       [
         'x402_check',
         'x402_fetch',
@@ -1128,9 +1141,26 @@ test('fresh and refreshed real hosted transports retain the exact protected rost
       assert.equal(
         prepareVariants.some((variant) =>
           Object.hasOwn(variant.properties ?? {}, 'shareQuantity')
+          && Object.hasOwn(variant.properties ?? {}, 'companyQuery')
+          && !Object.hasOwn(variant.properties ?? {}, 'assetId')
           && variant.properties?.action?.const === 'buy'),
         true,
-        `${phase}:share-quantity Buy`,
+        `${phase}:catalog share-quantity Buy`,
+      );
+      assert.equal(
+        prepareVariants.some((variant) =>
+          Object.hasOwn(variant.properties ?? {}, 'shareQuantity')
+          && Object.hasOwn(variant.properties ?? {}, 'assetId')),
+        false,
+        `${phase}:no static-asset stock share order`,
+      );
+      assert.equal(
+        prepareVariants.some((variant) =>
+          Object.hasOwn(variant.properties ?? {}, 'companyQuery')
+          && Object.hasOwn(variant.properties ?? {}, 'amountAtomic')
+          && variant.properties?.action?.const === 'sell'),
+        true,
+        `${phase}:catalog direct-input Sell`,
       );
       assert.equal(
         prepareVariants.some((variant) =>

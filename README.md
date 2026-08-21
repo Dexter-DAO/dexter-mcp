@@ -151,14 +151,26 @@ Governed Buy and Sell, plus the preserved fail-closed Send contract, use one
 API-owned intent through five public tools. `dexter_prepare_asset_action`
 accepts one stable `operationId` plus the
 exact action fields and persists/evaluates the request without signing or
-submitting it. `assetId` is the canonical ID returned by `dexter_portfolio`
-from an approved holding or an `approvedActionTarget` whose matching action is
-available, not a symbol or mint. The API resolves it through its approved
-registry and binds the exact network, mint, token program, decimals,
-capabilities, and identity digest into the intent and reusable mandate. For
-Buy, `amountAtomic` is the USDC budget in atomic units (6 decimals). For Sell
-and Send, it is the selected asset amount using the server-certified decimals.
-Send does not expose a memo.
+submitting it. Send and non-stock Buy/Sell use the canonical `assetId` returned
+by `dexter_portfolio` from an approved holding or an `approvedActionTarget`
+whose matching action is available, never a symbol or mint. Natural-language
+stock Buy/Sell instead use the exact human `companyQuery`; the API normalizes
+that query and selects and pins the current catalog product. A caller must
+never replace a stock query with a remembered static `assetId`, symbol, or
+mint. Stock Buy supports either an `amountAtomic` USDC budget (6 decimals) or
+a human decimal `shareQuantity` minimum-receive target, optionally bounded by
+`maximumSpendAtomic`. Stock Sell supports `companyQuery` plus direct token
+`amountAtomic`; it does not accept `shareQuantity`. For non-stock Sell and
+Send, `amountAtomic` is the selected asset amount using the server-certified
+decimals. Send does not expose a memo.
+
+A prepared stock result exposes the immutable release in top-level
+`stockRuntime` and its frozen catalog pin in `preview.stockSelection`.
+Execute exposes top-level `tradeSummary`; Status exposes top-level
+`stockSelection`, `tradeSummary`, and `stockV2Identity`; History carries the
+same Status shape in `items`; Reconcile carries it in `statusAfter`. Stock
+success requires a canonical 64-byte Solana signature, confirmed or finalized
+commitment, `executionSucceeded: true`, and exact public-identity binding.
 
 `dexter_execute_asset_action` accepts only `operationId` and the prepared
 `intentId`; the API request body is exactly `{}` and the operation ID becomes

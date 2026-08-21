@@ -11,6 +11,9 @@ import {
   spcxShareQuantityTradeSummary,
   stockFeeSummary,
 } from './fixtures/stock-trade-summary.fixtures.mjs';
+import {
+  dynamicStockV2Fixture,
+} from './fixtures/governed-stock-v2.fixtures.mjs';
 
 const SIGNATURE = '5'.repeat(88);
 
@@ -211,6 +214,47 @@ test('invalid signatures cannot produce success or an explorer URL', () => {
   assert.equal(model.stage, 'pending');
   assert.equal(model.transactionSignature, null);
   assert.equal(model.solscanUrl, null);
+});
+
+test('base58-looking text must decode to exactly 64 signature bytes', () => {
+  const payload = executionPayload({ transactionSignature: '2'.repeat(64) });
+  const model = normalizeStockTrade(payload);
+
+  assert.ok(model);
+  assert.equal(model.stage, 'pending');
+  assert.equal(model.transactionSignature, null);
+  assert.equal(model.solscanUrl, null);
+});
+
+test('stock success fails closed when the envelope substitutes identity', () => {
+  const fixture = dynamicStockV2Fixture(
+    'tesla',
+    '019f981c-9215-7141-84f2-d89ffe9cbece',
+  );
+  const valid = normalizeStockTrade(fixture.status);
+  assert.equal(valid?.stage, 'success');
+
+  const mutations = [
+    (payload) => { payload.tradeSummary.assetId = 'xstocks-other'; },
+    (payload) => { payload.tradeSummary.productIdentity.mint = SPCX_MINT; },
+    (payload) => { payload.tradeSummary.productIdentity.companyName = 'Substituted Co.'; },
+    (payload) => { payload.tradeSummary.productIdentity.providerName = 'Substituted Provider'; },
+    (payload) => { payload.tradeSummary.productIdentity.issuer = 'Substituted Issuer'; },
+    (payload) => { payload.tradeSummary.productIdentity.decimals = 9; },
+    (payload) => { payload.stockSelection.registryIdentityDigest = 'f'.repeat(64); },
+    (payload) => {
+      payload.stockV2Identity.intentId = '11111111-1111-4111-8111-111111111111';
+    },
+  ];
+  for (const mutate of mutations) {
+    const payload = structuredClone(fixture.status);
+    mutate(payload);
+    assert.notEqual(normalizeStockTrade(payload)?.stage, 'success');
+  }
+
+  const reconcile = structuredClone(fixture.reconcile);
+  reconcile.intentId = '11111111-1111-4111-8111-111111111111';
+  assert.notEqual(normalizeStockTrade(reconcile)?.stage, 'success');
 });
 
 test('failed execution is failure even with confirmed chain evidence', () => {

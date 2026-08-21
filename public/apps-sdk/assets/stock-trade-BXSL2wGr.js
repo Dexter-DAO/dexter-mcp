@@ -85,7 +85,10 @@ function WidgetEmpty({
     action ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "dx-widget__state-action", children: action }) : null
   ] });
 }
-const SOLANA_SIGNATURE = /^[1-9A-HJ-NP-Za-km-z]{64,128}$/;
+const BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+const BASE58_INDEX = new Map(
+  [...BASE58_ALPHABET].map((character, index) => [character, index])
+);
 const INTEGER = /^(0|[1-9][0-9]*)$/;
 const DECIMAL = /^(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$/;
 function record(value) {
@@ -142,6 +145,30 @@ function firstBoolean(...values) {
     if (candidate !== null) return candidate;
   }
   return null;
+}
+function decodedBase58ByteLength(value) {
+  if (!value) return null;
+  const bytes = [0];
+  for (const character of value) {
+    const digit = BASE58_INDEX.get(character);
+    if (digit === void 0) return null;
+    let carry = digit;
+    for (let index = 0; index < bytes.length; index += 1) {
+      carry += bytes[index] * 58;
+      bytes[index] = carry & 255;
+      carry >>= 8;
+    }
+    while (carry > 0) {
+      bytes.push(carry & 255);
+      carry >>= 8;
+    }
+  }
+  let leadingZeroBytes = 0;
+  while (leadingZeroBytes < value.length && value[leadingZeroBytes] === "1") {
+    leadingZeroBytes += 1;
+  }
+  const magnitudeBytes = bytes.length === 1 && bytes[0] === 0 ? 0 : bytes.length;
+  return leadingZeroBytes + magnitudeBytes;
 }
 function safeNumber(value) {
   const direct = numberValue(value);
@@ -226,7 +253,71 @@ function commitmentOf(...values) {
 }
 function exactSignature(...values) {
   const signature = firstString(...values);
-  return signature && SOLANA_SIGNATURE.test(signature) ? signature : null;
+  return signature && decodedBase58ByteLength(signature) === 64 ? signature : null;
+}
+function exactStringAgreement(...values) {
+  const present = values.filter((value) => typeof value === "string" && value.length > 0);
+  return present.length > 0 && present.every((value) => value === present[0]);
+}
+function exactNumberAgreement(...values) {
+  const present = values.filter((value) => typeof value === "number" && Number.isSafeInteger(value));
+  return present.length > 0 && present.every((value) => value === present[0]);
+}
+function exactStockProductIdentity(product) {
+  return firstString(product.assetClass) === "stock" && firstString(product.companyName) !== null && firstString(product.productName) !== null && firstString(product.providerName) !== null && firstString(product.legalIssuerName) !== null && exactStringAgreement(product.issuer, product.legalIssuerName) && firstString(product.registryIdentityDigest) !== null && exactNumberAgreement(product.decimals);
+}
+function exactSuccessEnvelopeIdentity(input) {
+  const selection = record(input.status.stockSelection);
+  const durableIdentity = record(input.status.stockV2Identity);
+  const product = record(input.tradeSummary?.productIdentity);
+  const intentId = firstString(input.status.intentId, input.root.intentId);
+  if (intentId === null || !exactStringAgreement(
+    input.status.intentId,
+    input.root.intentId,
+    durableIdentity?.intentId
+  )) return false;
+  if (durableIdentity !== null && (selection === null || input.tradeSummary === null || firstString(durableIdentity.intentId) !== intentId)) return false;
+  if (input.tradeSummary === null) {
+    return exactStringAgreement(input.status.action, input.business?.action) && exactStringAgreement(input.status.assetId, input.business?.assetId) && exactStringAgreement(
+      input.status.amountAtomic,
+      input.business?.amountAtomic
+    );
+  }
+  if (product === null || !exactStockProductIdentity(product)) return false;
+  return exactStringAgreement(
+    input.tradeSummary.action,
+    input.status.action,
+    input.business?.action
+  ) && exactStringAgreement(
+    input.tradeSummary.assetId,
+    product.assetId,
+    selection?.assetId,
+    input.status.assetId,
+    input.business?.assetId
+  ) && exactStringAgreement(
+    input.tradeSummary.amountAtomic,
+    input.status.amountAtomic,
+    input.business?.amountAtomic
+  ) && exactStringAgreement(
+    product.mint,
+    selection?.mint,
+    input.status.assetMint
+  ) && exactStringAgreement(
+    product.tokenProgram,
+    selection?.tokenProgram,
+    input.status.tokenProgram
+  ) && (selection === null || exactStringAgreement(
+    input.tradeSummary.symbol,
+    product.symbol,
+    selection.productSymbol
+  ) && exactStringAgreement(product.companyName, selection.companyName) && exactStringAgreement(product.productName, selection.productName) && exactStringAgreement(product.providerName, selection.providerName) && exactStringAgreement(
+    product.legalIssuerName,
+    product.issuer,
+    selection.legalIssuerName
+  ) && exactStringAgreement(
+    product.registryIdentityDigest,
+    selection.registryIdentityDigest
+  ) && exactNumberAgreement(product.decimals, selection.decimals));
 }
 function productLabel(product) {
   return product.companyName ?? product.productName ?? product.symbol ?? product.assetId ?? "asset";
@@ -237,7 +328,7 @@ function sharePhrase(quantity) {
   return `${displayed} ${displayed === "1" ? "share" : "shares"}`;
 }
 function classifyStage(input) {
-  if (input.signature !== null && input.commitment !== null && input.executionSucceeded === true) {
+  if (input.signature !== null && input.commitment !== null && input.executionSucceeded === true && input.identityExact) {
     return "success";
   }
   if (input.executionSucceeded === false || input.programError || input.definitiveNonlandingProof || ["failed", "refused", "provably_not_landed"].includes(input.rawStatus)) {
@@ -381,13 +472,20 @@ function normalizeStockTrade(payload, toolInput = null) {
     status.definitiveNonlandingProof,
     business?.definitiveNonlandingProof
   ) === true;
+  const identityExact = exactSuccessEnvelopeIdentity({
+    root: root2,
+    status,
+    business,
+    tradeSummary
+  });
   const stage = classifyStage({
     rawStatus,
     signature,
     commitment,
     executionSucceeded,
     programError,
-    definitiveNonlandingProof
+    definitiveNonlandingProof,
+    identityExact
   });
   const quotedInputAtomic = firstInteger(
     tradeSummary?.amountAtomic,

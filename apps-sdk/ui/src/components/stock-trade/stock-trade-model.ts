@@ -73,7 +73,10 @@ export type StockTradeViewModel = {
 
 type UnknownRecord = Record<string, unknown>;
 
-const SOLANA_SIGNATURE = /^[1-9A-HJ-NP-Za-km-z]{64,128}$/;
+const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+const BASE58_INDEX = new Map(
+  [...BASE58_ALPHABET].map((character, index) => [character, index]),
+);
 const INTEGER = /^(0|[1-9][0-9]*)$/;
 const DECIMAL = /^(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$/;
 
@@ -143,6 +146,33 @@ function firstBoolean(...values: unknown[]): boolean | null {
     if (candidate !== null) return candidate;
   }
   return null;
+}
+
+function decodedBase58ByteLength(value: string): number | null {
+  if (!value) return null;
+  const bytes = [0];
+  for (const character of value) {
+    const digit = BASE58_INDEX.get(character);
+    if (digit === undefined) return null;
+    let carry = digit;
+    for (let index = 0; index < bytes.length; index += 1) {
+      carry += bytes[index] * 58;
+      bytes[index] = carry & 0xff;
+      carry >>= 8;
+    }
+    while (carry > 0) {
+      bytes.push(carry & 0xff);
+      carry >>= 8;
+    }
+  }
+  let leadingZeroBytes = 0;
+  while (leadingZeroBytes < value.length && value[leadingZeroBytes] === '1') {
+    leadingZeroBytes += 1;
+  }
+  const magnitudeBytes = bytes.length === 1 && bytes[0] === 0
+    ? 0
+    : bytes.length;
+  return leadingZeroBytes + magnitudeBytes;
 }
 
 function safeNumber(value: unknown): number | null {
@@ -253,7 +283,121 @@ function commitmentOf(...values: unknown[]): 'confirmed' | 'finalized' | null {
 
 function exactSignature(...values: unknown[]): string | null {
   const signature = firstString(...values);
-  return signature && SOLANA_SIGNATURE.test(signature) ? signature : null;
+  return signature && decodedBase58ByteLength(signature) === 64
+    ? signature
+    : null;
+}
+
+function exactStringAgreement(...values: unknown[]): boolean {
+  const present = values.filter((value): value is string => (
+    typeof value === 'string' && value.length > 0
+  ));
+  return present.length > 0 && present.every((value) => value === present[0]);
+}
+
+function exactNumberAgreement(...values: unknown[]): boolean {
+  const present = values.filter((value): value is number => (
+    typeof value === 'number' && Number.isSafeInteger(value)
+  ));
+  return present.length > 0 && present.every((value) => value === present[0]);
+}
+
+function exactStockProductIdentity(product: UnknownRecord): boolean {
+  return firstString(product.assetClass) === 'stock'
+    && firstString(product.companyName) !== null
+    && firstString(product.productName) !== null
+    && firstString(product.providerName) !== null
+    && firstString(product.legalIssuerName) !== null
+    && exactStringAgreement(product.issuer, product.legalIssuerName)
+    && firstString(product.registryIdentityDigest) !== null
+    && exactNumberAgreement(product.decimals);
+}
+
+function exactSuccessEnvelopeIdentity(input: {
+  root: UnknownRecord;
+  status: UnknownRecord;
+  business: UnknownRecord | null;
+  tradeSummary: UnknownRecord | null;
+}): boolean {
+  const selection = record(input.status.stockSelection);
+  const durableIdentity = record(input.status.stockV2Identity);
+  const product = record(input.tradeSummary?.productIdentity);
+  const intentId = firstString(input.status.intentId, input.root.intentId);
+  if (
+    intentId === null
+    || !exactStringAgreement(
+      input.status.intentId,
+      input.root.intentId,
+      durableIdentity?.intentId,
+    )
+  ) return false;
+  if (
+    durableIdentity !== null
+    && (
+      selection === null
+      || input.tradeSummary === null
+      || firstString(durableIdentity.intentId) !== intentId
+    )
+  ) return false;
+  if (input.tradeSummary === null) {
+    return exactStringAgreement(input.status.action, input.business?.action)
+      && exactStringAgreement(input.status.assetId, input.business?.assetId)
+      && exactStringAgreement(
+        input.status.amountAtomic,
+        input.business?.amountAtomic,
+      );
+  }
+  if (product === null || !exactStockProductIdentity(product)) return false;
+  return exactStringAgreement(
+    input.tradeSummary.action,
+    input.status.action,
+    input.business?.action,
+  )
+    && exactStringAgreement(
+      input.tradeSummary.assetId,
+      product.assetId,
+      selection?.assetId,
+      input.status.assetId,
+      input.business?.assetId,
+    )
+    && exactStringAgreement(
+      input.tradeSummary.amountAtomic,
+      input.status.amountAtomic,
+      input.business?.amountAtomic,
+    )
+    && exactStringAgreement(
+      product.mint,
+      selection?.mint,
+      input.status.assetMint,
+    )
+    && exactStringAgreement(
+      product.tokenProgram,
+      selection?.tokenProgram,
+      input.status.tokenProgram,
+    )
+    && (
+      selection === null
+      || (
+        exactStringAgreement(
+          input.tradeSummary.symbol,
+          product.symbol,
+          selection.productSymbol,
+        )
+        && exactStringAgreement(product.companyName, selection.companyName)
+        && exactStringAgreement(product.productName, selection.productName)
+        && exactStringAgreement(product.providerName, selection.providerName)
+        && exactStringAgreement(
+          product.legalIssuerName,
+          product.issuer,
+          selection.legalIssuerName,
+        )
+        && exactStringAgreement(
+          product.registryIdentityDigest,
+          selection.registryIdentityDigest,
+        )
+        && exactNumberAgreement(product.decimals, selection.decimals)
+      )
+    );
 }
 
 function productLabel(product: StockProductIdentity): string {
@@ -277,6 +421,7 @@ function classifyStage(input: {
   executionSucceeded: boolean | null;
   programError: boolean;
   definitiveNonlandingProof: boolean;
+  identityExact: boolean;
 }): StockTradeStage {
   // This is the complete success predicate. No lifecycle label, account-delta
   // receipt, or finalized commitment may add another user-visible gate.
@@ -284,6 +429,7 @@ function classifyStage(input: {
     input.signature !== null
     && input.commitment !== null
     && input.executionSucceeded === true
+    && input.identityExact
   ) {
     return 'success';
   }
@@ -485,6 +631,12 @@ export function normalizeStockTrade(
     status.definitiveNonlandingProof,
     business?.definitiveNonlandingProof,
   ) === true;
+  const identityExact = exactSuccessEnvelopeIdentity({
+    root,
+    status,
+    business,
+    tradeSummary,
+  });
   const stage = classifyStage({
     rawStatus,
     signature,
@@ -492,6 +644,7 @@ export function normalizeStockTrade(
     executionSucceeded,
     programError,
     definitiveNonlandingProof,
+    identityExact,
   });
   const quotedInputAtomic = firstInteger(
     tradeSummary?.amountAtomic,

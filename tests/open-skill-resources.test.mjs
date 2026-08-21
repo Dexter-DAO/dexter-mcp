@@ -99,6 +99,8 @@ test('served guidance requires native OAuth and bounded nonretryable spending', 
   );
   assert.match(WORKFLOW, /vaultPda[\s\S]*not a deposit\s+fallback/);
   assert.match(WORKFLOW, /canonical `assetId`/);
+  assert.match(WORKFLOW, /natural-language[\s\S]*stock Buy or Sell[\s\S]*`companyQuery`/);
+  assert.match(WORKFLOW, /Never replace a stock `companyQuery`[\s\S]*`assetId`, symbol, or mint/);
   assert.match(WORKFLOW, /approvedActionTargets/);
   assert.match(WORKFLOW, /never add to holdings, balances, quantities,[\s\S]*or value/);
   assert.match(WORKFLOW, /Buy[\s\S]*USDC budget[\s\S]*6\s+decimals/);
@@ -107,7 +109,7 @@ test('served guidance requires native OAuth and bounded nonretryable spending', 
   assert.match(WORKFLOW, /Never convert it to[\s\S]*token atomic units/);
   assert.match(WORKFLOW, /shareQuantityConversion[\s\S]*display multiplier/);
   assert.doesNotMatch(WORKFLOW, /quantityAtomic/);
-  assert.match(WORKFLOW, /Sell and Send[\s\S]*selected asset amount/);
+  assert.match(WORKFLOW, /non-stock Sell and Send[\s\S]*`assetId`[\s\S]*`amountAtomic`/);
   assert.match(WORKFLOW, /reusable\s+mandate[\s\S]*execute autonomously/i);
   assert.match(WORKFLOW, /mandate_enrollment_required/);
   assert.match(WORKFLOW, /mandate_extension_required/);
@@ -149,7 +151,7 @@ test('generated runtime instructions route the complete twelve-tool product', ()
   assert.match(runtime, /Pay for or call a paid API[\s\S]*x402_fetch once/);
   assert.match(runtime, /x402_status for the same purchase intent/);
   assert.match(runtime, /wallet-proof or Sign-In-With-X[\s\S]*x402_access/);
-  assert.match(runtime, /Governed Send, Buy, or Sell[\s\S]*dexter_prepare_asset_action/);
+  assert.match(runtime, /Governed Send or non-stock Buy\/Sell[\s\S]*dexter_prepare_asset_action/);
   assert.match(runtime, /successfully prepared intent[\s\S]*dexter_execute_asset_action/);
   assert.match(runtime, /Read governed action state[\s\S]*dexter_asset_action_status/);
   assert.match(runtime, /dexter_reconcile_asset_action only when that durable status explicitly requires reconciliation/);
@@ -199,6 +201,8 @@ test('generated runtime instructions preserve current wallet and authority truth
   assert.match(runtime, /hosted wallet is Solana-based/);
   assert.match(runtime, /only x402_wallet\.receiveAddress is a deposit address/);
   assert.match(runtime, /non-null canonical assetId/);
+  assert.match(runtime, /natural-language stock Buy\/Sell[\s\S]*companyQuery instead of assetId/);
+  assert.match(runtime, /Never derive or remember a static stock assetId/);
   assert.match(runtime, /approved action target is discovery context, not a holding/);
   assert.match(runtime, /persists and evaluates one exact governed action but does not sign or submit/);
   assert.match(runtime, /For Send, obey the returned availability and stop if no executable intent is created/);
@@ -212,6 +216,7 @@ test('generated runtime instructions preserve current wallet and authority truth
 test('generated runtime instructions preserve human share quantities', () => {
   const runtime = buildOpenServerInstructions();
   assert.match(runtime, /shareQuantity[\s\S]*human decimal string/);
+  assert.match(runtime, /companyQuery "NVIDIA"[\s\S]*shareQuantity/);
   assert.match(runtime, /Never convert shareQuantity using token decimals/);
   assert.match(runtime, /requestedShareQuantity exactly echoes the request/);
   assert.match(runtime, /underlying-share-equivalent/);
