@@ -438,6 +438,13 @@ test("PM2 control Node 18 evaluates a launcher bound to sealed Node 22", () => {
   }
 });
 
+test("PM2 config shim gives sealed release evaluation a truthful timeout", () => {
+  const shim = productionPm2ConfigShim("/tmp/sealed/ecosystem.production.cjs")
+    .toString("utf8");
+  assert.match(shim, /timeout: 90_000,/);
+  assert.doesNotMatch(shim, /timeout: 10_000,/);
+});
+
 test("production launcher rejects every loader-influencing environment key", () => {
   for (const source of ["protected-file", "launcher-process"]) {
     for (const key of forbiddenLoaderKeys) {

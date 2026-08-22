@@ -1859,7 +1859,7 @@ export function productionPm2ConfigShim(ecosystem) {
     `    encoding: 'utf8',`,
     `    env: process.env,`,
     `    maxBuffer: 1024 * 1024,`,
-    `    timeout: 10_000,`,
+    `    timeout: 90_000,`,
     `    killSignal: 'SIGKILL',`,
     `  },`,
     `);`,
