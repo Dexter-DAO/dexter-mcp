@@ -3130,7 +3130,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/stock-trade-d483f686",
+          "resourceUri": "ui://dexter/stock-trade-b9969159",
           "visibility": [
             "model",
             "app"
@@ -3147,8 +3147,8 @@
           "domain": "https://dexter.cash",
           "prefersBorder": true
         },
-        "ui/resourceUri": "ui://dexter/stock-trade-d483f686",
-        "openai/outputTemplate": "ui://dexter/stock-trade-d483f686",
+        "ui/resourceUri": "ui://dexter/stock-trade-b9969159",
+        "openai/outputTemplate": "ui://dexter/stock-trade-b9969159",
         "openai/resultCanProduceWidget": true,
         "openai/widgetAccessible": false,
         "openai/widgetDomain": "https://dexter.cash",
@@ -3898,7 +3898,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/stock-trade-d483f686",
+          "resourceUri": "ui://dexter/stock-trade-b9969159",
           "visibility": [
             "model",
             "app"
@@ -3915,8 +3915,8 @@
           "domain": "https://dexter.cash",
           "prefersBorder": true
         },
-        "ui/resourceUri": "ui://dexter/stock-trade-d483f686",
-        "openai/outputTemplate": "ui://dexter/stock-trade-d483f686",
+        "ui/resourceUri": "ui://dexter/stock-trade-b9969159",
+        "openai/outputTemplate": "ui://dexter/stock-trade-b9969159",
         "openai/resultCanProduceWidget": true,
         "openai/widgetAccessible": false,
         "openai/widgetDomain": "https://dexter.cash",
@@ -5031,7 +5031,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/stock-trade-d483f686",
+          "resourceUri": "ui://dexter/stock-trade-b9969159",
           "visibility": [
             "model",
             "app"
@@ -5048,8 +5048,8 @@
           "domain": "https://dexter.cash",
           "prefersBorder": true
         },
-        "ui/resourceUri": "ui://dexter/stock-trade-d483f686",
-        "openai/outputTemplate": "ui://dexter/stock-trade-d483f686",
+        "ui/resourceUri": "ui://dexter/stock-trade-b9969159",
+        "openai/outputTemplate": "ui://dexter/stock-trade-b9969159",
         "openai/resultCanProduceWidget": true,
         "openai/widgetAccessible": false,
         "openai/widgetDomain": "https://dexter.cash",
@@ -6261,7 +6261,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/stock-trade-d483f686",
+          "resourceUri": "ui://dexter/stock-trade-b9969159",
           "visibility": [
             "model",
             "app"
@@ -6278,8 +6278,8 @@
           "domain": "https://dexter.cash",
           "prefersBorder": true
         },
-        "ui/resourceUri": "ui://dexter/stock-trade-d483f686",
-        "openai/outputTemplate": "ui://dexter/stock-trade-d483f686",
+        "ui/resourceUri": "ui://dexter/stock-trade-b9969159",
+        "openai/outputTemplate": "ui://dexter/stock-trade-b9969159",
         "openai/resultCanProduceWidget": true,
         "openai/widgetAccessible": false,
         "openai/widgetDomain": "https://dexter.cash",
