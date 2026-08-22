@@ -21,6 +21,14 @@ import {
   type StockTradeViewModel,
 } from './stock-trade-model';
 
+// Exact gradient symbol published in the official xStocks media kit.
+const XSTOCKS_SYMBOL_URL = new URL(
+  '../../assets/xstocks-symbol-gradient.svg',
+  import.meta.url,
+).href;
+const XSTOCKS_LEGAL_ISSUER = 'Backed Assets (JE) Limited';
+const XSTOCKS_PROVIDER_NAMES = new Set(['Backed Finance', 'xStocks']);
+
 function ArrowIcon() {
   return (
     <svg viewBox="0 0 20 20" aria-hidden="true">
@@ -81,6 +89,42 @@ function productName(model: StockTradeViewModel): string {
     ?? 'Selected product';
 }
 
+function isOfficialXStocksProduct(model: StockTradeViewModel): boolean {
+  return model.product.assetClass === 'stock'
+    && model.product.legalIssuerName === XSTOCKS_LEGAL_ISSUER
+    && model.product.providerName !== null
+    && XSTOCKS_PROVIDER_NAMES.has(model.product.providerName);
+}
+
+function ProviderIdentity({ model, provider }: {
+  model: StockTradeViewModel;
+  provider: string | null;
+}) {
+  if (isOfficialXStocksProduct(model)) {
+    return (
+      <div className="dx-stock-provider" aria-label="Provider: xStocks">
+        <img
+          src={XSTOCKS_SYMBOL_URL}
+          alt=""
+          aria-hidden="true"
+          width={32}
+          height={32}
+          className="dx-stock-provider__mark"
+        />
+        <span className="dx-stock-provider__copy">
+          <strong>xStocks</strong>
+          <small>{provider === 'xStocks' ? 'Tokenized equities network' : `by ${provider}`}</small>
+        </span>
+      </div>
+    );
+  }
+  return (
+    <p>
+      {provider ? `Provider: ${provider}` : 'Provider information unavailable'}
+    </p>
+  );
+}
+
 function ProductIdentity({ model }: { model: StockTradeViewModel }) {
   const product = model.product;
   const isStock = product.assetClass === 'stock';
@@ -105,13 +149,11 @@ function ProductIdentity({ model }: { model: StockTradeViewModel }) {
             <strong>{productName(model)}</strong>
             {product.symbol ? <span>{product.symbol}</span> : null}
           </div>
-          <p>
-            {provider
-              ? `Provider: ${provider}`
-              : !isStock && product.issuer
-                ? `Issuer: ${product.issuer}`
-                : 'Provider information unavailable'}
-          </p>
+          {!isStock && provider === null && product.issuer ? (
+            <p>{`Issuer: ${product.issuer}`}</p>
+          ) : (
+            <ProviderIdentity model={model} provider={provider} />
+          )}
         </div>
         <span className="dx-stock-network">Solana</span>
       </div>

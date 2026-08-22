@@ -987,6 +987,9 @@ function shortenSolanaIdentity(value, size = 5) {
   if (value.length <= size * 2 + 1) return value;
   return `${value.slice(0, size)}…${value.slice(-size)}`;
 }
+const XSTOCKS_SYMBOL_URL = new URL("data:image/svg+xml,%3csvg%20width='800'%20height='801'%20viewBox='0%200%20800%20801'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cpath%20d='M800%206.00637C800%202.78947%20797.392%200.181652%20794.175%200.181652L533.333%200.181641L400%20133.515L266.667%200.181652H5.82473C2.60782%200.181652%206.4736e-06%202.78947%206.4736e-06%206.00638V266.848L133.333%20400.182L1.14018e-05%20533.515L0%20794.357C-1.40616e-07%20797.574%202.60782%20800.182%205.82472%20800.182H266.667L400%20666.848L533.333%20800.182H794.175C797.392%20800.182%20800%20797.574%20800%20794.357V533.515L666.667%20400.182L800%20266.848V6.00637Z'%20fill='url(%23paint0_linear_138_3037)'/%3e%3cdefs%3e%3clinearGradient%20id='paint0_linear_138_3037'%20x1='800'%20y1='0.181641'%20x2='6.10352e-05'%20y2='800.182'%20gradientUnits='userSpaceOnUse'%3e%3cstop%20stop-color='%236EC7E2'/%3e%3cstop%20offset='1'%20stop-color='%231FD59A'/%3e%3c/linearGradient%3e%3c/defs%3e%3c/svg%3e", import.meta.url).href;
+const XSTOCKS_LEGAL_ISSUER = "Backed Assets (JE) Limited";
+const XSTOCKS_PROVIDER_NAMES = /* @__PURE__ */ new Set(["Backed Finance", "xStocks"]);
 function ArrowIcon() {
   return /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { viewBox: "0 0 20 20", "aria-hidden": "true", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { d: "M3 10h13M11 5l5 5-5 5", fill: "none", stroke: "currentColor", strokeWidth: "1.7", strokeLinecap: "round", strokeLinejoin: "round" }) });
 }
@@ -1024,6 +1027,31 @@ function formatExpiry(value) {
 function productName(model) {
   return model.product.companyName ?? model.product.productName ?? model.product.symbol ?? model.product.assetId ?? "Selected product";
 }
+function isOfficialXStocksProduct(model) {
+  return model.product.assetClass === "stock" && model.product.legalIssuerName === XSTOCKS_LEGAL_ISSUER && model.product.providerName !== null && XSTOCKS_PROVIDER_NAMES.has(model.product.providerName);
+}
+function ProviderIdentity({ model, provider }) {
+  if (isOfficialXStocksProduct(model)) {
+    return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-stock-provider", "aria-label": "Provider: xStocks", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "img",
+        {
+          src: XSTOCKS_SYMBOL_URL,
+          alt: "",
+          "aria-hidden": "true",
+          width: 32,
+          height: 32,
+          className: "dx-stock-provider__mark"
+        }
+      ),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "dx-stock-provider__copy", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: "xStocks" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("small", { children: provider === "xStocks" ? "Tokenized equities network" : `by ${provider}` })
+      ] })
+    ] });
+  }
+  return /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: provider ? `Provider: ${provider}` : "Provider information unavailable" });
+}
 function ProductIdentity({ model }) {
   const product = model.product;
   const isStock = product.assetClass === "stock";
@@ -1044,7 +1072,7 @@ function ProductIdentity({ model }) {
               /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: productName(model) }),
               product.symbol ? /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: product.symbol }) : null
             ] }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: provider ? `Provider: ${provider}` : !isStock && product.issuer ? `Issuer: ${product.issuer}` : "Provider information unavailable" })
+            !isStock && provider === null && product.issuer ? /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: `Issuer: ${product.issuer}` }) : /* @__PURE__ */ jsxRuntimeExports.jsx(ProviderIdentity, { model, provider })
           ] }),
           /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-stock-network", children: "Solana" })
         ] }),
@@ -1291,6 +1319,6 @@ function StockTradeCard() {
 }
 const root = document.getElementById("stock-trade-root");
 if (root) {
-  root.dataset.widgetBuild = "2026-08-20.confirmed-stock-trade";
+  root.dataset.widgetBuild = "2026-08-22.xstocks-provider-identity";
   clientExports.createRoot(root).render(/* @__PURE__ */ jsxRuntimeExports.jsx(StockTradeCard, {}));
 }

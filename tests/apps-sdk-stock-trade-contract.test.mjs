@@ -22,6 +22,11 @@ test('stock-trade widget is a read-only receipt and never initiates execution', 
   assert.match(component, /data-evidence="commitment"/);
   assert.match(component, /data-evidence="execution"/);
   assert.match(component, /Provider: \$\{provider\}/);
+  assert.match(component, /aria-label="Provider: xStocks"/);
+  assert.match(component, /xstocks-symbol-gradient\.svg/);
+  assert.match(component, /XSTOCKS_LEGAL_ISSUER/);
+  assert.doesNotMatch(component, /product\.symbol\s*===\s*['"]SPCX/);
+  assert.doesNotMatch(component, /productName\(model\)\s*===\s*['"]SpaceX/);
   assert.match(component, /<dt>Legal issuer<\/dt>/);
   assert.match(component, /model\.isShareQuantityOrder/);
   assert.match(component, /token units/);
@@ -34,6 +39,16 @@ test('stock-trade widget is a read-only receipt and never initiates execution', 
   assert.match(model, /input\.executionSucceeded === true/);
   assert.match(model, /Finalization is optional evidence, never a gate/);
   assert.doesNotMatch(model, /accountDeltaMatchesExpected[^\n]*=== true[\s\S]{0,120}stage/);
+});
+
+test('xStocks provider visual uses the unmodified official gradient symbol', async () => {
+  const symbol = await source(
+    'apps-sdk/ui/src/assets/xstocks-symbol-gradient.svg',
+  );
+  assert.match(symbol, /viewBox="0 0 800 801"/);
+  assert.match(symbol, /stop-color="#6EC7E2"/);
+  assert.match(symbol, /stop-color="#1FD59A"/);
+  assert.match(symbol, /M800 6\.00637C800 2\.78947/);
 });
 
 test('built stock-trade HTML has one current, fully materialized asset closure', async () => {

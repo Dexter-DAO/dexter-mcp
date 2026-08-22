@@ -262,6 +262,43 @@
   min-width: 0;
 }
 
+.dx-stock-provider {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: var(--dx-space-2);
+  margin-top: var(--dx-space-2);
+}
+
+.dx-stock-provider__mark {
+  display: block;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  border-radius: 6px;
+}
+
+.dx-stock-provider__copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  line-height: var(--dx-leading-tight);
+}
+
+.dx-stock-provider__copy strong {
+  color: var(--dx-fg);
+  font-size: var(--dx-text-sm);
+  font-weight: var(--dx-weight-semibold);
+}
+
+.dx-stock-provider__copy small {
+  overflow: hidden;
+  color: var(--dx-fg-quiet);
+  font-size: var(--dx-text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .dx-stock-product__name-row {
   display: flex;
   align-items: baseline;
