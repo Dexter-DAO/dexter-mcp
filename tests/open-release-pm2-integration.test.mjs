@@ -236,3 +236,69 @@ test('real disposable PM2 loads the sealed non-config filename through an exact 
   assert.equal(rows[0].pm2_env.env.version, '0.5.0');
   assert.equal(rows.some((row) => row.name === 'ecosystem.production'), false);
 });
+
+test('real disposable PM2 accepts a sealed service ready after the old 15-second ceiling', {
+  timeout: 40_000,
+}, async (t) => {
+  const fixture = await mkdtemp(
+    resolve(tmpdir(), 'opendexter-real-delayed-ready-'),
+  );
+  const pm2Home = resolve(fixture, 'pm2');
+  const publicScript = resolve(fixture, 'public.mjs');
+  const ecosystem = resolve(fixture, 'ecosystem.production.cjs');
+  await mkdir(pm2Home, { mode: 0o700 });
+  await writeFile(publicScript, [
+    "setTimeout(() => process.send?.('ready'), 16_000);",
+    'setInterval(() => {}, 1000);',
+    '',
+  ].join('\n'));
+  await writeFile(
+    resolve(fixture, 'package.json'),
+    `${JSON.stringify({ name: 'pm2-delayed-ready-fixture', version: '0.5.0' })}\n`,
+  );
+  await writeFile(ecosystem, [
+    'module.exports = {',
+    '  apps: [{',
+    "    name: 'dexter-open-mcp',",
+    `    script: ${JSON.stringify(publicScript)},`,
+    `    cwd: ${JSON.stringify(fixture)},`,
+    "    wait_ready: true,",
+    '    listen_timeout: 90_000,',
+    "    env: { version: '0.5.0' },",
+    '  }],',
+    '};',
+    '',
+  ].join('\n'));
+  const environment = {
+    ...process.env,
+    PM2_HOME: pm2Home,
+  };
+  const pm2 = async (...args) => execFileAsync('pm2', args, {
+    encoding: 'utf8',
+    env: environment,
+    timeout: 25_000,
+    maxBuffer: 8 * 1024 * 1024,
+  });
+  const list = async () => JSON.parse((await pm2('jlist')).stdout);
+  t.after(async () => {
+    await pm2('kill').catch(() => {});
+    await rm(fixture, { recursive: true, force: true });
+  });
+
+  const startedAt = Date.now();
+  await startOpenReleaseCandidate({
+    ecosystem,
+    pm2Home,
+    runPm2: (args) => pm2(...args),
+  });
+  assert.ok(Date.now() - startedAt >= 15_000);
+  const rows = await waitFor(async () => {
+    const current = await list();
+    return current.length === 1 && current[0].pm2_env.status === 'online'
+      ? current
+      : null;
+  });
+  assert.equal(rows[0].name, 'dexter-open-mcp');
+  assert.equal(rows[0].pm2_env.listen_timeout, 90_000);
+  assert.equal(rows[0].pm2_env.restart_time, 0);
+});

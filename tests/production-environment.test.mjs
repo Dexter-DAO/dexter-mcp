@@ -228,7 +228,7 @@ function releaseEnvironment(candidate, service, envFile) {
     autorestart: "true",
     max_restarts: "10",
     wait_ready: "true",
-    listen_timeout: "15000",
+    listen_timeout: "90000",
     kill_timeout: "10000",
     filter_env: "",
     NODE_APP_INSTANCE: "0",
@@ -357,7 +357,7 @@ test("production launcher binds only public OpenDexter to protected environment"
       assert.equal(app.instances, 1);
       assert.equal(app.autorestart, true);
       assert.equal(app.maxRestarts, 10);
-      assert.equal(app.listenTimeout, 15_000);
+      assert.equal(app.listenTimeout, 90_000);
       assert.equal(app.killTimeout, 10_000);
       assert.deepEqual(app.nodeArgs ?? [], []);
       assert.equal(app.scriptName, "production-bootstrap.mjs");
@@ -769,7 +769,7 @@ test("runtime accepts exact PM2 bookkeeping but refuses launch-authority or poli
       ["autorestart", "false"],
       ["max_restarts", "11"],
       ["wait_ready", "false"],
-      ["listen_timeout", "15001"],
+      ["listen_timeout", "90001"],
       ["kill_timeout", "10001"],
       ["filter_env", "TOKEN_AI_"],
       ["NODE_APP_INSTANCE", "1"],

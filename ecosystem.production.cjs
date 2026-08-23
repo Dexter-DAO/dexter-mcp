@@ -177,7 +177,7 @@ const common = {
   autorestart: true,
   max_restarts: 10,
   wait_ready: true,
-  listen_timeout: 15_000,
+  listen_timeout: 90_000,
   kill_timeout: 10_000,
   filter_env: [""],
   env: {
