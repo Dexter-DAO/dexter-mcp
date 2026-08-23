@@ -449,7 +449,7 @@ function expectedCandidateIdentity(
       autorestart: true,
       waitReady: true,
       maxRestarts: 10,
-      listenTimeout: 15_000,
+      listenTimeout: 90_000,
       killTimeout: 10_000,
       nodeArgs: [],
       scriptArgs: [],
