@@ -27,21 +27,23 @@ actually ship.
 | --- | --- | --- |
 | Discover a service or resource | `x402_search` | Anonymous |
 | Quote or custody an exact endpoint request | `x402_check` | Anonymous quote; OAuth intent |
-| Call one approved, API-custodied intent | `x402_fetch` | Discoverable; OAuth required |
-| Inspect one intent without redispatch | `x402_status` | Discoverable; OAuth required |
+| Call one approved, API-custodied intent | `x402_fetch` | Added after OAuth |
+| Inspect one intent without redispatch | `x402_status` | Added after OAuth |
 | Use wallet-proof or Sign-In-With-X access | `x402_access` | Anonymous |
 | Read wallet readiness, cash, reported credit capacity, deposit address, and activity | `x402_wallet` | Anonymous entry; OAuth data |
 | Read governed assets and currently allowed actions | `dexter_portfolio` | Anonymous entry; OAuth data |
-| Prepare an exact governed Send, Buy, or Sell | `dexter_prepare_asset_action` | Discoverable; OAuth required |
-| Execute one prepared governed intent | `dexter_execute_asset_action` | Discoverable; OAuth required |
-| Read durable governed intent status | `dexter_asset_action_status` | Discoverable; OAuth required |
-| Request same-intent reconciliation | `dexter_reconcile_asset_action` | Discoverable; OAuth required |
-| Read governed Send, Buy, and Sell history | `dexter_wallet_history` | Discoverable; OAuth required |
+| Prepare an exact governed Send, Buy, or Sell | `dexter_prepare_asset_action` | Added after OAuth |
+| Execute one prepared governed intent | `dexter_execute_asset_action` | Added after OAuth |
+| Read durable governed intent status | `dexter_asset_action_status` | Added after OAuth |
+| Request same-intent reconciliation | `dexter_reconcile_asset_action` | Added after OAuth |
+| Read governed Send, Buy, and Sell history | `dexter_wallet_history` | Added after OAuth |
 
-Every fresh or authenticated transport discovers the same exact twelve tools.
-Per-tool security schemes enforce authorization: protected tools return native
-Connect, not private data or an action, before OAuth succeeds. OAuth changes
-authorization and never removes or promotes tools during a transport refresh.
+Before OAuth, OpenDexter lists `x402_search`, `x402_check`, `x402_access`,
+`x402_wallet`, and `dexter_portfolio`. Wallet and portfolio return the native
+Connect path until authorization succeeds. OAuth then adds `x402_fetch`,
+`x402_status`, `dexter_prepare_asset_action`, `dexter_execute_asset_action`,
+`dexter_asset_action_status`, `dexter_reconcile_asset_action`, and
+`dexter_wallet_history`. The connected roster contains all twelve tools.
 
 Deprecated compatibility and internal diagnostic endpoints are not user-facing
 product tools. Do not select them for a new request.

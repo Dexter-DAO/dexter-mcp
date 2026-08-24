@@ -91,7 +91,7 @@ deterministic provenance, the exact descriptor, and a complete file manifest
 that also authenticates the provenance bytes. It replaces only
 `dexter-open-mcp`, while proving the separate legacy `dexter-mcp` PID, path,
 configuration, and restart counters remain unchanged. It verifies the new
-public process's PM2 and kernel paths, health, exact twelve-tool roster, and release
+public process's PM2 and kernel paths, health, exact 5/12 roster, and release
 identity before `pm2 save`. Any mismatch independently restores and re-verifies
 the prior public OpenDexter process without restarting the private service. It
 never reloads or updates an existing process in place. This is still activation,
@@ -102,14 +102,14 @@ proof.
 
 ## OpenDexter: the hosted x402 buyer
 
-OpenDexter is the hosted MCP server behind the OpenDexter connector. Every
-fresh transport advertises the exact same twelve tools so protected tools do
-not disappear during an OAuth or transport refresh. Per-tool security schemes
-still separate public calls from protected calls. An unbound protected call
-returns the host-native Connect challenge rather than private data or a
-payment attempt.
+OpenDexter is the hosted MCP server behind the OpenDexter connector. Before
+authorization it lists search, quote-only price inspection, identity-gated
+access, wallet, and portfolio. Wallet and portfolio return the host-native
+Connect path until the session has OAuth `scope=vault` and a durable wallet
+binding. Authorization adds the seven account-bound payment and governed-asset
+tools below.
 
-The exact discoverable roster is:
+The complete connected roster is:
 
 1. `x402_search`
 2. `x402_check`
@@ -124,10 +124,10 @@ The exact discoverable roster is:
 11. `dexter_reconcile_asset_action`
 12. `dexter_wallet_history`
 
-There are no hosted compatibility aliases, composed-skill, passkey-probe, or
-card tools. OAuth changes authorization, never tool existence. `x402_fetch`,
-`x402_status`, wallet, portfolio, and governed-asset tools remain discoverable
-before authorization and request native Connect when invoked unbound.
+The anonymous roster is `x402_search`, `x402_check`, `x402_access`,
+`x402_wallet`, and `dexter_portfolio`. OAuth adds `x402_fetch`, `x402_status`,
+and the five governed-asset tools. Compatibility aliases, composed-skill,
+passkey-probe, and card tools stay outside this hosted roster.
 
 Search never pays. `x402_check` accepts the endpoint URL, method, and optional
 exact raw request-body string. Anonymous checks are quote-only. An

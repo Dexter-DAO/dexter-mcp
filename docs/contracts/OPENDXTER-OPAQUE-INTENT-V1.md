@@ -9,9 +9,19 @@ purchase. Dexter, not the caller, owns the request, seller terms, route, and
 execution state. The caller receives one opaque `intentId` and never carries a
 prepared purchase object between tools.
 
-## Public roster
+## Public rosters
 
-Every fresh or authenticated transport discovers the same exact twelve tools:
+The anonymous roster is `x402_search`, `x402_check`, `x402_access`,
+`x402_wallet`, and `dexter_portfolio`.
+
+Wallet and portfolio return the host-native Connect path until the MCP session
+has `scope=vault` and a durable wallet binding.
+
+OAuth adds `x402_fetch`, `x402_status`, `dexter_prepare_asset_action`,
+`dexter_execute_asset_action`, `dexter_asset_action_status`,
+`dexter_reconcile_asset_action`, and `dexter_wallet_history`.
+
+The connected roster has twelve tools:
 
 1. `x402_search`
 2. `x402_check`
@@ -26,10 +36,8 @@ Every fresh or authenticated transport discovers the same exact twelve tools:
 11. `dexter_reconcile_asset_action`
 12. `dexter_wallet_history`
 
-Per-tool security schemes, not roster removal, enforce OAuth. Protected tools
-surface the host-native Connect challenge until the MCP session has
-`scope=vault` and a durable wallet binding. OAuth changes authorization but
-does not promote or remove tools during a transport refresh.
+Per-tool security schemes still enforce OAuth after discovery. Protected calls
+require the current vault Bearer on every invocation.
 
 There are no public aliases, tab tools, purchase-mode selectors,
 `PreparedPurchase` inputs, card tools, model-callable owner-decision tools, or

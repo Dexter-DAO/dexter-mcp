@@ -35,19 +35,20 @@ const execFileAsync = promisify(execFile);
 const ANONYMOUS = [
   'x402_search',
   'x402_check',
-  'x402_fetch',
-  'x402_status',
   'x402_access',
   'x402_wallet',
   'dexter_portfolio',
+];
+
+const PROMOTED = [
+  'x402_fetch',
+  'x402_status',
   'dexter_prepare_asset_action',
   'dexter_execute_asset_action',
   'dexter_asset_action_status',
   'dexter_reconcile_asset_action',
   'dexter_wallet_history',
 ];
-
-const PROMOTED = [];
 
 const CONNECTED = [
   'x402_search',
@@ -662,7 +663,10 @@ test('descriptor fields equal an actual finalized SDK tools/list projection', as
     import('../lib/open-tool-contracts.mjs'),
     import('../lib/open-tool-auth.mjs'),
   ]);
-  const server = createOpenMcpServer({ includeResources: false });
+  const server = createOpenMcpServer({
+    includeResources: false,
+    listedToolNames: () => OPEN_TOOL_NAMES,
+  });
   const client = new Client({ name: 'descriptor-client', version: '1.0.0' });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const wireMessages = [];

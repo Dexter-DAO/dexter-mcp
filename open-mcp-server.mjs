@@ -116,6 +116,7 @@ import {
   vaultAuthenticationResult,
 } from './lib/open-tool-auth.mjs';
 import {
+  OPEN_ANONYMOUS_TOOL_NAMES,
   OPEN_TOOL_NAMES,
   finalizeOpenToolContracts,
   installOpenToolContracts,
@@ -2014,6 +2015,7 @@ const SERVER_INSTRUCTIONS = buildOpenServerInstructions();
 
 export function createOpenMcpServer({
   includeResources = true,
+  listedToolNames,
 } = {}) {
   assertOpenToolAuthPolicyCoverage(ALL_TOOLS);
   const server = new McpServer({
@@ -2458,7 +2460,13 @@ export function createOpenMcpServer({
   // Physics, not vigilance: if the served instructions ever name a tool this
   // connector doesn't register, refuse to boot (drift register R1).
   assertInstructionRosterParity(SERVER_INSTRUCTIONS, ALL_TOOLS);
-  finalizeOpenToolContracts(server);
+  finalizeOpenToolContracts(server, {
+    listedToolNames: listedToolNames ?? ((_request, extra) => (
+      isVaultBound(sessionMeta.get(extractMcpSessionId(extra)))
+        ? OPEN_TOOL_NAMES
+        : OPEN_ANONYMOUS_TOOL_NAMES
+    )),
+  });
 
   return server;
 }
@@ -2530,7 +2538,12 @@ const EXPECTED_OPEN_RELEASE_ROSTER = readExpectedOpenReleaseRoster();
 // revoke bites the next tool call). After that the existing x402Fetch →
 // /mcp-binding → session-mode spend path works unchanged. Anonymous/HS256 calls
 // are untouched and explicit durable-link sessions retain their own auth rail.
-const DEXTER_JWKS = createRemoteJWKSet(new URL('https://dexter.cash/.well-known/jwks.json'));
+const TEST_VAULT_JWKS_URL = process.env.NODE_ENV === 'test'
+  ? String(process.env.OPEN_MCP_TEST_VAULT_JWKS_URL || '').trim()
+  : '';
+const DEXTER_JWKS = createRemoteJWKSet(new URL(
+  TEST_VAULT_JWKS_URL || 'https://dexter.cash/.well-known/jwks.json',
+));
 
 async function seedOAuthVaultBinding(token, payload, identity, sessionId) {
   if (!INTERNAL_HMAC_SECRET || !sessionId || !token || !payload?.dexter_surface) {

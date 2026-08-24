@@ -1116,10 +1116,13 @@ for (const clientName of ['Generic MCP', 'ChatGPT', 'Claude']) {
   });
 }
 
-test('fresh and refreshed real hosted transports retain the exact protected roster', async () => {
+test('vault-bound hosted discovery retains the exact protected roster', async () => {
   const { createOpenMcpServer } = await import('../open-mcp-server.mjs');
   for (const phase of ['fresh', 'refreshed']) {
-    const server = createOpenMcpServer({ includeResources: false });
+    const server = createOpenMcpServer({
+      includeResources: false,
+      listedToolNames: () => OPEN_TOOL_NAMES,
+    });
     const client = new Client({ name: `${phase}-client`, version: '1.0.0' });
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
@@ -1181,11 +1184,25 @@ test('fresh and refreshed real hosted transports retain the exact protected rost
       await server.close();
     }
   }
-  assert.deepEqual(OPEN_ANONYMOUS_TOOL_NAMES, OPEN_TOOL_NAMES);
-  assert.deepEqual(OPEN_OAUTH_PROMOTED_TOOL_NAMES, []);
+  assert.deepEqual(OPEN_ANONYMOUS_TOOL_NAMES, [
+    'x402_search',
+    'x402_check',
+    'x402_access',
+    'x402_wallet',
+    'dexter_portfolio',
+  ]);
+  assert.deepEqual(OPEN_OAUTH_PROMOTED_TOOL_NAMES, [
+    'x402_fetch',
+    'x402_status',
+    'dexter_prepare_asset_action',
+    'dexter_execute_asset_action',
+    'dexter_asset_action_status',
+    'dexter_reconcile_asset_action',
+    'dexter_wallet_history',
+  ]);
 });
 
-test('an unbound session keeps fetch and status while requesting native Connect', async (t) => {
+test('an unbound session lists entry tools while a direct protected call requests Connect', async (t) => {
   const { createOpenMcpServer } = await import('../open-mcp-server.mjs');
   const server = createOpenMcpServer({ includeResources: false });
 
@@ -1198,8 +1215,8 @@ test('an unbound session keeps fetch and status while requesting native Connect'
   await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
 
   const before = (await client.listTools()).tools.map((tool) => tool.name);
-  assert.equal(before.includes('x402_fetch'), true);
-  assert.equal(before.includes('x402_status'), true);
+  assert.deepEqual(before, OPEN_ANONYMOUS_TOOL_NAMES);
+  assert.equal(before.includes('x402_fetch'), false);
 
   const result = await client.callTool({
     name: 'x402_fetch',

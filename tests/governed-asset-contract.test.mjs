@@ -15,6 +15,7 @@ import {
 } from '../lib/governed-asset-contract.mjs';
 import {
   OPEN_ANONYMOUS_TOOL_NAMES,
+  OPEN_OAUTH_PROMOTED_TOOL_NAMES,
   OPEN_TOOL_NAMES,
 } from '../lib/open-tool-contracts.mjs';
 
@@ -39,7 +40,8 @@ test('exactly five governed tools are public and owner authorize stays inaccessi
   assert.deepEqual(Object.keys(GOVERNED_ASSET_TOOL_CONTRACTS), PUBLIC_TOOLS);
   for (const name of PUBLIC_TOOLS) {
     assert.equal(OPEN_TOOL_NAMES.includes(name), true, name);
-    assert.equal(OPEN_ANONYMOUS_TOOL_NAMES.includes(name), true, name);
+    assert.equal(OPEN_ANONYMOUS_TOOL_NAMES.includes(name), false, name);
+    assert.equal(OPEN_OAUTH_PROMOTED_TOOL_NAMES.includes(name), true, name);
     assert.equal(GOVERNED_ASSET_TOOL_CONTRACTS[name].registered, true, name);
   }
   assert.equal(OPEN_TOOL_NAMES.includes(GOVERNED_ASSET_TOOL_NAMES.authorize), false);
