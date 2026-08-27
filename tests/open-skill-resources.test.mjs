@@ -176,9 +176,11 @@ test('generated runtime instructions preserve exact consequence and recovery bou
   assert.match(runtime, /If no result returns[\s\S]*call has not returned and no dispatch is confirmed/);
   assert.match(runtime, /Never infer dispatch from silence/);
   assert.match(runtime, /Never automatically repeat an access call after dispatch uncertainty/);
-  assert.match(runtime, /If access reports that the endpoint is paid, do not call x402_fetch directly/);
-  assert.match(runtime, /Return to x402_check for that exact request[\s\S]*authenticated intent and approved ceiling/);
-  assert.match(runtime, /unprotected request,[\s\S]*no generic free-HTTP tool/);
+  assert.match(runtime, /A paid result is already the canonical check result/);
+  assert.match(runtime, /siwx_signer_unavailable result is terminal/);
+  assert.match(runtime, /Call x402_fetch when current instruction or bounded policy covers the returned price and ceiling/);
+  assert.match(runtime, /unprotected request,[\s\S]*use the response returned by x402_check/);
+  assert.doesNotMatch(runtime, /no generic free-HTTP tool/);
   assert.match(runtime, /After timeout,[\s\S]*dexter_asset_action_status[\s\S]*never automatically call Execute again/);
   assert.match(runtime, /Reconcile that same intent only when durable status requires it/);
   assert.match(runtime, /user requested only a status read,[\s\S]*obtain explicit confirmation before reconciliation/);

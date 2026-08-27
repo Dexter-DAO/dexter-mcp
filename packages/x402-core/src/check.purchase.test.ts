@@ -2,10 +2,27 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  checkedResponseData,
   exactCheckRequestBody,
   exactAtomicString,
+  selectPaymentRequiredChallenge,
   sellerAcceptSha256,
 } from './check.js';
+
+test('unprotected JSON and text responses retain the provider result', async () => {
+  assert.deepEqual(
+    await checkedResponseData(new Response('{"price":42}', {
+      headers: { 'content-type': 'application/json' },
+    })),
+    { price: 42 },
+  );
+  assert.equal(
+    await checkedResponseData(new Response('available', {
+      headers: { 'content-type': 'text/plain' },
+    })),
+    'available',
+  );
+});
 
 const acceptA = {
   scheme: 'exact',
@@ -55,4 +72,30 @@ test('raw check bodies retain lexical byte identity', () => {
   assert.equal(exactCheckRequestBody('POST', raw), raw);
   assert.equal(exactCheckRequestBody('GET', raw), undefined);
   assert.equal(exactCheckRequestBody('PUT', { z: 1, a: [2, 3] }), '{"z":1,"a":[2,3]}');
+});
+
+test('header-only SIWX remains a wallet-proof challenge with no paid accepts', () => {
+  const challenge = {
+    x402Version: 2,
+    accepts: [],
+    resource: { url: 'https://seller.example/private' },
+    extensions: {
+      'sign-in-with-x': {
+        info: { domain: 'seller.example', nonce: 'abc123' },
+      },
+    },
+  };
+  const encoded = Buffer.from(JSON.stringify(challenge), 'utf8').toString('base64url');
+
+  assert.deepEqual(selectPaymentRequiredChallenge({}, encoded), challenge);
+});
+
+test('a usable body challenge wins without consulting a conflicting header', () => {
+  const body = { accepts: [acceptA], x402Version: 2 };
+  const conflicting = Buffer.from(JSON.stringify({
+    accepts: [],
+    extensions: { 'sign-in-with-x': {} },
+  }), 'utf8').toString('base64url');
+
+  assert.equal(selectPaymentRequiredChallenge(body, conflicting), body);
 });

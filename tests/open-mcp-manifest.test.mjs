@@ -41,7 +41,10 @@ test('well-known manifest advertises the cumulative five-to-twelve OAuth contrac
     'dexter_reconcile_asset_action',
     'dexter_wallet_history',
   ]);
-  assert.deepEqual(manifest.auth.conditionallyProtectedTools, ['x402_check']);
+  assert.deepEqual(manifest.auth.conditionallyProtectedTools, [
+    'x402_check',
+    'x402_access',
+  ]);
   assert.deepEqual(manifest.rosters.anonymous, OPEN_ANONYMOUS_TOOL_NAMES);
   assert.deepEqual(manifest.rosters.oauthPromotes, OPEN_OAUTH_PROMOTED_TOOL_NAMES);
   assert.deepEqual(manifest.rosters.connected, OPEN_TOOL_NAMES);

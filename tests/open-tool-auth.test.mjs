@@ -60,6 +60,10 @@ test('public, wallet, portfolio, and payment tools have exact schemes', () => {
     { type: 'noauth' },
     { type: 'oauth2', scopes: ['vault'] },
   ]);
+  assert.deepEqual(OPEN_TOOL_SECURITY_SCHEMES.x402_access, [
+    { type: 'noauth' },
+    { type: 'oauth2', scopes: ['vault'] },
+  ]);
   assert.deepEqual(
     OPEN_TOOL_SECURITY_SCHEMES.x402_wallet,
     [{ type: 'oauth2', scopes: ['vault'] }],
@@ -127,6 +131,7 @@ test('protected-call classification follows the per-tool auth declaration', () =
     null,
   );
   assert.equal(findVaultProtectedToolCall(call('x402_check')), null);
+  assert.equal(findVaultProtectedToolCall(call('x402_access')), null);
   assert.equal(findVaultProtectedToolCall(call('x402_search')), null);
   assert.equal(findVaultProtectedToolCall(call('x402_pay')), null);
   assert.equal(findVaultProtectedToolCall(call('x402_compose_skill')), null);

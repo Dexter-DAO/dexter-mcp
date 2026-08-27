@@ -46,6 +46,8 @@ export interface CheckResult {
   requiresPayment: boolean;
   statusCode: number;
   free?: boolean;
+  /** Response returned by an unprotected endpoint during the exact check. */
+  data?: unknown;
   error?: boolean | string;
   authRequired?: boolean;
   message?: string;
@@ -70,6 +72,18 @@ export interface CheckResult {
    * How the endpoint gates access. See AuthMode.
    */
   authMode?: AuthMode;
+}
+
+export async function checkedResponseData(response: Response): Promise<unknown> {
+  const raw = await response.text();
+  if (!(response.headers.get('content-type') ?? '').toLowerCase().includes('json')) {
+    return raw;
+  }
+  try {
+    return JSON.parse(raw) as unknown;
+  } catch {
+    return raw;
+  }
 }
 
 function canonicalJson(value: unknown): string {
@@ -153,6 +167,38 @@ export function parsePaymentRequiredHeader(rawHeader: string | null): {
   return {};
 }
 
+/** Prefer a usable body challenge, otherwise recover the complete v2 header. */
+export function selectPaymentRequiredChallenge(
+  body: unknown,
+  rawHeader: string | null,
+): Record<string, unknown> | null {
+  const bodyObject = body && typeof body === 'object' && !Array.isArray(body)
+    ? body as Record<string, unknown>
+    : null;
+  const bodyAccepts = bodyObject?.accepts;
+  const bodyExtensions = bodyObject?.extensions;
+  const bodyHasPaidAccepts = Array.isArray(bodyAccepts) && bodyAccepts.length > 0;
+  const bodyHasSiwx = bodyExtensions
+    && typeof bodyExtensions === 'object'
+    && 'sign-in-with-x' in bodyExtensions;
+  if (bodyHasPaidAccepts || bodyHasSiwx) return bodyObject;
+
+  const header = parsePaymentRequiredHeader(rawHeader);
+  const headerExtensions = header.extensions;
+  const headerHasSiwx = headerExtensions
+    && typeof headerExtensions === 'object'
+    && 'sign-in-with-x' in headerExtensions;
+  if (!Array.isArray(header.accepts) && !headerHasSiwx) return bodyObject;
+
+  return {
+    x402Version: header.x402Version ?? 2,
+    accepts: Array.isArray(header.accepts) ? header.accepts : [],
+    resource: header.resource ?? bodyObject?.resource ?? null,
+    extensions: header.extensions ?? bodyObject?.extensions,
+    ...(bodyObject?.error !== undefined ? { error: bodyObject.error } : {}),
+  };
+}
+
 /**
  * Probe an endpoint for x402 payment requirements without paying.
  *
@@ -212,7 +258,13 @@ export async function checkEndpointPricing(
     if (res.status >= 400) {
       return { requiresPayment: false, error: true, statusCode: res.status, authMode: 'unknown', message: `Client error: ${res.status}` };
     }
-    return { requiresPayment: false, statusCode: res.status, free: true, authMode: 'unprotected' };
+    return {
+      requiresPayment: false,
+      statusCode: res.status,
+      free: true,
+      authMode: 'unprotected',
+      data: await checkedResponseData(res),
+    };
   }
 
   let body: any = null;
@@ -226,20 +278,10 @@ export async function checkEndpointPricing(
   // `accepts[]`, decode the header and use that as the challenge source.
   // Everything downstream keys off `body`, so once it's populated the
   // rest of the function is version-agnostic.
-  if (!Array.isArray(body?.accepts) || body.accepts.length === 0) {
-    const headerChallenge = parsePaymentRequiredHeader(
-      res.headers.get('payment-required'),
-    );
-    if (Array.isArray(headerChallenge?.accepts) && headerChallenge.accepts.length > 0) {
-      body = {
-        x402Version: headerChallenge.x402Version ?? 2,
-        accepts: headerChallenge.accepts,
-        resource: headerChallenge.resource ?? body?.resource ?? null,
-        extensions: headerChallenge.extensions ?? body?.extensions,
-        error: body?.error,
-      };
-    }
-  }
+  body = selectPaymentRequiredChallenge(
+    body,
+    res.headers.get('payment-required'),
+  );
 
   const accepts = body?.accepts;
   const extensions = body?.extensions;

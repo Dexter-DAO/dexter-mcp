@@ -511,7 +511,10 @@ test('source materializer emits one deterministic full hosted descriptor', async
   assert.deepEqual(descriptor.anonymousToolNames, ANONYMOUS);
   assert.deepEqual(descriptor.oauthPromotedToolNames, PROMOTED);
   assert.deepEqual(descriptor.connectedToolNames, CONNECTED);
-  assert.deepEqual(descriptor.optionalOAuthToolNames, ['x402_check']);
+  assert.deepEqual(descriptor.optionalOAuthToolNames, [
+    'x402_check',
+    'x402_access',
+  ]);
   assert.deepEqual(descriptor.tools.map((tool) => tool.name), CONNECTED);
 
   for (const tool of descriptor.tools) {
@@ -566,7 +569,7 @@ test('source materializer emits one deterministic full hosted descriptor', async
   });
   assert.deepEqual(
     Object.keys(access.inputSchema.properties).sort(),
-    ['body', 'method', 'network', 'url'],
+    ['body', 'method', 'url'],
   );
   assert.equal(search._meta['ui/resourceUri'], search._meta.ui.resourceUri);
   assert.equal(search._meta['openai/outputTemplate'], search._meta.ui.resourceUri);

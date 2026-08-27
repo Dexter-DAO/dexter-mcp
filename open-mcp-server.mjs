@@ -30,7 +30,7 @@ if (process.env.NODE_ENV !== 'production') {
   dotenv.config();
   dotenv.config({ path: '.env.local' });
 }
-import { createOpenSessionResolver } from './lib/open-session-resolution.mjs';
+import { extractMcpSessionId } from './lib/mcp-session-id.mjs';
 import {
   X402_WIDGET_URIS,
   DIAGNOSTIC_WIDGET_URIS,
@@ -51,6 +51,11 @@ import {
   validatePurchaseExecution,
 } from './lib/open-purchase-contract.mjs';
 import { buildHostedCheckModelResult } from './lib/open-check-result.mjs';
+import { buildX402AccessModelResult } from './lib/open-x402-access-result.mjs';
+import {
+  buildX402CheckBindingUnavailable,
+  classifyMcpBindingLookupResponse,
+} from './lib/open-x402-binding-state.mjs';
 import {
   OPEN_X402_INTENT_API_PATHS,
   callOpenX402IntentApi,
@@ -261,7 +266,7 @@ function readOnlyResultWidgetMeta(templateUri, invoking, invoked, description) {
 
 const SEARCH_META = widgetMeta(X402_WIDGET_URIS.search, 'Searching marketplace…', 'Results ready', 'Shows paid API search results as interactive cards with quality rings, prices, and fetch buttons.');
 const FETCH_META = widgetMeta(X402_WIDGET_URIS.fetch, 'Waiting for OpenDexter…', 'OpenDexter result received', 'Shows returned dispatch, delivery, payment, and reconciliation evidence without inferring finality.');
-const ACCESS_META = widgetMeta(X402_WIDGET_URIS.fetch, 'Signing access proof…', 'Access response ready', 'Shows identity-gated API responses with wallet proof details and any follow-up requirements.');
+const ACCESS_META = widgetMeta(X402_WIDGET_URIS.fetch, 'Checking access…', 'Access checked', 'Shows the request classification, payment intent when present, or current SIWX signer availability.');
 const CHECK_META = widgetMeta(X402_WIDGET_URIS.pricing, 'Checking pricing…', 'Pricing loaded', 'Shows endpoint pricing per blockchain with payment amounts and a pay button.');
 const WALLET_META = widgetMeta(X402_WIDGET_URIS.wallet, 'Loading wallet…', 'Wallet loaded', 'Shows wallet addresses with copy button, USDC balances across chains, and deposit QR code.');
 const PORTFOLIO_META = Object.freeze({
@@ -304,7 +309,6 @@ const GOVERNED_ASSET_META = Object.freeze({
 // Card and compatibility tools are retired from the hosted MCP. Every client
 // receives the same canonical twelve through the strict contract finalizer.
 const ALL_TOOLS = OPEN_TOOL_NAMES;
-const OPEN_SESSION_HINT_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 // Set env vars required by registerAppsSdkResources before importing it
 if (!process.env.TOKEN_AI_MCP_PUBLIC_URL) process.env.TOKEN_AI_MCP_PUBLIC_URL = 'https://open.dexter.cash/mcp';
@@ -397,30 +401,6 @@ function logX402SearchDebug(stage, details = {}) {
     console.log(`[x402_search] ${stage}`);
   }
 }
-
-function normalizeSessionFunding(funding) {
-  if (!funding || typeof funding !== 'object') return null;
-  const walletAddress = funding.walletAddress || funding.payTo || null;
-  return {
-    ...funding,
-    walletAddress,
-    payTo: funding.payTo || walletAddress,
-    escrowNote: "This is the session escrow address. Fund it to enable x402 payments. Merchant payTo addresses are shown in merchantSettlement after a paid call.",
-  };
-}
-
-const sessionResolver = createOpenSessionResolver({
-  dexterApi: DEXTER_API,
-  apiBaseFallback: API_BASE_FALLBACK,
-  openSessionHintTtlMs: OPEN_SESSION_HINT_TTL_MS,
-  normalizeSessionFunding,
-});
-const {
-  extractMcpSessionId,
-  linkSessionToContext,
-  readOpenSessionHint,
-  resolveOrCreateSessionForWallet,
-} = sessionResolver;
 
 // fetchCapabilitySearch + x402Search now use @dexterai/x402-core
 
@@ -597,10 +577,7 @@ async function checkSessionVaultBinding(sessionId) {
       `/api/passkey-anon/mcp-binding/${encodeURIComponent(sessionId)}`,
       { headers: signedInternalHeaders(sessionId), signal: AbortSignal.timeout(2000) },
     );
-    if (res.status === 404) return { ok: true, bound: false };
-    if (!res.ok) return { ok: false, bound: false };
-    const binding = await res.json().catch(() => null);
-    return { ok: true, bound: Boolean(binding?.user_handle) };
+    return classifyMcpBindingLookupResponse(res);
   } catch (err) {
     console.warn(`[x402_wallet] binding lookup failed (${safeErrorLabel(err)})`);
     return { ok: false, bound: false };
@@ -702,7 +679,6 @@ async function resolveIntentSession(extra) {
 async function x402IntentFetch(
   { intentId, maxAmountAtomic },
   extra,
-  { checkedSessionId = null } = {},
 ) {
   const session = await resolveIntentSession(extra);
   if (!session.sessionId || !session.authenticated) {
@@ -734,7 +710,7 @@ async function x402IntentFetch(
     });
   }
   const response = await callOpenX402IntentApi('fetch', {
-    sessionId: checkedSessionId || session.sessionId,
+    sessionId: session.sessionId,
     intentId,
     maxAmountAtomic,
   });
@@ -1213,101 +1189,98 @@ async function x402Fetch(
   }));
 }
 
-// ─── Tool: x402_access (wallet-proof auth) ──────────────────────────────────
-
-async function x402Access({ url, method, body, network }, extra) {
-  // The delegated backend must repeat this at connection time; this preflight
-  // prevents obviously unsafe destinations from entering the access flow.
-  await assertPublicExternalUrl(url);
-  const fetchOpts = { method: method || 'GET', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(15000) };
-  if (body && method && method.toUpperCase() !== 'GET') {
-    fetchOpts.body = typeof body === 'string' ? body : JSON.stringify(body);
+// x402_check and x402_access share this exact classification path. Each call
+// reaches the provider at most once, including non-GET SIWX requests.
+async function runCanonicalX402Check(args, session) {
+  let result;
+  if (session.authenticated && session.sessionId) {
+    const requestId = randomUUID();
+    const checked = await callOpenX402IntentApi('check', {
+      sessionId: session.sessionId,
+      requestId,
+      url: args.url,
+      method: args.method || 'GET',
+      ...(Object.prototype.hasOwnProperty.call(args, 'body')
+        ? { body: args.body }
+        : {}),
+    });
+    result = { ...checked.data, httpStatus: checked.httpStatus };
+    if (
+      result.paymentRequired === true
+      && !Array.isArray(result.paymentOptions)
+      && typeof result.amountAtomic === 'string'
+    ) {
+      const numeric = Number(result.amountAtomic);
+      result.paymentOptions = [{
+        amountAtomic: result.amountAtomic,
+        network: result.network ?? null,
+        asset: result.asset ?? null,
+        payTo: result.payTo ?? null,
+        price: Number.isFinite(numeric) ? numeric / 1_000_000 : null,
+        priceFormatted: Number.isFinite(numeric)
+          ? `$${(numeric / 1_000_000).toFixed(6).replace(/0+$/, '').replace(/\.$/, '')}`
+          : null,
+        expiresAt: Number.isSafeInteger(result.expiresAtUnixMs)
+          ? new Date(result.expiresAtUnixMs).toISOString()
+          : null,
+      }];
+    }
+  } else {
+    result = await checkEndpointPricing({
+      url: args.url,
+      method: args.method || 'GET',
+      ...(Object.prototype.hasOwnProperty.call(args, 'body')
+        ? { sampleInputBody: args.body }
+        : {}),
+    });
   }
+  if (result?.inputSchema) result.inputSchema = unwrapEnvelopeSchema(result.inputSchema);
 
-  const sessionResolution = await resolveOrCreateSessionForWallet(extra);
-  if (sessionResolution.error) {
-    return {
-      ...sessionResolution.error,
-      sessionResolution: sessionResolution.sessionResolution,
-    };
-  }
-
-  const resolvedSessionToken = sessionResolution.session?.sessionToken || null;
-  const sessionHint = resolvedSessionToken ? readOpenSessionHint(resolvedSessionToken) : null;
-
+  const apiBase = (process.env.DEXTER_API_URL || 'http://127.0.0.1:3030').replace(/\/+$/, '');
+  let enrichment = null;
+  let enrichmentSource = 'unavailable';
   try {
-    const bases = [DEXTER_API, API_BASE_FALLBACK].filter(Boolean);
-    const paths = ['/v2/open/x402/access', '/v2/pay/open/x402/access'];
-    let accessRes = null;
-    let accessBody = null;
-    for (const base of bases) {
-      for (const path of paths) {
-        const attempt = await fetch(`${base}${path}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sessionToken: resolvedSessionToken,
-            url,
-            method: method || 'GET',
-            body: fetchOpts.body ?? null,
-            network: network || undefined,
-          }),
-          redirect: 'error',
-          signal: AbortSignal.timeout(30000),
-        });
-        const parsed = await attempt.json().catch(() => null);
-        const is404PathNotFound = attempt.status === 404 && !parsed?.error;
-        if (!is404PathNotFound) {
-          accessRes = attempt;
-          accessBody = parsed;
-          break;
-        }
+    const enrichUrl = `${apiBase}/api/x402/resource?url=${encodeURIComponent(args.url)}&history=3&full_previews=1`;
+    const enrichRes = await fetch(enrichUrl, {
+      headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(2000),
+    });
+    if (enrichRes.ok) {
+      const enrichmentBody = await enrichRes.json();
+      if (enrichmentBody?.ok && enrichmentBody?.found) {
+        enrichment = {
+          resource: enrichmentBody.resource,
+          history: enrichmentBody.history,
+        };
+        enrichmentSource = 'live_db';
+      } else {
+        enrichmentSource = 'not_found';
       }
-      if (accessRes) break;
+    } else {
+      enrichmentSource = `http_${enrichRes.status}`;
     }
-
-    if (!accessRes || !accessRes.ok || !accessBody?.ok) {
-      const rawError = accessBody?.error || 'open_session_access_failed';
-      return {
-        status: accessRes?.status || 500,
-        mode: 'session_error',
-        error: rawError,
-        message: accessBody?.message || `Access flow failed: ${rawError}`,
-        hint: rawError === 'no_siwx_extension'
-          ? 'This endpoint may be payment-gated rather than identity-gated. Use x402_check or x402_fetch instead.'
-          : undefined,
-        details: accessBody || null,
-        session: sessionHint || (resolvedSessionToken ? { sessionToken: resolvedSessionToken } : null),
-        sessionResolution: sessionResolution.sessionResolution,
-      };
-    }
-
-    if (resolvedSessionToken) {
-      linkSessionToContext(extra, resolvedSessionToken);
-    }
-
-    return {
-      status: accessBody.status ?? 200,
-      mode: 'session_ready',
-      data: accessBody.data,
-      auth: accessBody.auth || null,
-      requirements: accessBody.requirements || null,
-      session: { ...(accessBody.session ?? { sessionToken: resolvedSessionToken }), funding: undefined },
-      sessionFunding: normalizeSessionFunding(accessBody.session?.funding || sessionHint?.funding),
-      sessionResolution: sessionResolution.sessionResolution,
-    };
-  } catch (err) {
-    return {
-      status: 500,
-      mode: 'session_error',
-      error: `Open access flow failed: ${err?.message || String(err)}`,
-      session: sessionHint || (resolvedSessionToken ? { sessionToken: resolvedSessionToken } : null),
-      sessionResolution: sessionResolution.sessionResolution,
-    };
+  } catch (enrichErr) {
+    enrichmentSource = `error:${enrichErr?.name || 'unknown'}`;
   }
-}
 
-// x402_check now uses checkEndpointPricing from @dexterai/x402-core — see import above.
+  const modelResult = buildHostedCheckModelResult({
+    checkResult: result,
+    url: args.url,
+    method: args.method || 'GET',
+    rawBody: args.body,
+    rawBodyProvided: Object.prototype.hasOwnProperty.call(args, 'body'),
+    enrichment,
+    enrichmentSource,
+  });
+  if (session.authenticated && session.sessionId) {
+    legacyIntentBridge.recordCheck({
+      identity: oauthVaultIdentityOf(sessionMeta.get(session.sessionId)),
+      sessionId: session.sessionId,
+      modelResult,
+    });
+  }
+  return modelResult;
+}
 
 // ─── Tool: x402_wallet ───────────────────────────────────────────────────────
 
@@ -2084,47 +2057,8 @@ export function createOpenMcpServer({
     annotations: { destructiveHint: true },
     _meta: FETCH_META,
   }, async (args, extra) => {
-    const sessionId = extra ? extractMcpSessionId(extra) : null;
-    const identity = oauthVaultIdentityOf(sessionMeta.get(sessionId));
     try {
-      const handoff = legacyIntentBridge.beginFetch({
-        identity,
-        intentId: args.intentId,
-        maxAmountAtomic: args.maxAmountAtomic,
-        sessionId,
-      });
-      if (handoff.matched && !handoff.acquired) {
-        const result = {
-          ...sanitizeOpenX402IntentResult({
-            ok: false,
-            intentId: args.intentId,
-            status: 'reconciliation_required',
-            error: 'intent_status_required',
-            reason: 'intent_session_handoff_unavailable',
-            reconciliation: { required: true, performed: false },
-            retryable: false,
-            retryWithSameIntentOnly: true,
-          }),
-          dispatch: {
-            boundary: 'unknown',
-            evidence: 'backend_result_unavailable',
-          },
-        };
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-          structuredContent: result,
-          isError: true,
-          _meta: FETCH_META,
-        };
-      }
-      const checkedSessionId = handoff.checkedSessionId;
-      const result = await x402IntentFetch(args, extra, { checkedSessionId });
-      legacyIntentBridge.complete({
-        identity,
-        intentId: args.intentId,
-        sessionId,
-        result,
-      });
+      const result = await x402IntentFetch(args, extra);
       const meta = { ...FETCH_META };
       if (isVaultAuthenticationRequired(result)) {
         return vaultAuthenticationResult(result, meta);
@@ -2136,14 +2070,6 @@ export function createOpenMcpServer({
         _meta: meta,
       };
     } catch (err) {
-      // A transport/API exception after the compatibility claim is uncertain.
-      // Keep that record consumed so a stale client cannot auto-dispatch twice.
-      legacyIntentBridge.complete({
-        identity,
-        intentId: args.intentId,
-        sessionId,
-        result: null,
-      });
       console.warn(
         `[x402_fetch] intent API failed (${safeErrorLabel(err)}) `
         + `intentRef=${logRef(args.intentId)}`,
@@ -2215,119 +2141,38 @@ export function createOpenMcpServer({
       method: z.enum(['GET', 'POST', 'PUT', 'DELETE']).default('GET').describe('HTTP method to probe with'),
       body: z.string().optional().describe('Exact raw JSON request-body string for POST, PUT, or DELETE. OpenDexter does not parse, canonicalize, or reserialize this string before intent custody.'),
     },
-    annotations: { readOnlyHint: true },
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
     _meta: CHECK_META,
   }, async (args, extra) => {
     try {
       const session = await resolveIntentSession(extra);
-      let result;
-      if (session.authenticated && session.sessionId) {
-        // One fresh, HMAC-bound economic identity per explicit check. Keep it
-        // stable for this one internal HTTP attempt only; fetch and status use
-        // the opaque intent returned by the API and never accept it back.
-        const requestId = randomUUID();
-        const checked = await callOpenX402IntentApi('check', {
-          sessionId: session.sessionId,
-          requestId,
+      if (session.lookupFailed) {
+        const unavailable = buildX402CheckBindingUnavailable({
           url: args.url,
           method: args.method || 'GET',
-          ...(Object.prototype.hasOwnProperty.call(args, 'body')
-            ? { body: args.body }
-            : {}),
+          body: args.body,
+          bodyProvided: Object.prototype.hasOwnProperty.call(args, 'body'),
         });
-        result = { ...checked.data, httpStatus: checked.httpStatus };
-        if (
-          result.paymentRequired === true
-          && !Array.isArray(result.paymentOptions)
-          && typeof result.amountAtomic === 'string'
-        ) {
-          const numeric = Number(result.amountAtomic);
-          result.paymentOptions = [{
-            amountAtomic: result.amountAtomic,
-            network: result.network ?? null,
-            asset: result.asset ?? null,
-            payTo: result.payTo ?? null,
-            price: Number.isFinite(numeric) ? numeric / 1_000_000 : null,
-            priceFormatted: Number.isFinite(numeric)
-              ? `$${(numeric / 1_000_000).toFixed(6).replace(/0+$/, '').replace(/\.$/, '')}`
-              : null,
-            expiresAt: Number.isSafeInteger(result.expiresAtUnixMs)
-              ? new Date(result.expiresAtUnixMs).toISOString()
-              : null,
-          }];
-        }
-      } else {
-        // Quote-only fallback. The shared helper preserves a raw string exactly.
-        result = await checkEndpointPricing({
-          url: args.url,
-          method: args.method || 'GET',
-          ...(Object.prototype.hasOwnProperty.call(args, 'body')
-            ? { sampleInputBody: args.body }
-            : {}),
-        });
+        return {
+          content: [{ type: 'text', text: JSON.stringify(unavailable, null, 2) }],
+          structuredContent: unavailable,
+          isError: true,
+          _meta: CHECK_META,
+        };
       }
-      if (result?.inputSchema) result.inputSchema = unwrapEnvelopeSchema(result.inputSchema);
-
-      // Best-effort DB enrichment. We never fail the tool call if this misses;
-      // we tag enrichment_source so the caller knows which path produced what.
-      // No silent fallbacks — tag is always set.
-      const apiBase = (process.env.DEXTER_API_URL || 'http://127.0.0.1:3030').replace(/\/+$/, '');
-      let enrichment = null;
-      let enrichmentSource = 'unavailable';
-      try {
-        // full_previews=1 ships the verifier's full per-run detail:
-        // ai_fix_instructions (drives Doctor Dexter), test_input_generated,
-        // test_input_reasoning, chains_evaluated, ai_tokens_used. The widget
-        // is the consumer here; missing fields are tolerated.
-        const enrichUrl = `${apiBase}/api/x402/resource?url=${encodeURIComponent(args.url)}&history=3&full_previews=1`;
-        const enrichRes = await fetch(enrichUrl, {
-          headers: { Accept: 'application/json' },
-          signal: AbortSignal.timeout(2000),
-        });
-        if (enrichRes.ok) {
-          const body = await enrichRes.json();
-          if (body?.ok && body?.found) {
-            enrichment = { resource: body.resource, history: body.history };
-            enrichmentSource = 'live_db';
-          } else {
-            enrichmentSource = 'not_found';
-          }
-        } else {
-          enrichmentSource = `http_${enrichRes.status}`;
-        }
-      } catch (enrichErr) {
-        enrichmentSource = `error:${enrichErr?.name || 'unknown'}`;
-      }
-
-      const modelResult = buildHostedCheckModelResult({
-        checkResult: result,
-        url: args.url,
-        method: args.method || 'GET',
-        rawBody: args.body,
-        rawBodyProvided: Object.prototype.hasOwnProperty.call(args, 'body'),
-        enrichment,
-        enrichmentSource,
-      });
-      if (session.authenticated && session.sessionId) {
-        legacyIntentBridge.recordCheck({
-          identity: oauthVaultIdentityOf(sessionMeta.get(session.sessionId)),
-          sessionId: session.sessionId,
-          modelResult,
-        });
-      }
-      // Keep the text content LEAN — the widget reads structuredContent, the
-      // LLM reads text. Dumping the full enriched payload (with embedded
-      // response_preview JSON-in-JSON strings) into text was tripping the
-      // Anthropic proxy's content validator and breaking the widget render.
-      // structuredContent is model-visible in ChatGPT and Hermes. Keep it on
-      // the supported request-and-ceiling path; never expose the unintegrated
-      // caller-carried prepared-purchase candidate here.
+      const modelResult = await runCanonicalX402Check(args, session);
       return {
         content: [{
           type: 'text',
           text: JSON.stringify(modelResult, null, 2),
         }],
         structuredContent: modelResult,
+        isError: modelResult.error === true || typeof modelResult.error === 'string',
         _meta: CHECK_META,
       };
     } catch (err) {
@@ -2338,24 +2183,46 @@ export function createOpenMcpServer({
 
   registerOpenTool(server, 'x402_access', {
     title: 'x402 Access',
-    description: 'Access an identity-gated endpoint using wallet proof instead of immediate payment. Use this when an endpoint requires Sign-In-With-X or wallet-based authentication rather than a direct paid call.',
+    description: 'Classify the exact request through the canonical x402 check path. Paid requests return the canonical quote or intent. Free requests return the provider check result. Sign-In-With-X is reported as unavailable until OpenDexter has an eligible connected signer. This tool does not create a temporary wallet or sign a proof. A non-GET request may change provider state and is checked only once.',
     inputSchema: {
-      url: z.string().url().describe('The protected resource URL to call'),
-      method: z.enum(['GET', 'POST', 'PUT', 'DELETE']).default('GET').describe('HTTP method'),
-      body: z.string().optional().describe('JSON request body for POST/PUT — the RAW payload the seller expects, e.g. {"q":"latest news"}. NEVER send a schema descriptor (anything shaped like {"type":"http","method":...,"bodyType":...,"body":{...}}) — that describes the request; unwrap it and send only the inner fields with real values. Field names come from the search result\'s inputSchema or x402_check.'),
-      network: z.string().optional().describe('Optional preferred auth network, e.g. solana:... or eip155:8453'),
+      url: z.string().url().describe('The exact HTTPS resource URL to check'),
+      method: z.enum(['GET', 'POST', 'PUT', 'DELETE']).default('GET').describe('HTTP method to check'),
+      body: z.string().optional().describe('Exact raw JSON request-body string for POST, PUT, or DELETE.'),
+    },
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: false,
+      openWorldHint: true,
     },
     _meta: ACCESS_META,
   }, async (args, extra) => {
     try {
-      const result = await x402Access(args, extra);
-      if (result.session?.sessionToken) {
-        const { sessionToken: _drop, ...cleanSession } = result.session;
-        result.session = cleanSession;
+      const session = await resolveIntentSession(extra);
+      if (session.lookupFailed) {
+        const unavailable = buildX402CheckBindingUnavailable({
+          url: args.url,
+          method: args.method || 'GET',
+          body: args.body,
+          bodyProvided: Object.prototype.hasOwnProperty.call(args, 'body'),
+        });
+        return {
+          content: [{ type: 'text', text: JSON.stringify(unavailable, null, 2) }],
+          structuredContent: unavailable,
+          isError: true,
+          _meta: ACCESS_META,
+        };
       }
-      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }], structuredContent: result, _meta: ACCESS_META };
+      const checked = await runCanonicalX402Check(args, session);
+      const result = buildX402AccessModelResult(checked);
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        structuredContent: result,
+        isError: result.error === true || typeof result.error === 'string',
+        _meta: ACCESS_META,
+      };
     } catch (err) {
-      const data = { status: 500, error: err?.message || String(err) };
+      const data = { statusCode: 500, error: err?.message || String(err) };
       return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }], structuredContent: data, isError: true, _meta: ACCESS_META };
     }
   });
@@ -3258,7 +3125,7 @@ const httpServer = http.createServer(async (req, res) => {
         }
       }
 
-      const bridged = legacyIntentBridge.reserve(parsedBody, {
+      const bridged = legacyIntentBridge.rewriteLegacy(parsedBody, {
         identity: oauthVaultIdentityOf(sessionMeta.get(sessionId)),
         sessionId,
       });
@@ -3266,11 +3133,6 @@ const httpServer = http.createServer(async (req, res) => {
       if (bridged.rewritten) {
         console.log(
           `[open-mcp] translated retired x402_fetch schema `
-          + `sessionRef=${logRef(sessionId)} intentRef=${logRef(bridged.intentId)}`,
-        );
-      } else if (bridged.reserved) {
-        console.log(
-          `[open-mcp] reserved x402 intent session handoff `
           + `sessionRef=${logRef(sessionId)} intentRef=${logRef(bridged.intentId)}`,
         );
       }
