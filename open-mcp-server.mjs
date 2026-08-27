@@ -2027,7 +2027,7 @@ export function createOpenMcpServer({
     title: 'x402 Search',
     description: 'Semantic capability search over the x402 marketplace across Solana and EVM chains. Pass a natural-language query and get back two tiers: strongResults (high-confidence capability hits) and relatedResults (adjacent services that cleared the similarity floor). The ranker handles synonym expansion and alternate phrasings internally — do NOT pre-filter by chain or category. Use rankingMode and degradedMessage to disclose when reduced fallback ranking was used. Use searchMeta.mode to distinguish a direct hit (strong matches present) from related_only (only adjacencies), empty (nothing in the index), or error (search unavailable). Multi-chain resources expose every seller payment option through each result\'s chains[] field; listings and rank never authorize payment.',
     inputSchema: {
-      query: z.string().describe('Natural-language description of the capability you want. e.g. "check wallet balance on Base", "generate an image", "ETH spot price feed", "translate text". Broad terms are valid — the ranker handles breadth internally. Do NOT pre-filter by category; the search layer handles that semantically.'),
+      query: z.string().describe('Natural-language capability request, such as "check wallet balance on Base", "generate an image", "ETH spot price feed", or "translate text". Broad requests are valid; semantic ranking handles them directly.'),
       network: z.string().optional().describe('Optional hard seller-network filter ("solana", "base", "ethereum", "polygon", "arbitrum", "optimism", "avalanche", or a CAIP-2 id). Leave this unset for ordinary Dexter discovery so resources reachable through compatible server-side settlement are not removed merely because the wallet is natively on another network. Set it only when the user explicitly requires a seller on that network.'),
       limit: z.number().min(1).max(50).optional().default(20).describe('Max results across strong + related tiers combined (1-50, default 20)'),
       unverified: z.boolean().optional().describe('Include unverified resources (default false). Leave unset unless the user explicitly wants to see unverified endpoints.'),
@@ -2052,7 +2052,7 @@ export function createOpenMcpServer({
     description: 'Execute one API-custodied purchase intent. Pass only the opaque intentId from an authenticated x402_check and the exact maxAmountAtomic ceiling approved by the user or delegated policy. Never pass URL, body, seller terms, route data, or a prepared purchase. Say dispatched only when dispatch.boundary is crossed. Never automatically retry an ambiguous or post-dispatch outcome; use x402_status on the same intent.',
     inputSchema: {
       intentId: z.string().min(1).max(256).describe('Opaque server-owned purchase-intent handle returned by the authenticated x402_check. Do not parse, reconstruct, or replace it.'),
-      maxAmountAtomic: z.string().regex(MAX_AMOUNT_ATOMIC_RE).describe('Required approved maximum charge in USDC atomic units (positive 1-20 digit decimal string). The API binds it to this intent and rejects a different or larger charge.'),
+      maxAmountAtomic: z.string().regex(MAX_AMOUNT_ATOMIC_RE).describe('Required approved maximum charge in USDC base units (positive 1-20 digit decimal string). The API binds it to this intent and rejects a different or larger charge.'),
     },
     annotations: { destructiveHint: true },
     _meta: FETCH_META,

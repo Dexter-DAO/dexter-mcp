@@ -84,7 +84,7 @@ const SOURCE_CONTRACTS_RELATIVE_PATH =
 const DESCRIPTOR_RELATIVE_PATH =
   'release/open-tool-descriptors.json';
 const RECONCILE_FIXTURE_PATH =
-  'tests/fixtures/governed-agent-reconcile-advanced-final-6c243154.json';
+  'tests/fixtures/governed-agent-reconcile-advanced-final-fa0701b6.json';
 const BINDING_FIXTURE_CONSUMER_PATH =
   'tests/fixtures/governed-agent-trade-api-facilitator-binding-v1.json';
 const BINDING_FIXTURE_API_PATH =
@@ -105,10 +105,10 @@ const API_GOVERNED_CONTRACT_PATHS = Object.freeze([
 ]);
 
 const EXPECTED_SOURCE_CONTRACTS = Object.freeze({
-  apiCommit: '6c243154e9e06f4e40830300c4027721645a33cc',
-  apiTree: 'ce2976ada70af9234291aa6a472b3d96a7a84989',
+  apiCommit: 'fa0701b67625911b8ec97a5399f62ec97a69f976',
+  apiTree: 'dcee95df1d92018b8fcd8b43645fe63211383274',
   apiFixtureSha256:
-    'ce947da8dbc22b602d5254949787b777b66095bb2530a707fb1db6d73b1b41d4',
+    'ad06690a3914e0ef0f359c4164eb62f78ca54abe6697a52672d739df63c2c352',
   apiCanonicalBodyDigest:
     '48e77a936f06fe07b66fee7c2cb9126e8305d4e180c2c304513d5f0ea1636e16',
   portfolioProjectionFixtureSha256:

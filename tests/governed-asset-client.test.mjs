@@ -47,12 +47,12 @@ const NOW = 1_785_020_400_000;
 const ADDRESS = '11111111111111111111111111111111';
 const PREPARE_PATH =
   '/api/passkey-vault/governed-assets/agent/actions/prepare';
-const API_6C243_ADVANCED_FINAL_FIXTURE_BYTES = readFileSync(new URL(
-  './fixtures/governed-agent-reconcile-advanced-final-6c243154.json',
+const API_FA0701B6_ADVANCED_FINAL_FIXTURE_BYTES = readFileSync(new URL(
+  './fixtures/governed-agent-reconcile-advanced-final-fa0701b6.json',
   import.meta.url,
 ));
-const API_6C243_ADVANCED_FINAL_FIXTURE = JSON.parse(
-  API_6C243_ADVANCED_FINAL_FIXTURE_BYTES.toString('utf8'),
+const API_FA0701B6_ADVANCED_FINAL_FIXTURE = JSON.parse(
+  API_FA0701B6_ADVANCED_FINAL_FIXTURE_BYTES.toString('utf8'),
 );
 const STOCK_SNAPSHOT_DIGESTS = Object.freeze({
   tesla: '689bdce48ab7a92835d4c6b461813886cef33fc479c84affdcd572df001c25eb',
@@ -1857,20 +1857,20 @@ test('reconcile preserves current stock public-identity and V2 recovery refusals
   }
 });
 
-test('reconcile accepts the exact API 6c243 advanced-final public envelope', async () => {
+test('reconcile accepts the exact API fa0701b6 advanced-final public envelope', async () => {
   assert.equal(
     createHash('sha256')
-      .update(API_6C243_ADVANCED_FINAL_FIXTURE_BYTES)
+      .update(API_FA0701B6_ADVANCED_FINAL_FIXTURE_BYTES)
       .digest('hex'),
-    'ce947da8dbc22b602d5254949787b777b66095bb2530a707fb1db6d73b1b41d4',
+    'ad06690a3914e0ef0f359c4164eb62f78ca54abe6697a52672d739df63c2c352',
   );
   assert.equal(
-    API_6C243_ADVANCED_FINAL_FIXTURE.sourceCommit,
-    '6c243154e9e06f4e40830300c4027721645a33cc',
+    API_FA0701B6_ADVANCED_FINAL_FIXTURE.sourceCommit,
+    'fa0701b67625911b8ec97a5399f62ec97a69f976',
   );
   assert.equal(
     GOVERNED_ASSET_TOOL_OUTPUT_SCHEMAS.reconcile.safeParse(
-      API_6C243_ADVANCED_FINAL_FIXTURE.body,
+      API_FA0701B6_ADVANCED_FINAL_FIXTURE.body,
     ).success,
     true,
   );
@@ -1879,21 +1879,21 @@ test('reconcile accepts the exact API 6c243 advanced-final public envelope', asy
     apiBase: 'https://api.dexter.test',
     secret: SECRET,
     operation: 'reconcile',
-    input: API_6C243_ADVANCED_FINAL_FIXTURE.input,
+    input: API_FA0701B6_ADVANCED_FINAL_FIXTURE.input,
     mcpSessionId: SESSION_ID,
     now: NOW,
     fetchImpl: async () => jsonResponse(
-      API_6C243_ADVANCED_FINAL_FIXTURE.httpStatus,
-      API_6C243_ADVANCED_FINAL_FIXTURE.body,
+      API_FA0701B6_ADVANCED_FINAL_FIXTURE.httpStatus,
+      API_FA0701B6_ADVANCED_FINAL_FIXTURE.body,
     ),
   });
 
   assert.equal(result.isError, false);
-  assert.deepEqual(result.body, API_6C243_ADVANCED_FINAL_FIXTURE.body);
+  assert.deepEqual(result.body, API_FA0701B6_ADVANCED_FINAL_FIXTURE.body);
 });
 
 test('advanced-final reconciliation remains terminal, advancing, and identity exact', async () => {
-  const valid = API_6C243_ADVANCED_FINAL_FIXTURE.body;
+  const valid = API_FA0701B6_ADVANCED_FINAL_FIXTURE.body;
   const pendingFinal = mutateReconcile(valid, (body) => {
     body.outcome = 'pending';
     body.mutated = false;
@@ -1968,7 +1968,7 @@ test('advanced-final reconciliation remains terminal, advancing, and identity ex
     apiBase: 'https://api.dexter.test',
     secret: SECRET,
     operation: 'reconcile',
-    input: API_6C243_ADVANCED_FINAL_FIXTURE.input,
+    input: API_FA0701B6_ADVANCED_FINAL_FIXTURE.input,
     mcpSessionId: SESSION_ID,
     now: NOW,
     fetchImpl: async () => jsonResponse(200, ownerRefusalTerminal),
@@ -2005,7 +2005,7 @@ test('advanced-final reconciliation remains terminal, advancing, and identity ex
       apiBase: 'https://api.dexter.test',
       secret: SECRET,
       operation: 'reconcile',
-      input: API_6C243_ADVANCED_FINAL_FIXTURE.input,
+      input: API_FA0701B6_ADVANCED_FINAL_FIXTURE.input,
       mcpSessionId: SESSION_ID,
       now: NOW,
       fetchImpl: async () => jsonResponse(httpStatus, responseBody),

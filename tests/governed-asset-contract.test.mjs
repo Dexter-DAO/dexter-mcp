@@ -345,12 +345,12 @@ test('operation identity never substitutes for authority or owner approval', () 
   assert.match(prepare, /approved holding or approvedActionTarget/);
   assert.match(prepare, /reusable bounded mandate/);
   assert.match(prepare, /outside model-callable tools/);
-  assert.match(prepare, /only this Prepare response is authoritative/);
+  assert.match(prepare, /Treat this Prepare response as the proof/);
   assert.match(prepare, /protected_agent_send_sdk_required/);
   assert.match(prepare, /before capacity reservation or intent creation/);
   assert.match(prepare, /exactly one amount mode/);
   assert.match(prepare, /shareQuantity is the human decimal underlying-share-equivalent quantity/);
-  assert.match(prepare, /Never convert shareQuantity to token atomic units/);
+  assert.match(prepare, /Keep shareQuantity as a human decimal/);
   assert.match(prepare, /maximumSpendAtomic as a USDC ceiling/);
   assert.match(prepare, /overfill is possible/);
   assert.match(execute, /grants no authority/);

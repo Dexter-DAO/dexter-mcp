@@ -3,25 +3,25 @@
   "kind": "opendexter-source-contracts/v3",
   "api": {
     "repository": "https://github.com/Dexter-DAO/dexter-api",
-    "commit": "6c243154e9e06f4e40830300c4027721645a33cc",
-    "tree": "ce2976ada70af9234291aa6a472b3d96a7a84989",
+    "commit": "fa0701b67625911b8ec97a5399f62ec97a69f976",
+    "tree": "dcee95df1d92018b8fcd8b43645fe63211383274",
     "consumerFixture": {
-      "path": "tests/fixtures/governed-agent-reconcile-advanced-final-6c243154.json",
-      "sha256": "ce947da8dbc22b602d5254949787b777b66095bb2530a707fb1db6d73b1b41d4",
+      "path": "tests/fixtures/governed-agent-reconcile-advanced-final-fa0701b6.json",
+      "sha256": "ad06690a3914e0ef0f359c4164eb62f78ca54abe6697a52672d739df63c2c352",
       "canonicalBodyDigest": "48e77a936f06fe07b66fee7c2cb9126e8305d4e180c2c304513d5f0ea1636e16"
     }
   },
   "integratedApiRelease": {
     "repository": "https://github.com/Dexter-DAO/dexter-api",
-    "commit": "66afc8ac707146efc827a7d2a7039f177542a331",
-    "tree": "6fbe9fc54a6cb8e8d4a3e0e13b3337dc11980fdb",
-    "governedContractCommit": "6c243154e9e06f4e40830300c4027721645a33cc",
-    "governedContractTree": "ce2976ada70af9234291aa6a472b3d96a7a84989"
+    "commit": "fa0701b67625911b8ec97a5399f62ec97a69f976",
+    "tree": "dcee95df1d92018b8fcd8b43645fe63211383274",
+    "governedContractCommit": "fa0701b67625911b8ec97a5399f62ec97a69f976",
+    "governedContractTree": "dcee95df1d92018b8fcd8b43645fe63211383274"
   },
   "portfolioProjection": {
     "repository": "https://github.com/Dexter-DAO/dexter-api",
-    "commit": "66afc8ac707146efc827a7d2a7039f177542a331",
-    "tree": "6fbe9fc54a6cb8e8d4a3e0e13b3337dc11980fdb",
+    "commit": "fa0701b67625911b8ec97a5399f62ec97a69f976",
+    "tree": "dcee95df1d92018b8fcd8b43645fe63211383274",
     "sourcePaths": [
       "src/portfolio/approvedActionTargets.ts",
       "src/routes/passkeyMcpBinding.ts",
@@ -36,8 +36,8 @@
   },
   "facilitator": {
     "repository": "https://github.com/Dexter-DAO/dexter-facilitator",
-    "commit": "fbfa45bc4c03c41f0eb9af84a6377ed6b29f2d55",
-    "tree": "aa2cd1a7b82174eedabe5e3afb8f0f84776d0ba1",
+    "commit": "9fd105de43042b37ed0740d46b5ee7f37053f4d0",
+    "tree": "d5b8d250bfa809f1c5ed393e91d5ece5ab2ca033",
     "bindingFixture": {
       "consumerPath": "tests/fixtures/governed-agent-trade-api-facilitator-binding-v1.json",
       "apiPath": "tests/fixtures/governed-agent-trade-api-facilitator-binding-v1.json",

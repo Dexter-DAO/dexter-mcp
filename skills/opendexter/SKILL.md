@@ -66,7 +66,7 @@ product tools. Do not select them for a new request.
 4. Read `quoteOnly` and `intentId`. An anonymous check is quote-only and cannot
    execute. Connect OpenDexter, then repeat the exact check once to obtain an
    opaque `intentId`. Never invent or reconstruct an intent ID.
-5. Read current seller `paymentOptions`, including amount in atomic units,
+5. Read current seller `paymentOptions`, including amount in integer base units,
    asset, network, payee, and expiry when present.
 6. Confirm that the current instruction or bounded delegated policy covers the
    exact seller, URL, method, body, and positive `maxAmountAtomic` ceiling. If
@@ -148,22 +148,22 @@ borrow, or pay execution.
    the catalog route.
 2. Call `dexter_prepare_asset_action` with one stable `operationId` and the
    exact action fields. A Buy has exactly one amount mode:
-   - Dollar-budget wording such as “buy $100 of Tesla” uses
+   - Dollar-budget wording such as "buy $100 of Tesla" uses
      `companyQuery: "Tesla"` and `amountAtomic` as the exact USDC budget to
-     spend, in atomic units with 6 decimals.
-   - Ordinary approved-stock quantity wording such as “buy 10 shares of
-     NVIDIA” uses `companyQuery: "NVIDIA"` and `shareQuantity: "10"`; “buy a
-     quarter share” uses `shareQuantity: "0.25"`. This is an
+     spend, in integer base units with 6 decimals.
+   - Ordinary approved-stock quantity wording such as "buy 10 shares of
+     NVIDIA" uses `companyQuery: "NVIDIA"` and `shareQuantity: "10"`; "buy a
+     quarter share" uses `shareQuantity: "0.25"`. This is an
      underlying-share-equivalent display quantity for Dexter's exact
-     catalog-selected Solana product. Never convert it to token atomic units
-     using token decimals or a remembered multiplier; Dexter resolves the
+     catalog-selected Solana product. Keep it as a human decimal; Dexter
+     resolves the token base units without a remembered multiplier. It uses the
      current product version, display multiplier, and raw token target. This
      is minimum-receive semantics and the fill may be slightly larger. If the
-     user also says “spend no more than $5,000,” pass `maximumSpendAtomic` as
+     user also says "spend no more than $5,000," pass `maximumSpendAtomic` as
      `5000000000`, using USDC's 6 decimals.
    Never pass both `amountAtomic` and `shareQuantity`, and never pass
-   `maximumSpendAtomic` without `shareQuantity`. If the user says “exactly,”
-   “no more than,” or otherwise forbids receiving extra shares, explain that
+   `maximumSpendAtomic` without `shareQuantity`. If the user says "exactly,"
+   "no more than," or otherwise forbids receiving extra shares, explain that
    this route guarantees a minimum and may overfill; ask whether an at-least
    target is acceptable instead of silently weakening the request. Stock Sell
    supports direct token input only: pass `companyQuery` plus `amountAtomic`

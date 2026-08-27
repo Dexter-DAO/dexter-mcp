@@ -106,7 +106,7 @@ test('served guidance requires native OAuth and bounded nonretryable spending', 
   assert.match(WORKFLOW, /Buy[\s\S]*USDC budget[\s\S]*6\s+decimals/);
   assert.match(WORKFLOW, /shareQuantity: "10"/);
   assert.match(WORKFLOW, /shareQuantity: "0\.25"/);
-  assert.match(WORKFLOW, /Never convert it to[\s\S]*token atomic units/);
+  assert.match(WORKFLOW, /Keep it as[\s\S]*human decimal/);
   assert.match(WORKFLOW, /shareQuantityConversion[\s\S]*display multiplier/);
   assert.doesNotMatch(WORKFLOW, /quantityAtomic/);
   assert.match(WORKFLOW, /non-stock Sell and Send[\s\S]*`assetId`[\s\S]*`amountAtomic`/);

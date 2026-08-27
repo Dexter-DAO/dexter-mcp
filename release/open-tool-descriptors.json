@@ -6,25 +6,25 @@
     "kind": "opendexter-source-contracts/v3",
     "api": {
       "repository": "https://github.com/Dexter-DAO/dexter-api",
-      "commit": "6c243154e9e06f4e40830300c4027721645a33cc",
-      "tree": "ce2976ada70af9234291aa6a472b3d96a7a84989",
+      "commit": "fa0701b67625911b8ec97a5399f62ec97a69f976",
+      "tree": "dcee95df1d92018b8fcd8b43645fe63211383274",
       "consumerFixture": {
-        "path": "tests/fixtures/governed-agent-reconcile-advanced-final-6c243154.json",
-        "sha256": "ce947da8dbc22b602d5254949787b777b66095bb2530a707fb1db6d73b1b41d4",
+        "path": "tests/fixtures/governed-agent-reconcile-advanced-final-fa0701b6.json",
+        "sha256": "ad06690a3914e0ef0f359c4164eb62f78ca54abe6697a52672d739df63c2c352",
         "canonicalBodyDigest": "48e77a936f06fe07b66fee7c2cb9126e8305d4e180c2c304513d5f0ea1636e16"
       }
     },
     "integratedApiRelease": {
       "repository": "https://github.com/Dexter-DAO/dexter-api",
-      "commit": "66afc8ac707146efc827a7d2a7039f177542a331",
-      "tree": "6fbe9fc54a6cb8e8d4a3e0e13b3337dc11980fdb",
-      "governedContractCommit": "6c243154e9e06f4e40830300c4027721645a33cc",
-      "governedContractTree": "ce2976ada70af9234291aa6a472b3d96a7a84989"
+      "commit": "fa0701b67625911b8ec97a5399f62ec97a69f976",
+      "tree": "dcee95df1d92018b8fcd8b43645fe63211383274",
+      "governedContractCommit": "fa0701b67625911b8ec97a5399f62ec97a69f976",
+      "governedContractTree": "dcee95df1d92018b8fcd8b43645fe63211383274"
     },
     "portfolioProjection": {
       "repository": "https://github.com/Dexter-DAO/dexter-api",
-      "commit": "66afc8ac707146efc827a7d2a7039f177542a331",
-      "tree": "6fbe9fc54a6cb8e8d4a3e0e13b3337dc11980fdb",
+      "commit": "fa0701b67625911b8ec97a5399f62ec97a69f976",
+      "tree": "dcee95df1d92018b8fcd8b43645fe63211383274",
       "sourcePaths": [
         "src/portfolio/approvedActionTargets.ts",
         "src/routes/passkeyMcpBinding.ts",
@@ -39,8 +39,8 @@
     },
     "facilitator": {
       "repository": "https://github.com/Dexter-DAO/dexter-facilitator",
-      "commit": "fbfa45bc4c03c41f0eb9af84a6377ed6b29f2d55",
-      "tree": "aa2cd1a7b82174eedabe5e3afb8f0f84776d0ba1",
+      "commit": "9fd105de43042b37ed0740d46b5ee7f37053f4d0",
+      "tree": "d5b8d250bfa809f1c5ed393e91d5ece5ab2ca033",
       "bindingFixture": {
         "consumerPath": "tests/fixtures/governed-agent-trade-api-facilitator-binding-v1.json",
         "apiPath": "tests/fixtures/governed-agent-trade-api-facilitator-binding-v1.json",
@@ -108,7 +108,8 @@
     "dexter_wallet_history"
   ],
   "optionalOAuthToolNames": [
-    "x402_check"
+    "x402_check",
+    "x402_access"
   ],
   "tools": [
     {
@@ -120,7 +121,7 @@
         "properties": {
           "query": {
             "type": "string",
-            "description": "Natural-language description of the capability you want. e.g. \"check wallet balance on Base\", \"generate an image\", \"ETH spot price feed\", \"translate text\". Broad terms are valid — the ranker handles breadth internally. Do NOT pre-filter by category; the search layer handles that semantically."
+            "description": "Natural-language capability request, such as \"check wallet balance on Base\", \"generate an image\", \"ETH spot price feed\", or \"translate text\". Broad requests are valid; semantic ranking handles them directly."
           },
           "network": {
             "type": "string",
@@ -205,7 +206,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-marketplace-search-23910bce",
+          "resourceUri": "ui://dexter/x402-marketplace-search-0b654c9b",
           "visibility": [
             "model",
             "app"
@@ -225,8 +226,8 @@
           "domain": "https://dexter.cash",
           "prefersBorder": true
         },
-        "ui/resourceUri": "ui://dexter/x402-marketplace-search-23910bce",
-        "openai/outputTemplate": "ui://dexter/x402-marketplace-search-23910bce",
+        "ui/resourceUri": "ui://dexter/x402-marketplace-search-0b654c9b",
+        "openai/outputTemplate": "ui://dexter/x402-marketplace-search-0b654c9b",
         "openai/resultCanProduceWidget": true,
         "openai/widgetAccessible": true,
         "openai/widgetDomain": "https://dexter.cash",
@@ -362,15 +363,19 @@
                 "enum": [
                   "fetch_by_intent",
                   "connect_then_recheck",
-                  "form_body_then_recheck"
+                  "form_body_then_recheck",
+                  "x402_access",
+                  "provider_response",
+                  "provider_error",
+                  "unsupported_auth",
+                  "siwx_unavailable"
                 ]
               },
               "readyForFetch": {
                 "type": "boolean"
               },
               "intentRequired": {
-                "type": "boolean",
-                "const": true
+                "type": "boolean"
               },
               "requiredCeilingField": {
                 "type": "string",
@@ -394,17 +399,41 @@
               "dispatchAtMostOnce": {
                 "type": "boolean",
                 "const": true
+              },
+              "reprobeAllowed": {
+                "type": "boolean",
+                "const": false
               }
             },
             "required": [
               "supportedPath",
               "readyForFetch",
               "intentRequired",
-              "requiredCeilingField",
-              "fetchArguments",
               "dispatchAtMostOnce"
             ],
             "additionalProperties": false
+          },
+          "siwx": {
+            "type": "object",
+            "properties": {
+              "recognized": {
+                "type": "boolean",
+                "const": true
+              },
+              "signerAvailable": {
+                "type": "boolean",
+                "const": false
+              }
+            },
+            "required": [
+              "recognized",
+              "signerAvailable"
+            ],
+            "additionalProperties": false
+          },
+          "requestAlreadyChecked": {
+            "type": "boolean",
+            "const": true
           },
           "enrichment": {},
           "enrichment_source": {
@@ -413,6 +442,7 @@
           "authMode": {
             "type": "string"
           },
+          "data": {},
           "inputSchema": {},
           "inputSchemaSource": {
             "type": "string"
@@ -425,6 +455,12 @@
           },
           "outputSchema": {},
           "error": {},
+          "reason": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
+          },
           "message": {
             "type": "string"
           },
@@ -455,7 +491,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-pricing-95890725",
+          "resourceUri": "ui://dexter/x402-pricing-259bfcd0",
           "visibility": [
             "model",
             "app"
@@ -473,8 +509,8 @@
           "domain": "https://dexter.cash",
           "prefersBorder": true
         },
-        "ui/resourceUri": "ui://dexter/x402-pricing-95890725",
-        "openai/outputTemplate": "ui://dexter/x402-pricing-95890725",
+        "ui/resourceUri": "ui://dexter/x402-pricing-259bfcd0",
+        "openai/outputTemplate": "ui://dexter/x402-pricing-259bfcd0",
         "openai/resultCanProduceWidget": true,
         "openai/widgetAccessible": true,
         "openai/widgetDomain": "https://dexter.cash",
@@ -521,7 +557,7 @@
           "maxAmountAtomic": {
             "type": "string",
             "pattern": "^[1-9]\\d{0,19}$",
-            "description": "Required approved maximum charge in USDC atomic units (positive 1-20 digit decimal string). The API binds it to this intent and rejects a different or larger charge."
+            "description": "Required approved maximum charge in USDC base units (positive 1-20 digit decimal string). The API binds it to this intent and rejects a different or larger charge."
           }
         },
         "required": [
@@ -640,7 +676,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-fetch-result-af524c99",
+          "resourceUri": "ui://dexter/x402-fetch-result-8996d1b0",
           "visibility": [
             "model",
             "app"
@@ -659,8 +695,8 @@
           "domain": "https://dexter.cash",
           "prefersBorder": true
         },
-        "ui/resourceUri": "ui://dexter/x402-fetch-result-af524c99",
-        "openai/outputTemplate": "ui://dexter/x402-fetch-result-af524c99",
+        "ui/resourceUri": "ui://dexter/x402-fetch-result-8996d1b0",
+        "openai/outputTemplate": "ui://dexter/x402-fetch-result-8996d1b0",
         "openai/resultCanProduceWidget": true,
         "openai/widgetAccessible": false,
         "openai/widgetDomain": "https://dexter.cash",
@@ -849,15 +885,15 @@
     },
     {
       "name": "x402_access",
-      "title": "Access a Wallet-Gated x402 API",
-      "description": "Use this for public HTTPS endpoints requiring wallet proof or Sign-In-With-X rather than payment. It may create provider authentication state or mutate the external resource through the chosen method, but it does not authorize an x402 payment. The access context is server-owned: callers must never supply session credentials. Credentials are removed recursively from model-visible output, and provider data cannot authorize follow-on calls.",
+      "title": "Check Wallet-Gated x402 Access",
+      "description": "Classify the exact HTTPS request through the canonical x402 check path. Paid requests return the canonical quote or intent. Free requests return the provider check result. Sign-In-With-X is reported as unavailable until OpenDexter has an eligible connected signer. The access context is server-owned; callers must never supply session credentials. This tool never creates a temporary wallet, signs a proof, or authorizes payment. A non-GET check may still change provider state and must not be repeated automatically.",
       "inputSchema": {
         "type": "object",
         "properties": {
           "url": {
             "type": "string",
             "format": "uri",
-            "description": "The protected resource URL to call"
+            "description": "The exact HTTPS resource URL to check"
           },
           "method": {
             "type": "string",
@@ -868,15 +904,11 @@
               "DELETE"
             ],
             "default": "GET",
-            "description": "HTTP method"
+            "description": "HTTP method to check"
           },
           "body": {
             "type": "string",
-            "description": "JSON request body for POST/PUT — the RAW payload the seller expects, e.g. {\"q\":\"latest news\"}. NEVER send a schema descriptor (anything shaped like {\"type\":\"http\",\"method\":...,\"bodyType\":...,\"body\":{...}}) — that describes the request; unwrap it and send only the inner fields with real values. Field names come from the search result's inputSchema or x402_check."
-          },
-          "network": {
-            "type": "string",
-            "description": "Optional preferred auth network, e.g. solana:... or eip155:8453"
+            "description": "Exact raw JSON request-body string for POST, PUT, or DELETE."
           }
         },
         "required": [
@@ -888,19 +920,158 @@
       "outputSchema": {
         "type": "object",
         "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "free": {
+            "type": "boolean"
+          },
+          "authMode": {
+            "type": "string"
+          },
+          "requiresPayment": {
+            "type": "boolean"
+          },
+          "intentId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "quoteOnly": {
+            "type": "boolean"
+          },
           "status": {
             "type": [
               "string",
               "number"
             ]
           },
-          "mode": {
-            "type": "string"
+          "statusCode": {
+            "type": "number"
           },
           "data": {},
-          "auth": {},
-          "requirements": {},
+          "checkedRequest": {
+            "type": "object",
+            "properties": {
+              "url": {
+                "type": "string",
+                "format": "uri"
+              },
+              "method": {
+                "type": "string",
+                "enum": [
+                  "GET",
+                  "POST",
+                  "PUT",
+                  "DELETE"
+                ]
+              },
+              "body": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "requestBound": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "url",
+              "method",
+              "body",
+              "requestBound"
+            ],
+            "additionalProperties": false
+          },
+          "siwx": {
+            "type": "object",
+            "properties": {
+              "recognized": {
+                "type": "boolean",
+                "const": true
+              },
+              "signerAvailable": {
+                "type": "boolean",
+                "const": false
+              }
+            },
+            "required": [
+              "recognized",
+              "signerAvailable"
+            ],
+            "additionalProperties": false
+          },
+          "requestAlreadyChecked": {
+            "type": "boolean",
+            "const": true
+          },
+          "executionGuidance": {
+            "type": "object",
+            "properties": {
+              "supportedPath": {
+                "type": "string",
+                "enum": [
+                  "fetch_by_intent",
+                  "connect_then_recheck",
+                  "form_body_then_recheck",
+                  "x402_access",
+                  "provider_response",
+                  "provider_error",
+                  "unsupported_auth",
+                  "siwx_unavailable"
+                ]
+              },
+              "readyForFetch": {
+                "type": "boolean"
+              },
+              "intentRequired": {
+                "type": "boolean"
+              },
+              "requiredCeilingField": {
+                "type": "string",
+                "const": "maxAmountAtomic"
+              },
+              "fetchArguments": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 2,
+                "items": [
+                  {
+                    "type": "string",
+                    "const": "intentId"
+                  },
+                  {
+                    "type": "string",
+                    "const": "maxAmountAtomic"
+                  }
+                ]
+              },
+              "dispatchAtMostOnce": {
+                "type": "boolean",
+                "const": true
+              },
+              "reprobeAllowed": {
+                "type": "boolean",
+                "const": false
+              }
+            },
+            "required": [
+              "supportedPath",
+              "readyForFetch",
+              "intentRequired",
+              "dispatchAtMostOnce"
+            ],
+            "additionalProperties": false
+          },
           "error": {},
+          "reason": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
+          },
           "message": {
             "type": "string"
           },
@@ -921,11 +1092,17 @@
       "securitySchemes": [
         {
           "type": "noauth"
+        },
+        {
+          "type": "oauth2",
+          "scopes": [
+            "vault"
+          ]
         }
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-fetch-result-af524c99",
+          "resourceUri": "ui://dexter/x402-fetch-result-8996d1b0",
           "visibility": [
             "model"
           ],
@@ -943,8 +1120,8 @@
           "domain": "https://dexter.cash",
           "prefersBorder": true
         },
-        "ui/resourceUri": "ui://dexter/x402-fetch-result-af524c99",
-        "openai/outputTemplate": "ui://dexter/x402-fetch-result-af524c99",
+        "ui/resourceUri": "ui://dexter/x402-fetch-result-8996d1b0",
+        "openai/outputTemplate": "ui://dexter/x402-fetch-result-8996d1b0",
         "openai/resultCanProduceWidget": true,
         "openai/widgetAccessible": false,
         "openai/widgetDomain": "https://dexter.cash",
@@ -973,12 +1150,18 @@
             "https://bscscan.com"
           ]
         },
-        "openai/toolInvocation/invoking": "Signing access proof…",
-        "openai/toolInvocation/invoked": "Access response ready",
-        "openai/widgetDescription": "Shows identity-gated API responses with wallet proof details and any follow-up requirements.",
+        "openai/toolInvocation/invoking": "Checking access…",
+        "openai/toolInvocation/invoked": "Access checked",
+        "openai/widgetDescription": "Shows the request classification, payment intent when present, or current SIWX signer availability.",
         "securitySchemes": [
           {
             "type": "noauth"
+          },
+          {
+            "type": "oauth2",
+            "scopes": [
+              "vault"
+            ]
           }
         ]
       }
@@ -1227,7 +1410,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-wallet-3760bc3b",
+          "resourceUri": "ui://dexter/x402-wallet-e33931ca",
           "visibility": [
             "model",
             "app"
@@ -1248,8 +1431,8 @@
           "domain": "https://dexter.cash",
           "prefersBorder": true
         },
-        "ui/resourceUri": "ui://dexter/x402-wallet-3760bc3b",
-        "openai/outputTemplate": "ui://dexter/x402-wallet-3760bc3b",
+        "ui/resourceUri": "ui://dexter/x402-wallet-e33931ca",
+        "openai/outputTemplate": "ui://dexter/x402-wallet-e33931ca",
         "openai/resultCanProduceWidget": true,
         "openai/widgetAccessible": false,
         "openai/widgetDomain": "https://dexter.cash",
@@ -1746,7 +1929,7 @@
     {
       "name": "dexter_prepare_asset_action",
       "title": "Prepare a Governed Send, Buy, or Sell",
-      "description": "Persist and evaluate one exact Send, Buy, or Sell without signing or submitting it. Tool/schema presence is not runtime capability; only this Prepare response is authoritative. For any natural-language stock Buy or Sell, pass companyQuery and let Dexter resolve and pin the current catalog product; never pass a remembered stock assetId, mint, or symbol. The assetId variants remain for a non-stock approved holding or approvedActionTarget returned by dexter_portfolio. In the current integrated release, covered Buy and Sell may continue autonomously, while Send is preserved in the input contract but fails closed with protected_agent_send_sdk_required before capacity reservation or intent creation. A Buy uses exactly one amount mode: amountAtomic is the exact USDC budget to spend, while shareQuantity is the human decimal underlying-share-equivalent quantity requested and may be paired with maximumSpendAtomic as a USDC ceiling. Never convert shareQuantity to token atomic units; Dexter resolves the exact product version, current display multiplier, and raw minimum output. Never send both modes, and never treat shareQuantity as exact output because slight overfill is possible. Sell and Send amountAtomic are selected-asset input. operationId is only the Idempotency-Key. The server resolves the wallet and reusable bounded mandate; enrollment, extension, or owner escalation happens outside model-callable tools only when the request is not already covered.",
+      "description": "Persist and evaluate one exact Send, Buy, or Sell without signing or submitting it. Treat this Prepare response as the proof of current runtime capability. For any natural-language stock Buy or Sell, pass companyQuery and let Dexter resolve and pin the current catalog product; never pass a remembered stock assetId, mint, or symbol. The assetId variants remain for a non-stock approved holding or approvedActionTarget returned by dexter_portfolio. In the current integrated release, covered Buy and Sell may continue autonomously, while Send is preserved in the input contract but fails closed with protected_agent_send_sdk_required before capacity reservation or intent creation. A Buy uses exactly one amount mode: amountAtomic is the exact USDC budget to spend, while shareQuantity is the human decimal underlying-share-equivalent quantity requested and may be paired with maximumSpendAtomic as a USDC ceiling. Keep shareQuantity as a human decimal; Dexter resolves the exact product version, current display multiplier, and raw minimum output. Never send both modes, and never treat shareQuantity as exact output because slight overfill is possible. Sell and Send amountAtomic are selected-asset input. operationId is only the Idempotency-Key. The server resolves the wallet and reusable bounded mandate; enrollment, extension, or owner escalation happens outside model-callable tools only when the request is not already covered.",
       "inputSchema": {
         "anyOf": [
           {
@@ -1768,13 +1951,13 @@
                 "minLength": 1,
                 "maxLength": 128,
                 "pattern": "^[a-z0-9][a-z0-9._:-]*$",
-                "description": "Canonical assetId returned by dexter_portfolio from an approved holding or approvedActionTarget. This is not a symbol or mint; Dexter resolves it to one exact network, mint, token program, decimals, and capability record."
+                "description": "Canonical assetId returned by dexter_portfolio from an approved holding or approvedActionTarget. Pass the assetId itself; Dexter resolves its exact network, mint, token program, decimals, and capability record."
               },
               "amountAtomic": {
                 "type": "string",
                 "maxLength": 20,
                 "pattern": "^[1-9][0-9]*$",
-                "description": "Exact selected-asset amount in atomic units. Use the server-certified decimals returned for this asset; never infer decimals from its symbol."
+                "description": "Exact selected-asset amount in integer base units. Use the server-certified decimals returned for this asset; never infer decimals from its symbol."
               },
               "destinationOwner": {
                 "type": "string",
@@ -1808,7 +1991,7 @@
               },
               "amountAtomic": {
                 "$ref": "#/anyOf/0/properties/amountAtomic",
-                "description": "Exact USDC budget to spend, in atomic units. The canonical settlement asset uses 6 decimals, so 1000000 means 1 USDC; assetId identifies the asset being bought."
+                "description": "Exact USDC budget to spend, in integer base units. The canonical settlement asset uses 6 decimals, so 1000000 means 1 USDC; assetId identifies the asset being bought."
               },
               "memo": {
                 "anyOf": [
@@ -1857,7 +2040,7 @@
               },
               "amountAtomic": {
                 "$ref": "#/anyOf/0/properties/amountAtomic",
-                "description": "Exact USDC budget to spend, in atomic units with 6 decimals, on the stock Dexter selects from the current catalog."
+                "description": "Exact USDC budget to spend, in integer base units with 6 decimals, on the stock Dexter selects from the current catalog."
               },
               "memo": {
                 "$ref": "#/anyOf/1/properties/memo"
@@ -1898,7 +2081,7 @@
               },
               "maximumSpendAtomic": {
                 "$ref": "#/anyOf/0/properties/amountAtomic",
-                "description": "Optional maximum USDC input permitted for this share-quantity Buy, in atomic units with 6 decimals. It is valid only with shareQuantity."
+                "description": "Optional maximum USDC input permitted for this share-quantity Buy, in integer base units with 6 decimals. It is valid only with shareQuantity."
               },
               "memo": {
                 "$ref": "#/anyOf/1/properties/memo"
@@ -1933,7 +2116,7 @@
               },
               "amountAtomic": {
                 "$ref": "#/anyOf/0/properties/amountAtomic",
-                "description": "Exact selected-asset amount to sell, in atomic units. Use the server-certified decimals returned for this asset; never infer decimals from its symbol."
+                "description": "Exact selected-asset amount to sell, in integer base units. Use the server-certified decimals returned for this asset; never infer decimals from its symbol."
               },
               "memo": {
                 "$ref": "#/anyOf/1/properties/memo"
@@ -1968,7 +2151,7 @@
               },
               "amountAtomic": {
                 "$ref": "#/anyOf/0/properties/amountAtomic",
-                "description": "Exact selected-stock token input in atomic units. Dexter resolves the current catalog product, token program, and decimals; never infer them from the company name or symbol."
+                "description": "Exact selected-stock token input in integer base units. Dexter resolves the current catalog product, token program, and decimals; never infer them from the company name or symbol."
               },
               "memo": {
                 "$ref": "#/anyOf/1/properties/memo"
@@ -2149,13 +2332,13 @@
                     "minLength": 1,
                     "maxLength": 128,
                     "pattern": "^[a-z0-9][a-z0-9._:-]*$",
-                    "description": "Canonical assetId returned by dexter_portfolio from an approved holding or approvedActionTarget. This is not a symbol or mint; Dexter resolves it to one exact network, mint, token program, decimals, and capability record."
+                    "description": "Canonical assetId returned by dexter_portfolio from an approved holding or approvedActionTarget. Pass the assetId itself; Dexter resolves its exact network, mint, token program, decimals, and capability record."
                   },
                   {
                     "type": "null"
                   }
                 ],
-                "description": "Canonical assetId returned by dexter_portfolio from an approved holding or approvedActionTarget. This is not a symbol or mint; Dexter resolves it to one exact network, mint, token program, decimals, and capability record."
+                "description": "Canonical assetId returned by dexter_portfolio from an approved holding or approvedActionTarget. Pass the assetId itself; Dexter resolves its exact network, mint, token program, decimals, and capability record."
               },
               "requestedCompanyQuery": {
                 "type": "string",
@@ -3419,13 +3602,13 @@
                     "minLength": 1,
                     "maxLength": 128,
                     "pattern": "^[a-z0-9][a-z0-9._:-]*$",
-                    "description": "Canonical assetId returned by dexter_portfolio from an approved holding or approvedActionTarget. This is not a symbol or mint; Dexter resolves it to one exact network, mint, token program, decimals, and capability record."
+                    "description": "Canonical assetId returned by dexter_portfolio from an approved holding or approvedActionTarget. Pass the assetId itself; Dexter resolves its exact network, mint, token program, decimals, and capability record."
                   },
                   {
                     "type": "null"
                   }
                 ],
-                "description": "Canonical assetId returned by dexter_portfolio from an approved holding or approvedActionTarget. This is not a symbol or mint; Dexter resolves it to one exact network, mint, token program, decimals, and capability record."
+                "description": "Canonical assetId returned by dexter_portfolio from an approved holding or approvedActionTarget. Pass the assetId itself; Dexter resolves its exact network, mint, token program, decimals, and capability record."
               },
               "requestedCompanyQuery": {
                 "type": "string",
@@ -4054,7 +4237,7 @@
             "minLength": 1,
             "maxLength": 128,
             "pattern": "^[a-z0-9][a-z0-9._:-]*$",
-            "description": "Canonical assetId returned by dexter_portfolio from an approved holding or approvedActionTarget. This is not a symbol or mint; Dexter resolves it to one exact network, mint, token program, decimals, and capability record."
+            "description": "Canonical assetId returned by dexter_portfolio from an approved holding or approvedActionTarget. Pass the assetId itself; Dexter resolves its exact network, mint, token program, decimals, and capability record."
           },
           "assetMint": {
             "anyOf": [
@@ -5265,7 +5448,7 @@
                 "minLength": 1,
                 "maxLength": 128,
                 "pattern": "^[a-z0-9][a-z0-9._:-]*$",
-                "description": "Canonical assetId returned by dexter_portfolio from an approved holding or approvedActionTarget. This is not a symbol or mint; Dexter resolves it to one exact network, mint, token program, decimals, and capability record."
+                "description": "Canonical assetId returned by dexter_portfolio from an approved holding or approvedActionTarget. Pass the assetId itself; Dexter resolves its exact network, mint, token program, decimals, and capability record."
               },
               "assetMint": {
                 "anyOf": [
@@ -6430,7 +6613,7 @@
                   "minLength": 1,
                   "maxLength": 128,
                   "pattern": "^[a-z0-9][a-z0-9._:-]*$",
-                  "description": "Canonical assetId returned by dexter_portfolio from an approved holding or approvedActionTarget. This is not a symbol or mint; Dexter resolves it to one exact network, mint, token program, decimals, and capability record."
+                  "description": "Canonical assetId returned by dexter_portfolio from an approved holding or approvedActionTarget. Pass the assetId itself; Dexter resolves its exact network, mint, token program, decimals, and capability record."
                 },
                 "assetMint": {
                   "anyOf": [
