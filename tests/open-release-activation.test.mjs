@@ -46,6 +46,7 @@ const GOVERNED_SECRET = 'g'.repeat(32);
 const PROTECTED_SERVICE_SECRET = 'protected-service-secret';
 const PRODUCTION_PM2_HOME = '/home/branchmanager/.pm2';
 const HARNESS_PM2_TIMEOUT_MS = 250;
+const HARNESS_PM2_STARTUP_TIMEOUT_MS = 500;
 const DEXTER_SERVICES = ['dexter-open-mcp'];
 const FORBIDDEN_LOADER_KEYS = [
   'NODE_OPTIONS',
@@ -1437,6 +1438,8 @@ async function activationHarness({
   tamperCandidateDirectOnly = false,
   tamperSavedCandidateDirectOnly = false,
   tamperSavedUnrelated = false,
+  mutateLiveUnrelatedAfterCandidateStart = false,
+  candidateStartDelayMs = 0,
   swapEnvBeforeCandidateStart = false,
   swapEnvAfterCandidateSave = false,
   initialRows,
@@ -1458,6 +1461,7 @@ async function activationHarness({
   finalPriorHealthMutation = null,
   failWidgetPost = false,
   harnessPm2TimeoutMs = HARNESS_PM2_TIMEOUT_MS,
+  harnessPm2StartupTimeoutMs = HARNESS_PM2_STARTUP_TIMEOUT_MS,
 } = {}) {
   const directory = await mkdtemp(resolve(tmpdir(), 'opendexter-activation-'));
   const pm2Home = resolve(directory, 'pm2');
@@ -1657,6 +1661,12 @@ async function activationHarness({
       return { stdout: 'deleted' };
     }
     if (operation === 'start') {
+      if (candidateStartDelayMs > 0) {
+        await new Promise((resolveDelay) => setTimeout(
+          resolveDelay,
+          candidateStartDelayMs,
+        ));
+      }
       if (swapEnvBeforeCandidateStart) {
         await writeFile(envFile, [
           `GOVERNED_AGENT_ACTIONS_HMAC_SECRET=${GOVERNED_SECRET}`,
@@ -1677,6 +1687,11 @@ async function activationHarness({
         (row) => !DEXTER_SERVICES.includes(row.name),
       );
       rows = [...structuredClone(candidateRows), ...structuredClone(unrelated)];
+      if (mutateLiveUnrelatedAfterCandidateStart) {
+        const unrelatedRow = rows.find((row) => row.name === 'other-service');
+        unrelatedRow.pm2_env.OTHER_PORT = '4012';
+        unrelatedRow.pm2_env.env.OTHER_PORT = '4012';
+      }
       candidateStarted = true;
       return { stdout: 'started' };
     }
@@ -1782,6 +1797,7 @@ async function activationHarness({
       freshInstall,
       healthTimeoutMs: 20,
       pm2CommandTimeoutMs: harnessPm2TimeoutMs,
+      pm2StartupTimeoutMs: harnessPm2StartupTimeoutMs,
       preflightCandidate: (args) => preflightOpenReleaseCandidate({
         ...args,
         pm2Home: PRODUCTION_PM2_HOME,
@@ -2109,7 +2125,10 @@ test('final post-source legacy health proof refuses stale or changed v1 state be
 });
 
 test('activation preserves unrelated live and saved definitions and bounds every PM2 operation', async () => {
-  const successful = await activationHarness({ includeUnrelated: true });
+  const successful = await activationHarness({
+    includeUnrelated: true,
+    candidateStartDelayMs: HARNESS_PM2_TIMEOUT_MS + 50,
+  });
   assert.equal(successful.error, undefined);
   assert.equal(
     successful.rows.find((row) => row.name === 'other-service')
@@ -2128,8 +2147,11 @@ test('activation preserves unrelated live and saved definitions and bounds every
     [...new Set(calls.map((call) => call.args[0]))].sort(),
     ['delete', 'jlist', 'resurrect', 'save', 'start'],
   );
-  for (const { options } of calls) {
-    assert.equal(options.timeout, HARNESS_PM2_TIMEOUT_MS);
+  for (const { args, options } of calls) {
+    const expectedTimeout = args[0] === 'start' || args[0] === 'resurrect'
+      ? HARNESS_PM2_STARTUP_TIMEOUT_MS
+      : HARNESS_PM2_TIMEOUT_MS;
+    assert.equal(options.timeout, expectedTimeout);
     assert.equal(options.killSignal, 'SIGKILL');
     assert.equal(options.signal instanceof AbortSignal, true);
   }
@@ -2159,6 +2181,38 @@ test('distinct unrelated saved and live definitions are each preserved', async (
       result.savedRows.find((row) => row.name === 'other-service')
         .env.OTHER_PORT,
       '4999',
+    );
+  }
+});
+
+test('unrelated live changes do not block a service-scoped OpenDexter cutover', async () => {
+  for (const rejectCandidate of [false, true]) {
+    const result = await activationHarness({
+      includeUnrelated: true,
+      mutateLiveUnrelatedAfterCandidateStart: true,
+      rejectCandidate,
+    });
+    if (rejectCandidate) {
+      assert.match(
+        result.error?.message ?? '',
+        /candidate failed; the exact prior state was restored/,
+      );
+    } else {
+      assert.equal(result.error, undefined);
+    }
+    assert.equal(
+      result.rows.find((row) => row.name === 'other-service')
+        .pm2_env.env.OTHER_PORT,
+      '4012',
+    );
+    assert.equal(
+      result.savedRows.find((row) => row.name === 'other-service')
+        .env.OTHER_PORT,
+      '4010',
+    );
+    assert.equal(
+      result.rows.find((row) => row.name === 'dexter-mcp').pid,
+      902001,
     );
   }
 });

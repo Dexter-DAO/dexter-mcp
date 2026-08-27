@@ -22,6 +22,7 @@ import {
 } from 'node:path';
 import {
   DEFAULT_PM2_COMMAND_TIMEOUT_MS,
+  DEFAULT_PM2_STARTUP_TIMEOUT_MS,
   PRODUCTION_NODE_EXECUTABLE,
   PRODUCTION_PM2_EXECUTABLE,
   runBoundedPm2Command,
@@ -1457,15 +1458,22 @@ function boundedPm2Runner({
   nodeExecutable,
   pm2Executable,
   timeoutMs,
+  startupTimeoutMs,
 }) {
-  return (args) => runBoundedPm2Command({
-    runCommand,
-    args,
-    commandEnvironment,
-    nodeExecutable,
-    pm2Executable,
-    timeoutMs,
-  });
+  return (args) => {
+    const operation = args?.[0];
+    const commandTimeoutMs = operation === 'start' || operation === 'resurrect'
+      ? startupTimeoutMs
+      : timeoutMs;
+    return runBoundedPm2Command({
+      runCommand,
+      args,
+      commandEnvironment,
+      nodeExecutable,
+      pm2Executable,
+      timeoutMs: commandTimeoutMs,
+    });
+  };
 }
 
 async function pm2List(runPm2) {
@@ -1536,14 +1544,12 @@ function assertUnrelatedPm2Processes(
   }
 }
 
-async function assertLiveUnrelatedPm2Processes(
+async function assertPreservedPrivateProcess(
   rows,
-  expected,
   phase,
   expectedPrivateProcess,
   privateProcessProofOptions,
 ) {
-  assertUnrelatedPm2Processes(rows, expected, phase);
   if (
     expectedPrivateProcess !== undefined
     && !samePm2ProcessSnapshot(
@@ -1576,7 +1582,6 @@ async function waitFor(condition, {
 async function deleteServices(
   rows,
   runPm2,
-  expectedUnrelated,
   expectedPrivateProcess,
   privateProcessProofOptions,
 ) {
@@ -1590,9 +1595,8 @@ async function deleteServices(
     .filter((pid) => Number.isInteger(pid) && pid > 0);
   await waitFor(async () => {
     const current = await pm2List(runPm2);
-    await assertLiveUnrelatedPm2Processes(
+    await assertPreservedPrivateProcess(
       current,
-      expectedUnrelated,
       'service deletion',
       expectedPrivateProcess,
       privateProcessProofOptions,
@@ -1606,7 +1610,6 @@ async function deleteServices(
 
 async function deleteServicesForRollback(
   runPm2,
-  expectedUnrelated,
   expectedPrivateProcess,
   privateProcessProofOptions,
   timeoutMs,
@@ -1615,9 +1618,8 @@ async function deleteServicesForRollback(
     let current;
     try {
       current = await pm2List(runPm2);
-      await assertLiveUnrelatedPm2Processes(
+      await assertPreservedPrivateProcess(
         current,
-        expectedUnrelated,
         'rollback deletion',
         expectedPrivateProcess,
         privateProcessProofOptions,
@@ -1641,9 +1643,8 @@ async function deleteServicesForRollback(
       }
     }
     const after = await pm2List(runPm2);
-    await assertLiveUnrelatedPm2Processes(
+    await assertPreservedPrivateProcess(
       after,
-      expectedUnrelated,
       'rollback deletion',
       expectedPrivateProcess,
       privateProcessProofOptions,
@@ -2040,6 +2041,7 @@ export async function activateOpenRelease({
   freshInstall = false,
   healthTimeoutMs = DEFAULT_HEALTH_TIMEOUT_MS,
   pm2CommandTimeoutMs = DEFAULT_PM2_COMMAND_TIMEOUT_MS,
+  pm2StartupTimeoutMs = DEFAULT_PM2_STARTUP_TIMEOUT_MS,
   preflightCandidate = preflightOpenReleaseCandidate,
   verifyPair = verifyRunningOpenReleasePair,
   capturePrior = capturePriorOpenReleasePair,
@@ -2085,6 +2087,7 @@ export async function activateOpenRelease({
     nodeExecutable: PRODUCTION_NODE_EXECUTABLE,
     pm2Executable,
     timeoutMs: pm2CommandTimeoutMs,
+    startupTimeoutMs: pm2StartupTimeoutMs,
   });
   const before = await pm2List(runPm2);
   const hasPriorPair = assertPriorTopology(before, freshInstall);
@@ -2095,7 +2098,6 @@ export async function activateOpenRelease({
     await verifyPriorRestartability({ prior, rows: before });
   }
   const priorProcesses = expectedPriorProcesses(prior);
-  const liveUnrelatedProcesses = unrelatedPm2Snapshot(before);
   const preservedPrivateProcess = await preservedPrivateProcessSnapshot(
     before,
     privateProcessProofOptions,
@@ -2141,9 +2143,8 @@ export async function activateOpenRelease({
       phase: 'prior',
     });
     const liveAfterPriorSave = await pm2List(runPm2);
-    await assertLiveUnrelatedPm2Processes(
+    await assertPreservedPrivateProcess(
       liveAfterPriorSave,
-      liveUnrelatedProcesses,
       'prior save',
       preservedPrivateProcess,
       privateProcessProofOptions,
@@ -2157,9 +2158,8 @@ export async function activateOpenRelease({
     }
     await verifyProtectedEnvironmentStillExact(preflight);
     const finalPreDeleteRows = await pm2List(runPm2);
-    await assertLiveUnrelatedPm2Processes(
+    await assertPreservedPrivateProcess(
       finalPreDeleteRows,
-      liveUnrelatedProcesses,
       'final pre-delete proof',
       preservedPrivateProcess,
       privateProcessProofOptions,
@@ -2199,7 +2199,6 @@ export async function activateOpenRelease({
     await deleteServices(
       before,
       runPm2,
-      liveUnrelatedProcesses,
       preservedPrivateProcess,
       privateProcessProofOptions,
     );
@@ -2209,9 +2208,8 @@ export async function activateOpenRelease({
       runPm2,
     });
     const candidateRows = await pm2List(runPm2);
-    await assertLiveUnrelatedPm2Processes(
+    await assertPreservedPrivateProcess(
       candidateRows,
-      liveUnrelatedProcesses,
       'candidate activation',
       preservedPrivateProcess,
       privateProcessProofOptions,
@@ -2244,9 +2242,8 @@ export async function activateOpenRelease({
       phase: 'candidate',
     });
     const finalRows = await pm2List(runPm2);
-    await assertLiveUnrelatedPm2Processes(
+    await assertPreservedPrivateProcess(
       finalRows,
-      liveUnrelatedProcesses,
       'post-save candidate activation',
       preservedPrivateProcess,
       privateProcessProofOptions,
@@ -2283,7 +2280,6 @@ export async function activateOpenRelease({
       // fresh PM2/private-runtime proof that the public name is absent.
       await deleteServicesForRollback(
         runPm2,
-        liveUnrelatedProcesses,
         preservedPrivateProcess,
         privateProcessProofOptions,
         pm2CommandTimeoutMs,
@@ -2297,9 +2293,8 @@ export async function activateOpenRelease({
         }
         await waitFor(async () => {
           const rows = await pm2List(runPm2);
-          await assertLiveUnrelatedPm2Processes(
+          await assertPreservedPrivateProcess(
             rows,
-            liveUnrelatedProcesses,
             'rollback',
             preservedPrivateProcess,
             privateProcessProofOptions,
@@ -2316,14 +2311,13 @@ export async function activateOpenRelease({
             healthTimeoutMs,
           });
           return true;
-        });
+        }, { timeoutMs: pm2StartupTimeoutMs });
       } else {
         await restorePm2Dump(pm2Home, priorSavedDump);
         await waitFor(async () => {
           const rows = await pm2List(runPm2);
-          await assertLiveUnrelatedPm2Processes(
+          await assertPreservedPrivateProcess(
             rows,
-            liveUnrelatedProcesses,
             'fresh-install rollback',
             preservedPrivateProcess,
             privateProcessProofOptions,
@@ -2351,9 +2345,8 @@ export async function activateOpenRelease({
         await restoreOriginalSavedPm2Dump(pm2Home, savedBefore.bytes);
       }
       const finalRollbackRows = await pm2List(runPm2);
-      await assertLiveUnrelatedPm2Processes(
+      await assertPreservedPrivateProcess(
         finalRollbackRows,
-        liveUnrelatedProcesses,
         'post-save rollback',
         preservedPrivateProcess,
         privateProcessProofOptions,

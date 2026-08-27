@@ -12,6 +12,8 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { promisify } from 'node:util';
 import {
+  DEFAULT_PM2_COMMAND_TIMEOUT_MS,
+  DEFAULT_PM2_STARTUP_TIMEOUT_MS,
   PRODUCTION_NODE_EXECUTABLE,
   PRODUCTION_PM2_EXECUTABLE,
   runBoundedPm2Command,
@@ -23,6 +25,11 @@ import {
 const execFileAsync = promisify(execFile);
 
 const RELEASE_SERVICES = ['dexter-open-mcp'];
+
+test('PM2 startup bound outlasts readiness without weakening routine commands', () => {
+  assert.equal(DEFAULT_PM2_COMMAND_TIMEOUT_MS, 30_000);
+  assert.ok(DEFAULT_PM2_STARTUP_TIMEOUT_MS > 90_000);
+});
 
 test('target definition normalizes only PM2 default instance representations', () => {
   const definition = (instances = Symbol.for('absent')) => {
