@@ -1236,7 +1236,7 @@ async function runCanonicalX402Check(args, session) {
   }
   if (result?.inputSchema) result.inputSchema = unwrapEnvelopeSchema(result.inputSchema);
 
-  const apiBase = (process.env.DEXTER_API_URL || 'http://127.0.0.1:3030').replace(/\/+$/, '');
+  const apiBase = API_BASE_FALLBACK;
   let enrichment = null;
   let enrichmentSource = 'unavailable';
   try {

@@ -52,15 +52,23 @@ test('internal API origin is exact HTTPS or loopback HTTP', () => {
   }
 });
 
-test('dedicated DEXTER_API_URL explicitly precedes legacy API_BASE_URL', () => {
+test('Dexter API origins explicitly precede legacy API_BASE_URL', () => {
   assert.deepEqual(
     INTERNAL_API_ORIGIN_ENV_PRECEDENCE,
-    ['DEXTER_API_URL', 'API_BASE_URL'],
+    ['DEXTER_API_URL', 'DEXTER_API_BASE_URL', 'API_BASE_URL'],
   );
   assert.equal(
     resolveInternalApiOrigin({
       API_BASE_URL: 'https://generic.example',
+      DEXTER_API_BASE_URL: 'https://deployed.dexter.cash',
       DEXTER_API_URL: 'https://api.dexter.cash',
+    }),
+    'https://api.dexter.cash',
+  );
+  assert.equal(
+    resolveInternalApiOrigin({
+      API_BASE_URL: 'https://generic.example',
+      DEXTER_API_BASE_URL: 'https://api.dexter.cash',
     }),
     'https://api.dexter.cash',
   );
@@ -73,6 +81,7 @@ test('dedicated DEXTER_API_URL explicitly precedes legacy API_BASE_URL', () => {
   assert.throws(
     () => resolveInternalApiOrigin({
       DEXTER_API_URL: 'https://api.dexter.cash/internal',
+      DEXTER_API_BASE_URL: 'https://valid.dexter.cash',
       API_BASE_URL: 'https://legacy.dexter.cash',
     }),
     /invalid_internal_api_origin/,

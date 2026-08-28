@@ -45,3 +45,11 @@ test('vault, pairing, portfolio, OAuth seed, pay, and card paths share redirect 
   assert.match(pairingSource, /fetchInternalApi\(/);
   assert.match(portfolioSource, /fetchInternalApi\(/);
 });
+
+test('x402 enrichment uses the shared Dexter API origin', () => {
+  assert.match(serverSource, /const apiBase = API_BASE_FALLBACK;/);
+  assert.doesNotMatch(
+    serverSource,
+    /process\.env\.DEXTER_API_URL \|\| 'http:\/\/127\.0\.0\.1:3030'/,
+  );
+});
