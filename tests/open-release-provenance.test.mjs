@@ -212,6 +212,42 @@ function legacyFixture({ privateAlias = false } = {}) {
     writeFileSync(join(releaseDir, relative), bytes, { mode: 0o400 });
     chmodSync(join(releaseDir, relative), 0o400);
   }
+  let supplementalManifest;
+  if (privateAlias) {
+    const supplementalFiles = new Map([
+      [
+        'scripts/studio-runtime/node_modules/example/index.js',
+        Buffer.from('export const ready = true;\n'),
+      ],
+      [
+        'scripts/studio-runtime/node_modules/example/package.json',
+        Buffer.from('{"name":"example","private":true}\n'),
+      ],
+    ]);
+    for (const [relative, bytes] of supplementalFiles) {
+      mkdirSync(join(releaseDir, relative, '..'), { recursive: true });
+      writeFileSync(join(releaseDir, relative), bytes, { mode: 0o400 });
+      chmodSync(join(releaseDir, relative), 0o400);
+    }
+    for (const relative of [
+      'scripts/studio-runtime/node_modules/example',
+      'scripts/studio-runtime/node_modules',
+      'scripts/studio-runtime',
+      'scripts',
+    ]) {
+      chmodSync(join(releaseDir, relative), 0o500);
+    }
+    const supplementalBytes = Buffer.from([...supplementalFiles.entries()]
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([relative, bytes]) => `F\t${sha256(bytes)}\t${relative}\n`)
+      .join(''));
+    supplementalManifest = {
+      root: 'scripts/studio-runtime/node_modules',
+      fileCount: supplementalFiles.size,
+      artifactManifestSize: supplementalBytes.length,
+      artifactManifestSha256: sha256(supplementalBytes),
+    };
+  }
   const mirroredEntrypoint = join(mirrorDir, 'open-mcp-server.mjs');
   linkSync(join(releaseDir, 'open-mcp-server.mjs'), mirroredEntrypoint);
   const manifest = Buffer.from([...files.entries()]
@@ -243,7 +279,11 @@ function legacyFixture({ privateAlias = false } = {}) {
     packageVersion: '0.4.0',
     packageManager: 'npm@10.9.3',
     node: '^20.19.0 || >=22.12.0',
-    ...(privateAlias ? { directoryName, manifestDirectoryName } : {}),
+    ...(privateAlias ? {
+      directoryName,
+      manifestDirectoryName,
+      supplementalManifest,
+    } : {}),
     entrypoint: privateAlias
       ? 'http-server-oauth.mjs'
       : 'open-mcp-server.mjs',
@@ -267,7 +307,16 @@ function legacyFixture({ privateAlias = false } = {}) {
 }
 
 function removeLegacyFixture(fixture) {
-  chmodSync(fixture.releaseDir, 0o700);
+  function unsealDirectories(directory) {
+    chmodSync(directory, 0o700);
+    for (const item of readdirSync(directory, { withFileTypes: true })) {
+      const absolute = join(directory, item.name);
+      if (item.isDirectory() && !lstatSync(absolute).isSymbolicLink()) {
+        unsealDirectories(absolute);
+      }
+    }
+  }
+  unsealDirectories(fixture.releaseDir);
   chmodSync(join(fixture.releaseDir, 'open-mcp-server.mjs'), 0o600);
   chmodSync(fixture.parent, 0o700);
   rmSync(fixture.parent, { recursive: true, force: true });
@@ -426,6 +475,11 @@ test('legacy v1 reader accepts the exact private runtime alias contract', (t) =>
   );
   assert.equal(release.manifestPath, fixture.manifestPath);
   assert.equal(release.sidecarPath, fixture.sidecarPath);
+  assert.equal(release.rollbackIdentity.fileCount, 7);
+  assert.deepEqual(
+    release.rollbackIdentity.supplementalManifest,
+    fixture.contract.supplementalManifest,
+  );
   for (const manifestDirectoryName of [
     fixture.contract.directoryName,
     '../outside',
@@ -442,6 +496,71 @@ test('legacy v1 reader accepts the exact private runtime alias contract', (t) =>
       /legacy OpenDexter manifest location is not exact/,
     );
   }
+});
+
+test('legacy v1 private supplement rejects changed and out-of-root files', (t) => {
+  const changedFixture = legacyFixture({ privateAlias: true });
+  const extraFixture = legacyFixture({ privateAlias: true });
+  const missingFixture = legacyFixture({ privateAlias: true });
+  const publicFixture = legacyFixture();
+  t.after(() => removeLegacyFixture(changedFixture));
+  t.after(() => removeLegacyFixture(extraFixture));
+  t.after(() => removeLegacyFixture(missingFixture));
+  t.after(() => removeLegacyFixture(publicFixture));
+
+  const changedPath = join(
+    changedFixture.releaseDir,
+    'scripts/studio-runtime/node_modules/example/index.js',
+  );
+  chmodSync(changedPath, 0o600);
+  writeFileSync(changedPath, 'export const ready = false;\n');
+  chmodSync(changedPath, 0o400);
+  assert.throws(
+    () => readSealedLegacyOpenRelease(
+      changedFixture.releaseDir,
+      changedFixture.contract,
+    ),
+    /legacy supplemental manifest identity mismatch/,
+  );
+
+  chmodSync(extraFixture.releaseDir, 0o700);
+  writeFileSync(join(extraFixture.releaseDir, 'unexpected.txt'), 'extra\n', {
+    mode: 0o400,
+  });
+  chmodSync(extraFixture.releaseDir, 0o500);
+  assert.throws(
+    () => readSealedLegacyOpenRelease(
+      extraFixture.releaseDir,
+      extraFixture.contract,
+    ),
+    /legacy supplemental manifest file set is not exact/,
+  );
+
+  const missingDirectory = join(
+    missingFixture.releaseDir,
+    'scripts/studio-runtime/node_modules/example',
+  );
+  chmodSync(missingDirectory, 0o700);
+  rmSync(join(missingDirectory, 'index.js'));
+  chmodSync(missingDirectory, 0o500);
+  assert.throws(
+    () => readSealedLegacyOpenRelease(
+      missingFixture.releaseDir,
+      missingFixture.contract,
+    ),
+    /legacy supplemental manifest file set is not exact/,
+  );
+
+  assert.throws(
+    () => readSealedLegacyOpenRelease(
+      publicFixture.releaseDir,
+      {
+        ...publicFixture.contract,
+        supplementalManifest: changedFixture.contract.supplementalManifest,
+      },
+    ),
+    /legacy supplemental manifest is restricted to private alias/,
+  );
 });
 
 test('legacy v1 reader refuses changed bytes, extras, and sidecar drift', (t) => {
