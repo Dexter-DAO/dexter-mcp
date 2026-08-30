@@ -372,13 +372,10 @@ test('private source receipts bind exact repository refs and descriptor source',
   );
   assert.deepEqual(fixture.receipt.identities[0].refs, [
     'refs/heads/governed-contract',
-    'refs/heads/integrated',
     'refs/tags/governed-contract',
   ]);
   assert.deepEqual(fixture.receipt.identities[1].refs, [
-    'refs/heads/governed-contract',
     'refs/heads/integrated',
-    'refs/tags/governed-contract',
   ]);
 
   const cases = [
