@@ -245,6 +245,7 @@ test('resource metadata names the actual authorization-server issuer', () => {
     'error_description',
   ]);
   assert.deepEqual(OPEN_MCP_PRM.scopes_supported, ['vault']);
+  assert.deepEqual(OPEN_MCP_PRM.bearer_methods_supported, ['header']);
 });
 
 test('path-inserted OpenDexter authorization metadata is fixed and vault-only', () => {
@@ -317,7 +318,7 @@ test('runtime challenge is host-native and contains no legacy pairing path', () 
   assert.deepEqual(result._meta['mcp/www_authenticate'], [VAULT_WWW_AUTHENTICATE]);
   assert.match(VAULT_WWW_AUTHENTICATE, new RegExp(`resource_metadata="${OPEN_MCP_PRM_URL}"`));
   assert.match(VAULT_WWW_AUTHENTICATE, /scope="vault"/);
-  assert.match(VAULT_WWW_AUTHENTICATE, /error="insufficient_scope"/);
+  assert.match(VAULT_WWW_AUTHENTICATE, /error="invalid_token"/);
   assert.match(VAULT_WWW_AUTHENTICATE, /error_description="[^"]+"/);
 });
 
