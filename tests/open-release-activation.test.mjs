@@ -2361,7 +2361,11 @@ async function activationHarness({
         ?? priorRows.filter((row) => row.pm2_env.pmx_module !== true),
     ));
   if (initialSavedBytes !== null) {
-    await writeFile(resolve(pm2Home, 'dump.pm2'), initialSavedBytes);
+    await writeFile(
+      resolve(pm2Home, 'dump.pm2'),
+      initialSavedBytes,
+      { mode: 0o600 },
+    );
   }
   const runCommand = async (command, args, options) => {
     assert.equal(command, PRODUCTION_NODE_EXECUTABLE);
@@ -2445,7 +2449,11 @@ async function activationHarness({
           dump[0][field] = value;
         }
       }
-      await writeFile(resolve(pm2Home, 'dump.pm2'), JSON.stringify(dump));
+      await writeFile(
+        resolve(pm2Home, 'dump.pm2'),
+        JSON.stringify(dump),
+        { mode: 0o600 },
+      );
       if (
         tamperCandidateAfterSave
         && dump.some((row) => row.pm_cwd === release.releaseDir)
@@ -2994,10 +3002,15 @@ async function privateActivationHarness({
     await writeFile(
       resolve(pm2Home, 'dump.pm2'),
       initialSavedBytes,
+      { mode: 0o600 },
     );
   }
   const initialBackupBytes = JSON.stringify(dumpRows([savedOnlyRow]));
-  await writeFile(resolve(pm2Home, 'dump.pm2.bak'), initialBackupBytes);
+  await writeFile(
+    resolve(pm2Home, 'dump.pm2.bak'),
+    initialBackupBytes,
+    { mode: 0o600 },
+  );
   const dynamicProc = {
     realpathImpl: async (path) => path,
     readlinkImpl: async (path) => {
@@ -3039,13 +3052,22 @@ async function privateActivationHarness({
       if (saveCount === 2 && candidateSaveBackupMode === 'missing') {
         await rm(resolve(pm2Home, 'dump.pm2.bak'), { force: true });
       } else if (saveCount === 2 && candidateSaveBackupMode === 'wrong') {
-        await writeFile(resolve(pm2Home, 'dump.pm2.bak'), '[]');
+        await writeFile(
+          resolve(pm2Home, 'dump.pm2.bak'),
+          '[]',
+          { mode: 0o600 },
+        );
       } else if (previousPrimary !== null) {
-        await writeFile(resolve(pm2Home, 'dump.pm2.bak'), previousPrimary);
+        await writeFile(
+          resolve(pm2Home, 'dump.pm2.bak'),
+          previousPrimary,
+          { mode: 0o600 },
+        );
       }
       await writeFile(
         primaryPath,
         JSON.stringify(dumpRows(rows)),
+        { mode: 0o600 },
       );
       return { stdout: 'saved' };
     }
