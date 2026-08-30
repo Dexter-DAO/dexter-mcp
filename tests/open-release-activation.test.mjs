@@ -68,6 +68,51 @@ const FORBIDDEN_LOADER_KEYS = [
   'LD_LIBRARY_PATH',
   'LD_AUDIT',
 ];
+const EXACT_DAEMON = Object.freeze({
+  bootId: 'b8a72f74-0912-45c5-8dcf-a237492acf9f\n',
+  cgroup: '0::/system.slice/pm2-branchmanager.service\n',
+  executable: '/home/branchmanager/.nvm/versions/node/v20.19.1/bin/node',
+  executableSha256:
+    'fea3f6e1e5eb8622bf1af1b85a9384ad88c673674e4b7c6bd223ca1127d1e5e9',
+  pid: 2432040,
+  startTimeTicks: '736087414',
+});
+const EXACT_SYSTEM_FILES = Object.freeze({
+  '/usr/bin/systemctl':
+    'e0d3d0e9444da1b2b58c792c3f5028b69f049b77d5ca17b3ec0d09f89117225b',
+  '/etc/systemd/system/pm2-branchmanager.service':
+    'cdc1563c1d7b3ac18eb0dda51547c4c59bc810e57dee93dbfdc98d59e7d43721',
+  '/etc/systemd/system/pm2-branchmanager.service.d/10-umask.conf':
+    '9e407d257aa91afd3bb98cbb2a571cbcc25f3ed631ef723ccb340c6de9c1c1d8',
+  '/etc/systemd/system/pm2-branchmanager.service.d/20-root-node.conf':
+    '78f3f6c8bfd59928f22f66e856c0ed7427a900cf23527d639d88b6e2e12c79c0',
+});
+const EXACT_SYSTEMD_PROPERTIES = Object.freeze({
+  ActiveState: 'active',
+  ControlGroup: '/system.slice/pm2-branchmanager.service',
+  DropInPaths: '/etc/systemd/system/pm2-branchmanager.service.d/10-umask.conf /etc/systemd/system/pm2-branchmanager.service.d/20-root-node.conf',
+  ExecReload: '{ path=/usr/bin/node ; argv[]=/usr/bin/node /usr/local/lib/node_modules/pm2/bin/pm2 reload all ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }',
+  ExecStart: '{ path=/usr/bin/node ; argv[]=/usr/bin/node /usr/local/lib/node_modules/pm2/bin/pm2 resurrect ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }',
+  ExecStop: '{ path=/usr/bin/node ; argv[]=/usr/bin/node /usr/local/lib/node_modules/pm2/bin/pm2 kill ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }',
+  FragmentPath: '/etc/systemd/system/pm2-branchmanager.service',
+  MainPID: String(EXACT_DAEMON.pid),
+  PIDFile: '/home/branchmanager/.pm2/pm2.pid',
+  SubState: 'running',
+  Type: 'forking',
+  User: 'branchmanager',
+});
+const EXACT_REPORT = Object.freeze({
+  argv: [
+    EXACT_DAEMON.executable,
+    '/usr/local/lib/node_modules/pm2/lib/Daemon.js',
+  ],
+  argv0: EXACT_DAEMON.executable,
+  gid: 1001,
+  node_version: '20.19.1',
+  pm2_version: '6.0.5',
+  uid: 1001,
+  user: 'branchmanager',
+});
 
 test('public and private cutovers share one fail-closed host lock', async () => {
   const directory = await realpath(
@@ -177,6 +222,52 @@ test('PM2 daemon proof refuses ambient fork loader options', async () => {
     }),
     /daemon launch authority is not exact/,
   );
+});
+
+test('PM2 daemon proof accepts only the exact current legacy instance', async () => {
+  await assert.doesNotReject(
+    verifyPm2DaemonLaunchAuthority(exactLegacyDaemonFixture()),
+  );
+});
+
+test('PM2 daemon legacy exception rejects identity and provenance drift', async () => {
+  const cases = [
+    ['pid', { pid: EXACT_DAEMON.pid + 1 }],
+    ['start time', { startTimeTicks: '736087415' }],
+    ['boot', { bootId: 'different-boot\n' }],
+    ['cgroup', { cgroup: '0::/user.slice\n' }],
+    ['title', { title: 'PM2 v6.0.5: forged' }],
+    ['loader environment', { environment: 'PM2_NODE_OPTIONS=--require /tmp/x.cjs\0' }],
+    ['executable path', { executable: '/tmp/node' }],
+    ['executable image hash', { imageSha256: '0'.repeat(64) }],
+    ['executable image inode', { imageStat: { ino: 1870521 } }],
+    ['systemctl hash', {
+      systemFileHashes: { '/usr/bin/systemctl': '0'.repeat(64) },
+    }],
+    ['systemd MainPID', { systemdProperties: { MainPID: '1' } }],
+    ['systemd ExecStart', { systemdProperties: { ExecStart: 'forged' } }],
+    ['systemd drop-ins', { systemdProperties: { DropInPaths: 'forged' } }],
+    ['daemon report version', { report: { pm2_version: '6.0.8' } }],
+    ['daemon report argv', { report: { argv: ['/tmp/node'] } }],
+    ['final pid bytes race', { finalPid: EXACT_DAEMON.pid + 1 }],
+    ['final start-time race', { finalStartTimeTicks: '736087415' }],
+    ['final boot race', { finalBootId: 'different-boot\n' }],
+    ['final cgroup race', { finalCgroup: '0::/user.slice\n' }],
+    ['final executable-link race', { finalExecutable: '/tmp/node' }],
+    ['final title race', { finalTitle: 'PM2 v6.0.5: forged' }],
+    ['final loader race', {
+      finalEnvironment: 'PM2_NODE_OPTIONS=--require /tmp/x.cjs\0',
+    }],
+    ['mid-hash executable race', { imageAfterStat: { size: 99831241 } }],
+    ['final executable hash race', { finalImageSha256: '0'.repeat(64) }],
+  ];
+  for (const [label, overrides] of cases) {
+    await assert.rejects(
+      verifyPm2DaemonLaunchAuthority(exactLegacyDaemonFixture(overrides)),
+      /daemon launch authority is not exact/,
+      label,
+    );
+  }
 });
 
 test('a failing PM2 runtime verifier stops before the first jlist', async () => {
@@ -789,6 +880,203 @@ function fakeProtectedEnvironmentStat() {
     ctimeMs: 100,
     isFile: () => true,
     isSymbolicLink: () => false,
+  };
+}
+
+function exactLegacyImageStat(overrides = {}) {
+  return {
+    dev: 66305,
+    gid: 1001,
+    ino: 1870520,
+    mode: 0o100755,
+    nlink: 1,
+    size: 99831240,
+    uid: 1001,
+    mtimeMs: 100,
+    ctimeMs: 100,
+    isFile: () => true,
+    isSymbolicLink: () => false,
+    ...overrides,
+  };
+}
+
+function exactLegacyDaemonFixture(overrides = {}) {
+  const pid = overrides.pid ?? EXACT_DAEMON.pid;
+  const pm2Home = PRODUCTION_PM2_HOME;
+  const pidPath = resolve(pm2Home, 'pm2.pid');
+  const procRoot = `/proc/${pid}`;
+  const counters = {
+    boot: 0,
+    cgroup: 0,
+    cmdline: 0,
+    environment: 0,
+    image: 0,
+    pid: 0,
+    pidStat: 0,
+    procStat: 0,
+    readlink: 0,
+  };
+  const protectedPidStat = fakeProtectedEnvironmentStat();
+  const procStat = (ticks) => `${pid} (PM2 daemon) ${[
+    'S',
+    ...Array(18).fill('0'),
+    ticks,
+  ].join(' ')}\n`;
+  return {
+    pm2Home,
+    lstatImpl: async (path) => {
+      if (path === pidPath) {
+        counters.pidStat += 1;
+        if (counters.pidStat > 1 && overrides.finalPidStat) {
+          return { ...protectedPidStat, ...overrides.finalPidStat };
+        }
+        return protectedPidStat;
+      }
+      if (Object.hasOwn(EXACT_SYSTEM_FILES, path)) {
+        return {
+          dev: 66305,
+          ino: 100,
+          mode: path === '/usr/bin/systemctl' ? 0o100755 : 0o100644,
+          nlink: 1,
+          uid: 0,
+          gid: 0,
+          size: 100,
+          mtimeMs: 100,
+          ctimeMs: 100,
+          isDirectory: () => false,
+          isFile: () => true,
+          isSymbolicLink: () => false,
+        };
+      }
+      throw new Error(`unexpected daemon lstat ${path}`);
+    },
+    openImpl: async (path, flags) => {
+      assert.equal(path, `${procRoot}/exe`);
+      assert.equal(flags, 'r');
+      const imageIndex = counters.image;
+      counters.image += 1;
+      const base = exactLegacyImageStat(
+        imageIndex === 0
+          ? overrides.imageStat
+          : overrides.finalImageStat,
+      );
+      const after = imageIndex === 0 && overrides.imageAfterStat
+        ? exactLegacyImageStat({ ...overrides.imageStat, ...overrides.imageAfterStat })
+        : base;
+      let statCalls = 0;
+      return {
+        stat: async () => {
+          statCalls += 1;
+          return statCalls === 1 ? base : after;
+        },
+        readFile: async () => Buffer.from(`daemon-image-${imageIndex}`),
+        close: async () => {},
+      };
+    },
+    readFileImpl: async (path) => {
+      if (path === pidPath) {
+        counters.pid += 1;
+        const observedPid = counters.pid > 1
+          ? (overrides.finalPid ?? pid)
+          : pid;
+        return Buffer.from(`${observedPid}\n`);
+      }
+      if (path === `${procRoot}/stat`) {
+        counters.procStat += 1;
+        return procStat(
+          counters.procStat > 1
+            ? (overrides.finalStartTimeTicks
+              ?? overrides.startTimeTicks
+              ?? EXACT_DAEMON.startTimeTicks)
+            : (overrides.startTimeTicks ?? EXACT_DAEMON.startTimeTicks),
+        );
+      }
+      if (path === `${procRoot}/cmdline`) {
+        counters.cmdline += 1;
+        return Buffer.from(
+          `${counters.cmdline > 1
+            ? (overrides.finalTitle
+              ?? overrides.title
+              ?? `PM2 v6.0.5: God Daemon (${pm2Home})`)
+            : (overrides.title
+              ?? `PM2 v6.0.5: God Daemon (${pm2Home})`)}\0`,
+        );
+      }
+      if (path === `${procRoot}/environ`) {
+        counters.environment += 1;
+        return Buffer.from(
+          counters.environment > 1
+            ? (overrides.finalEnvironment
+              ?? overrides.environment
+              ?? 'HOME=/home/branchmanager\0')
+            : (overrides.environment ?? 'HOME=/home/branchmanager\0'),
+        );
+      }
+      if (path === '/proc/sys/kernel/random/boot_id') {
+        counters.boot += 1;
+        return Buffer.from(
+          counters.boot > 1
+            ? (overrides.finalBootId ?? overrides.bootId ?? EXACT_DAEMON.bootId)
+            : (overrides.bootId ?? EXACT_DAEMON.bootId),
+        );
+      }
+      if (path === `${procRoot}/cgroup`) {
+        counters.cgroup += 1;
+        return Buffer.from(
+          counters.cgroup > 1
+            ? (overrides.finalCgroup ?? overrides.cgroup ?? EXACT_DAEMON.cgroup)
+            : (overrides.cgroup ?? EXACT_DAEMON.cgroup),
+        );
+      }
+      if (Object.hasOwn(EXACT_SYSTEM_FILES, path)) {
+        return Buffer.from(`system-file:${path}`);
+      }
+      throw new Error(`unexpected daemon read ${path}`);
+    },
+    readlinkImpl: async (path) => {
+      assert.equal(path, `${procRoot}/exe`);
+      counters.readlink += 1;
+      return counters.readlink > 1
+        ? (overrides.finalExecutable
+          ?? overrides.executable
+          ?? EXACT_DAEMON.executable)
+        : (overrides.executable ?? EXACT_DAEMON.executable);
+    },
+    realpathImpl: async (path) => path,
+    runCommand: async (command, args, options) => {
+      assert.equal(options.env.HOME, '/home/branchmanager');
+      if (command === '/usr/bin/systemctl') {
+        assert.equal(args[0], 'show');
+        return {
+          stdout: `${Object.entries({
+            ...EXACT_SYSTEMD_PROPERTIES,
+            ...overrides.systemdProperties,
+          }).map(([key, value]) => `${key}=${value}`).join('\n')}\n`,
+          stderr: overrides.systemdStderr ?? '',
+        };
+      }
+      assert.equal(command, PRODUCTION_NODE_EXECUTABLE);
+      assert.equal(args[0], '-e');
+      assert.match(args[1], /executeRemote\('getReport'/);
+      return {
+        stdout: JSON.stringify({ ...EXACT_REPORT, ...overrides.report }),
+        stderr: overrides.reportStderr ?? '',
+      };
+    },
+    sha256Impl: (bytes) => {
+      const value = Buffer.from(bytes).toString('utf8');
+      if (value.startsWith('system-file:')) {
+        const path = value.slice('system-file:'.length);
+        return overrides.systemFileHashes?.[path] ?? EXACT_SYSTEM_FILES[path];
+      }
+      if (value === 'daemon-image-0') {
+        return overrides.imageSha256 ?? EXACT_DAEMON.executableSha256;
+      }
+      if (value === 'daemon-image-1') {
+        return overrides.finalImageSha256 ?? EXACT_DAEMON.executableSha256;
+      }
+      throw new Error('unexpected daemon hash input');
+    },
   };
 }
 

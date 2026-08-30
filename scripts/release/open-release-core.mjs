@@ -75,6 +75,95 @@ const PRODUCTION_PM2_CLI_SHA256 =
 const PRODUCTION_NODE_VERSION = 'v18.19.1';
 const PRODUCTION_NODE_SHA256 =
   'f3f93db342d5ac5bb61656d0599a603a73779e98befd9342171e550002725f4d';
+const LEGACY_PM2_DAEMON = Object.freeze({
+  bootId: 'b8a72f74-0912-45c5-8dcf-a237492acf9f\n',
+  cgroup: '0::/system.slice/pm2-branchmanager.service\n',
+  executable:
+    '/home/branchmanager/.nvm/versions/node/v20.19.1/bin/node',
+  executableSha256:
+    'fea3f6e1e5eb8622bf1af1b85a9384ad88c673674e4b7c6bd223ca1127d1e5e9',
+  image: Object.freeze({
+    dev: 66305,
+    gid: 1001,
+    ino: 1870520,
+    mode: 0o100755,
+    nlink: 1,
+    size: 99831240,
+    uid: 1001,
+  }),
+  pid: 2432040,
+  startTimeTicks: '736087414',
+});
+const PM2_SYSTEMD_SERVICE = 'pm2-branchmanager.service';
+const SYSTEMCTL_EXECUTABLE = '/usr/bin/systemctl';
+const SYSTEMD_UNIT = '/etc/systemd/system/pm2-branchmanager.service';
+const SYSTEMD_UMASK_DROP_IN =
+  '/etc/systemd/system/pm2-branchmanager.service.d/10-umask.conf';
+const SYSTEMD_ROOT_NODE_DROP_IN =
+  '/etc/systemd/system/pm2-branchmanager.service.d/20-root-node.conf';
+const LEGACY_PM2_SYSTEM_FILES = Object.freeze([
+  Object.freeze({
+    path: SYSTEMCTL_EXECUTABLE,
+    sha256: 'e0d3d0e9444da1b2b58c792c3f5028b69f049b77d5ca17b3ec0d09f89117225b',
+  }),
+  Object.freeze({
+    path: SYSTEMD_UNIT,
+    sha256: 'cdc1563c1d7b3ac18eb0dda51547c4c59bc810e57dee93dbfdc98d59e7d43721',
+  }),
+  Object.freeze({
+    path: SYSTEMD_UMASK_DROP_IN,
+    sha256: '9e407d257aa91afd3bb98cbb2a571cbcc25f3ed631ef723ccb340c6de9c1c1d8',
+  }),
+  Object.freeze({
+    path: SYSTEMD_ROOT_NODE_DROP_IN,
+    sha256: '78f3f6c8bfd59928f22f66e856c0ed7427a900cf23527d639d88b6e2e12c79c0',
+  }),
+]);
+const LEGACY_PM2_SYSTEMD_PROPERTIES = Object.freeze({
+  ActiveState: 'active',
+  ControlGroup: '/system.slice/pm2-branchmanager.service',
+  DropInPaths: `${SYSTEMD_UMASK_DROP_IN} ${SYSTEMD_ROOT_NODE_DROP_IN}`,
+  ExecReload: '{ path=/usr/bin/node ; argv[]=/usr/bin/node /usr/local/lib/node_modules/pm2/bin/pm2 reload all ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }',
+  ExecStart: '{ path=/usr/bin/node ; argv[]=/usr/bin/node /usr/local/lib/node_modules/pm2/bin/pm2 resurrect ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }',
+  ExecStop: '{ path=/usr/bin/node ; argv[]=/usr/bin/node /usr/local/lib/node_modules/pm2/bin/pm2 kill ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }',
+  FragmentPath: SYSTEMD_UNIT,
+  MainPID: String(LEGACY_PM2_DAEMON.pid),
+  PIDFile: `${PRODUCTION_PM2_HOME}/pm2.pid`,
+  SubState: 'running',
+  Type: 'forking',
+  User: 'branchmanager',
+});
+const LEGACY_PM2_REPORT_FIELDS = Object.freeze({
+  argv: Object.freeze([
+    LEGACY_PM2_DAEMON.executable,
+    `${PRODUCTION_PM2_PACKAGE_ROOT}/lib/Daemon.js`,
+  ]),
+  argv0: LEGACY_PM2_DAEMON.executable,
+  gid: 1001,
+  node_version: '20.19.1',
+  pm2_version: PRODUCTION_PM2_VERSION,
+  uid: 1001,
+  user: 'branchmanager',
+});
+const LEGACY_PM2_REPORT_PROBE = `
+const pm2 = require(${JSON.stringify(PRODUCTION_PM2_PACKAGE_ROOT)});
+pm2.Client.launchRPC((connectionError) => {
+  if (connectionError) process.exit(2);
+  pm2.Client.executeRemote('getReport', {}, (reportError, report) => {
+    if (reportError || !report) process.exitCode = 3;
+    else process.stdout.write(JSON.stringify({
+      argv: report.argv,
+      argv0: report.argv0,
+      gid: report.gid,
+      node_version: report.node_version,
+      pm2_version: report.pm2_version,
+      uid: report.uid,
+      user: report.user,
+    }));
+    pm2.Client.close(() => process.exit());
+  });
+});
+`;
 const GOVERNED_SECRET = 'GOVERNED_AGENT_ACTIONS_HMAC_SECRET';
 const PRESERVED_PRIVATE_SERVICE = 'dexter-mcp';
 const LEGACY_OPEN_RELEASE_DIR =
@@ -2006,6 +2095,205 @@ function environmentKeySet(bytes) {
   return keys;
 }
 
+function exactLegacyDaemonImageStat(stat) {
+  return stat?.isFile?.() === true
+    && stat?.isSymbolicLink?.() !== true
+    && Object.entries(LEGACY_PM2_DAEMON.image).every(
+      ([field, expected]) => stat[field] === expected,
+    );
+}
+
+function sameLegacyDaemonImageIdentity(before, after) {
+  return [
+    'dev',
+    'gid',
+    'ino',
+    'mode',
+    'nlink',
+    'size',
+    'uid',
+    'mtimeMs',
+    'ctimeMs',
+  ].every((field) => before[field] === after[field]);
+}
+
+async function proveLegacyDaemonImage({
+  openImpl,
+  procRoot,
+  sha256Impl,
+}) {
+  const handle = await openImpl(`${procRoot}/exe`, 'r');
+  try {
+    const before = await handle.stat();
+    const bytes = await handle.readFile();
+    const after = await handle.stat();
+    return exactLegacyDaemonImageStat(before)
+      && exactLegacyDaemonImageStat(after)
+      && sameLegacyDaemonImageIdentity(before, after)
+      && sha256Impl(bytes) === LEGACY_PM2_DAEMON.executableSha256;
+  } finally {
+    await handle.close();
+  }
+}
+
+function exactSystemdProperties(stdout) {
+  if (typeof stdout !== 'string' || stdout.length === 0) return false;
+  const expectedKeys = new Set(Object.keys(LEGACY_PM2_SYSTEMD_PROPERTIES));
+  const observed = new Map();
+  for (const line of stdout.trimEnd().split('\n')) {
+    const separator = line.indexOf('=');
+    if (separator < 1) return false;
+    const key = line.slice(0, separator);
+    if (!expectedKeys.has(key) || observed.has(key)) return false;
+    observed.set(key, line.slice(separator + 1));
+  }
+  return observed.size === expectedKeys.size
+    && Object.entries(LEGACY_PM2_SYSTEMD_PROPERTIES).every(
+      ([key, value]) => observed.get(key) === value,
+    );
+}
+
+function exactPm2Report(stdout) {
+  if (typeof stdout !== 'string') return false;
+  let report;
+  try {
+    report = JSON.parse(stdout);
+  } catch {
+    return false;
+  }
+  if (!report || typeof report !== 'object' || Array.isArray(report)) return false;
+  const expectedKeys = Object.keys(LEGACY_PM2_REPORT_FIELDS).sort();
+  if (JSON.stringify(Object.keys(report).sort()) !== JSON.stringify(expectedKeys)) {
+    return false;
+  }
+  return Object.entries(LEGACY_PM2_REPORT_FIELDS).every(([key, value]) => (
+    JSON.stringify(report[key]) === JSON.stringify(value)
+  ));
+}
+
+async function verifyExactLegacyPm2Daemon({
+  beforePidStat,
+  environmentKeys,
+  executable,
+  expectedTitle,
+  lstatImpl,
+  openImpl,
+  pid,
+  pidBytes,
+  pidPath,
+  pm2Home,
+  readFileImpl,
+  readlinkImpl,
+  realpathImpl,
+  runCommand,
+  sha256Impl,
+  startBefore,
+}) {
+  if (
+    pid !== LEGACY_PM2_DAEMON.pid
+    || startBefore !== LEGACY_PM2_DAEMON.startTimeTicks
+    || executable !== LEGACY_PM2_DAEMON.executable
+    || FORBIDDEN_LOADER_ENV_KEYS.some((key) => environmentKeys.has(key))
+  ) {
+    return false;
+  }
+  const procRoot = `/proc/${pid}`;
+  try {
+    const [bootId, cgroup] = await Promise.all([
+      readFileImpl('/proc/sys/kernel/random/boot_id'),
+      readFileImpl(`${procRoot}/cgroup`),
+    ]);
+    if (
+      !Buffer.from(bootId).equals(Buffer.from(LEGACY_PM2_DAEMON.bootId))
+      || !Buffer.from(cgroup).equals(Buffer.from(LEGACY_PM2_DAEMON.cgroup))
+      || !await proveLegacyDaemonImage({ openImpl, procRoot, sha256Impl })
+    ) {
+      return false;
+    }
+    await Promise.all(LEGACY_PM2_SYSTEM_FILES.map(({ path, sha256 }) => (
+      requireProtectedRootOwnedPath(path, {
+        directory: false,
+        expectedSha256: sha256,
+        lstatImpl,
+        readFileImpl,
+        realpathImpl,
+        sha256Impl,
+      })
+    )));
+    const cleanLocale = {
+      LANG: 'C',
+      LC_ALL: 'C',
+      NO_COLOR: '1',
+      PATH: '/usr/bin:/bin',
+    };
+    const [systemd, report] = await Promise.all([
+      runCommand(SYSTEMCTL_EXECUTABLE, [
+        'show',
+        PM2_SYSTEMD_SERVICE,
+        '--no-pager',
+        ...Object.keys(LEGACY_PM2_SYSTEMD_PROPERTIES).map(
+          (key) => `--property=${key}`,
+        ),
+      ], {
+        encoding: 'utf8',
+        env: { HOME: PRODUCTION_HOME, ...cleanLocale },
+        killSignal: 'SIGKILL',
+        maxBuffer: 1024 * 1024,
+        timeout: 5_000,
+      }),
+      runCommand(PRODUCTION_NODE_EXECUTABLE, ['-e', LEGACY_PM2_REPORT_PROBE], {
+        encoding: 'utf8',
+        env: {
+          HOME: PRODUCTION_HOME,
+          PM2_HOME: pm2Home,
+          ...cleanLocale,
+        },
+        killSignal: 'SIGKILL',
+        maxBuffer: 16 * 1024 * 1024,
+        timeout: 30_000,
+      }),
+    ]);
+    if (
+      systemd.stderr !== ''
+      || report.stderr !== ''
+      || !exactSystemdProperties(systemd.stdout)
+      || !exactPm2Report(report.stdout)
+    ) {
+      return false;
+    }
+    const [finalPidStat, finalPidBytes, finalProcStat, finalBootId,
+      finalCgroup, finalExecutableLink, finalCommandLineBytes,
+      finalEnvironmentBytes] = await Promise.all([
+      lstatImpl(pidPath),
+      readFileImpl(pidPath),
+      readFileImpl(`${procRoot}/stat`, 'utf8'),
+      readFileImpl('/proc/sys/kernel/random/boot_id'),
+      readFileImpl(`${procRoot}/cgroup`),
+      readlinkImpl(`${procRoot}/exe`),
+      readFileImpl(`${procRoot}/cmdline`),
+      readFileImpl(`${procRoot}/environ`),
+    ]);
+    const finalExecutable = await realpathImpl(finalExecutableLink);
+    const finalCommandLine = Buffer.from(finalCommandLineBytes)
+      .toString('utf8').split('\0').filter(Boolean);
+    const finalEnvironmentKeys = environmentKeySet(finalEnvironmentBytes);
+    return sameEnvironmentFileIdentity(beforePidStat, finalPidStat)
+      && Buffer.from(finalPidBytes).equals(Buffer.from(pidBytes))
+      && procStartTimeTicks(finalProcStat) === LEGACY_PM2_DAEMON.startTimeTicks
+      && Buffer.from(finalBootId).equals(Buffer.from(LEGACY_PM2_DAEMON.bootId))
+      && Buffer.from(finalCgroup).equals(Buffer.from(LEGACY_PM2_DAEMON.cgroup))
+      && finalExecutable === LEGACY_PM2_DAEMON.executable
+      && finalCommandLine.length === 1
+      && finalCommandLine[0] === expectedTitle
+      && !FORBIDDEN_LOADER_ENV_KEYS.some(
+        (key) => finalEnvironmentKeys.has(key),
+      )
+      && await proveLegacyDaemonImage({ openImpl, procRoot, sha256Impl });
+  } catch {
+    return false;
+  }
+}
+
 /**
  * PM2 6.0.5 prepends its daemon-level PM2_NODE_OPTIONS to every forked Node
  * process. Prove the already-running daemon has no loader-bearing ambient
@@ -2014,9 +2302,12 @@ function environmentKeySet(bytes) {
 export async function verifyPm2DaemonLaunchAuthority({
   pm2Home = defaultPm2Home(),
   lstatImpl = lstat,
+  openImpl = open,
   readFileImpl = readFile,
   readlinkImpl = readlink,
   realpathImpl = realpath,
+  runCommand = execFileAsync,
+  sha256Impl = sha256Bytes,
 } = {}) {
   if (pm2Home !== PRODUCTION_PM2_HOME) {
     throw new Error('PM2 daemon proof requires the production PM2_HOME');
@@ -2056,12 +2347,31 @@ export async function verifyPm2DaemonLaunchAuthority({
   const environmentKeys = environmentKeySet(
     await readFileImpl(`${procRoot}/environ`),
   );
+  const exactExecutable = executable === PRODUCTION_NODE_EXECUTABLE
+    || await verifyExactLegacyPm2Daemon({
+      beforePidStat: before,
+      environmentKeys,
+      executable,
+      expectedTitle,
+      lstatImpl,
+      openImpl,
+      pid,
+      pidBytes,
+      pidPath,
+      pm2Home,
+      readFileImpl,
+      readlinkImpl,
+      realpathImpl,
+      runCommand,
+      sha256Impl,
+      startBefore,
+    });
   const startAfter = procStartTimeTicks(
     await readFileImpl(`${procRoot}/stat`, 'utf8'),
   );
   const after = await lstatImpl(pidPath);
   if (
-    executable !== PRODUCTION_NODE_EXECUTABLE
+    !exactExecutable
     || commandLine.length !== 1
     || commandLine[0] !== expectedTitle
     || FORBIDDEN_LOADER_ENV_KEYS.some((key) => environmentKeys.has(key))
@@ -2085,6 +2395,7 @@ async function requireProtectedRootOwnedPath(path, {
   lstatImpl = lstat,
   readFileImpl = readFile,
   realpathImpl = realpath,
+  sha256Impl = sha256Bytes,
 } = {}) {
   if (await realpathImpl(path) !== path) {
     throw new Error(`production PM2 path is not canonical: ${path}`);
@@ -2100,7 +2411,7 @@ async function requireProtectedRootOwnedPath(path, {
   }
   if (
     expectedSha256 !== null
-    && sha256Bytes(await readFileImpl(path)) !== expectedSha256
+    && sha256Impl(await readFileImpl(path)) !== expectedSha256
   ) {
     throw new Error(`production PM2 bytes differ from the reviewed release: ${path}`);
   }
