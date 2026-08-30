@@ -17,6 +17,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
+import { readOpenReleaseIdentity } from '../lib/open-release-identity.mjs';
+
 const require = createRequire(import.meta.url);
 const {
   readSealedLegacyOpenRelease,
@@ -27,6 +29,17 @@ const fs = require('node:fs');
 const COMMIT = 'a'.repeat(40);
 const TREE = 'b'.repeat(40);
 
+function releaseIdentityEnvironment(service) {
+  return {
+    DEXTER_MCP_RELEASE_COMMIT: COMMIT,
+    DEXTER_MCP_RELEASE_TREE: TREE,
+    DEXTER_MCP_RELEASE_MANIFEST_SHA256: 'c'.repeat(64),
+    DEXTER_MCP_DESCRIPTOR_SHA256: 'd'.repeat(64),
+    DEXTER_MCP_RELEASE_PACKAGE_VERSION: '0.5.0',
+    DEXTER_MCP_RELEASE_SERVICE: service,
+  };
+}
+
 function sha256(value) {
   return createHash('sha256').update(value).digest('hex');
 }
@@ -36,6 +49,7 @@ function sealedFixture({
   symlinks = {},
   unmanifestedFiles = {},
   openRoster = ['x402_search', 'dexter_prepare_asset_action'],
+  privateRoster,
 } = {}) {
   const parent = mkdtempSync(join(tmpdir(), 'opendexter-release-fixture-'));
   const releaseDir = join(parent, COMMIT);
@@ -49,6 +63,13 @@ function sealedFixture({
     }))],
     ['package-lock.json', Buffer.from('{}\n')],
   ]);
+  if (privateRoster) {
+    files.set('http-server-oauth.mjs', Buffer.from('// private fixture\n'));
+    files.set(
+      'ecosystem.private.production.cjs',
+      Buffer.from('// private ecosystem fixture\n'),
+    );
+  }
   const descriptor = Buffer.from(`${JSON.stringify({
     connectedToolNames: openRoster,
     tools: openRoster.map((name) => ({ name })),
@@ -58,7 +79,9 @@ function sealedFixture({
     files.set(relative, Buffer.from(contents));
   }
   const sealedProvenance = {
-    schema: 'dexter-mcp-immutable-release/v3',
+    schema: privateRoster
+      ? 'dexter-mcp-immutable-release/v4'
+      : 'dexter-mcp-immutable-release/v3',
     sourceCommit: COMMIT,
     sourceTree: TREE,
     sourceArchiveSha256: 'c'.repeat(64),
@@ -69,9 +92,11 @@ function sealedFixture({
     npmVersion: '10.9.3',
     sourceCommittedAt: '2026-08-01T00:00:00.000Z',
     entrypoints: {
+      ...(privateRoster ? { 'dexter-mcp': 'production-bootstrap.mjs' } : {}),
       'dexter-open-mcp': 'production-bootstrap.mjs',
     },
     rosters: {
+      ...(privateRoster ? { 'dexter-mcp': privateRoster } : {}),
       'dexter-open-mcp': openRoster,
     },
   };
@@ -141,10 +166,13 @@ function removeFixture(fixture) {
   rmSync(fixture.parent, { recursive: true, force: true });
 }
 
-function legacyFixture() {
+function legacyFixture({ privateAlias = false } = {}) {
   const parent = mkdtempSync(join(tmpdir(), 'opendexter-legacy-release-'));
   const sourceCommit = '8'.repeat(40);
-  const releaseDir = join(parent, sourceCommit);
+  const directoryName = privateAlias
+    ? `${sourceCommit}-runtime1`
+    : sourceCommit;
+  const releaseDir = join(parent, directoryName);
   const mirrorDir = join(parent, 'private-runtime-mirror');
   mkdirSync(releaseDir, { recursive: true });
   mkdirSync(mirrorDir, { recursive: true });
@@ -206,8 +234,13 @@ function legacyFixture() {
     packageVersion: '0.4.0',
     packageManager: 'npm@10.9.3',
     node: '^20.19.0 || >=22.12.0',
-    entrypoint: 'open-mcp-server.mjs',
-    entrypointSha256: sha256(entrypoint),
+    ...(privateAlias ? { directoryName } : {}),
+    entrypoint: privateAlias
+      ? 'http-server-oauth.mjs'
+      : 'open-mcp-server.mjs',
+    entrypointSha256: sha256(files.get(privateAlias
+      ? 'http-server-oauth.mjs'
+      : 'open-mcp-server.mjs')),
     canonicalRemote: 'https://example.test/dexter-mcp.git',
     canonicalRef: 'refs/heads/release',
     healthKeys: [],
@@ -244,6 +277,32 @@ test('sealed release binds complete files, descriptor, roster, and source identi
   assert.equal(
     readFileSync(release.descriptorPath, 'utf8').includes('x402_search'),
     true,
+  );
+});
+
+test('v4 sealed release binds the private OAuth server and public OpenDexter together', (t) => {
+  const privateRoster = ['resolve_wallet', 'auth_info'];
+  const fixture = sealedFixture({ privateRoster });
+  t.after(() => removeFixture(fixture));
+  const release = readSealedOpenRelease(fixture.releaseDir);
+  assert.equal(release.provenance.schema, 'dexter-mcp-immutable-release/v4');
+  assert.deepEqual(release.provenance.rosters['dexter-mcp'], privateRoster);
+  assert.equal(
+    release.provenance.entrypoints['dexter-mcp'],
+    'production-bootstrap.mjs',
+  );
+});
+
+test('release identity parser accepts both attested v4 service names', () => {
+  for (const service of ['dexter-mcp', 'dexter-open-mcp']) {
+    assert.equal(
+      readOpenReleaseIdentity(releaseIdentityEnvironment(service)).service,
+      service,
+    );
+  }
+  assert.throws(
+    () => readOpenReleaseIdentity(releaseIdentityEnvironment('other-service')),
+    /invalid_opendexter_release_identity/,
   );
 });
 
@@ -336,6 +395,19 @@ test('legacy v1 reader binds manifest, metadata, hard links, and performs no wri
   }
   assert.equal(before.entrypoint.ino, before.mirror.ino);
   assert.equal(before.entrypoint.nlink, 2);
+});
+
+test('legacy v1 reader accepts the exact private runtime alias contract', (t) => {
+  const fixture = legacyFixture({ privateAlias: true });
+  t.after(() => removeLegacyFixture(fixture));
+  const release = readSealedLegacyOpenRelease(
+    fixture.releaseDir,
+    fixture.contract,
+  );
+  assert.equal(
+    release.entrypoint,
+    join(fixture.releaseDir, 'http-server-oauth.mjs'),
+  );
 });
 
 test('legacy v1 reader refuses changed bytes, extras, and sidecar drift', (t) => {

@@ -34,7 +34,9 @@
     "deploy:apps-sdk": "node scripts/deploy-apps-sdk.mjs",
     "sentry:apps-sdk:upload": "node scripts/upload-apps-sdk-sourcemaps.mjs",
     "build:mcp-release": "node scripts/release/build-open-release.mjs",
-    "deploy:mcp": "npm run verify:release:runtime && npm run verify:release:installed && node scripts/release/activate-open-release.mjs"
+    "deploy:mcp": "npm run verify:release:runtime && npm run verify:release:installed && node scripts/release/activate-open-release.mjs",
+    "deploy:mcp:private": "npm run verify:release:runtime && npm run verify:release:installed && node scripts/release/activate-private-release.mjs",
+    "recover:mcp:private": "npm run verify:release:runtime && npm run verify:release:installed && node scripts/release/recover-private-release.mjs"
   },
   "dependencies": {
     "@dexterai/mcp-instructions": "2.4.2-rc.1",

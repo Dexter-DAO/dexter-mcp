@@ -31,19 +31,23 @@ export const CANONICAL_SOURCE_ORIGIN =
   'https://github.com/Dexter-DAO/dexter-mcp.git';
 export const REQUIRED_NPM_VERSION = REVIEWED_NPM_VERSION;
 export const RELEASE_PROVENANCE_SCHEMA =
-  'dexter-mcp-immutable-release/v3';
+  'dexter-mcp-immutable-release/v4';
 
 const SOURCE_COMMIT = /^[0-9a-f]{40}$/;
 const SHA256 = /^[0-9a-f]{64}$/;
 const TOOL_NAME = /^[A-Za-z0-9_.-]{1,128}$/;
 const SOURCE_CONTRACTS_SCHEMA_VERSION = 3;
 const SOURCE_CONTRACTS_KIND = 'opendexter-source-contracts/v3';
+const PRIVATE_ROSTER_MARKER = 'DEXTER_MCP_PRIVATE_ROSTER=';
 const ENTRYPOINTS = Object.freeze({
+  'dexter-mcp': 'production-bootstrap.mjs',
   'dexter-open-mcp': 'production-bootstrap.mjs',
 });
 const APPLICATION_ENTRYPOINTS = Object.freeze({
+  'dexter-mcp': 'http-server-oauth.mjs',
   'dexter-open-mcp': 'open-mcp-server.mjs',
 });
+const PRIVATE_ECOSYSTEM_ENTRYPOINT = 'ecosystem.private.production.cjs';
 
 function exactEnvironment(values) {
   return Object.fromEntries(
@@ -64,6 +68,8 @@ function buildEnvironment({
     }),
     SENTRY_DSN: '',
     SENTRY_OPEN_MCP_DSN: '',
+    TOKEN_AI_MCP_PROFILE: '',
+    TOKEN_AI_MCP_TOOLSETS: '',
   });
 }
 
@@ -180,6 +186,37 @@ function parseDescriptor(stdout) {
   }
   return { descriptor, connected };
 }
+
+function parsePrivateRoster(stdout) {
+  const marker = stdout.lastIndexOf(PRIVATE_ROSTER_MARKER);
+  if (marker < 0) {
+    throw new Error('archived private server did not emit its finalized roster');
+  }
+  const encoded = stdout
+    .slice(marker + PRIVATE_ROSTER_MARKER.length)
+    .split(/\r?\n/, 1)[0];
+  try {
+    return exactRoster(JSON.parse(encoded), 'private MCP server');
+  } catch (error) {
+    if (error?.message?.includes('exact tool roster')) throw error;
+    throw new Error('archived private server emitted an invalid roster', {
+      cause: error,
+    });
+  }
+}
+
+const PRIVATE_ROSTER_PROGRAM = String.raw`
+  const { buildMcpServer } = await import('./common.mjs');
+  const { SEALED_PRIVATE_TOOLSET_PROFILE } = await import('./toolsets/index.mjs');
+  const server = await buildMcpServer({
+    profile: SEALED_PRIVATE_TOOLSET_PROFILE,
+  });
+  const tools = server?._registeredTools;
+  const names = tools && typeof tools === 'object' ? Object.keys(tools) : [];
+  process.stdout.write('\n${PRIVATE_ROSTER_MARKER}' + JSON.stringify(names) + '\n');
+  try { await server.close(); } catch {}
+  process.exit(0);
+`;
 
 async function requireTrustedOutputRoot(io, outputRoot, sourceRoot) {
   if (typeof outputRoot !== 'string' || !isAbsolute(outputRoot)) {
@@ -348,6 +385,7 @@ async function requireCandidateEntrypoints(io, candidate) {
   const expected = new Set([
     ...Object.values(ENTRYPOINTS),
     ...Object.values(APPLICATION_ENTRYPOINTS),
+    PRIVATE_ECOSYSTEM_ENTRYPOINT,
   ]);
   for (const entrypoint of expected) {
     const stat = await io.lstat(join(candidate, entrypoint));
@@ -669,6 +707,14 @@ export async function buildOpenRelease({
       );
     }
 
+    const privateOutput = await runText(
+      runCommand,
+      reviewedNpm.nodeExecutable,
+      ['--input-type=module', '--eval', PRIVATE_ROSTER_PROGRAM],
+      { cwd: candidate, env: materializerEnv },
+    );
+    const privateRoster = parsePrivateRoster(privateOutput);
+
     const sealedProvenance = {
       schema: RELEASE_PROVENANCE_SCHEMA,
       sourceCommit: commit,
@@ -682,6 +728,7 @@ export async function buildOpenRelease({
       sourceCommittedAt,
       entrypoints: { ...ENTRYPOINTS },
       rosters: {
+        'dexter-mcp': privateRoster,
         'dexter-open-mcp': connected,
       },
     };

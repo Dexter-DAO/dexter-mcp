@@ -7,12 +7,16 @@ import {
   requireSealedOpenReleaseBootstrap,
 } from './lib/open-release-runtime-preflight.mjs';
 
-const { APPLICATION_ENTRYPOINTS, SERVICE_NAMES } = releaseProvenance;
+const { APPLICATION_ENTRYPOINTS } = releaseProvenance;
 const releaseDir = resolve(dirname(fileURLToPath(import.meta.url)));
+const APPLICATION_STARTERS = Object.freeze({
+  'dexter-mcp': 'startHttpServer',
+  'dexter-open-mcp': 'startOpenMcpServer',
+});
 
 export async function startProductionService(env = process.env) {
   const service = env.DEXTER_MCP_RELEASE_SERVICE?.trim() ?? '';
-  if (!SERVICE_NAMES.includes(service)) {
+  if (!Object.hasOwn(APPLICATION_ENTRYPOINTS, service)) {
     throw new TypeError('opendexter_release_service_unavailable');
   }
   requireSealedOpenReleaseBootstrap({ releaseDir, service, env });
@@ -21,7 +25,11 @@ export async function startProductionService(env = process.env) {
   // import graph. Only authenticated release bytes can reach this import.
   const applicationPath = resolve(releaseDir, APPLICATION_ENTRYPOINTS[service]);
   const application = await import(pathToFileURL(applicationPath).href);
-  await application.startOpenMcpServer();
+  const start = application[APPLICATION_STARTERS[service]];
+  if (typeof start !== 'function') {
+    throw new TypeError('opendexter_release_application_unavailable');
+  }
+  await start();
 }
 
 const bootstrapPath = fileURLToPath(import.meta.url);

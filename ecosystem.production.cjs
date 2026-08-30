@@ -113,6 +113,13 @@ if (Buffer.byteLength(governedSecret, "utf8") < 32) {
 }
 applicationEnvironment.GOVERNED_AGENT_ACTIONS_HMAC_SECRET = governedSecret;
 
+const privateRosterSelectors = Object.freeze(Object.fromEntries(
+  ["TOKEN_AI_MCP_PROFILE", "TOKEN_AI_MCP_TOOLSETS"].map((key) => [
+    key,
+    String(applicationEnvironment[key] ?? "").trim(),
+  ]),
+));
+
 if (Object.hasOwn(applicationEnvironment, "PM2_HOME")) {
   throw new Error("PM2_HOME is forbidden in DEXTER_MCP_ENV_FILE");
 }
@@ -192,6 +199,13 @@ const common = {
 };
 
 function service(name) {
+  if (name === "dexter-mcp") {
+    for (const [key, value] of Object.entries(privateRosterSelectors)) {
+      if (value !== "") {
+        throw new Error(`${key} must be empty for the sealed private roster`);
+      }
+    }
+  }
   const identity = releaseIdentityForService(release, name);
   return {
     ...common,
@@ -213,8 +227,17 @@ function service(name) {
   };
 }
 
-module.exports = {
+const ecosystem = {
   apps: [
     service("dexter-open-mcp"),
   ],
 };
+
+// The private-only ecosystem entrypoint reuses this exact environment and
+// release-identity construction without adding its app to deploy:mcp.
+Object.defineProperty(ecosystem, "__dexterBuildSealedService", {
+  value: service,
+  enumerable: false,
+});
+
+module.exports = ecosystem;
