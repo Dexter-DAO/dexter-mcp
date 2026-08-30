@@ -15,8 +15,11 @@ import {
   markAccountBound,
   markVaultAuthMode,
   markVaultBound,
+  openSessionResourceOf,
+  openSessionResourceStatus,
   oauthVaultIdentityOf,
   oauthVaultIdentityStatus,
+  pinOpenSessionResource,
   pinOAuthVaultIdentity,
   vaultAuthModeOf,
 } from '../lib/open-session-auth-state.mjs';
@@ -26,6 +29,25 @@ const OAUTH_IDENTITY = Object.freeze({
   surface: 'a'.repeat(64),
   issuer: 'https://dexter.cash',
   audience: 'https://open.dexter.cash/mcp',
+});
+
+const PUBLIC_RESOURCE = 'https://open.dexter.cash/mcp';
+const VAULT_RESOURCE = 'https://open.dexter.cash/mcp/vault';
+
+test('an MCP session is pinned immutably to its initialization resource', () => {
+  const meta = pinOpenSessionResource(
+    createOpenSessionMeta(1),
+    PUBLIC_RESOURCE,
+  );
+
+  assert.equal(openSessionResourceOf(meta), PUBLIC_RESOURCE);
+  assert.equal(openSessionResourceStatus(meta, PUBLIC_RESOURCE), 'match');
+  assert.equal(openSessionResourceStatus(meta, VAULT_RESOURCE), 'mismatch');
+  assert.doesNotThrow(() => pinOpenSessionResource(meta, PUBLIC_RESOURCE));
+  assert.throws(
+    () => pinOpenSessionResource(meta, VAULT_RESOURCE),
+    /open_session_resource_mismatch/,
+  );
 });
 
 test('account authentication remains separate from vault authorization', () => {
