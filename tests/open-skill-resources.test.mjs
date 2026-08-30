@@ -143,6 +143,8 @@ test('generated runtime instructions route the complete twelve-tool product', ()
   const runtime = buildOpenServerInstructions();
 
   assert.deepEqual(mentionedOpenDexterTools(runtime), [...EXPECTED_TOOLS].sort());
+  assert.match(runtime, /Set up, connect, sign in to, authenticate, authorize,[\s\S]*call x402_wallet first/);
+  assert.match(runtime, /before marketplace search or another protected tool/);
   assert.match(runtime, /Wallet presence, balance, cash, readiness, deposit address,[\s\S]*x402_wallet/);
   assert.match(runtime, /What's in my wallet\?[\s\S]*x402_wallet, then dexter_portfolio/);
   assert.match(runtime, /Compose cash\/readiness with governed assets/);
@@ -194,6 +196,10 @@ test('generated runtime instructions preserve current wallet and authority truth
   const runtime = buildOpenServerInstructions();
 
   assert.match(runtime, /native OpenDexter Connect action/);
+  assert.match(runtime, /Connected label[\s\S]*wallet authorization is proven only by a successful protected tool call/);
+  assert.match(runtime, /Connected appears without authorization[\s\S]*call x402_wallet once more/);
+  assert.match(runtime, /plugin or integration settings[\s\S]*Authorize or Authenticate/);
+  assert.match(runtime, /never claim that a confirmation card appeared/);
   assert.match(runtime, /Authentication proves the connected wallet session; it does not by itself authorize/);
   assert.match(runtime, /Zero cash does not prove that funding is required/);
   assert.match(runtime, /reported credit does not prove that a particular purchase can use it/);

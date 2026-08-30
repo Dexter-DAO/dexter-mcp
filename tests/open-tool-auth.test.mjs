@@ -436,6 +436,10 @@ test('runtime challenges preserve precise OAuth errors and escape header input',
   assert.equal(challenge.includes('\n'), false);
 
   const data = buildVaultAuthenticationRequired({ tool: 'x402_wallet' });
+  assert.match(data.instructions, /host only says Connected/);
+  assert.match(data.instructions, /plugin or integration settings/);
+  assert.match(data.instructions, /Authorize or Authenticate/);
+  assert.match(data.instructions, /successful protected tool retry proves it/);
   const result = vaultAuthenticationResult(data, {}, challenge);
   assert.deepEqual(result._meta['mcp/www_authenticate'], [challenge]);
 });

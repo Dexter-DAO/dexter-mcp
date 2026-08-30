@@ -41,7 +41,7 @@ import {
 // HMAC client for the wallet widget's read-only card summary + frame-only rail.
 import { createRemoteCardOperations } from '@dexterai/x402-mcp-tools';
 import { fetchVaultStateBySession, fetchVaultStateByUserHandle } from './lib/pairing-mint.mjs';
-import { shouldChallengeSpend } from './lib/spend-challenge.mjs';
+import { shouldChallengeVaultAccess } from './lib/spend-challenge.mjs';
 import { applyRailTabOffer } from './lib/rail-tab-offer.mjs';
 import {
   PURCHASE_CONTRACT_VERSION,
@@ -2681,7 +2681,7 @@ function writeCors(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, DELETE');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, mcp-session-id, Authorization');
-  res.setHeader('Access-Control-Expose-Headers', 'mcp-session-id');
+  res.setHeader('Access-Control-Expose-Headers', 'mcp-session-id, WWW-Authenticate');
 }
 
 const httpServer = http.createServer(async (req, res) => {
@@ -3104,14 +3104,14 @@ const httpServer = http.createServer(async (req, res) => {
       // dexter-api) runs only when they alone would challenge. Never
       // challenge on the in-memory flag alone — it dies on restart while
       // mcp_vault_bindings rows survive.
-      if (shouldChallengeSpend({
+      if (shouldChallengeVaultAccess({
         messages: parsedBody,
         hasValidVaultBearer,
         boundInMemory,
         boundDurable: false,
       })) {
         const boundDurable = await lookupDurableVaultBinding(sessionId);
-        if (shouldChallengeSpend({
+        if (shouldChallengeVaultAccess({
           messages: parsedBody,
           hasValidVaultBearer,
           boundInMemory,
