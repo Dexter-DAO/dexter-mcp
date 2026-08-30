@@ -865,6 +865,7 @@ export async function preflightOpenReleaseCandidate({
   for (const key of [
     'NODE_OPTIONS',
     'NODE_PATH',
+    'PM2_NODE_OPTIONS',
     'LD_PRELOAD',
     'LD_LIBRARY_PATH',
     'LD_AUDIT',
