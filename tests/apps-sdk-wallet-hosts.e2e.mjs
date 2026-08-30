@@ -587,6 +587,16 @@ test('wallet Money overview renders honest states in ChatGPT and MCP Apps deskto
       screenshot: 'mcp-apps-desktop-partial-enrichment.png',
     },
     {
+      name: 'MCP Apps mobile complete',
+      host: 'mcp-apps',
+      mobile: true,
+      output: walletOutput(),
+      portfolio: completePortfolio(),
+      assertAssets: assertCompleteAssets,
+      homeScreenshot: 'mcp-apps-mobile-complete-home.png',
+      screenshot: 'mcp-apps-mobile-complete.png',
+    },
+    {
       name: 'MCP Apps mobile unavailable',
       host: 'mcp-apps',
       mobile: true,
@@ -653,6 +663,9 @@ test('wallet Money overview renders honest states in ChatGPT and MCP Apps deskto
       }
 
       await assertMoneyHome(surface, scenario.name);
+      if (scenario.homeScreenshot) {
+        await maybeScreenshot(surface, scenario.homeScreenshot);
+      }
       await scenario.assertAssets(surface, scenario.name, artworkRequests);
 
       const scrolling = await surface.locator('.dxw-sheet').evaluate((sheet) => {

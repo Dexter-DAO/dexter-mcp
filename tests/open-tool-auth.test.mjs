@@ -195,6 +195,15 @@ test('real SDK tools/list carries canonical and mirrored auth schemes', async ()
       listed.tools.find((tool) => tool.name === 'x402_wallet')._meta.securitySchemes,
       [{ type: 'oauth2', scopes: ['vault'] }],
     );
+    const listedSearch = listed.tools.find((tool) => tool.name === 'x402_search');
+    const listedWallet = listed.tools.find((tool) => tool.name === 'x402_wallet');
+    assert.equal(listedSearch._meta.ui, undefined);
+    assert.equal(listedSearch._meta['ui/resourceUri'], undefined);
+    assert.equal(listedWallet._meta.ui.resourceUri, 'ui://wallet');
+    assert.equal(listedWallet._meta['ui/resourceUri'], 'ui://wallet');
+
+    const fallback = await client.callTool({ name: 'x402_wallet', arguments: {} });
+    assert.deepEqual(fallback.content, [{ type: 'text', text: 'ok' }]);
   } finally {
     await client.close();
     await server.close();
