@@ -214,6 +214,7 @@ test('mixed HTTP discovery stays public while the exact vault resource authentic
     await waitForStartup(child, openMcpPort, output);
     const mcpUrl = new URL(`http://127.0.0.1:${openMcpPort}/mcp`);
     const vaultUrl = new URL(`http://127.0.0.1:${openMcpPort}/mcp/vault`);
+    const trailingSlashVaultUrl = new URL(`http://127.0.0.1:${openMcpPort}/mcp/vault/`);
 
     const vaultMetadata = await fetch(
       `http://127.0.0.1:${openMcpPort}/.well-known/oauth-protected-resource/mcp/vault`,
@@ -247,6 +248,20 @@ test('mixed HTTP discovery stays public while the exact vault resource authentic
     assert.match(
       unauthenticatedInitialize.headers.get('access-control-expose-headers') || '',
       /WWW-Authenticate/i,
+    );
+
+    const trailingSlashInitialize = await fetch(trailingSlashVaultUrl, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json, text/event-stream',
+        'Content-Type': 'application/json',
+      },
+      body: initializeBody,
+    });
+    assert.equal(trailingSlashInitialize.status, 401);
+    assert.equal(
+      trailingSlashInitialize.headers.get('www-authenticate'),
+      AUTH_FIRST_VAULT_WWW_AUTHENTICATE,
     );
 
     const wrongAudienceInitialize = await fetch(vaultUrl, {

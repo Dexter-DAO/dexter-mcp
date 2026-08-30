@@ -2957,7 +2957,11 @@ const httpServer = http.createServer(async (req, res) => {
   // The canonical path remains mixed-auth. /mcp/vault is the same curated
   // server behind a transport-level OAuth gate for hosts that cannot complete
   // a runtime challenge after anonymous discovery.
-  const authFirstEntrance = pathname === OPEN_MCP_AUTH_FIRST_PATH;
+  // Some hosted MCP clients normalize a configured URL by appending one
+  // trailing slash before their first initialize request. Treat that spelling
+  // as an HTTP alias while keeping the OAuth resource/audience canonical.
+  const authFirstEntrance = pathname === OPEN_MCP_AUTH_FIRST_PATH
+    || pathname === `${OPEN_MCP_AUTH_FIRST_PATH}/`;
   if (pathname !== '/' && pathname !== '/mcp' && !authFirstEntrance) {
     res.writeHead(404, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: 'Not found' }));
