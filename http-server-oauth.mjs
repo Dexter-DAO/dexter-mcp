@@ -225,6 +225,21 @@ const sessionStartTimes = new Map(); // sessionId -> timestamp (ms)
 const sessionClientHints = new Map(); // sessionId -> inferred client label
 const sessionLastActivity = new Map(); // sessionId -> timestamp (ms) for idle detection
 
+// Shared PrismaClient for the life of the process. PrismaClient opens its own
+// connection pool on first query; the wallet-override seeding below used to
+// instantiate a fresh one per session (and, when no linked wallet was found,
+// per subsequent request in that session) and never called $disconnect(),
+// leaking a Postgres connection pool on every call until the database's
+// max_connections was exhausted. One shared instance is the correct pattern.
+let _prismaClient = null;
+async function getPrismaClient() {
+  if (!_prismaClient) {
+    const { PrismaClient } = await import('@prisma/client');
+    _prismaClient = new PrismaClient();
+  }
+  return _prismaClient;
+}
+
 const SESSION_LABEL_HEADERS = (() => {
   const raw = String(process.env.MCP_SESSION_LABEL_HEADER || '').trim().toLowerCase();
   if (!raw) return [];
@@ -1585,8 +1600,7 @@ const server = http.createServer(async (req, res) => {
             try {
               const { sessionWalletOverrides } = await import('./toolsets/wallet/index.mjs');
               if (!sessionWalletOverrides.get(sessionId)) {
-                const { PrismaClient } = await import('@prisma/client');
-                const prisma = new PrismaClient();
+                const prisma = await getPrismaClient();
                 const link = await prisma.oauth_user_wallets.findFirst({ where: { provider: String(ident.issuer), subject: String(ident.sub), default_wallet: true } });
                 if (link?.wallet_public_key) sessionWalletOverrides.set(sessionId, String(link.wallet_public_key));
               }
@@ -1754,8 +1768,7 @@ const server = http.createServer(async (req, res) => {
           // Seed per-session wallet override from OAuth mapping (if exists)
           try {
             const { sessionWalletOverrides } = await import('./toolsets/wallet/index.mjs');
-            const { PrismaClient } = await import('@prisma/client');
-            const prisma = new PrismaClient();
+            const prisma = await getPrismaClient();
             const ident = sessionIdentity.get(sid) || {};
             const link = ident.issuer && ident.sub ? await prisma.oauth_user_wallets.findFirst({ where: { provider: String(ident.issuer), subject: String(ident.sub), default_wallet: true } }) : null;
             if (link?.wallet_public_key) sessionWalletOverrides.set(sid, String(link.wallet_public_key));
