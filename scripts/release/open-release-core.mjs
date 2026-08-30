@@ -6,11 +6,15 @@ import {
   access,
   chmod,
   lstat,
+  mkdir,
+  open,
   readFile,
   readlink,
   realpath,
   rename,
   rm,
+  rmdir,
+  unlink,
   writeFile,
 } from 'node:fs/promises';
 import {
@@ -22,6 +26,7 @@ import {
 } from 'node:path';
 import {
   DEFAULT_PM2_COMMAND_TIMEOUT_MS,
+  DEFAULT_PM2_STARTUP_TIMEOUT_MS,
   PRODUCTION_NODE_EXECUTABLE,
   PRODUCTION_PM2_EXECUTABLE,
   runBoundedPm2Command,
@@ -41,6 +46,7 @@ import {
 const require = createRequire(import.meta.url);
 const {
   LEGACY_OPEN_RELEASE_CONTRACT,
+  LEGACY_PRIVATE_RELEASE_CONTRACT,
   OPEN_RELEASE_APPLICATION_NODE_EXECUTABLE,
   OPEN_RELEASE_APPLICATION_NODE_PROTECTED_DIRECTORIES,
   OPEN_RELEASE_APPLICATION_NODE_SHA256,
@@ -69,6 +75,95 @@ const PRODUCTION_PM2_CLI_SHA256 =
 const PRODUCTION_NODE_VERSION = 'v18.19.1';
 const PRODUCTION_NODE_SHA256 =
   'f3f93db342d5ac5bb61656d0599a603a73779e98befd9342171e550002725f4d';
+const LEGACY_PM2_DAEMON = Object.freeze({
+  bootId: 'b8a72f74-0912-45c5-8dcf-a237492acf9f\n',
+  cgroup: '0::/system.slice/pm2-branchmanager.service\n',
+  executable:
+    '/home/branchmanager/.nvm/versions/node/v20.19.1/bin/node',
+  executableSha256:
+    'fea3f6e1e5eb8622bf1af1b85a9384ad88c673674e4b7c6bd223ca1127d1e5e9',
+  image: Object.freeze({
+    dev: 66305,
+    gid: 1001,
+    ino: 1870520,
+    mode: 0o100755,
+    nlink: 1,
+    size: 99831240,
+    uid: 1001,
+  }),
+  pid: 2432040,
+  startTimeTicks: '736087414',
+});
+const PM2_SYSTEMD_SERVICE = 'pm2-branchmanager.service';
+const SYSTEMCTL_EXECUTABLE = '/usr/bin/systemctl';
+const SYSTEMD_UNIT = '/etc/systemd/system/pm2-branchmanager.service';
+const SYSTEMD_UMASK_DROP_IN =
+  '/etc/systemd/system/pm2-branchmanager.service.d/10-umask.conf';
+const SYSTEMD_ROOT_NODE_DROP_IN =
+  '/etc/systemd/system/pm2-branchmanager.service.d/20-root-node.conf';
+const LEGACY_PM2_SYSTEM_FILES = Object.freeze([
+  Object.freeze({
+    path: SYSTEMCTL_EXECUTABLE,
+    sha256: 'e0d3d0e9444da1b2b58c792c3f5028b69f049b77d5ca17b3ec0d09f89117225b',
+  }),
+  Object.freeze({
+    path: SYSTEMD_UNIT,
+    sha256: 'cdc1563c1d7b3ac18eb0dda51547c4c59bc810e57dee93dbfdc98d59e7d43721',
+  }),
+  Object.freeze({
+    path: SYSTEMD_UMASK_DROP_IN,
+    sha256: '9e407d257aa91afd3bb98cbb2a571cbcc25f3ed631ef723ccb340c6de9c1c1d8',
+  }),
+  Object.freeze({
+    path: SYSTEMD_ROOT_NODE_DROP_IN,
+    sha256: '78f3f6c8bfd59928f22f66e856c0ed7427a900cf23527d639d88b6e2e12c79c0',
+  }),
+]);
+const LEGACY_PM2_SYSTEMD_PROPERTIES = Object.freeze({
+  ActiveState: 'active',
+  ControlGroup: '/system.slice/pm2-branchmanager.service',
+  DropInPaths: `${SYSTEMD_UMASK_DROP_IN} ${SYSTEMD_ROOT_NODE_DROP_IN}`,
+  ExecReload: '{ path=/usr/bin/node ; argv[]=/usr/bin/node /usr/local/lib/node_modules/pm2/bin/pm2 reload all ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }',
+  ExecStart: '{ path=/usr/bin/node ; argv[]=/usr/bin/node /usr/local/lib/node_modules/pm2/bin/pm2 resurrect ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }',
+  ExecStop: '{ path=/usr/bin/node ; argv[]=/usr/bin/node /usr/local/lib/node_modules/pm2/bin/pm2 kill ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }',
+  FragmentPath: SYSTEMD_UNIT,
+  MainPID: String(LEGACY_PM2_DAEMON.pid),
+  PIDFile: `${PRODUCTION_PM2_HOME}/pm2.pid`,
+  SubState: 'running',
+  Type: 'forking',
+  User: 'branchmanager',
+});
+const LEGACY_PM2_REPORT_FIELDS = Object.freeze({
+  argv: Object.freeze([
+    LEGACY_PM2_DAEMON.executable,
+    `${PRODUCTION_PM2_PACKAGE_ROOT}/lib/Daemon.js`,
+  ]),
+  argv0: LEGACY_PM2_DAEMON.executable,
+  gid: 1001,
+  node_version: '20.19.1',
+  pm2_version: PRODUCTION_PM2_VERSION,
+  uid: 1001,
+  user: 'branchmanager',
+});
+const LEGACY_PM2_REPORT_PROBE = `
+const pm2 = require(${JSON.stringify(PRODUCTION_PM2_PACKAGE_ROOT)});
+pm2.Client.launchRPC((connectionError) => {
+  if (connectionError) process.exit(2);
+  pm2.Client.executeRemote('getReport', {}, (reportError, report) => {
+    if (reportError || !report) process.exitCode = 3;
+    else process.stdout.write(JSON.stringify({
+      argv: report.argv,
+      argv0: report.argv0,
+      gid: report.gid,
+      node_version: report.node_version,
+      pm2_version: report.pm2_version,
+      uid: report.uid,
+      user: report.user,
+    }));
+    pm2.Client.close(() => process.exit());
+  });
+});
+`;
 const GOVERNED_SECRET = 'GOVERNED_AGENT_ACTIONS_HMAC_SECRET';
 const PRESERVED_PRIVATE_SERVICE = 'dexter-mcp';
 const LEGACY_OPEN_RELEASE_DIR =
@@ -83,6 +178,7 @@ const LEGACY_HEALTH_CLOCK_SKEW_MS = 5_000;
 const FORBIDDEN_LOADER_ENV_KEYS = Object.freeze([
   'NODE_OPTIONS',
   'NODE_PATH',
+  'PM2_NODE_OPTIONS',
   'LD_PRELOAD',
   'LD_LIBRARY_PATH',
   'LD_AUDIT',
@@ -122,9 +218,9 @@ export function parsePm2ProcessList(text) {
   return parsed;
 }
 
-function exactServiceRows(rows) {
-  const selected = rows.filter((row) => SERVICE_NAMES.includes(row?.name));
-  for (const service of SERVICE_NAMES) {
+function exactServiceRows(rows, services = SERVICE_NAMES) {
+  const selected = rows.filter((row) => services.includes(row?.name));
+  for (const service of services) {
     if (selected.filter((row) => row.name === service).length !== 1) {
       throw new Error(`PM2 must contain exactly one ${service} process`);
     }
@@ -323,6 +419,27 @@ function exactStringArray(value, label) {
   return [...value];
 }
 
+function verifyPrivateExecutionArgumentsAreEmpty(row, label) {
+  const nodeArgs = rawProcessField(row, 'node_args');
+  const scriptArgs = rawProcessField(row, 'args');
+  const interpreterArgs = rawProcessField(row, 'interpreter_args');
+  if (
+    !Array.isArray(nodeArgs)
+    || nodeArgs.length !== 0
+    || !(
+      scriptArgs === undefined
+      || scriptArgs === null
+      || (Array.isArray(scriptArgs) && scriptArgs.length === 0)
+    )
+    || !(
+      interpreterArgs === undefined
+      || interpreterArgs === null
+    )
+  ) {
+    throw new Error(`${label} execution arguments are not exactly empty`);
+  }
+}
+
 function exactRosterFromEnvironment(env) {
   const encoded = nullableString(env.DEXTER_MCP_EXPECTED_ROSTER_JSON);
   if (encoded === null) return null;
@@ -339,7 +456,9 @@ function exactRosterFromEnvironment(env) {
 
 function expectedHealthPort(name, row) {
   const env = processEnvironment(row);
-  const value = env.OPEN_MCP_PORT ?? 3931;
+  const value = name === 'dexter-mcp'
+    ? env.TOKEN_AI_MCP_PORT ?? 3930
+    : env.OPEN_MCP_PORT ?? 3931;
   const port = Number(value);
   if (!Number.isInteger(port) || port < 1 || port > 65_535) {
     throw new Error(`invalid ${name} health port`);
@@ -347,8 +466,7 @@ function expectedHealthPort(name, row) {
   return port;
 }
 
-export function stableProcessIdentity(name, row) {
-  exactPm2EnvironmentNamespaceIdentity(name, row);
+function processIdentityWithoutNamespaceProof(name, row) {
   const env = processEnvironment(row);
   const release = Object.fromEntries(Object.entries(RELEASE_ENV_KEYS).map(
     ([field, key]) => [field, nullableString(env[key])],
@@ -404,6 +522,35 @@ export function stableProcessIdentity(name, row) {
   };
 }
 
+export function stableProcessIdentity(name, row) {
+  exactPm2EnvironmentNamespaceIdentity(name, row);
+  return processIdentityWithoutNamespaceProof(name, row);
+}
+
+function privateGenerationIdentity(row) {
+  if (row?.name !== 'dexter-mcp') {
+    throw new Error('private generation identity requires dexter-mcp');
+  }
+  const metadata = processMetadata(row);
+  const declared = {
+    ...(metadata?.env && typeof metadata.env === 'object'
+      ? metadata.env
+      : {}),
+    ...(row?.env && typeof row.env === 'object' ? row.env : {}),
+  };
+  const uniqueId = nullableString(declared.unique_id);
+  if (uniqueId === null) {
+    throw new Error('private generation identity has no PM2 unique id');
+  }
+  return canonicalJson({
+    uniqueId,
+    declaredEnvironmentKeyCount: Object.keys(declared).length,
+    declaredEnvironmentSha256: environmentSha256(declared),
+    process: processIdentityWithoutNamespaceProof('dexter-mcp', row),
+    pm2Definition: snapshotPm2ProcessDefinition(row),
+  });
+}
+
 function savedProcessIdentity(name, row) {
   return {
     ...stableProcessIdentity(name, row),
@@ -432,7 +579,9 @@ function expectedCandidateIdentity(
     cwd: release.releaseDir,
     script: resolve(release.releaseDir, release.provenance.entrypoints[name]),
     interpreter: OPEN_RELEASE_APPLICATION_NODE_EXECUTABLE,
-    port: Number(applicationEnvironment.OPEN_MCP_PORT ?? 3931),
+    port: Number(name === 'dexter-mcp'
+      ? applicationEnvironment.TOKEN_AI_MCP_PORT ?? 3930
+      : applicationEnvironment.OPEN_MCP_PORT ?? 3931),
     profile: null,
     toolsets: null,
     envFile,
@@ -449,7 +598,7 @@ function expectedCandidateIdentity(
       autorestart: true,
       waitReady: true,
       maxRestarts: 10,
-      listenTimeout: 15_000,
+      listenTimeout: 90_000,
       killTimeout: 10_000,
       nodeArgs: [],
       scriptArgs: [],
@@ -662,6 +811,7 @@ export async function readLoopbackHealth(
 
 export async function preflightOpenReleaseCandidate({
   release,
+  services = SERVICE_NAMES,
   commandEnvironment,
   pm2Home = defaultPm2Home(),
   lstatImpl = lstat,
@@ -715,6 +865,7 @@ export async function preflightOpenReleaseCandidate({
   for (const key of [
     'NODE_OPTIONS',
     'NODE_PATH',
+    'PM2_NODE_OPTIONS',
     'LD_PRELOAD',
     'LD_LIBRARY_PATH',
     'LD_AUDIT',
@@ -730,7 +881,25 @@ export async function preflightOpenReleaseCandidate({
   }
   // Deliberately do not accept INTERNAL_DEXTERCARD_HMAC_SECRET as a fallback.
   applicationEnvironment[GOVERNED_SECRET] = governedSecret;
-  const expectedProcesses = Object.fromEntries(SERVICE_NAMES.map((name) => [
+  if (
+    !Array.isArray(services)
+    || services.length === 0
+    || new Set(services).size !== services.length
+    || services.some((name) => (
+      !Object.hasOwn(release?.provenance?.entrypoints ?? {}, name)
+      || !Object.hasOwn(release?.provenance?.rosters ?? {}, name)
+    ))
+  ) {
+    throw new Error('candidate preflight requires exact attested services');
+  }
+  if (services.includes('dexter-mcp')) {
+    for (const key of ['TOKEN_AI_MCP_PROFILE', 'TOKEN_AI_MCP_TOOLSETS']) {
+      if (String(applicationEnvironment[key] ?? '').trim() !== '') {
+        throw new Error(`${key} must be empty for the sealed private roster`);
+      }
+    }
+  }
+  const expectedProcesses = Object.fromEntries(services.map((name) => [
     name,
     expectedCandidateIdentity(
       release,
@@ -758,6 +927,7 @@ export async function verifyRunningOpenReleasePair({
   release,
   rows,
   expectedProcesses,
+  services = SERVICE_NAMES,
   fetchImpl = fetch,
   readlinkImpl = readlink,
   readFileImpl = readFile,
@@ -766,16 +936,16 @@ export async function verifyRunningOpenReleasePair({
 }) {
   if (
     !expectedProcesses
-    || !sameJson(Object.keys(expectedProcesses).sort(), [...SERVICE_NAMES].sort())
+    || !sameJson(Object.keys(expectedProcesses).sort(), [...services].sort())
   ) {
     throw new Error('candidate proof requires exact preflight process identities');
   }
-  const byName = exactServiceRows(rows);
+  const byName = exactServiceRows(rows, services);
   const nodeExecutable = await realpathImpl(
     OPEN_RELEASE_APPLICATION_NODE_EXECUTABLE,
   );
   const health = {};
-  for (const name of SERVICE_NAMES) {
+  for (const name of services) {
     const row = byName[name];
     const expectedScript = resolve(
       release.releaseDir,
@@ -1003,19 +1173,42 @@ const LEGACY_INJECTED_ENVIRONMENT_KEYS = new Set([
   'PATH',
   'PM2_HOME',
   'unique_id',
+  'dexter-mcp',
   'dexter-open-mcp',
 ]);
 
-function verifyLegacyPersistedEnvironment(row, environmentBytes) {
+function verifyLegacyPersistedEnvironment(row, environmentBytes, {
+  label = 'prior dexter-open-mcp',
+  persistedEnvironmentKeys,
+  environmentFileKeys,
+} = {}) {
   const persisted = exactPersistedEnvironment(row);
   const current = parseEnv(environmentBytes.toString('utf8'));
+  if (
+    persistedEnvironmentKeys !== undefined
+    && !sameJson(
+      Object.keys(persisted).sort(),
+      [...persistedEnvironmentKeys].sort(),
+    )
+  ) {
+    throw new Error(`${label} persisted environment keys changed`);
+  }
+  if (
+    environmentFileKeys !== undefined
+    && !sameJson(
+      Object.keys(current).sort(),
+      [...environmentFileKeys].sort(),
+    )
+  ) {
+    throw new Error(`${label} environment-file keys changed`);
+  }
   const persistedApplicationKeys = new Set();
   for (const [key, value] of Object.entries(persisted)) {
     if (LEGACY_INJECTED_ENVIRONMENT_KEYS.has(key)) continue;
     persistedApplicationKeys.add(key);
     if (!Object.hasOwn(current, key) || current[key] !== String(value)) {
       throw new Error(
-        `prior dexter-open-mcp persisted environment does not match ${key}`,
+        `${label} persisted environment does not match ${key}`,
       );
     }
   }
@@ -1027,7 +1220,7 @@ function verifyLegacyPersistedEnvironment(row, environmentBytes) {
     || !sameJson(additions, [GOVERNED_SECRET])
     || Object.keys(current).length !== 64
   ) {
-    throw new Error('prior dexter-open-mcp environment has an unapproved addition');
+    throw new Error(`${label} environment has an unapproved addition`);
   }
   if (Object.hasOwn(current, GOVERNED_SECRET)) {
     const secret = current[GOVERNED_SECRET];
@@ -1035,7 +1228,7 @@ function verifyLegacyPersistedEnvironment(row, environmentBytes) {
       secret !== secret.trim()
       || Buffer.byteLength(secret, 'utf8') < 32
     ) {
-      throw new Error(`prior dexter-open-mcp ${GOVERNED_SECRET} is invalid`);
+      throw new Error(`${label} ${GOVERNED_SECRET} is invalid`);
     }
   }
   return current;
@@ -1457,15 +1650,22 @@ function boundedPm2Runner({
   nodeExecutable,
   pm2Executable,
   timeoutMs,
+  startupTimeoutMs,
 }) {
-  return (args) => runBoundedPm2Command({
-    runCommand,
-    args,
-    commandEnvironment,
-    nodeExecutable,
-    pm2Executable,
-    timeoutMs,
-  });
+  return (args) => {
+    const operation = args?.[0];
+    const commandTimeoutMs = operation === 'start' || operation === 'resurrect'
+      ? startupTimeoutMs
+      : timeoutMs;
+    return runBoundedPm2Command({
+      runCommand,
+      args,
+      commandEnvironment,
+      nodeExecutable,
+      pm2Executable,
+      timeoutMs: commandTimeoutMs,
+    });
+  };
 }
 
 async function pm2List(runPm2) {
@@ -1477,7 +1677,8 @@ function unrelatedPm2Snapshot(rows) {
   return snapshotUnrelatedPm2Processes(rows, SERVICE_NAMES);
 }
 
-export async function preservedPrivateProcessSnapshot(
+export async function runningServiceProcessSnapshot(
+  serviceName,
   rows,
   {
     readlinkImpl = readlink,
@@ -1485,13 +1686,21 @@ export async function preservedPrivateProcessSnapshot(
     realpathImpl = realpath,
   } = {},
 ) {
-  const selected = rows.filter((row) => row?.name === PRESERVED_PRIVATE_SERVICE);
+  if (typeof serviceName !== 'string' || serviceName.length === 0) {
+    throw new Error('running service name is invalid');
+  }
+  const label = serviceName === PRESERVED_PRIVATE_SERVICE
+    ? 'private Dexter'
+    : serviceName;
+  const selected = rows.filter((row) => row?.name === serviceName);
   if (selected.length > 1) {
-    throw new Error('PM2 contains duplicate preserved private Dexter processes');
+    throw new Error(serviceName === PRESERVED_PRIVATE_SERVICE
+      ? 'PM2 contains duplicate preserved private Dexter processes'
+      : `PM2 contains duplicate ${serviceName} processes`);
   }
   if (selected.length === 0) return null;
   const row = selected[0];
-  const runtime = livePm2RuntimeIdentity(row, 'private Dexter');
+  const runtime = livePm2RuntimeIdentity(row, label);
   const { pid } = runtime;
   const cwd = processField(row, 'pm_cwd') ?? null;
   const script = processField(row, 'pm_exec_path') ?? null;
@@ -1501,7 +1710,7 @@ export async function preservedPrivateProcessSnapshot(
     || !isAbsolute(script ?? '')
     || !isAbsolute(interpreter ?? '')
   ) {
-    throw new Error('private Dexter process identity is not exact');
+    throw new Error(`${label} process identity is not exact`);
   }
   const nodeExecutable = await realpathImpl(interpreter);
   const kernel = await readKernelIdentity({
@@ -1513,7 +1722,7 @@ export async function preservedPrivateProcessSnapshot(
     realpathImpl,
   });
   if (kernel.cwd !== await realpathImpl(cwd)) {
-    throw new Error('private Dexter kernel cwd does not match PM2');
+    throw new Error(`${label} kernel cwd does not match PM2`);
   }
   return Object.freeze({
     ...runtime,
@@ -1526,6 +1735,14 @@ export async function preservedPrivateProcessSnapshot(
   });
 }
 
+export async function preservedPrivateProcessSnapshot(rows, options = {}) {
+  return runningServiceProcessSnapshot(
+    PRESERVED_PRIVATE_SERVICE,
+    rows,
+    options,
+  );
+}
+
 function assertUnrelatedPm2Processes(
   rows,
   expected,
@@ -1536,14 +1753,12 @@ function assertUnrelatedPm2Processes(
   }
 }
 
-async function assertLiveUnrelatedPm2Processes(
+async function assertPreservedPrivateProcess(
   rows,
-  expected,
   phase,
   expectedPrivateProcess,
   privateProcessProofOptions,
 ) {
-  assertUnrelatedPm2Processes(rows, expected, phase);
   if (
     expectedPrivateProcess !== undefined
     && !samePm2ProcessSnapshot(
@@ -1576,7 +1791,6 @@ async function waitFor(condition, {
 async function deleteServices(
   rows,
   runPm2,
-  expectedUnrelated,
   expectedPrivateProcess,
   privateProcessProofOptions,
 ) {
@@ -1590,9 +1804,8 @@ async function deleteServices(
     .filter((pid) => Number.isInteger(pid) && pid > 0);
   await waitFor(async () => {
     const current = await pm2List(runPm2);
-    await assertLiveUnrelatedPm2Processes(
+    await assertPreservedPrivateProcess(
       current,
-      expectedUnrelated,
       'service deletion',
       expectedPrivateProcess,
       privateProcessProofOptions,
@@ -1606,7 +1819,6 @@ async function deleteServices(
 
 async function deleteServicesForRollback(
   runPm2,
-  expectedUnrelated,
   expectedPrivateProcess,
   privateProcessProofOptions,
   timeoutMs,
@@ -1615,9 +1827,8 @@ async function deleteServicesForRollback(
     let current;
     try {
       current = await pm2List(runPm2);
-      await assertLiveUnrelatedPm2Processes(
+      await assertPreservedPrivateProcess(
         current,
-        expectedUnrelated,
         'rollback deletion',
         expectedPrivateProcess,
         privateProcessProofOptions,
@@ -1641,9 +1852,8 @@ async function deleteServicesForRollback(
       }
     }
     const after = await pm2List(runPm2);
-    await assertLiveUnrelatedPm2Processes(
+    await assertPreservedPrivateProcess(
       after,
-      expectedUnrelated,
       'rollback deletion',
       expectedPrivateProcess,
       privateProcessProofOptions,
@@ -1670,8 +1880,514 @@ function defaultCommandEnvironment() {
   }).filter(([, value]) => value !== undefined));
 }
 
+export async function acquireReleaseCutoverLock(
+  pm2Home = defaultPm2Home(),
+  {
+    recoverOwner = null,
+    recoverJournalSha256 = null,
+    processAliveImpl = async (pid) => {
+      try {
+        process.kill(pid, 0);
+        return true;
+      } catch (error) {
+        if (error?.code === 'ESRCH') return false;
+        throw error;
+      }
+    },
+  } = {},
+) {
+  if (typeof pm2Home !== 'string' || !isAbsolute(pm2Home)) {
+    throw new Error('release cutover lock requires one absolute PM2_HOME');
+  }
+  const lockDirectory = resolve(
+    pm2Home,
+    '.dexter-mcp-release-cutover.lock',
+  );
+  const ownerPath = resolve(lockDirectory, 'owner.json');
+  const token = randomUUID();
+  const recovery = recoverOwner !== null || recoverJournalSha256 !== null;
+  if (recovery && (
+    !recoverOwner
+    || !Number.isInteger(recoverOwner.pid)
+    || recoverOwner.pid <= 0
+    || typeof recoverOwner.token !== 'string'
+    || recoverOwner.token.length === 0
+    || !/^[a-f0-9]{64}$/.test(recoverJournalSha256 ?? '')
+  )) {
+    throw new Error('release recovery lock proof is incomplete');
+  }
+  const owner = canonicalJson({
+    pid: process.pid,
+    token,
+    ...(recovery ? { recoveryJournalSha256: recoverJournalSha256 } : {}),
+  });
+  const ownerBytes = Buffer.from(JSON.stringify(owner));
+  let ownsCanonicalDirectory = false;
+  try {
+    await mkdir(lockDirectory, { mode: 0o700 });
+    ownsCanonicalDirectory = true;
+  } catch (error) {
+    if (error?.code !== 'EEXIST' || !recovery) {
+      if (error?.code !== 'EEXIST') throw error;
+      throw new Error('another Dexter MCP release cutover is active');
+    }
+    const lockIdentity = await lstat(lockDirectory);
+    const staleOwnerPath = resolve(lockDirectory, 'owner.json');
+    const staleOwnerState = await readStableOwnedOptionalFile(staleOwnerPath);
+    const staleOwner = parseJson(
+      staleOwnerState.bytes.toString('utf8'),
+      'stale release cutover owner',
+    );
+    const ownerAlive = Number.isInteger(staleOwner?.pid)
+      ? await processAliveImpl(staleOwner.pid)
+      : true;
+    const originalOwner = sameJson(staleOwner, recoverOwner);
+    const priorRecoveryOwner = (
+      staleOwner?.recoveryJournalSha256 === recoverJournalSha256
+      && Number.isInteger(staleOwner?.pid)
+      && typeof staleOwner?.token === 'string'
+      && staleOwner.token.length > 0
+    );
+    if (
+      !lockIdentity.isDirectory()
+      || lockIdentity.isSymbolicLink()
+      || lockIdentity.uid !== process.getuid()
+      || (lockIdentity.mode & 0o7777) !== 0o700
+      || await realpath(lockDirectory) !== lockDirectory
+      || !Number.isInteger(staleOwner?.pid)
+      || typeof staleOwner.token !== 'string'
+      || (!originalOwner && !priorRecoveryOwner)
+      || ownerAlive
+    ) {
+      throw new Error('another Dexter MCP release cutover is active');
+    }
+    const claimId = randomUUID();
+    const quarantine = resolve(
+      pm2Home,
+      `.dexter-mcp-stale-cutover-${claimId}`,
+    );
+    const prepared = resolve(
+      pm2Home,
+      `.dexter-mcp-recovery-claim-${claimId}`,
+    );
+    const preparedOwnerPath = resolve(prepared, 'owner.json');
+    try {
+      // Renaming the whole directory is the recovery CAS. Only one contender
+      // can capture the observed dead owner; every other contender loses the
+      // canonical path or finds the winner's new live owner.
+      await rename(lockDirectory, quarantine);
+      const capturedOwner = await readStableOwnedOptionalFile(
+        resolve(quarantine, 'owner.json'),
+      );
+      if (!capturedOwner.bytes.equals(staleOwnerState.bytes)) {
+        throw new Error('release recovery lock changed during claim');
+      }
+      await mkdir(prepared, { mode: 0o700 });
+      let preparedOwner;
+      try {
+        preparedOwner = await open(preparedOwnerPath, 'wx', 0o600);
+        await preparedOwner.writeFile(ownerBytes);
+        await preparedOwner.sync();
+      } finally {
+        await preparedOwner?.close();
+      }
+      await syncDirectory(prepared);
+      await rename(prepared, lockDirectory);
+      ownsCanonicalDirectory = true;
+      await syncDirectory(pm2Home);
+      await unlink(resolve(quarantine, 'owner.json')).catch(() => {});
+      await rmdir(quarantine).catch(() => {});
+      await syncDirectory(pm2Home);
+    } catch (recoveryError) {
+      await rm(preparedOwnerPath, { force: true }).catch(() => {});
+      await rmdir(prepared).catch(() => {});
+      if (!ownsCanonicalDirectory) {
+        try {
+          await rename(quarantine, lockDirectory);
+        } catch (restoreError) {
+          if (!['EEXIST', 'ENOTEMPTY'].includes(restoreError?.code)) {
+            throw new AggregateError([recoveryError, restoreError]);
+          }
+          await unlink(resolve(quarantine, 'owner.json')).catch(() => {});
+          await rmdir(quarantine).catch(() => {});
+        }
+      }
+      throw recoveryError;
+    }
+  }
+  try {
+    const identity = await lstat(lockDirectory);
+    if (
+      !identity.isDirectory()
+      || identity.isSymbolicLink()
+      || identity.uid !== process.getuid()
+      || (identity.mode & 0o7777) !== 0o700
+      || await realpath(lockDirectory) !== lockDirectory
+    ) {
+      throw new Error('release cutover lock directory is not exact');
+    }
+    const existingOwner = await readFile(ownerPath).catch(
+      (error) => error?.code === 'ENOENT' ? null : Promise.reject(error),
+    );
+    if (existingOwner === null && ownsCanonicalDirectory) {
+      let handle;
+      try {
+        handle = await open(ownerPath, 'wx', 0o600);
+        await handle.writeFile(ownerBytes);
+        await handle.sync();
+      } finally {
+        await handle?.close();
+      }
+    } else if (existingOwner === null || !existingOwner.equals(ownerBytes)) {
+      throw new Error('release recovery lock ownership changed');
+    }
+    await syncDirectory(lockDirectory);
+    await syncDirectory(pm2Home);
+  } catch (error) {
+    const current = await readFile(ownerPath).catch(() => null);
+    if (ownsCanonicalDirectory && current?.equals(ownerBytes)) {
+      await rm(ownerPath, { force: true });
+      await rmdir(lockDirectory).catch(() => {});
+    }
+    throw error;
+  }
+  let released = false;
+  return Object.freeze({
+    lockDirectory,
+    owner: Object.freeze(owner),
+    async release() {
+      if (released) throw new Error('release cutover lock was already released');
+      const current = await readFile(ownerPath);
+      if (!current.equals(ownerBytes)) {
+        throw new Error('release cutover lock ownership changed');
+      }
+      await unlink(ownerPath);
+      await rmdir(lockDirectory);
+      released = true;
+    },
+  });
+}
+
 function sha256Bytes(bytes) {
   return createHash('sha256').update(bytes).digest('hex');
+}
+
+function procStartTimeTicks(statText) {
+  const tail = statText.slice(statText.lastIndexOf(') ') + 2).trim()
+    .split(/\s+/);
+  const startTimeTicks = tail[19];
+  if (!/^[1-9][0-9]*$/.test(startTimeTicks ?? '')) {
+    throw new Error('process start time is unreadable');
+  }
+  return startTimeTicks;
+}
+
+function environmentKeySet(bytes) {
+  const keys = new Set();
+  for (const entry of Buffer.from(bytes).toString('utf8').split('\0')) {
+    if (entry.length === 0) continue;
+    const separator = entry.indexOf('=');
+    const key = separator < 0 ? entry : entry.slice(0, separator);
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key) || keys.has(key)) {
+      throw new Error('PM2 daemon environment namespace is invalid');
+    }
+    keys.add(key);
+  }
+  return keys;
+}
+
+function exactLegacyDaemonImageStat(stat) {
+  return stat?.isFile?.() === true
+    && stat?.isSymbolicLink?.() !== true
+    && Object.entries(LEGACY_PM2_DAEMON.image).every(
+      ([field, expected]) => stat[field] === expected,
+    );
+}
+
+function sameLegacyDaemonImageIdentity(before, after) {
+  return [
+    'dev',
+    'gid',
+    'ino',
+    'mode',
+    'nlink',
+    'size',
+    'uid',
+    'mtimeMs',
+    'ctimeMs',
+  ].every((field) => before[field] === after[field]);
+}
+
+async function proveLegacyDaemonImage({
+  openImpl,
+  procRoot,
+  sha256Impl,
+}) {
+  const handle = await openImpl(`${procRoot}/exe`, 'r');
+  try {
+    const before = await handle.stat();
+    const bytes = await handle.readFile();
+    const after = await handle.stat();
+    return exactLegacyDaemonImageStat(before)
+      && exactLegacyDaemonImageStat(after)
+      && sameLegacyDaemonImageIdentity(before, after)
+      && sha256Impl(bytes) === LEGACY_PM2_DAEMON.executableSha256;
+  } finally {
+    await handle.close();
+  }
+}
+
+function exactSystemdProperties(stdout) {
+  if (typeof stdout !== 'string' || stdout.length === 0) return false;
+  const expectedKeys = new Set(Object.keys(LEGACY_PM2_SYSTEMD_PROPERTIES));
+  const observed = new Map();
+  for (const line of stdout.trimEnd().split('\n')) {
+    const separator = line.indexOf('=');
+    if (separator < 1) return false;
+    const key = line.slice(0, separator);
+    if (!expectedKeys.has(key) || observed.has(key)) return false;
+    observed.set(key, line.slice(separator + 1));
+  }
+  return observed.size === expectedKeys.size
+    && Object.entries(LEGACY_PM2_SYSTEMD_PROPERTIES).every(
+      ([key, value]) => observed.get(key) === value,
+    );
+}
+
+function exactPm2Report(stdout) {
+  if (typeof stdout !== 'string') return false;
+  let report;
+  try {
+    report = JSON.parse(stdout);
+  } catch {
+    return false;
+  }
+  if (!report || typeof report !== 'object' || Array.isArray(report)) return false;
+  const expectedKeys = Object.keys(LEGACY_PM2_REPORT_FIELDS).sort();
+  if (JSON.stringify(Object.keys(report).sort()) !== JSON.stringify(expectedKeys)) {
+    return false;
+  }
+  return Object.entries(LEGACY_PM2_REPORT_FIELDS).every(([key, value]) => (
+    JSON.stringify(report[key]) === JSON.stringify(value)
+  ));
+}
+
+async function verifyExactLegacyPm2Daemon({
+  beforePidStat,
+  environmentKeys,
+  executable,
+  expectedTitle,
+  lstatImpl,
+  openImpl,
+  pid,
+  pidBytes,
+  pidPath,
+  pm2Home,
+  readFileImpl,
+  readlinkImpl,
+  realpathImpl,
+  runCommand,
+  sha256Impl,
+  startBefore,
+}) {
+  if (
+    pid !== LEGACY_PM2_DAEMON.pid
+    || startBefore !== LEGACY_PM2_DAEMON.startTimeTicks
+    || executable !== LEGACY_PM2_DAEMON.executable
+    || FORBIDDEN_LOADER_ENV_KEYS.some((key) => environmentKeys.has(key))
+  ) {
+    return false;
+  }
+  const procRoot = `/proc/${pid}`;
+  try {
+    const [bootId, cgroup] = await Promise.all([
+      readFileImpl('/proc/sys/kernel/random/boot_id'),
+      readFileImpl(`${procRoot}/cgroup`),
+    ]);
+    if (
+      !Buffer.from(bootId).equals(Buffer.from(LEGACY_PM2_DAEMON.bootId))
+      || !Buffer.from(cgroup).equals(Buffer.from(LEGACY_PM2_DAEMON.cgroup))
+      || !await proveLegacyDaemonImage({ openImpl, procRoot, sha256Impl })
+    ) {
+      return false;
+    }
+    await Promise.all(LEGACY_PM2_SYSTEM_FILES.map(({ path, sha256 }) => (
+      requireProtectedRootOwnedPath(path, {
+        directory: false,
+        expectedSha256: sha256,
+        lstatImpl,
+        readFileImpl,
+        realpathImpl,
+        sha256Impl,
+      })
+    )));
+    const cleanLocale = {
+      LANG: 'C',
+      LC_ALL: 'C',
+      NO_COLOR: '1',
+      PATH: '/usr/bin:/bin',
+    };
+    const [systemd, report] = await Promise.all([
+      runCommand(SYSTEMCTL_EXECUTABLE, [
+        'show',
+        PM2_SYSTEMD_SERVICE,
+        '--no-pager',
+        ...Object.keys(LEGACY_PM2_SYSTEMD_PROPERTIES).map(
+          (key) => `--property=${key}`,
+        ),
+      ], {
+        encoding: 'utf8',
+        env: { HOME: PRODUCTION_HOME, ...cleanLocale },
+        killSignal: 'SIGKILL',
+        maxBuffer: 1024 * 1024,
+        timeout: 5_000,
+      }),
+      runCommand(PRODUCTION_NODE_EXECUTABLE, ['-e', LEGACY_PM2_REPORT_PROBE], {
+        encoding: 'utf8',
+        env: {
+          HOME: PRODUCTION_HOME,
+          PM2_HOME: pm2Home,
+          ...cleanLocale,
+        },
+        killSignal: 'SIGKILL',
+        maxBuffer: 16 * 1024 * 1024,
+        timeout: 30_000,
+      }),
+    ]);
+    if (
+      systemd.stderr !== ''
+      || report.stderr !== ''
+      || !exactSystemdProperties(systemd.stdout)
+      || !exactPm2Report(report.stdout)
+    ) {
+      return false;
+    }
+    const [finalPidStat, finalPidBytes, finalProcStat, finalBootId,
+      finalCgroup, finalExecutableLink, finalCommandLineBytes,
+      finalEnvironmentBytes] = await Promise.all([
+      lstatImpl(pidPath),
+      readFileImpl(pidPath),
+      readFileImpl(`${procRoot}/stat`, 'utf8'),
+      readFileImpl('/proc/sys/kernel/random/boot_id'),
+      readFileImpl(`${procRoot}/cgroup`),
+      readlinkImpl(`${procRoot}/exe`),
+      readFileImpl(`${procRoot}/cmdline`),
+      readFileImpl(`${procRoot}/environ`),
+    ]);
+    const finalExecutable = await realpathImpl(finalExecutableLink);
+    const finalCommandLine = Buffer.from(finalCommandLineBytes)
+      .toString('utf8').split('\0').filter(Boolean);
+    const finalEnvironmentKeys = environmentKeySet(finalEnvironmentBytes);
+    return sameEnvironmentFileIdentity(beforePidStat, finalPidStat)
+      && Buffer.from(finalPidBytes).equals(Buffer.from(pidBytes))
+      && procStartTimeTicks(finalProcStat) === LEGACY_PM2_DAEMON.startTimeTicks
+      && Buffer.from(finalBootId).equals(Buffer.from(LEGACY_PM2_DAEMON.bootId))
+      && Buffer.from(finalCgroup).equals(Buffer.from(LEGACY_PM2_DAEMON.cgroup))
+      && finalExecutable === LEGACY_PM2_DAEMON.executable
+      && finalCommandLine.length === 1
+      && finalCommandLine[0] === expectedTitle
+      && !FORBIDDEN_LOADER_ENV_KEYS.some(
+        (key) => finalEnvironmentKeys.has(key),
+      )
+      && await proveLegacyDaemonImage({ openImpl, procRoot, sha256Impl });
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * PM2 6.0.5 prepends its daemon-level PM2_NODE_OPTIONS to every forked Node
+ * process. Prove the already-running daemon has no loader-bearing ambient
+ * environment before asking it to start either a candidate or rollback.
+ */
+export async function verifyPm2DaemonLaunchAuthority({
+  pm2Home = defaultPm2Home(),
+  lstatImpl = lstat,
+  openImpl = open,
+  readFileImpl = readFile,
+  readlinkImpl = readlink,
+  realpathImpl = realpath,
+  runCommand = execFileAsync,
+  sha256Impl = sha256Bytes,
+} = {}) {
+  if (pm2Home !== PRODUCTION_PM2_HOME) {
+    throw new Error('PM2 daemon proof requires the production PM2_HOME');
+  }
+  const pidPath = resolve(pm2Home, 'pm2.pid');
+  const before = await lstatImpl(pidPath);
+  if (
+    !before.isFile()
+    || before.isSymbolicLink()
+    || before.nlink !== 1
+    || before.uid !== process.getuid()
+    || (before.mode & 0o022) !== 0
+    || await realpathImpl(pidPath) !== pidPath
+  ) {
+    throw new Error('PM2 daemon pid file is not exact');
+  }
+  const pidBytes = await readFileImpl(pidPath);
+  const encodedPid = Buffer.from(pidBytes).toString('utf8').trim();
+  if (!/^[1-9][0-9]*$/.test(encodedPid)) {
+    throw new Error('PM2 daemon pid is invalid');
+  }
+  const pid = Number(encodedPid);
+  if (!Number.isSafeInteger(pid)) {
+    throw new Error('PM2 daemon pid is invalid');
+  }
+  const procRoot = `/proc/${pid}`;
+  const expectedTitle = `PM2 v${PRODUCTION_PM2_VERSION}: God Daemon (${pm2Home})`;
+  const startBefore = procStartTimeTicks(
+    await readFileImpl(`${procRoot}/stat`, 'utf8'),
+  );
+  const executable = await realpathImpl(
+    await readlinkImpl(`${procRoot}/exe`),
+  );
+  const commandLine = Buffer.from(
+    await readFileImpl(`${procRoot}/cmdline`),
+  ).toString('utf8').split('\0').filter(Boolean);
+  const environmentKeys = environmentKeySet(
+    await readFileImpl(`${procRoot}/environ`),
+  );
+  const exactExecutable = executable === PRODUCTION_NODE_EXECUTABLE
+    || await verifyExactLegacyPm2Daemon({
+      beforePidStat: before,
+      environmentKeys,
+      executable,
+      expectedTitle,
+      lstatImpl,
+      openImpl,
+      pid,
+      pidBytes,
+      pidPath,
+      pm2Home,
+      readFileImpl,
+      readlinkImpl,
+      realpathImpl,
+      runCommand,
+      sha256Impl,
+      startBefore,
+    });
+  const startAfter = procStartTimeTicks(
+    await readFileImpl(`${procRoot}/stat`, 'utf8'),
+  );
+  const after = await lstatImpl(pidPath);
+  if (
+    !exactExecutable
+    || commandLine.length !== 1
+    || commandLine[0] !== expectedTitle
+    || FORBIDDEN_LOADER_ENV_KEYS.some((key) => environmentKeys.has(key))
+    || startBefore !== startAfter
+    || !sameEnvironmentFileIdentity(before, after)
+    || !Buffer.from(await readFileImpl(pidPath)).equals(Buffer.from(pidBytes))
+  ) {
+    throw new Error('PM2 daemon launch authority is not exact');
+  }
+  return Object.freeze({
+    pid,
+    startTimeTicks: startAfter,
+    executable,
+    title: expectedTitle,
+  });
 }
 
 async function requireProtectedRootOwnedPath(path, {
@@ -1680,6 +2396,7 @@ async function requireProtectedRootOwnedPath(path, {
   lstatImpl = lstat,
   readFileImpl = readFile,
   realpathImpl = realpath,
+  sha256Impl = sha256Bytes,
 } = {}) {
   if (await realpathImpl(path) !== path) {
     throw new Error(`production PM2 path is not canonical: ${path}`);
@@ -1695,7 +2412,7 @@ async function requireProtectedRootOwnedPath(path, {
   }
   if (
     expectedSha256 !== null
-    && sha256Bytes(await readFileImpl(path)) !== expectedSha256
+    && sha256Impl(await readFileImpl(path)) !== expectedSha256
   ) {
     throw new Error(`production PM2 bytes differ from the reviewed release: ${path}`);
   }
@@ -1829,15 +2546,40 @@ export async function verifyProductionPm2Executable({
   return PRODUCTION_PM2_EXECUTABLE;
 }
 
-async function restorePm2Dump(pm2Home, bytes) {
-  const dumpPath = resolve(pm2Home, 'dump.pm2');
+async function syncDirectory(path) {
+  const directory = await open(path, 'r');
+  try {
+    await directory.sync();
+  } finally {
+    await directory.close();
+  }
+}
+
+async function restorePm2Dump(pm2Home, bytes, name = 'dump.pm2') {
+  if (!['dump.pm2', 'dump.pm2.bak'].includes(name)) {
+    throw new Error('PM2 restore target is invalid');
+  }
+  const dumpPath = resolve(pm2Home, name);
   const temporaryPath = resolve(
     pm2Home,
     `.opendexter-rollback-${process.pid}-${Date.now()}.json`,
   );
-  await writeFile(temporaryPath, bytes, { mode: 0o600, flag: 'wx' });
-  await chmod(temporaryPath, 0o600);
-  await rename(temporaryPath, dumpPath);
+  let temporary;
+  try {
+    temporary = await open(temporaryPath, 'wx', 0o600);
+    await temporary.writeFile(bytes);
+    await temporary.sync();
+  } finally {
+    await temporary?.close();
+  }
+  try {
+    await chmod(temporaryPath, 0o600);
+    await rename(temporaryPath, dumpPath);
+    await syncDirectory(pm2Home);
+  } catch (error) {
+    await rm(temporaryPath, { force: true });
+    throw error;
+  }
 }
 
 export function productionPm2ConfigShim(ecosystem) {
@@ -1859,7 +2601,7 @@ export function productionPm2ConfigShim(ecosystem) {
     `    encoding: 'utf8',`,
     `    env: process.env,`,
     `    maxBuffer: 1024 * 1024,`,
-    `    timeout: 10_000,`,
+    `    timeout: 90_000,`,
     `    killSignal: 'SIGKILL',`,
     `  },`,
     `);`,
@@ -1869,15 +2611,17 @@ export function productionPm2ConfigShim(ecosystem) {
 }
 
 export async function startOpenReleaseCandidate({
+  beforeStart = async () => {},
   ecosystem,
   pm2Home,
   runPm2,
+  serviceName = SERVICE_NAMES[0],
 }) {
   if (!isAbsolute(ecosystem) || !isAbsolute(pm2Home)) {
     throw new Error('OpenDexter candidate paths must be absolute');
   }
-  if (SERVICE_NAMES.length !== 1 || SERVICE_NAMES[0] !== 'dexter-open-mcp') {
-    throw new Error('OpenDexter candidate requires the exact public-service roster');
+  if (!['dexter-mcp', 'dexter-open-mcp'].includes(serviceName)) {
+    throw new Error('Dexter MCP candidate requires one exact service');
   }
 
   // PM2 6 only recognizes JavaScript configuration files whose names contain
@@ -1910,35 +2654,217 @@ export async function startOpenReleaseCandidate({
     ) {
       throw new Error('OpenDexter candidate PM2 config shim is not exact');
     }
+    await beforeStart();
+    const finalIdentity = await lstat(configPath);
+    if (
+      !finalIdentity.isFile()
+      || finalIdentity.isSymbolicLink()
+      || finalIdentity.nlink !== 1
+      || finalIdentity.uid !== process.getuid()
+      || (finalIdentity.mode & 0o7777) !== 0o600
+      || !sameEnvironmentFileIdentity(identity, finalIdentity)
+      || !(await readFile(configPath)).equals(configBytes)
+    ) {
+      throw new Error('OpenDexter candidate PM2 config changed before start');
+    }
     await runPm2([
       'start',
       configPath,
       '--only',
-      SERVICE_NAMES[0],
+      serviceName,
     ]);
   } finally {
     await rm(configPath, { force: true });
   }
 }
 
-async function readSavedPm2Dump(pm2Home, { allowMissing = false } = {}) {
-  let bytes;
+export function privateRestartPm2Config(savedRow) {
+  if (savedRow?.name !== 'dexter-mcp') {
+    throw new Error('private rollback config requires dexter-mcp');
+  }
+  verifyPrivateExecutionArgumentsAreEmpty(
+    savedRow,
+    'private rollback PM2',
+  );
+  const snapshot = snapshotPm2ProcessDefinition(savedRow);
+  const definition = structuredClone(snapshot.definition);
+  const script = definition.pm_exec_path ?? definition.script;
+  const cwd = definition.pm_cwd ?? definition.cwd;
+  const interpreter = definition.exec_interpreter;
+  if (
+    !isAbsolute(script ?? '')
+    || !isAbsolute(cwd ?? '')
+    || !isAbsolute(interpreter ?? '')
+    || (definition.script !== undefined && definition.script !== script)
+    || (definition.cwd !== undefined && definition.cwd !== cwd)
+    || (definition.pm_cwd !== undefined && definition.pm_cwd !== cwd)
+  ) {
+    throw new Error('private rollback PM2 definition has conflicting paths');
+  }
+  const metadata = processMetadata(savedRow);
+  const environment = metadata?.env;
+  if (
+    !environment
+    || typeof environment !== 'object'
+    || Array.isArray(environment)
+    || Object.values(environment).some((value) => typeof value !== 'string')
+    || FORBIDDEN_LOADER_ENV_KEYS.some((key) => Object.hasOwn(environment, key))
+  ) {
+    throw new Error('private rollback PM2 environment is not exact');
+  }
+  const restartEnvironment = structuredClone(environment);
+  for (const key of ['unique_id', 'NODE_APP_INSTANCE', 'dexter-mcp']) {
+    delete restartEnvironment[key];
+  }
+  for (const key of [
+    'name',
+    'script',
+    'cwd',
+    'pm_cwd',
+    'pm_exec_path',
+    'exec_interpreter',
+  ]) {
+    delete definition[key];
+  }
+  const app = {
+    ...definition,
+    name: 'dexter-mcp',
+    script,
+    cwd,
+    interpreter,
+    env: restartEnvironment,
+  };
+  return Buffer.from([
+    `'use strict';`,
+    `module.exports = ${JSON.stringify({ apps: [app] })};`,
+    ``,
+  ].join('\n'));
+}
+
+async function startPrivateServiceFromSavedRow({
+  beforeStart = async () => {},
+  pm2Home,
+  runPm2,
+  savedRow,
+}) {
+  if (!isAbsolute(pm2Home)) {
+    throw new Error('private rollback PM2_HOME must be absolute');
+  }
+  const configPath = resolve(
+    pm2Home,
+    `.opendexter-private-rollback-${process.pid}-${randomUUID()}.config.cjs`,
+  );
+  const configBytes = privateRestartPm2Config(savedRow);
+  await writeFile(configPath, configBytes, { mode: 0o600, flag: 'wx' });
   try {
-    bytes = await readFile(resolve(pm2Home, 'dump.pm2'));
+    await chmod(configPath, 0o600);
+    const identity = await lstat(configPath);
+    if (
+      !identity.isFile()
+      || identity.isSymbolicLink()
+      || identity.nlink !== 1
+      || identity.uid !== process.getuid()
+      || (identity.mode & 0o7777) !== 0o600
+      || !(await readFile(configPath)).equals(configBytes)
+    ) {
+      throw new Error('private rollback PM2 config is not exact');
+    }
+    await beforeStart();
+    const finalIdentity = await lstat(configPath);
+    if (
+      !finalIdentity.isFile()
+      || finalIdentity.isSymbolicLink()
+      || finalIdentity.nlink !== 1
+      || finalIdentity.uid !== process.getuid()
+      || (finalIdentity.mode & 0o7777) !== 0o600
+      || !sameEnvironmentFileIdentity(identity, finalIdentity)
+      || !(await readFile(configPath)).equals(configBytes)
+    ) {
+      throw new Error('private rollback PM2 config changed before start');
+    }
+    await runPm2([
+      'start',
+      configPath,
+      '--only',
+      'dexter-mcp',
+    ]);
+  } finally {
+    await rm(configPath, { force: true });
+  }
+}
+
+async function readStableOwnedOptionalFile(path, { allowMissing = false } = {}) {
+  let before;
+  try {
+    before = await lstat(path);
   } catch (error) {
     if (allowMissing && error?.code === 'ENOENT') {
-      return { bytes: null, rows: [] };
+      return { bytes: null, identity: null };
     }
     throw error;
   }
+  if (
+    !before.isFile()
+    || before.isSymbolicLink()
+    || before.nlink !== 1
+    || before.uid !== process.getuid()
+    || (before.mode & 0o022) !== 0
+    || await realpath(path) !== path
+  ) {
+    throw new Error(`PM2 saved-state file is not exact: ${path}`);
+  }
+  const bytes = await readFile(path);
+  const after = await lstat(path);
+  if (
+    !sameEnvironmentFileIdentity(before, after)
+    || !(await readFile(path)).equals(bytes)
+  ) {
+    throw new Error(`PM2 saved-state file changed during read: ${path}`);
+  }
+  return {
+    bytes,
+    identity: protectedEnvironmentFileIdentity(after),
+  };
+}
+
+async function readSavedPm2Dump(pm2Home, { allowMissing = false } = {}) {
+  const state = await readStableOwnedOptionalFile(
+    resolve(pm2Home, 'dump.pm2'),
+    { allowMissing },
+  );
+  if (state.bytes === null) return { ...state, rows: [] };
+  const { bytes } = state;
   const rows = parseJson(bytes.toString('utf8'), 'PM2 saved dump');
   if (!Array.isArray(rows)) throw new Error('PM2 saved dump is not an array');
-  return { bytes, rows };
+  return { ...state, rows };
+}
+
+async function readPrivateSavedPm2State(pm2Home) {
+  const primary = await readSavedPm2Dump(pm2Home, { allowMissing: true });
+  const backupState = await readStableOwnedOptionalFile(
+    resolve(pm2Home, 'dump.pm2.bak'),
+    { allowMissing: true },
+  );
+  let backupRows = [];
+  if (backupState.bytes !== null) {
+    backupRows = parseJson(
+      backupState.bytes.toString('utf8'),
+      'PM2 saved backup dump',
+    );
+    if (!Array.isArray(backupRows)) {
+      throw new Error('PM2 saved backup dump is not an array');
+    }
+  }
+  return {
+    primary,
+    backup: { ...backupState, rows: backupRows },
+  };
 }
 
 async function restoreOriginalSavedPm2Dump(pm2Home, bytes) {
   if (bytes === null) {
     await rm(resolve(pm2Home, 'dump.pm2'), { force: true });
+    await syncDirectory(pm2Home);
     const restored = await readSavedPm2Dump(pm2Home, { allowMissing: true });
     if (restored.bytes !== null) {
       throw new Error('original absent PM2 dump was not restored');
@@ -1952,17 +2878,219 @@ async function restoreOriginalSavedPm2Dump(pm2Home, bytes) {
   }
 }
 
-function unrelatedRows(rows) {
-  return rows.filter((row) => !SERVICE_NAMES.includes(row?.name));
+async function restorePrivateSavedPm2State(pm2Home, state) {
+  for (const [name, original] of [
+    ['dump.pm2', state.primary],
+    ['dump.pm2.bak', state.backup],
+  ]) {
+    const path = resolve(pm2Home, name);
+    const current = await readStableOwnedOptionalFile(path, {
+      allowMissing: true,
+    });
+    if (original.bytes === null) {
+      if (current.bytes !== null) await unlink(path);
+      await syncDirectory(pm2Home);
+      continue;
+    }
+    await restorePm2Dump(pm2Home, original.bytes, name);
+    const restored = await readStableOwnedOptionalFile(path);
+    if (!restored.bytes.equals(original.bytes)) {
+      throw new Error(`original ${name} bytes were not restored exactly`);
+    }
+  }
+}
+
+function journalSavedFile(state) {
+  return state.bytes === null
+    ? { present: false }
+    : {
+      present: true,
+      sha256: sha256Bytes(state.bytes),
+      bytesBase64: state.bytes.toString('base64'),
+      identity: state.identity,
+    };
+}
+
+async function assertNoPrivateCutoverJournal(pm2Home) {
+  const path = resolve(pm2Home, PRIVATE_CUTOVER_JOURNAL);
+  const state = await readStableOwnedOptionalFile(path, {
+    allowMissing: true,
+  });
+  if (state.bytes !== null) {
+    throw new Error(
+      `unfinished private cutover journal requires recovery: ${path}`,
+    );
+  }
+}
+
+async function createPrivateCutoverJournal(pm2Home, {
+  candidateProcess,
+  expectedOtherProcesses,
+  expectedPublicRuntime,
+  lockOwner,
+  priorHealth,
+  priorFence,
+  priorProof,
+  priorRow,
+  savedState,
+}) {
+  const path = resolve(pm2Home, PRIVATE_CUTOVER_JOURNAL);
+  await assertNoPrivateCutoverJournal(pm2Home);
+  const bytes = Buffer.from(JSON.stringify(canonicalJson({
+    schema: 'dexter-mcp-private-cutover-journal/v1',
+    controllerPid: process.pid,
+    createdAt: new Date().toISOString(),
+    candidateProcess,
+    expectedOtherProcesses,
+    expectedPublicRuntime,
+    lockOwner,
+    priorHealth,
+    priorFence,
+    priorProof,
+    priorRow,
+    savedState: {
+      primary: journalSavedFile(savedState.primary),
+      backup: journalSavedFile(savedState.backup),
+    },
+  })));
+  let handle;
+  try {
+    handle = await open(path, 'wx', 0o600);
+    await handle.writeFile(bytes);
+    await handle.sync();
+  } finally {
+    await handle?.close();
+  }
+  await chmod(path, 0o600);
+  await syncDirectory(pm2Home);
+  const persisted = await readStableOwnedOptionalFile(path);
+  if (!persisted.bytes.equals(bytes)) {
+    throw new Error('private cutover journal is not durable and exact');
+  }
+  let cleared = false;
+  return Object.freeze({
+    path,
+    async clear() {
+      if (cleared) throw new Error('private cutover journal was already cleared');
+      const current = await readStableOwnedOptionalFile(path);
+      if (!current.bytes.equals(bytes)) {
+        throw new Error('private cutover journal changed before commit');
+      }
+      await unlink(path);
+      await syncDirectory(pm2Home);
+      cleared = true;
+    },
+  });
+}
+
+function decodeJournalSavedFile(value, label) {
+  if (value?.present === false && Object.keys(value).length === 1) {
+    return { bytes: null, identity: null, rows: [] };
+  }
+  if (
+    value?.present !== true
+    || typeof value.bytesBase64 !== 'string'
+    || !/^[a-f0-9]{64}$/.test(value.sha256 ?? '')
+    || !value.identity
+  ) {
+    throw new Error(`private cutover journal ${label} is invalid`);
+  }
+  const bytes = Buffer.from(value.bytesBase64, 'base64');
+  if (
+    bytes.toString('base64') !== value.bytesBase64
+    || sha256Bytes(bytes) !== value.sha256
+  ) {
+    throw new Error(`private cutover journal ${label} digest changed`);
+  }
+  const rows = parseJson(bytes.toString('utf8'), `journal ${label}`);
+  if (!Array.isArray(rows)) {
+    throw new Error(`private cutover journal ${label} is not a PM2 dump`);
+  }
+  return { bytes, identity: value.identity, rows };
+}
+
+async function readPrivateCutoverJournal(pm2Home) {
+  const path = resolve(pm2Home, PRIVATE_CUTOVER_JOURNAL);
+  const state = await readStableOwnedOptionalFile(path);
+  const payload = parseJson(
+    state.bytes.toString('utf8'),
+    'private cutover journal',
+  );
+  const expectedKeys = [
+    'candidateProcess',
+    'controllerPid',
+    'createdAt',
+    'expectedOtherProcesses',
+    'expectedPublicRuntime',
+    'lockOwner',
+    'priorFence',
+    'priorHealth',
+    'priorProof',
+    'priorRow',
+    'savedState',
+    'schema',
+  ];
+  if (
+    payload?.schema !== 'dexter-mcp-private-cutover-journal/v1'
+    || !Number.isInteger(payload.controllerPid)
+    || payload.controllerPid <= 0
+    || Number.isNaN(new Date(payload.createdAt).valueOf())
+    || !sameJson(Object.keys(payload).sort(), expectedKeys)
+    || payload.priorRow?.name !== 'dexter-mcp'
+    || payload.lockOwner?.pid !== payload.controllerPid
+    || typeof payload.lockOwner?.token !== 'string'
+    || payload.lockOwner.token.length === 0
+    || Object.keys(payload.lockOwner).length !== 2
+    || payload.priorFence?.kind !== 'strict-runtime'
+    || !payload.priorProof
+    || !payload.priorHealth
+    || !payload.candidateProcess
+    || !payload.savedState
+  ) {
+    throw new Error('private cutover journal contract is invalid');
+  }
+  const savedState = {
+    primary: decodeJournalSavedFile(
+      payload.savedState.primary,
+      'primary dump',
+    ),
+    backup: decodeJournalSavedFile(
+      payload.savedState.backup,
+      'backup dump',
+    ),
+  };
+  let cleared = false;
+  return Object.freeze({
+    path,
+    bytes: Buffer.from(state.bytes),
+    sha256: sha256Bytes(state.bytes),
+    payload: Object.freeze(payload),
+    savedState: Object.freeze(savedState),
+    async clear() {
+      if (cleared) throw new Error('private cutover journal was already cleared');
+      const current = await readStableOwnedOptionalFile(path);
+      if (!current.bytes.equals(state.bytes)) {
+        throw new Error('private cutover journal changed during recovery');
+      }
+      await unlink(path);
+      await syncDirectory(pm2Home);
+      cleared = true;
+    },
+  });
+}
+
+function unrelatedRows(rows, services = SERVICE_NAMES) {
+  return rows.filter((row) => !services.includes(row?.name));
 }
 
 async function recomposeSavedPm2Dump({
   pm2Home,
   originalSavedUnrelatedRows,
+  services = SERVICE_NAMES,
 }) {
   const generated = await readSavedPm2Dump(pm2Home);
   const targetRows = generated.rows.filter(
-    (row) => SERVICE_NAMES.includes(row?.name),
+    (row) => services.includes(row?.name),
   );
   const rows = [
     ...structuredClone(originalSavedUnrelatedRows),
@@ -1971,6 +3099,17 @@ async function recomposeSavedPm2Dump({
   const bytes = Buffer.from(JSON.stringify(rows));
   await restorePm2Dump(pm2Home, bytes);
   return { bytes, rows, targetRows };
+}
+
+async function verifySavedPm2BackupExact(pm2Home, expectedBytes) {
+  const backup = await readStableOwnedOptionalFile(
+    resolve(pm2Home, 'dump.pm2.bak'),
+    { allowMissing: true },
+  );
+  if (backup.bytes === null || !backup.bytes.equals(expectedBytes)) {
+    throw new Error('PM2 saved backup is not the exact prior private state');
+  }
+  return true;
 }
 
 function expectedPriorProcesses(prior) {
@@ -2040,6 +3179,7 @@ export async function activateOpenRelease({
   freshInstall = false,
   healthTimeoutMs = DEFAULT_HEALTH_TIMEOUT_MS,
   pm2CommandTimeoutMs = DEFAULT_PM2_COMMAND_TIMEOUT_MS,
+  pm2StartupTimeoutMs = DEFAULT_PM2_STARTUP_TIMEOUT_MS,
   preflightCandidate = preflightOpenReleaseCandidate,
   verifyPair = verifyRunningOpenReleasePair,
   capturePrior = capturePriorOpenReleasePair,
@@ -2085,7 +3225,11 @@ export async function activateOpenRelease({
     nodeExecutable: PRODUCTION_NODE_EXECUTABLE,
     pm2Executable,
     timeoutMs: pm2CommandTimeoutMs,
+    startupTimeoutMs: pm2StartupTimeoutMs,
   });
+  await assertNoPrivateCutoverJournal(pm2Home);
+  const cutoverLock = await acquireReleaseCutoverLock(pm2Home);
+  try {
   const before = await pm2List(runPm2);
   const hasPriorPair = assertPriorTopology(before, freshInstall);
   const prior = hasPriorPair
@@ -2095,7 +3239,6 @@ export async function activateOpenRelease({
     await verifyPriorRestartability({ prior, rows: before });
   }
   const priorProcesses = expectedPriorProcesses(prior);
-  const liveUnrelatedProcesses = unrelatedPm2Snapshot(before);
   const preservedPrivateProcess = await preservedPrivateProcessSnapshot(
     before,
     privateProcessProofOptions,
@@ -2141,9 +3284,8 @@ export async function activateOpenRelease({
       phase: 'prior',
     });
     const liveAfterPriorSave = await pm2List(runPm2);
-    await assertLiveUnrelatedPm2Processes(
+    await assertPreservedPrivateProcess(
       liveAfterPriorSave,
-      liveUnrelatedProcesses,
       'prior save',
       preservedPrivateProcess,
       privateProcessProofOptions,
@@ -2157,9 +3299,8 @@ export async function activateOpenRelease({
     }
     await verifyProtectedEnvironmentStillExact(preflight);
     const finalPreDeleteRows = await pm2List(runPm2);
-    await assertLiveUnrelatedPm2Processes(
+    await assertPreservedPrivateProcess(
       finalPreDeleteRows,
-      liveUnrelatedProcesses,
       'final pre-delete proof',
       preservedPrivateProcess,
       privateProcessProofOptions,
@@ -2199,7 +3340,6 @@ export async function activateOpenRelease({
     await deleteServices(
       before,
       runPm2,
-      liveUnrelatedProcesses,
       preservedPrivateProcess,
       privateProcessProofOptions,
     );
@@ -2209,9 +3349,8 @@ export async function activateOpenRelease({
       runPm2,
     });
     const candidateRows = await pm2List(runPm2);
-    await assertLiveUnrelatedPm2Processes(
+    await assertPreservedPrivateProcess(
       candidateRows,
-      liveUnrelatedProcesses,
       'candidate activation',
       preservedPrivateProcess,
       privateProcessProofOptions,
@@ -2244,9 +3383,8 @@ export async function activateOpenRelease({
       phase: 'candidate',
     });
     const finalRows = await pm2List(runPm2);
-    await assertLiveUnrelatedPm2Processes(
+    await assertPreservedPrivateProcess(
       finalRows,
-      liveUnrelatedProcesses,
       'post-save candidate activation',
       preservedPrivateProcess,
       privateProcessProofOptions,
@@ -2283,7 +3421,6 @@ export async function activateOpenRelease({
       // fresh PM2/private-runtime proof that the public name is absent.
       await deleteServicesForRollback(
         runPm2,
-        liveUnrelatedProcesses,
         preservedPrivateProcess,
         privateProcessProofOptions,
         pm2CommandTimeoutMs,
@@ -2297,9 +3434,8 @@ export async function activateOpenRelease({
         }
         await waitFor(async () => {
           const rows = await pm2List(runPm2);
-          await assertLiveUnrelatedPm2Processes(
+          await assertPreservedPrivateProcess(
             rows,
-            liveUnrelatedProcesses,
             'rollback',
             preservedPrivateProcess,
             privateProcessProofOptions,
@@ -2316,14 +3452,13 @@ export async function activateOpenRelease({
             healthTimeoutMs,
           });
           return true;
-        });
+        }, { timeoutMs: pm2StartupTimeoutMs });
       } else {
         await restorePm2Dump(pm2Home, priorSavedDump);
         await waitFor(async () => {
           const rows = await pm2List(runPm2);
-          await assertLiveUnrelatedPm2Processes(
+          await assertPreservedPrivateProcess(
             rows,
-            liveUnrelatedProcesses,
             'fresh-install rollback',
             preservedPrivateProcess,
             privateProcessProofOptions,
@@ -2351,9 +3486,8 @@ export async function activateOpenRelease({
         await restoreOriginalSavedPm2Dump(pm2Home, savedBefore.bytes);
       }
       const finalRollbackRows = await pm2List(runPm2);
-      await assertLiveUnrelatedPm2Processes(
+      await assertPreservedPrivateProcess(
         finalRollbackRows,
-        liveUnrelatedProcesses,
         'post-save rollback',
         preservedPrivateProcess,
         privateProcessProofOptions,
@@ -2383,5 +3517,1277 @@ export async function activateOpenRelease({
     throw new Error(
       'OpenDexter candidate failed; the exact prior state was restored',
     );
+  }
+  } finally {
+    await cutoverLock.release();
+  }
+}
+
+const PRIVATE_RELEASE_SERVICES = Object.freeze(['dexter-mcp']);
+const PRIVATE_CUTOVER_JOURNAL =
+  '.dexter-mcp-private-cutover-journal.json';
+
+function exactNamedRow(rows, name, label = name) {
+  const selected = rows.filter((row) => row?.name === name);
+  if (selected.length !== 1) {
+    throw new Error(`PM2 must contain exactly one ${label} process`);
+  }
+  return selected[0];
+}
+
+function stablePrivateHealth(body, expectedPort) {
+  const hasService = body?.service !== undefined;
+  const hasTools = body?.tools !== undefined;
+  if (
+    body?.ok !== true
+    || body.status !== 'ok'
+    || Number(body.port) !== expectedPort
+    || (hasService && body.service !== 'dexter-mcp')
+    || (hasTools && (
+      !Array.isArray(body.tools)
+      || body.tools.length === 0
+      || body.tools.some((name) => typeof name !== 'string')
+      || new Set(body.tools).size !== body.tools.length
+    ))
+    || (!hasService && !hasTools && (
+      typeof body.oauth !== 'boolean'
+      || typeof body.issuer !== 'string'
+      || body.issuer.length === 0
+      || typeof body.base !== 'string'
+      || body.base.length === 0
+    ))
+  ) {
+    throw new Error('private Dexter health identity is incomplete');
+  }
+  const stable = structuredClone(body);
+  delete stable.timestamp;
+  delete stable.sessions;
+  return canonicalJson(stable);
+}
+
+function restartableProcessDefinition(row) {
+  const declaredEnvironment = declaredProcessEnvironment(
+    row,
+    row?.name ?? '',
+  );
+  return canonicalJson({
+    definition: snapshotPm2ProcessDefinition(row),
+    declaredEnvironment,
+  });
+}
+
+export async function verifyLegacyPrivateInterpreter({
+  expectedInterpreter =
+    LEGACY_PRIVATE_RELEASE_CONTRACT.runtime.interpreter,
+  interpreter = expectedInterpreter,
+  expectedVersion =
+    LEGACY_PRIVATE_RELEASE_CONTRACT.runtime.interpreterVersion,
+  expectedSha256 =
+    LEGACY_PRIVATE_RELEASE_CONTRACT.runtime.interpreterSha256,
+  expectedIdentity =
+    LEGACY_PRIVATE_RELEASE_CONTRACT.runtime.interpreterIdentity,
+  lstatImpl = lstat,
+  readFileImpl = readFile,
+  realpathImpl = realpath,
+  runCommandImpl = execFileAsync,
+} = {}) {
+  if (
+    interpreter !== expectedInterpreter
+    || await realpathImpl(interpreter) !== interpreter
+    || !/^v\d+\.\d+\.\d+$/.test(expectedVersion ?? '')
+    || !/^[a-f0-9]{64}$/.test(expectedSha256 ?? '')
+    || !expectedIdentity
+    || !['dev', 'ino', 'mode', 'nlink', 'uid', 'gid'].every(
+      (key) => Number.isInteger(expectedIdentity[key]),
+    )
+    || expectedIdentity.uid !== process.getuid()
+  ) {
+    throw new Error('legacy private interpreter contract is invalid');
+  }
+  const before = await lstatImpl(interpreter);
+  if (
+    !before.isFile()
+    || before.isSymbolicLink()
+    || before.dev !== expectedIdentity.dev
+    || before.ino !== expectedIdentity.ino
+    || (before.mode & 0o7777) !== expectedIdentity.mode
+    || before.nlink !== expectedIdentity.nlink
+    || before.uid !== expectedIdentity.uid
+    || before.gid !== expectedIdentity.gid
+    || (before.mode & 0o022) !== 0
+    || (before.mode & 0o100) === 0
+  ) {
+    throw new Error('legacy private interpreter filesystem identity is unsafe');
+  }
+  const bytes = await readFileImpl(interpreter);
+  if (createHash('sha256').update(bytes).digest('hex') !== expectedSha256) {
+    throw new Error('legacy private interpreter digest changed');
+  }
+  let version;
+  try {
+    const result = await runCommandImpl(interpreter, ['--version'], {
+      encoding: 'utf8',
+      env: {
+        HOME: '/home/branchmanager',
+        LANG: 'C',
+        LC_ALL: 'C',
+        PATH: '/usr/bin:/bin',
+      },
+      maxBuffer: 1024 * 1024,
+      timeout: 5_000,
+      killSignal: 'SIGKILL',
+    });
+    version = result.stdout.trim();
+  } catch (error) {
+    throw new Error('legacy private interpreter version is unreadable', {
+      cause: error,
+    });
+  }
+  const after = await lstatImpl(interpreter);
+  if (
+    version !== expectedVersion
+    || after.dev !== expectedIdentity.dev
+    || after.ino !== expectedIdentity.ino
+    || (after.mode & 0o7777) !== expectedIdentity.mode
+    || after.nlink !== expectedIdentity.nlink
+    || after.uid !== expectedIdentity.uid
+    || after.gid !== expectedIdentity.gid
+    || !sameEnvironmentFileIdentity(before, after)
+  ) {
+    throw new Error('legacy private interpreter identity changed');
+  }
+  return Object.freeze({
+    path: interpreter,
+    version,
+    sha256: expectedSha256,
+    identity: protectedEnvironmentFileIdentity(after),
+  });
+}
+
+export async function verifyPriorPrivateReleaseRestartability({
+  row,
+  expectedRuntime,
+  expectedSavedRow,
+  readSealedReleaseImpl = readSealedOpenRelease,
+  readLegacyReleaseImpl = readSealedLegacyOpenRelease,
+  lstatImpl = lstat,
+  readFileImpl = readFile,
+  realpathImpl = realpath,
+  processProofOptions = {},
+  verifyLegacyInterpreterImpl = verifyLegacyPrivateInterpreter,
+}) {
+  if (row?.name !== 'dexter-mcp') {
+    throw new Error('private restart proof requires dexter-mcp');
+  }
+  const runtime = await runningServiceProcessSnapshot(
+    'dexter-mcp',
+    [row],
+    processProofOptions,
+  );
+  if (!samePm2ProcessSnapshot(runtime, expectedRuntime)) {
+    throw new Error('private Dexter runtime changed before restart proof');
+  }
+  if (!sameJson(
+    restartableProcessDefinition(row),
+    restartableProcessDefinition(expectedSavedRow),
+  )) {
+    throw new Error('private Dexter saved definition is not restartable exactly');
+  }
+
+  const processIdentity = stableProcessIdentity('dexter-mcp', row);
+  verifyPrivateExecutionArgumentsAreEmpty(row, 'prior private runtime');
+  if (Object.values(processIdentity.forbiddenLoaderEnvironment)
+    .some((value) => value !== null)) {
+    throw new Error('prior private runtime contains a forbidden loader input');
+  }
+  const releaseDir = await realpathImpl(processIdentity.cwd ?? '');
+  let expectedScript;
+  let expectedInterpreter;
+  let releaseProof;
+  let legacy = false;
+  if (basename(releaseDir) === LEGACY_PRIVATE_RELEASE_CONTRACT.directoryName) {
+    legacy = true;
+    const release = await readLegacyReleaseImpl(
+      releaseDir,
+      LEGACY_PRIVATE_RELEASE_CONTRACT,
+    );
+    if (
+      release.releaseDir !== releaseDir
+      || processIdentity.release !== null
+      || processIdentity.roster !== null
+    ) {
+      throw new Error('prior private legacy release identity mismatch');
+    }
+    expectedScript = release.entrypoint;
+    expectedInterpreter = LEGACY_PRIVATE_RELEASE_CONTRACT.runtime.interpreter;
+    releaseProof = {
+      kind: release.kind,
+      sourceIdentity: release.sourceIdentity,
+      provenance: release.provenance,
+      rollbackIdentity: release.rollbackIdentity,
+    };
+  } else {
+    const release = await readSealedReleaseImpl(releaseDir);
+    if (
+      release.releaseDir !== releaseDir
+      || release.provenance.schema !== 'dexter-mcp-immutable-release/v4'
+      || !sameJson(
+        releaseIdentityForService(release, 'dexter-mcp'),
+        processIdentity.release,
+      )
+      || !sameJson(
+        release.provenance.rosters['dexter-mcp'],
+        processIdentity.roster,
+      )
+    ) {
+      throw new Error('prior private sealed release identity mismatch');
+    }
+    expectedScript = resolve(
+      releaseDir,
+      release.provenance.entrypoints['dexter-mcp'],
+    );
+    expectedInterpreter = OPEN_RELEASE_APPLICATION_NODE_EXECUTABLE;
+    releaseProof = {
+      kind: release.provenance.schema,
+      identity: releaseIdentityForService(release, 'dexter-mcp'),
+      roster: release.provenance.rosters['dexter-mcp'],
+    };
+  }
+  if (
+    processIdentity.script !== expectedScript
+    || await realpathImpl(processIdentity.script ?? '')
+      !== await realpathImpl(expectedScript)
+  ) {
+    throw new Error('prior private script is not the sealed entrypoint');
+  }
+  const interpreter = await realpathImpl(processIdentity.interpreter ?? '');
+  if (
+    interpreter !== await realpathImpl(expectedInterpreter)
+    || interpreter !== expectedRuntime.kernel.executable
+    || !commandLineMatches(
+      expectedRuntime.kernel.commandLine,
+      interpreter,
+      expectedScript,
+    )
+  ) {
+    throw new Error('prior private interpreter is not restartable exactly');
+  }
+  let interpreterProof = Object.freeze({ path: interpreter });
+  if (legacy) {
+    interpreterProof = await verifyLegacyInterpreterImpl({ interpreter });
+    if (
+      !interpreterProof
+      || interpreterProof.path !== interpreter
+      || typeof interpreterProof.sha256 !== 'string'
+      || typeof interpreterProof.version !== 'string'
+      || !interpreterProof.identity
+    ) {
+      throw new Error('prior private legacy interpreter proof is incomplete');
+    }
+  }
+
+  const envFile = processIdentity.envFile;
+  if (
+    !isAbsolute(envFile ?? '')
+    || (legacy
+      && envFile !== LEGACY_PRIVATE_RELEASE_CONTRACT.runtime.environmentFile)
+  ) {
+    throw new Error('prior private environment file is unavailable');
+  }
+  const before = await lstatImpl(envFile);
+  if (
+    !protectedEnvironmentStat(before)
+    || await realpathImpl(envFile) !== envFile
+  ) {
+    throw new Error('prior private environment file is not exact');
+  }
+  const environmentBytes = await readFileImpl(envFile);
+  const after = await lstatImpl(envFile);
+  if (
+    !protectedEnvironmentStat(after)
+    || !sameEnvironmentFileIdentity(before, after)
+  ) {
+    throw new Error('prior private environment file changed during proof');
+  }
+  const environmentSha256 = createHash('sha256')
+    .update(environmentBytes)
+    .digest('hex');
+  if (legacy) {
+    verifyLegacyPersistedEnvironment(row, environmentBytes, {
+      label: 'prior private legacy runtime',
+      persistedEnvironmentKeys:
+        LEGACY_PRIVATE_RELEASE_CONTRACT.runtime.persistedEnvironmentKeys,
+      environmentFileKeys:
+        LEGACY_PRIVATE_RELEASE_CONTRACT.runtime.environmentFileKeys,
+    });
+  } else {
+    if (environmentSha256 !== processIdentity.envFileSha256) {
+      throw new Error('prior private environment-file digest mismatch');
+    }
+    const persisted = exactPersistedEnvironment(row);
+    const applicationEnvironment = parseEnv(environmentBytes.toString('utf8'));
+    for (const key of ECOSYSTEM_REMOVED_ENV_KEYS) {
+      delete applicationEnvironment[key];
+    }
+    for (const [key, value] of Object.entries(applicationEnvironment)) {
+      if (
+        !Object.hasOwn(persisted, key)
+        || String(persisted[key]) !== value
+      ) {
+        throw new Error(`prior private persisted environment does not match ${key}`);
+      }
+    }
+  }
+  return Object.freeze({
+    release: canonicalJson(releaseProof),
+    interpreter: canonicalJson(interpreterProof),
+    environment: Object.freeze({
+      path: envFile,
+      sha256: environmentSha256,
+      identity: protectedEnvironmentFileIdentity(after),
+    }),
+  });
+}
+
+/**
+ * Re-read every mutable input needed to restart the captured private process.
+ * This runs after the rejected candidate has been removed and immediately
+ * before PM2 evaluates the one-service rollback configuration.
+ */
+export async function verifyPrivateRollbackInputsStillExact({
+  row,
+  priorProof,
+  readSealedReleaseImpl = readSealedOpenRelease,
+  readLegacyReleaseImpl = readSealedLegacyOpenRelease,
+  lstatImpl = lstat,
+  readFileImpl = readFile,
+  realpathImpl = realpath,
+  verifyLegacyInterpreterImpl = verifyLegacyPrivateInterpreter,
+}) {
+  if (row?.name !== 'dexter-mcp' || !priorProof) {
+    throw new Error('private rollback source proof is incomplete');
+  }
+  const processIdentity = stableProcessIdentity('dexter-mcp', row);
+  verifyPrivateExecutionArgumentsAreEmpty(row, 'private rollback source');
+  if (Object.values(processIdentity.forbiddenLoaderEnvironment)
+    .some((value) => value !== null)) {
+    throw new Error('private rollback source contains a forbidden loader input');
+  }
+  const releaseDir = await realpathImpl(processIdentity.cwd ?? '');
+  const legacy = basename(releaseDir)
+    === LEGACY_PRIVATE_RELEASE_CONTRACT.directoryName;
+  let currentReleaseProof;
+  let expectedScript;
+  let currentInterpreterProof;
+  if (legacy) {
+    const release = await readLegacyReleaseImpl(
+      releaseDir,
+      LEGACY_PRIVATE_RELEASE_CONTRACT,
+    );
+    currentReleaseProof = {
+      kind: release.kind,
+      sourceIdentity: release.sourceIdentity,
+      provenance: release.provenance,
+      rollbackIdentity: release.rollbackIdentity,
+    };
+    expectedScript = release.entrypoint;
+    const interpreter = await realpathImpl(processIdentity.interpreter ?? '');
+    currentInterpreterProof = await verifyLegacyInterpreterImpl({
+      interpreter,
+    });
+  } else {
+    const release = await readSealedReleaseImpl(releaseDir);
+    if (
+      release.releaseDir !== releaseDir
+      || release.provenance.schema !== 'dexter-mcp-immutable-release/v4'
+    ) {
+      throw new Error('private rollback sealed release identity mismatch');
+    }
+    currentReleaseProof = {
+      kind: release.provenance.schema,
+      identity: releaseIdentityForService(release, 'dexter-mcp'),
+      roster: release.provenance.rosters['dexter-mcp'],
+    };
+    expectedScript = resolve(
+      releaseDir,
+      release.provenance.entrypoints['dexter-mcp'],
+    );
+    const interpreter = await realpathImpl(processIdentity.interpreter ?? '');
+    if (
+      interpreter !== await realpathImpl(
+        OPEN_RELEASE_APPLICATION_NODE_EXECUTABLE,
+      )
+    ) {
+      throw new Error('private rollback interpreter is not exact');
+    }
+    currentInterpreterProof = { path: interpreter };
+  }
+  if (
+    processIdentity.script !== expectedScript
+    || await realpathImpl(processIdentity.script ?? '')
+      !== await realpathImpl(expectedScript)
+    || !sameJson(currentReleaseProof, priorProof.release)
+    || !sameJson(currentInterpreterProof, priorProof.interpreter)
+  ) {
+    throw new Error('private rollback code or interpreter changed after proof');
+  }
+
+  const currentEnvironment = await readStableProtectedEnvironment({
+    configuredPath: processIdentity.envFile,
+    lstatImpl,
+    readFileImpl,
+    realpathImpl,
+  });
+  if (
+    currentEnvironment.envFile !== priorProof.environment?.path
+    || currentEnvironment.envFileSha256 !== priorProof.environment?.sha256
+    || !sameJson(
+      currentEnvironment.envFileIdentity,
+      priorProof.environment?.identity,
+    )
+  ) {
+    throw new Error('private rollback environment changed after proof');
+  }
+  if (legacy) {
+    verifyLegacyPersistedEnvironment(row, currentEnvironment.envFileBytes, {
+      label: 'private rollback legacy runtime',
+      persistedEnvironmentKeys:
+        LEGACY_PRIVATE_RELEASE_CONTRACT.runtime.persistedEnvironmentKeys,
+      environmentFileKeys:
+        LEGACY_PRIVATE_RELEASE_CONTRACT.runtime.environmentFileKeys,
+    });
+  } else {
+    const persisted = exactPersistedEnvironment(row);
+    const applicationEnvironment = parseEnv(
+      currentEnvironment.envFileBytes.toString('utf8'),
+    );
+    for (const key of ECOSYSTEM_REMOVED_ENV_KEYS) {
+      delete applicationEnvironment[key];
+    }
+    for (const [key, value] of Object.entries(applicationEnvironment)) {
+      if (
+        !Object.hasOwn(persisted, key)
+        || String(persisted[key]) !== value
+      ) {
+        throw new Error(
+          `private rollback persisted environment does not match ${key}`,
+        );
+      }
+    }
+  }
+  return true;
+}
+
+async function assertPrivateCutoverPreservation({
+  rows,
+  expectedOtherProcesses,
+  expectedPublicRuntime,
+  phase,
+  processProofOptions,
+}) {
+  if (!samePm2ProcessSnapshot(
+    snapshotUnrelatedPm2Processes(rows, PRIVATE_RELEASE_SERVICES),
+    expectedOtherProcesses,
+  )) {
+    throw new Error(`${phase} changed another PM2 process definition`);
+  }
+  if (!samePm2ProcessSnapshot(
+    await runningServiceProcessSnapshot(
+      'dexter-open-mcp',
+      rows,
+      processProofOptions,
+    ),
+    expectedPublicRuntime,
+  )) {
+    throw new Error(`${phase} changed the public OpenDexter process`);
+  }
+}
+
+async function expectedPrivateCandidateRuntime({
+  rows,
+  expectedProcess,
+  processProofOptions,
+}) {
+  const row = exactNamedRow(rows, 'dexter-mcp', 'candidate private Dexter');
+  if (!sameJson(
+    stableProcessIdentity('dexter-mcp', row),
+    expectedProcess,
+  )) {
+    throw new Error('private candidate process identity is not exact');
+  }
+  return runningServiceProcessSnapshot(
+    'dexter-mcp',
+    rows,
+    processProofOptions,
+  );
+}
+
+async function privateDeletionFence(
+  row,
+  processProofOptions,
+  { kind = 'strict-runtime' } = {},
+) {
+  if (row?.name !== 'dexter-mcp') {
+    throw new Error('private deletion fence requires dexter-mcp');
+  }
+  const pmId = row?.pm_id ?? processField(row, 'pm_id');
+  const pid = row?.pid ?? null;
+  const status = processField(row, 'status');
+  const restartTime = processField(row, 'restart_time');
+  const unstableRestarts = processField(row, 'unstable_restarts');
+  if (
+    !Number.isInteger(pmId)
+    || pmId < 0
+    || !(pid === null || (Number.isInteger(pid) && pid >= 0))
+    || typeof status !== 'string'
+    || status.length === 0
+    || !Number.isInteger(restartTime)
+    || restartTime < 0
+    || !Number.isInteger(unstableRestarts)
+    || unstableRestarts < 0
+  ) {
+    throw new Error('private deletion fence runtime identity is incomplete');
+  }
+  if (!['strict-runtime', 'candidate', 'prior-generation'].includes(kind)) {
+    throw new Error('private deletion fence kind is invalid');
+  }
+  const generationOnly = kind !== 'strict-runtime';
+  const onlineRuntime = !generationOnly
+    && status === PM2_STATUS_ONLINE
+    && pid > 0
+    ? await runningServiceProcessSnapshot(
+      'dexter-mcp',
+      [row],
+      processProofOptions,
+    )
+    : null;
+  return canonicalJson({
+    kind,
+    pmId,
+    process: generationOnly
+      ? privateGenerationIdentity(row)
+      : savedProcessIdentity('dexter-mcp', row),
+    ...(generationOnly ? {} : {
+      pid,
+      status,
+      restartTime,
+      unstableRestarts,
+      onlineRuntime,
+    }),
+  });
+}
+
+async function expectedPrivateCandidateDeletionFence({
+  rows,
+  expectedProcess,
+  processProofOptions,
+}) {
+  const candidates = rows.filter((row) => row?.name === 'dexter-mcp');
+  if (candidates.length === 0) return null;
+  if (candidates.length !== 1) {
+    throw new Error('candidate private Dexter PM2 row is not unique');
+  }
+  if (!sameJson(
+    processIdentityWithoutNamespaceProof('dexter-mcp', candidates[0]),
+    expectedProcess,
+  )) {
+    throw new Error('private candidate process identity is not exact');
+  }
+  return privateDeletionFence(candidates[0], processProofOptions, {
+    kind: 'candidate',
+  });
+}
+
+async function expectedPrivatePriorGenerationDeletionFence({
+  row,
+  priorRow,
+  processProofOptions,
+}) {
+  if (
+    !sameJson(
+      processIdentityWithoutNamespaceProof('dexter-mcp', row),
+      processIdentityWithoutNamespaceProof('dexter-mcp', priorRow),
+    )
+    || !sameJson(
+      snapshotPm2ProcessDefinition(row),
+      snapshotPm2ProcessDefinition(priorRow),
+    )
+  ) {
+    throw new Error('private recovery prior generation is not exact');
+  }
+  return privateDeletionFence(row, processProofOptions, {
+    kind: 'prior-generation',
+  });
+}
+
+async function deletePrivateServiceForCutover({
+  beforeDelete = async () => {},
+  deletionPhase,
+  runPm2,
+  expectedOtherProcesses,
+  expectedPublicRuntime,
+  expectedTargetFence,
+  onMutation = () => {},
+  processProofOptions,
+  timeoutMs,
+}) {
+  if (expectedTargetFence === undefined) {
+    throw new Error('private deletion requires an exact expected target');
+  }
+  const initial = await pm2List(runPm2);
+  await assertPrivateCutoverPreservation({
+    rows: initial,
+    expectedOtherProcesses,
+    expectedPublicRuntime,
+    phase: 'private pre-delete proof',
+    processProofOptions,
+  });
+  const targetRows = initial.filter((row) => row?.name === 'dexter-mcp');
+  if (expectedTargetFence === null) {
+    if (targetRows.length !== 0) {
+      throw new Error('private Dexter appeared before deletion');
+    }
+    return;
+  }
+  const currentTargetFence = targetRows.length === 1
+    ? await privateDeletionFence(
+      targetRows[0],
+      processProofOptions,
+      { kind: expectedTargetFence.kind },
+    )
+    : null;
+  if (targetRows.length !== 1 || !sameJson(
+    currentTargetFence,
+    expectedTargetFence,
+  )) {
+    throw new Error('private Dexter runtime changed before deletion');
+  }
+  const targetPids = targetRows
+    .map((row) => row?.pid)
+    .filter((pid) => Number.isInteger(pid) && pid > 0);
+  if (targetRows.length > 0) {
+    const targetPmId = expectedTargetFence.pmId;
+    if (!Number.isInteger(targetPmId) || targetPmId < 0) {
+      throw new Error('private deletion target has no exact PM2 id');
+    }
+    await beforeDelete(Object.freeze({
+      phase: deletionPhase,
+      pm2Id: targetPmId,
+      pid: targetRows[0].pid,
+    }));
+    onMutation();
+    await runPm2(['delete', String(targetPmId)]);
+  }
+  await waitFor(async () => {
+    const rows = await pm2List(runPm2);
+    await assertPrivateCutoverPreservation({
+      rows,
+      expectedOtherProcesses,
+      expectedPublicRuntime,
+      phase: 'private deletion',
+      processProofOptions,
+    });
+    const exited = (await Promise.all(targetPids.map(processExists)))
+      .every((exists) => !exists);
+    return rows.every((row) => row?.name !== 'dexter-mcp') && exited;
+  }, {
+    timeoutMs,
+    intervalMs: Math.min(100, Math.max(1, Math.floor(timeoutMs / 4))),
+  });
+}
+
+/**
+ * Transactionally replace only the private OAuth MCP process from a v4 sealed
+ * release. The public OpenDexter PID/kernel and every other PM2 definition are
+ * bound before the first mutation and re-proved after start, save, and any
+ * rollback. Standard deploy:mcp continues to call activateOpenRelease above.
+ */
+export async function activatePrivateRelease({
+  releaseDirectory,
+  releaseCandidate,
+  runCommand = execFileAsync,
+  fetchImpl = fetch,
+  commandEnvironment = defaultCommandEnvironment(),
+  pm2Home = defaultPm2Home(),
+  healthTimeoutMs = DEFAULT_HEALTH_TIMEOUT_MS,
+  pm2CommandTimeoutMs = DEFAULT_PM2_COMMAND_TIMEOUT_MS,
+  pm2StartupTimeoutMs = DEFAULT_PM2_STARTUP_TIMEOUT_MS,
+  preflightCandidate = preflightOpenReleaseCandidate,
+  verifyCandidate = verifyRunningOpenReleasePair,
+  verifyPriorRestartability = verifyPriorPrivateReleaseRestartability,
+  verifyRollbackInputs = verifyPrivateRollbackInputsStillExact,
+  verifyDaemon = verifyPm2DaemonLaunchAuthority,
+  verifyPm2Executable = verifyProductionPm2Executable,
+  processProofOptions = {},
+  beforePrivateDelete = async () => {},
+} = {}) {
+  const release = releaseCandidate
+    ?? readSealedOpenRelease(releaseDirectory);
+  if (
+    release?.provenance?.schema !== 'dexter-mcp-immutable-release/v4'
+    || release.provenance.entrypoints?.['dexter-mcp']
+      !== 'production-bootstrap.mjs'
+    || !Array.isArray(release.provenance.rosters?.['dexter-mcp'])
+  ) {
+    throw new Error('private cutover requires a v4 sealed Dexter MCP release');
+  }
+  const preflight = await preflightCandidate({
+    release,
+    services: PRIVATE_RELEASE_SERVICES,
+    commandEnvironment,
+    pm2Home,
+  });
+  const pm2Executable = await verifyPm2Executable();
+  if (pm2Executable !== PRODUCTION_PM2_EXECUTABLE) {
+    throw new Error('verified PM2 executable is not the production binary');
+  }
+  const runPm2 = boundedPm2Runner({
+    runCommand,
+    commandEnvironment: {
+      ...commandEnvironment,
+      PM2_HOME: pm2Home,
+    },
+    nodeExecutable: PRODUCTION_NODE_EXECUTABLE,
+    pm2Executable,
+    timeoutMs: pm2CommandTimeoutMs,
+    startupTimeoutMs: pm2StartupTimeoutMs,
+  });
+  const cutoverLock = await acquireReleaseCutoverLock(pm2Home);
+  try {
+  const before = await pm2List(runPm2);
+  const priorPrivateRow = exactNamedRow(before, 'dexter-mcp', 'private Dexter');
+  exactNamedRow(before, 'dexter-open-mcp', 'public OpenDexter');
+  await verifyDaemon({ pm2Home });
+  const expectedOtherProcesses = snapshotUnrelatedPm2Processes(
+    before,
+    PRIVATE_RELEASE_SERVICES,
+  );
+  const expectedPublicRuntime = await runningServiceProcessSnapshot(
+    'dexter-open-mcp',
+    before,
+    processProofOptions,
+  );
+  const priorPrivateRuntime = await runningServiceProcessSnapshot(
+    'dexter-mcp',
+    before,
+    processProofOptions,
+  );
+  const priorPrivateFence = await privateDeletionFence(
+    priorPrivateRow,
+    processProofOptions,
+  );
+  const priorPrivateHealth = stablePrivateHealth(await readLoopbackHealth(
+    'dexter-mcp',
+    priorPrivateRow,
+    fetchImpl,
+    healthTimeoutMs,
+  ), expectedHealthPort('dexter-mcp', priorPrivateRow));
+  const savedBefore = await readPrivateSavedPm2State(pm2Home);
+  const originalSavedOtherRows = unrelatedRows(
+    savedBefore.primary.rows,
+    PRIVATE_RELEASE_SERVICES,
+  );
+  const expectedSavedOtherProcesses = snapshotUnrelatedPm2Processes(
+    savedBefore.primary.rows,
+    PRIVATE_RELEASE_SERVICES,
+  );
+  let priorSavedPrivateRow;
+  const finalPreSave = await pm2List(runPm2);
+  await assertPrivateCutoverPreservation({
+    rows: finalPreSave,
+    expectedOtherProcesses,
+    expectedPublicRuntime,
+    phase: 'private pre-save proof',
+    processProofOptions,
+  });
+  if (!samePm2ProcessSnapshot(
+    await runningServiceProcessSnapshot(
+      'dexter-mcp',
+      finalPreSave,
+      processProofOptions,
+    ),
+    priorPrivateRuntime,
+  )) {
+    throw new Error('private Dexter runtime changed before saved-state journal');
+  }
+  const priorPrivateRestartProof = await verifyPriorRestartability({
+    row: exactNamedRow(finalPreSave, 'dexter-mcp', 'private Dexter'),
+    expectedRuntime: priorPrivateRuntime,
+    expectedSavedRow: priorPrivateRow,
+    processProofOptions,
+  });
+  await verifyProtectedEnvironmentStillExact(preflight);
+  const cutoverJournal = await createPrivateCutoverJournal(pm2Home, {
+    candidateProcess: preflight.expectedProcesses['dexter-mcp'],
+    expectedOtherProcesses,
+    expectedPublicRuntime,
+    lockOwner: cutoverLock.owner,
+    priorHealth: priorPrivateHealth,
+    priorFence: priorPrivateFence,
+    priorProof: priorPrivateRestartProof,
+    priorRow: priorPrivateRow,
+    savedState: savedBefore,
+  });
+  let mutationStarted = false;
+  let candidatePrivateFence;
+  let priorRecomposedBytes;
+
+  try {
+    await runPm2(['save', '--force']);
+    const recomposed = await recomposeSavedPm2Dump({
+      pm2Home,
+      originalSavedUnrelatedRows: originalSavedOtherRows,
+      services: PRIVATE_RELEASE_SERVICES,
+    });
+    priorRecomposedBytes = recomposed.bytes;
+    priorSavedPrivateRow = exactNamedRow(
+      recomposed.rows,
+      'dexter-mcp',
+      'saved private Dexter',
+    );
+    if (!sameJson(
+      restartableProcessDefinition(priorSavedPrivateRow),
+      restartableProcessDefinition(priorPrivateRow),
+    )) {
+      throw new Error('saved private Dexter definition cannot restart the live process');
+    }
+    if (!samePm2ProcessSnapshot(
+      snapshotUnrelatedPm2Processes(
+        recomposed.rows,
+        PRIVATE_RELEASE_SERVICES,
+      ),
+      expectedSavedOtherProcesses,
+    )) {
+      throw new Error('private preflight changed another saved PM2 definition');
+    }
+    const finalPreDelete = await pm2List(runPm2);
+    await assertPrivateCutoverPreservation({
+      rows: finalPreDelete,
+      expectedOtherProcesses,
+      expectedPublicRuntime,
+      phase: 'private pre-delete proof',
+      processProofOptions,
+    });
+    if (!samePm2ProcessSnapshot(
+      await runningServiceProcessSnapshot(
+        'dexter-mcp',
+        finalPreDelete,
+        processProofOptions,
+      ),
+      priorPrivateRuntime,
+    )) {
+      throw new Error('private Dexter runtime changed before cutover');
+    }
+    await verifyProtectedEnvironmentStillExact(preflight);
+  } catch (preMutationError) {
+    await restorePrivateSavedPm2State(pm2Home, savedBefore);
+    await cutoverJournal.clear();
+    throw preMutationError;
+  }
+
+  try {
+    await deletePrivateServiceForCutover({
+      beforeDelete: beforePrivateDelete,
+      deletionPhase: 'activation',
+      runPm2,
+      expectedOtherProcesses,
+      expectedPublicRuntime,
+      expectedTargetFence: priorPrivateFence,
+      onMutation: () => {
+        mutationStarted = true;
+      },
+      processProofOptions,
+      timeoutMs: pm2CommandTimeoutMs,
+    });
+    await startOpenReleaseCandidate({
+      beforeStart: () => verifyDaemon({ pm2Home }),
+      ecosystem: resolve(
+        release.releaseDir,
+        'ecosystem.private.production.cjs',
+      ),
+      pm2Home,
+      runPm2,
+      serviceName: 'dexter-mcp',
+    });
+    let candidateRows = await pm2List(runPm2);
+    await assertPrivateCutoverPreservation({
+      rows: candidateRows,
+      expectedOtherProcesses,
+      expectedPublicRuntime,
+      phase: 'private candidate activation',
+      processProofOptions,
+    });
+    candidatePrivateFence = await expectedPrivateCandidateDeletionFence({
+      rows: candidateRows,
+      expectedProcess: preflight.expectedProcesses['dexter-mcp'],
+      processProofOptions,
+    });
+    await expectedPrivateCandidateRuntime({
+      rows: candidateRows,
+      expectedProcess: preflight.expectedProcesses['dexter-mcp'],
+      processProofOptions,
+    });
+    await verifyCandidate({
+      release,
+      rows: candidateRows,
+      expectedProcesses: preflight.expectedProcesses,
+      services: PRIVATE_RELEASE_SERVICES,
+      fetchImpl,
+      healthTimeoutMs,
+    });
+    await runPm2(['save', '--force']);
+    const recomposed = await recomposeSavedPm2Dump({
+      pm2Home,
+      originalSavedUnrelatedRows: originalSavedOtherRows,
+      services: PRIVATE_RELEASE_SERVICES,
+    });
+    await verifySavedPm2BackupExact(pm2Home, priorRecomposedBytes);
+    const candidatePrivateRow = exactNamedRow(
+      candidateRows,
+      'dexter-mcp',
+      'candidate private Dexter',
+    );
+    const savedCandidatePrivateRow = exactNamedRow(
+      recomposed.rows,
+      'dexter-mcp',
+      'saved candidate private Dexter',
+    );
+    if (!sameJson(
+      savedProcessIdentity('dexter-mcp', candidatePrivateRow),
+      savedProcessIdentity('dexter-mcp', savedCandidatePrivateRow),
+    )) {
+      throw new Error('saved private candidate definition differs from live');
+    }
+    if (!samePm2ProcessSnapshot(
+      snapshotUnrelatedPm2Processes(
+        recomposed.rows,
+        PRIVATE_RELEASE_SERVICES,
+      ),
+      expectedSavedOtherProcesses,
+    )) {
+      throw new Error('private candidate save changed another PM2 definition');
+    }
+    candidateRows = await pm2List(runPm2);
+    await assertPrivateCutoverPreservation({
+      rows: candidateRows,
+      expectedOtherProcesses,
+      expectedPublicRuntime,
+      phase: 'private post-save proof',
+      processProofOptions,
+    });
+    const verified = await verifyCandidate({
+      release,
+      rows: candidateRows,
+      expectedProcesses: preflight.expectedProcesses,
+      services: PRIVATE_RELEASE_SERVICES,
+      fetchImpl,
+      healthTimeoutMs,
+    });
+    await verifyProtectedEnvironmentStillExact(preflight);
+    await cutoverJournal.clear();
+    return { release, ...verified };
+  } catch (activationError) {
+    if (!mutationStarted) {
+      try {
+        await restorePrivateSavedPm2State(pm2Home, savedBefore);
+        await cutoverJournal.clear();
+      } catch (restoreError) {
+        throw new Error(
+          'private cutover stopped before live mutation and the original saved state could not be restored',
+          { cause: restoreError },
+        );
+      }
+      throw activationError;
+    }
+    try {
+      if (candidatePrivateFence === undefined) {
+        const rollbackRows = await pm2List(runPm2);
+        await assertPrivateCutoverPreservation({
+          rows: rollbackRows,
+          expectedOtherProcesses,
+          expectedPublicRuntime,
+          phase: 'private rollback target proof',
+          processProofOptions,
+        });
+        candidatePrivateFence =
+          await expectedPrivateCandidateDeletionFence({
+            rows: rollbackRows,
+            expectedProcess: preflight.expectedProcesses['dexter-mcp'],
+            processProofOptions,
+          });
+      }
+      await deletePrivateServiceForCutover({
+        beforeDelete: beforePrivateDelete,
+        deletionPhase: 'rollback',
+        runPm2,
+        expectedOtherProcesses,
+        expectedPublicRuntime,
+        expectedTargetFence: candidatePrivateFence,
+        processProofOptions,
+        timeoutMs: pm2CommandTimeoutMs,
+      });
+      await startPrivateServiceFromSavedRow({
+        beforeStart: async () => {
+          await verifyRollbackInputs({
+            row: priorSavedPrivateRow,
+            priorProof: priorPrivateRestartProof,
+          });
+          await verifyDaemon({ pm2Home });
+        },
+        pm2Home,
+        runPm2,
+        savedRow: priorSavedPrivateRow,
+      });
+      const restoredRows = await waitFor(async () => {
+        const rows = await pm2List(runPm2);
+        await assertPrivateCutoverPreservation({
+          rows,
+          expectedOtherProcesses,
+          expectedPublicRuntime,
+          phase: 'private rollback',
+          processProofOptions,
+        });
+        const restored = rows.find((row) => row?.name === 'dexter-mcp');
+        if (!restored || !sameJson(
+          restartableProcessDefinition(restored),
+          restartableProcessDefinition(priorSavedPrivateRow),
+        )) return false;
+        const health = stablePrivateHealth(await readLoopbackHealth(
+          'dexter-mcp',
+          restored,
+          fetchImpl,
+          healthTimeoutMs,
+        ), expectedHealthPort('dexter-mcp', restored));
+        return sameJson(health, priorPrivateHealth) ? rows : false;
+      }, { timeoutMs: pm2StartupTimeoutMs });
+      const restoredPrivateRow = exactNamedRow(
+        restoredRows,
+        'dexter-mcp',
+        'restored private Dexter',
+      );
+      const restoredPrivateRuntime = await runningServiceProcessSnapshot(
+        'dexter-mcp',
+        restoredRows,
+        processProofOptions,
+      );
+      const restoredRestartProof = await verifyPriorRestartability({
+        row: restoredPrivateRow,
+        expectedRuntime: restoredPrivateRuntime,
+        expectedSavedRow: priorSavedPrivateRow,
+        processProofOptions,
+      });
+      if (!sameJson(restoredRestartProof, priorPrivateRestartProof)) {
+        throw new Error('private rollback restartability proof changed');
+      }
+      await restorePrivateSavedPm2State(pm2Home, savedBefore);
+      await cutoverJournal.clear();
+    } catch (rollbackError) {
+      let savedStateError;
+      try {
+        await restorePrivateSavedPm2State(pm2Home, savedBefore);
+      } catch (error) {
+        savedStateError = error;
+      }
+      throw new Error(
+        'private Dexter candidate failed and rollback could not be proven',
+        {
+          cause: savedStateError === undefined
+            ? rollbackError
+            : new AggregateError([rollbackError, savedStateError]),
+        },
+      );
+    }
+    throw new Error(
+      'private Dexter candidate failed; the exact prior state was restored',
+    );
+  }
+  } finally {
+    await cutoverLock.release();
+  }
+}
+
+/** Recover an interrupted private-only cutover from its fsynced journal. */
+export async function recoverPrivateRelease({
+  runCommand = execFileAsync,
+  fetchImpl = fetch,
+  commandEnvironment = defaultCommandEnvironment(),
+  pm2Home = defaultPm2Home(),
+  healthTimeoutMs = DEFAULT_HEALTH_TIMEOUT_MS,
+  pm2CommandTimeoutMs = DEFAULT_PM2_COMMAND_TIMEOUT_MS,
+  pm2StartupTimeoutMs = DEFAULT_PM2_STARTUP_TIMEOUT_MS,
+  verifyPriorRestartability = verifyPriorPrivateReleaseRestartability,
+  verifyRollbackInputs = verifyPrivateRollbackInputsStillExact,
+  verifyDaemon = verifyPm2DaemonLaunchAuthority,
+  verifyPm2Executable = verifyProductionPm2Executable,
+  processAliveImpl = async (pid) => {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch (error) {
+      if (error?.code === 'ESRCH') return false;
+      throw error;
+    }
+  },
+  processProofOptions = {},
+} = {}) {
+  for (const key of FORBIDDEN_LOADER_ENV_KEYS) {
+    if (commandEnvironment?.[key] !== undefined) {
+      throw new Error(`${key} is forbidden in the recovery environment`);
+    }
+  }
+  const initialJournal = await readPrivateCutoverJournal(pm2Home);
+  const pm2Executable = await verifyPm2Executable();
+  if (pm2Executable !== PRODUCTION_PM2_EXECUTABLE) {
+    throw new Error('verified PM2 executable is not the production binary');
+  }
+  const runPm2 = boundedPm2Runner({
+    runCommand,
+    commandEnvironment: {
+      ...commandEnvironment,
+      PM2_HOME: pm2Home,
+    },
+    nodeExecutable: PRODUCTION_NODE_EXECUTABLE,
+    pm2Executable,
+    timeoutMs: pm2CommandTimeoutMs,
+    startupTimeoutMs: pm2StartupTimeoutMs,
+  });
+  const lock = await acquireReleaseCutoverLock(pm2Home, {
+    recoverOwner: initialJournal.payload.lockOwner,
+    recoverJournalSha256: initialJournal.sha256,
+    processAliveImpl,
+  });
+  try {
+    const journal = await readPrivateCutoverJournal(pm2Home);
+    if (!journal.bytes.equals(initialJournal.bytes)) {
+      throw new Error('private cutover journal changed before recovery lock');
+    }
+    if (await processAliveImpl(journal.payload.controllerPid)) {
+      throw new Error('private cutover controller is still active');
+    }
+    const expectedOtherProcesses = journal.payload.expectedOtherProcesses;
+    const expectedPublicRuntime = journal.payload.expectedPublicRuntime;
+    const priorRow = journal.payload.priorRow;
+    const priorProof = journal.payload.priorProof;
+    const priorHealth = journal.payload.priorHealth;
+    let rows = await pm2List(runPm2);
+    await assertPrivateCutoverPreservation({
+      rows,
+      expectedOtherProcesses,
+      expectedPublicRuntime,
+      phase: 'private crash recovery',
+      processProofOptions,
+    });
+    const privateRows = rows.filter((row) => row?.name === 'dexter-mcp');
+    if (privateRows.length > 1) {
+      throw new Error('private crash recovery found duplicate target rows');
+    }
+    let priorIsHealthy = false;
+    let candidateFence = null;
+    if (privateRows.length === 1 && sameJson(
+      restartableProcessDefinition(privateRows[0]),
+      restartableProcessDefinition(priorRow),
+    )) {
+      candidateFence = await expectedPrivatePriorGenerationDeletionFence({
+        row: privateRows[0],
+        priorRow,
+        processProofOptions,
+      });
+      const status = processField(privateRows[0], 'status');
+      const pid = privateRows[0]?.pid;
+      if (status === PM2_STATUS_ONLINE && Number.isInteger(pid) && pid > 0) {
+        try {
+          const runtime = await runningServiceProcessSnapshot(
+            'dexter-mcp',
+            rows,
+            processProofOptions,
+          );
+          const proof = await verifyPriorRestartability({
+            row: privateRows[0],
+            expectedRuntime: runtime,
+            expectedSavedRow: priorRow,
+            processProofOptions,
+          });
+          const health = stablePrivateHealth(await readLoopbackHealth(
+            'dexter-mcp',
+            privateRows[0],
+            fetchImpl,
+            healthTimeoutMs,
+          ), expectedHealthPort('dexter-mcp', privateRows[0]));
+          priorIsHealthy = sameJson(proof, priorProof)
+            && sameJson(health, priorHealth);
+        } catch {
+          priorIsHealthy = false;
+        }
+      }
+    } else if (privateRows.length === 1) {
+      candidateFence = await expectedPrivateCandidateDeletionFence({
+        rows,
+        expectedProcess: journal.payload.candidateProcess,
+        processProofOptions,
+      });
+    }
+
+    if (!priorIsHealthy) {
+      await deletePrivateServiceForCutover({
+        deletionPhase: 'crash recovery',
+        runPm2,
+        expectedOtherProcesses,
+        expectedPublicRuntime,
+        expectedTargetFence: candidateFence,
+        processProofOptions,
+        timeoutMs: pm2CommandTimeoutMs,
+      });
+      await startPrivateServiceFromSavedRow({
+        beforeStart: async () => {
+          await verifyRollbackInputs({ row: priorRow, priorProof });
+          await verifyDaemon({ pm2Home });
+        },
+        pm2Home,
+        runPm2,
+        savedRow: priorRow,
+      });
+      rows = await waitFor(async () => {
+        const current = await pm2List(runPm2);
+        await assertPrivateCutoverPreservation({
+          rows: current,
+          expectedOtherProcesses,
+          expectedPublicRuntime,
+          phase: 'private crash recovery rollback',
+          processProofOptions,
+        });
+        const restored = current.find((row) => row?.name === 'dexter-mcp');
+        if (!restored || !sameJson(
+          restartableProcessDefinition(restored),
+          restartableProcessDefinition(priorRow),
+        )) return false;
+        const health = stablePrivateHealth(await readLoopbackHealth(
+          'dexter-mcp',
+          restored,
+          fetchImpl,
+          healthTimeoutMs,
+        ), expectedHealthPort('dexter-mcp', restored));
+        return sameJson(health, priorHealth) ? current : false;
+      }, { timeoutMs: pm2StartupTimeoutMs });
+      const restored = exactNamedRow(rows, 'dexter-mcp', 'recovered private Dexter');
+      const runtime = await runningServiceProcessSnapshot(
+        'dexter-mcp',
+        rows,
+        processProofOptions,
+      );
+      const proof = await verifyPriorRestartability({
+        row: restored,
+        expectedRuntime: runtime,
+        expectedSavedRow: priorRow,
+        processProofOptions,
+      });
+      if (!sameJson(proof, priorProof)) {
+        throw new Error('private crash recovery restart proof changed');
+      }
+    }
+    await restorePrivateSavedPm2State(pm2Home, journal.savedState);
+    await journal.clear();
+    return Object.freeze({ recovered: true, service: 'dexter-mcp' });
+  } finally {
+    await lock.release();
   }
 }

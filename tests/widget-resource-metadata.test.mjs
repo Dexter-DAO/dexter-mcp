@@ -7,6 +7,7 @@ import {
 } from '../apps-sdk/register.mjs';
 import {
   DIAGNOSTIC_WIDGET_URIS,
+  GOVERNED_ASSET_WIDGET_URIS,
   PASSKEY_WIDGET_URIS,
   X402_WIDGET_URIS,
 } from '../apps-sdk/widget-uris.mjs';
@@ -18,6 +19,7 @@ const SELECTED_URIS = [
   X402_WIDGET_URIS.wallet,
   DIAGNOSTIC_WIDGET_URIS.passkeyProbe,
   PASSKEY_WIDGET_URIS.onboard,
+  GOVERNED_ASSET_WIDGET_URIS.stockTrade,
 ];
 
 test('wallet resource metadata describes the multichain balance view', async (t) => {
@@ -127,6 +129,61 @@ test('resource profiles grant only widget-specific network capabilities', () => 
     { webauthnProbeTelemetryEnabled: true },
   );
   assert.ok(developmentProbe.connect_domains.includes('https://open.dexter.cash'));
+
+  const stockTrade = buildWidgetCsp(
+    'https://dexter.cash/assets',
+    GOVERNED_ASSET_WIDGET_URIS.stockTrade,
+  );
+  assert.deepEqual(stockTrade.connect_domains, [
+    'https://o4510869152923648.ingest.us.sentry.io',
+  ]);
+  assert.deepEqual(stockTrade.redirect_domains, ['https://solscan.io']);
+  assert.ok(stockTrade.resource_domains.includes('https://dexter.cash'));
+});
+
+test('stock-trade resource is registered as a truthful read-only receipt', async (t) => {
+  const originalEnvironment = {
+    TOKEN_AI_APPS_SDK_ASSET_BASE: process.env.TOKEN_AI_APPS_SDK_ASSET_BASE,
+    TOKEN_AI_ENABLE_APPS_SDK: process.env.TOKEN_AI_ENABLE_APPS_SDK,
+    TOKEN_AI_MCP_PUBLIC_URL: process.env.TOKEN_AI_MCP_PUBLIC_URL,
+  };
+  t.after(() => {
+    for (const [key, value] of Object.entries(originalEnvironment)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+
+  process.env.TOKEN_AI_APPS_SDK_ASSET_BASE = 'https://dexter.cash/mcp/app-assets';
+  process.env.TOKEN_AI_ENABLE_APPS_SDK = '1';
+  process.env.TOKEN_AI_MCP_PUBLIC_URL = 'https://open.dexter.cash/mcp';
+
+  const registrations = [];
+  registerAppsSdkResources({
+    registerResource(name, uri, config, readCallback) {
+      registrations.push({ name, uri, config, readCallback });
+      return {};
+    },
+  }, {
+    allowedTemplateUris: [GOVERNED_ASSET_WIDGET_URIS.stockTrade],
+  });
+
+  assert.equal(registrations.length, 1);
+  const [stockTrade] = registrations;
+  assert.equal(stockTrade.name, 'dexter_stock_trade');
+  assert.equal(stockTrade.uri, GOVERNED_ASSET_WIDGET_URIS.stockTrade);
+  assert.match(stockTrade.config._meta['openai/widgetDescription'], /exact signature/);
+  assert.match(stockTrade.config._meta['openai/widgetDescription'], /Solana confirmation/);
+
+  const result = await stockTrade.readCallback();
+  assert.equal(result.contents.length, 1);
+  assert.equal(result.contents[0].uri, GOVERNED_ASSET_WIDGET_URIS.stockTrade);
+  assert.equal(result.contents[0].mimeType, 'text/html;profile=mcp-app');
+  assert.match(result.contents[0].text, /stock-trade-root/);
+  assert.deepEqual(
+    result.contents[0]._meta['openai/widgetCSP'].redirect_domains,
+    ['https://solscan.io'],
+  );
 });
 
 test('receipt CSP covers every explorer origin emitted by the widget', () => {

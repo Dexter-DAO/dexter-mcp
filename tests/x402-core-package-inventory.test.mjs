@@ -52,7 +52,7 @@ test('@dexterai/x402-core declares one coherent dual-module release contract', (
   });
   assert.equal(
     manifest.scripts['release:prepare'],
-    'npm run typecheck && npm run build && node ./scripts/check-module-formats.mjs',
+    'npm test && npm run typecheck && npm run build && node ./scripts/check-module-formats.mjs',
   );
   assert.equal(manifest.scripts.prepublishOnly, 'npm run release:prepare');
   assert.equal(manifest.scripts.release, 'npm publish --access public');

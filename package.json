@@ -34,7 +34,9 @@
     "deploy:apps-sdk": "node scripts/deploy-apps-sdk.mjs",
     "sentry:apps-sdk:upload": "node scripts/upload-apps-sdk-sourcemaps.mjs",
     "build:mcp-release": "node scripts/release/build-open-release.mjs",
-    "deploy:mcp": "npm run verify:release:runtime && npm run verify:release:installed && node scripts/release/activate-open-release.mjs"
+    "deploy:mcp": "npm run verify:release:runtime && npm run verify:release:installed && node scripts/release/activate-open-release.mjs",
+    "deploy:mcp:private": "npm run verify:release:runtime && npm run verify:release:installed && node scripts/release/activate-private-release.mjs",
+    "recover:mcp:private": "npm run verify:release:runtime && npm run verify:release:installed && node scripts/release/recover-private-release.mjs"
   },
   "dependencies": {
     "@dexterai/mcp-instructions": "2.4.2-rc.1",
@@ -45,6 +47,7 @@
     "@dexterai/x402-skills": "file:./packages/x402-skills",
     "@modelcontextprotocol/ext-apps": "1.6.0",
     "@modelcontextprotocol/sdk": "1.29.0",
+    "@noble/hashes": "1.8.0",
     "@openai/apps-sdk-ui": "^0.2.1",
     "@sentry/browser": "^10.43.0",
     "@sentry/node": "^10.40.0",

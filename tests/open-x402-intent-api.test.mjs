@@ -283,6 +283,9 @@ test('x402_fetch authorization projection exposes the valid Native Tab continuat
       error: 'authorization_required',
       consentUrl,
       sessionId: 'private-provider-session',
+      delivery: { state: 'not_dispatched' },
+      payment: { state: 'not_built', confirmed: false },
+      reconciliation: { required: false, performed: false },
     },
   }), {
     ok: false,
@@ -290,6 +293,13 @@ test('x402_fetch authorization projection exposes the valid Native Tab continuat
     status: 'authorization_required',
     authorizationRequired: true,
     consentUrl,
+    delivery: { state: 'not_dispatched' },
+    dispatch: {
+      boundary: 'not_crossed',
+      evidence: 'backend_delivery_state',
+    },
+    payment: { state: 'not_built', confirmed: false },
+    reconciliation: { required: false, performed: false },
     retry: {
       intentId: 'intent-native-tab-1',
       maxAmountAtomic: '50000',
@@ -316,6 +326,22 @@ test('x402_fetch authorization projection fails closed when Native Tab consent i
     intentId: 'intent-native-tab-1',
     maxAmountAtomic: '50000',
   });
+  assert.equal(Object.hasOwn(result, 'dispatch'), false);
+  assert.equal(Object.hasOwn(result, 'payment'), false);
+  assert.equal(Object.hasOwn(result, 'reconciliation'), false);
+});
+
+test('generic authority failure never fabricates a pre-dispatch lifecycle', () => {
+  const result = projectOpenX402AuthorizationRequired({
+    intentId: 'intent-prior-lifecycle-unknown',
+    data: { error: 'governed_principal_required' },
+  });
+
+  assert.equal(result.status, 'authorization_required');
+  assert.equal(Object.hasOwn(result, 'dispatch'), false);
+  assert.equal(Object.hasOwn(result, 'delivery'), false);
+  assert.equal(Object.hasOwn(result, 'payment'), false);
+  assert.equal(Object.hasOwn(result, 'reconciliation'), false);
 });
 
 test('hosted consent rejects lookalike origins and unknown nested contracts', () => {
@@ -364,6 +390,10 @@ test('public lifecycle results cannot leak route, challenge, or replay material'
   assert.equal(result.intentId, 'intent-1');
   assert.equal(result.httpStatus, 202);
   assert.equal(result.delivery.state, 'not_dispatched');
+  assert.deepEqual(result.dispatch, {
+    boundary: 'not_crossed',
+    evidence: 'backend_delivery_state',
+  });
   assert.deepEqual(result.retry, {
     intentId: 'intent-1',
     maxAmountAtomic: '25',
@@ -378,6 +408,42 @@ test('public lifecycle results cannot leak route, challenge, or replay material'
   ]) {
     assert.equal(Object.hasOwn(result, forbidden), false, forbidden);
   }
+});
+
+test('only backend delivery state can establish the merchant dispatch boundary', () => {
+  const crossed = sanitizeOpenX402IntentResult({
+    intentId: 'intent-crossed',
+    delivery: { state: 'response_unavailable' },
+  });
+  assert.deepEqual(crossed.dispatch, {
+    boundary: 'crossed',
+    evidence: 'backend_delivery_state',
+  });
+
+  const missing = sanitizeOpenX402IntentResult({
+    intentId: 'intent-missing',
+    payment: { state: 'settled', confirmed: true },
+    dispatch: { boundary: 'crossed', evidence: 'caller_claim' },
+  });
+  assert.equal(Object.hasOwn(missing, 'dispatch'), false);
+});
+
+test('exact backend delivery fallback preserves unknown dispatch for same-intent status', () => {
+  const result = sanitizeOpenX402IntentResult({
+    ok: false,
+    intentId: 'intent-durable-dispatch-fallback',
+    status: 'delivery_outcome_unknown',
+    error: 'delivery_outcome_unknown',
+    retryable: false,
+    retryWithSameIntentOnly: true,
+  });
+
+  assert.deepEqual(result.dispatch, {
+    boundary: 'unknown',
+    evidence: 'backend_result_unavailable',
+  });
+  assert.equal(result.retryable, false);
+  assert.equal(result.retryWithSameIntentOnly, true);
 });
 
 test('public lifecycle vocabulary cannot reveal an internal settlement route', () => {

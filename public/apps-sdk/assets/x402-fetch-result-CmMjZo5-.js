@@ -216,31 +216,48 @@ function AccessProof({ data }) {
     ] })
   ] });
 }
+const MISSING_TOOL_RESULT_TIMEOUT_SECONDS = 18;
+function receiptLoadingState(elapsedSeconds) {
+  const elapsed = Number.isFinite(elapsedSeconds) ? Math.max(0, elapsedSeconds) : 0;
+  if (elapsed >= MISSING_TOOL_RESULT_TIMEOUT_SECONDS) {
+    return {
+      terminal: true,
+      heading: "No tool result returned",
+      supporting: "The call did not return backend evidence. Dispatch, payment, settlement, and delivery are not confirmed."
+    };
+  }
+  return {
+    terminal: false,
+    heading: "Waiting for OpenDexter…",
+    supporting: "The tool call has not returned. No dispatch, payment, settlement, or delivery is confirmed."
+  };
+}
 function ReceiptLoading({ resourceLabel }) {
+  const [elapsed, setElapsed] = reactExports.useState(0);
+  reactExports.useEffect(() => {
+    const timeout = window.setTimeout(
+      () => setElapsed(MISSING_TOOL_RESULT_TIMEOUT_SECONDS),
+      MISSING_TOOL_RESULT_TIMEOUT_SECONDS * 1e3
+    );
+    return () => window.clearTimeout(timeout);
+  }, []);
+  const state = receiptLoadingState(elapsed);
+  if (state.terminal) {
+    return /* @__PURE__ */ jsxRuntimeExports.jsx("article", { className: "dx-receipt", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-receipt-error", role: "alert", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-receipt-error__eyebrow", children: "Tool result missing" }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "dx-receipt-error__message", children: state.heading }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "dx-receipt-error__code", children: state.supporting })
+    ] }) });
+  }
   return /* @__PURE__ */ jsxRuntimeExports.jsx(
     DexterLoading,
     {
-      eyebrow: "Dexter · Receipt",
+      eyebrow: "Dexter · Tool call",
       stages: [
         {
-          upTo: 3,
-          heading: "Submitting payment…",
-          supporting: "Quoting the resource and preparing the on-chain transfer."
-        },
-        {
-          upTo: 9,
-          heading: "Awaiting settlement…",
-          supporting: "Facilitator is confirming the payment and forwarding to the seller."
-        },
-        {
-          upTo: 18,
-          heading: "Calling the endpoint…",
-          supporting: "Payment cleared; waiting on the seller to respond."
-        },
-        {
           upTo: Infinity,
-          heading: "Still processing — endpoint is slow.",
-          supporting: "The settlement landed; the seller is taking longer than usual."
+          heading: state.heading,
+          supporting: state.supporting
         }
       ],
       context: resourceLabel || null,
@@ -299,30 +316,44 @@ function reconciliationLabel(value) {
   if (value.performed === true) return "Performed";
   return "Not reported";
 }
+function dispatchBoundary(value) {
+  if (!isRecord(value)) return "unreported";
+  const boundary = cleanString(value.boundary);
+  return boundary === "not_crossed" || boundary === "crossed" || boundary === "unknown" ? boundary : "unreported";
+}
+function dispatchLabel(boundary) {
+  return {
+    not_crossed: "Not crossed",
+    crossed: "Crossed · backend evidence",
+    unknown: "Unknown · inspect same intent",
+    unreported: "Not reported"
+  }[boundary];
+}
 function token(value) {
   return value?.toLowerCase().replace(/\s+/g, "_") ?? "";
 }
 function classifyOutcome(payload) {
+  const boundary = dispatchBoundary(payload.dispatch);
   const status = token(cleanString(payload.status));
   const delivery = token(nestedState(payload.delivery));
   const payment = token(nestedState(payload.payment));
   const reconciliation = isRecord(payload.reconciliation) ? payload.reconciliation : {};
   const reconciliationState = token(nestedState(payload.reconciliation));
   const combined = [status, delivery, payment, reconciliationState].join(" ");
-  if (/ambiguous|uncertain|unknown|dispatch_possible|reconciliation_required/.test(combined) || reconciliation.required === true && reconciliation.performed !== true) {
+  const reconciliationPending = reconciliation.required === true && reconciliation.performed !== true;
+  const explicitError = payload.ok === false || payload.error === true || cleanString(payload.error) !== null;
+  if (reconciliationPending && Boolean(cleanString(payload.intentId)) || boundary === "crossed" && /ambiguous|uncertain|unknown|dispatch_possible|response_unavailable|reconciliation_required/.test(combined) || boundary === "unknown" && Boolean(cleanString(payload.intentId))) {
     return "ambiguous";
+  }
+  if (/failed|refused|expired|rejected|cancelled|canceled/.test(combined) || explicitError) {
+    return "failed";
   }
   if (/prepar|pending|signed|building|executing|dispatching/.test(combined)) {
     return "preparing";
   }
-  if (/failed|refused|expired|rejected|cancelled|canceled/.test(combined)) {
-    return "failed";
-  }
-  if (/resolved|complete|completed|success|succeeded|delivered/.test(combined) || isRecord(payload.payment) && payload.payment.confirmed === true) {
+  const paymentConfirmed = isRecord(payload.payment) && (payload.payment.confirmed === true || payload.payment.settled === true || token(nestedState(payload.payment)) === "settled" || token(nestedState(payload.payment)) === "confirmed");
+  if (boundary === "crossed" && delivery === "response_received" && paymentConfirmed && !reconciliationPending && (payload.ok === true || /resolved|complete|completed|success|succeeded|seller_accepted/.test(combined))) {
     return "complete";
-  }
-  if (payload.ok === false || payload.error === true || cleanString(payload.error) !== null) {
-    return "failed";
   }
   return "unknown";
 }
@@ -332,6 +363,7 @@ function buildSameIntentStatusPrompt(intentId) {
 function normalizeIntentLifecycle(value) {
   const payload = isRecord(value) ? value : {};
   const intentId = cleanString(payload.intentId);
+  const boundary = dispatchBoundary(payload.dispatch);
   const outcome = classifyOutcome(payload);
   const needsStatusCheck = Boolean(
     intentId && (outcome === "preparing" || outcome === "ambiguous")
@@ -340,34 +372,36 @@ function normalizeIntentLifecycle(value) {
     complete: {
       eyebrow: "Intent · Complete",
       title: "Purchase complete",
-      summary: "Delivery and payment reached a terminal reported outcome."
+      summary: "Backend evidence reports merchant dispatch, seller response, and confirmed payment."
     },
     preparing: {
       eyebrow: "Intent · Preparing",
       title: "Purchase is still preparing",
-      summary: "Do not submit the purchase again. Check the same intent for progress."
+      summary: "A backend result is still pending. Do not submit the purchase again; check this same intent."
     },
     ambiguous: {
       eyebrow: "Intent · Reconcile",
       title: "Outcome needs reconciliation",
-      summary: "Dispatch or payment may have occurred. Do not retry the purchase."
+      summary: "Execution or payment outcome is unresolved. Do not retry the purchase."
     },
     failed: {
       eyebrow: "Intent · Stopped",
       title: "Purchase not completed",
-      summary: "The intent stopped without a reported successful outcome."
+      summary: "The backend returned an error without a reported successful purchase."
     },
     unknown: {
       eyebrow: "Intent · Status",
       title: "Purchase status",
-      summary: "Review the route-neutral lifecycle state reported for this intent."
+      summary: "No dispatch or finality claim can be inferred from an unreported result."
     }
   }[outcome];
   return {
     intentId,
+    dispatchBoundary: boundary,
     outcome,
     ...copy,
     rows: [
+      { label: "Dispatch", value: dispatchLabel(boundary) },
       { label: "Delivery", value: deliveryLabel(payload.delivery) },
       { label: "Payment", value: paymentLabel(payload.payment) },
       {
@@ -530,7 +564,7 @@ function FetchResult() {
   }
   const isError = lifecycle.outcome === "failed";
   const hasIntentLifecycle = Boolean(
-    lifecycle.intentId || toolOutput.delivery !== void 0 || toolOutput.payment !== void 0 || toolOutput.reconciliation !== void 0 || toolOutput.reservationState !== void 0 || toolOutput.reservation !== void 0
+    lifecycle.intentId || toolOutput.dispatch !== void 0 || toolOutput.delivery !== void 0 || toolOutput.payment !== void 0 || toolOutput.reconciliation !== void 0 || toolOutput.reservationState !== void 0 || toolOutput.reservation !== void 0
   );
   const accessProof = !hasIntentLifecycle && toolOutput.auth?.mode ? {
     mode: toolOutput.auth.mode,
@@ -597,6 +631,6 @@ function FetchResult() {
 }
 const root = document.getElementById("x402-fetch-result-root");
 if (root) {
-  root.setAttribute("data-widget-build", "2026-07-30.opaque-intent");
+  root.setAttribute("data-widget-build", "2026-08-19.purchase-truth");
   clientExports.createRoot(root).render(/* @__PURE__ */ jsxRuntimeExports.jsx(FetchResult, {}));
 }

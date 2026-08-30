@@ -33,10 +33,8 @@ test('public fetch accepts exactly opaque intent and approved ceiling', () => {
     schema,
     /\b(?:url|method|body|multipart|tab|purchase|route|payTo|asset|network|challenge):/,
   );
-  assert.match(source, /x402IntentFetch\(args, extra, \{ checkedSessionId \}\)/);
-  assert.match(source, /legacyIntentBridge\.beginFetch/);
-  assert.match(source, /intent_session_handoff_unavailable/);
-  assert.match(source, /intent_status_required/);
+  assert.match(source, /x402IntentFetch\(args, extra\)/);
+  assert.doesNotMatch(source, /legacyIntentBridge\.(?:beginFetch|complete|reserve)/);
   assert.match(source, /retryWithSameIntentOnly:\s*true/);
   assert.doesNotMatch(source, /x402Fetch\(args, extra\)/);
 });
@@ -57,8 +55,25 @@ test('public check accepts an exact raw body string and no prepared purchase', (
   assert.match(schema, /body:\s*z\.string\(\)\.optional\(\)/);
   assert.doesNotMatch(schema, /sampleInputBody|preparedPurchase|purchaseOptions|challenge/);
   assert.match(source, /Object\.prototype\.hasOwnProperty\.call\(args, 'body'\)/);
-  assert.match(source, /const requestId = randomUUID\(\)/);
-  assert.match(source, /sessionId: session\.sessionId,\s*requestId,/);
+  assert.match(source, /runCanonicalX402Check\(args, session\)/);
+});
+
+test('access uses the canonical check and never creates a legacy session wallet', () => {
+  const access = registration('x402_access', 'x402_wallet');
+  const canonicalStart = serverSource.indexOf('async function runCanonicalX402Check');
+  const canonicalEnd = serverSource.indexOf('// ─── Tool: x402_wallet', canonicalStart);
+  const canonical = serverSource.slice(canonicalStart, canonicalEnd);
+
+  assert.match(access, /runCanonicalX402Check\(args, session\)/);
+  assert.match(access, /buildX402AccessModelResult\(checked\)/);
+  assert.match(canonical, /const requestId = randomUUID\(\)/);
+  assert.match(canonical, /sessionId: session\.sessionId,\s*requestId,/);
+  assert.equal((canonical.match(/checkEndpointPricing\(\{/g) || []).length, 1);
+  assert.equal((canonical.match(/callOpenX402IntentApi\('check'/g) || []).length, 1);
+  assert.doesNotMatch(serverSource, /resolveOrCreateSessionForWallet\(extra\)/);
+  assert.doesNotMatch(serverSource, /createOpenSessionResolver/);
+  assert.doesNotMatch(serverSource, /open-session-resolution/);
+  assert.doesNotMatch(serverSource, /['"]\/v2\/(?:pay\/)?open\/x402\/access['"]/);
 });
 
 test('provisional API paths occur only in the centralized intent adapter', () => {
@@ -86,27 +101,22 @@ test('intent handlers never expose caller-carried route or prepared JSON', () =>
   assert.match(fetchAndStatus, /retryWithSameIntentOnly/);
 });
 
-test('retired fetch compatibility runs only after OAuth proof and preserves the checked session', () => {
+test('retired URL compatibility runs only after OAuth proof and canonical fetch uses the current session', () => {
   const rawStart = serverSource.indexOf('const protectedCall = findVaultProtectedToolCall');
   const verified = serverSource.indexOf('if (verification.ok)', rawStart);
-  const reserve = serverSource.indexOf('legacyIntentBridge.reserve(parsedBody', rawStart);
-  const dispatch = serverSource.indexOf('transport.handleRequest(req, res, parsedBody)', reserve);
+  const rewrite = serverSource.indexOf('legacyIntentBridge.rewriteLegacy(parsedBody', rawStart);
+  const dispatch = serverSource.indexOf('transport.handleRequest(req, res, parsedBody)', rewrite);
   assert.ok(rawStart >= 0 && verified > rawStart, 'OAuth boundary missing');
-  assert.ok(reserve > verified, 'intent reservation must follow current Bearer verification');
-  assert.ok(dispatch > reserve, 'intent reservation must precede SDK input validation/dispatch');
+  assert.ok(rewrite > verified, 'legacy translation must follow current Bearer verification');
+  assert.ok(dispatch > rewrite, 'legacy translation must precede SDK input validation/dispatch');
 
   const source = registration('x402_fetch', 'x402_status');
-  assert.match(source, /oauthVaultIdentityOf\(sessionMeta\.get\(sessionId\)\)/);
-  assert.match(source, /legacyIntentBridge\.beginFetch\(\{\s*identity,/);
-  assert.match(source, /x402IntentFetch\(args, extra, \{ checkedSessionId \}\)/);
-  const begin = source.indexOf('legacyIntentBridge.beginFetch');
-  const refused = source.indexOf('handoff.matched && !handoff.acquired', begin);
-  const api = source.indexOf('x402IntentFetch(args, extra', refused);
-  assert.ok(begin >= 0 && refused > begin && api > refused, 'refused reservation must return before API fetch');
+  assert.match(source, /x402IntentFetch\(args, extra\)/);
+  assert.doesNotMatch(source, /legacyIntentBridge|checkedSessionId|intent_session_handoff/);
 
   const fetchFunction = serverSource.slice(
     serverSource.indexOf('async function x402IntentFetch'),
     serverSource.indexOf('async function x402IntentStatus'),
   );
-  assert.match(fetchFunction, /sessionId: checkedSessionId \|\| session\.sessionId/);
+  assert.match(fetchFunction, /sessionId: session\.sessionId/);
 });

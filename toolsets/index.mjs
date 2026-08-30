@@ -134,10 +134,15 @@ const TOOLSET_REGISTRY = {
 };
 
 const DEFAULT_TOOLSET_KEYS = Object.keys(TOOLSET_REGISTRY);
+export const SEALED_PRIVATE_TOOLSET_PROFILE = 'sealed-private';
+const SEALED_PRIVATE_TOOLSET_KEYS = Object.freeze(
+  DEFAULT_TOOLSET_KEYS.filter((key) => key !== 'x402'),
+);
 const TOOLSET_PROFILES = {
   full: DEFAULT_TOOLSET_KEYS,
   opendexter: ['x402-client'],
   'x402-only': ['x402-client'],
+  [SEALED_PRIVATE_TOOLSET_PROFILE]: SEALED_PRIVATE_TOOLSET_KEYS,
 };
 
 function normalizeSelection(selection) {
@@ -276,6 +281,12 @@ export async function registerSelectedToolsets(server, selection) {
       groups.push({ key, tools: added });
     } catch (error) {
       console.error(`${label} ${color.red('failed to load')} ${color.cyanBright(key)}: ${color.red(error?.message || error)}`);
+      if (profile === SEALED_PRIVATE_TOOLSET_PROFILE) {
+        throw new Error(
+          `sealed_private_toolset_registration_failed:${key}`,
+          { cause: error },
+        );
+      }
     }
   }
 

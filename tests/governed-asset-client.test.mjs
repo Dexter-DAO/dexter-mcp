@@ -26,9 +26,13 @@ import {
 } from '../lib/governed-asset-service-config.mjs';
 import {
   GOVERNED_ASSET_TOOL_OUTPUT_SCHEMAS,
+  GOVERNED_STOCK_TRADE_SUMMARY_SCHEMA,
   buildGovernedAssetToolResult,
 } from '../lib/governed-asset-result.mjs';
 import { applyOpenToolResultPolicy } from '../lib/open-tool-contracts.mjs';
+import {
+  dynamicStockV2Fixture,
+} from './fixtures/governed-stock-v2.fixtures.mjs';
 
 const SECRET = ' test-only-governed-secret-at-least-thirty-two-bytes ';
 const OPERATION_ID = '019f981c-9215-7141-84f2-d89ffe9cbece';
@@ -43,13 +47,17 @@ const NOW = 1_785_020_400_000;
 const ADDRESS = '11111111111111111111111111111111';
 const PREPARE_PATH =
   '/api/passkey-vault/governed-assets/agent/actions/prepare';
-const API_6C243_ADVANCED_FINAL_FIXTURE_BYTES = readFileSync(new URL(
-  './fixtures/governed-agent-reconcile-advanced-final-6c243154.json',
+const API_FA0701B6_ADVANCED_FINAL_FIXTURE_BYTES = readFileSync(new URL(
+  './fixtures/governed-agent-reconcile-advanced-final-fa0701b6.json',
   import.meta.url,
 ));
-const API_6C243_ADVANCED_FINAL_FIXTURE = JSON.parse(
-  API_6C243_ADVANCED_FINAL_FIXTURE_BYTES.toString('utf8'),
+const API_FA0701B6_ADVANCED_FINAL_FIXTURE = JSON.parse(
+  API_FA0701B6_ADVANCED_FINAL_FIXTURE_BYTES.toString('utf8'),
 );
+const STOCK_SNAPSHOT_DIGESTS = Object.freeze({
+  tesla: '689bdce48ab7a92835d4c6b461813886cef33fc479c84affdcd572df001c25eb',
+  nvidia: '132f1adfe3e75990e64f47f90543d1e1a77ee7ed05b6f07612ab5683d821c7df',
+});
 
 function jsonResponse(status, body, headers = {}) {
   return {
@@ -145,6 +153,28 @@ function preparedResponse() {
       assetId: 'dexter',
       symbol: 'DEXTER',
       amountAtomic: '1000000',
+      productIdentity: {
+        assetId: 'dexter',
+        assetClass: 'token',
+        companyName: null,
+        productName: 'Dexter',
+        symbol: 'DEXTER',
+        issuer: null,
+        network: 'solana-mainnet',
+        mint: ADDRESS,
+        tokenProgram: 'spl-token',
+        decimals: 6,
+        registryIdentityDigest: '1'.repeat(64),
+      },
+      feeSummary: {
+        summary: 'Trading fees are included in this quote; network fee is calculated at execution.',
+        platformFee: null,
+        routeFees: [],
+        networkFee: {
+          status: 'not-yet-calculated',
+          amountLamports: null,
+        },
+      },
       inputMint: ADDRESS,
       outputMint: ADDRESS,
       destinationOwner: null,
@@ -163,6 +193,46 @@ function preparedResponse() {
       signed: false,
       submitted: false,
     },
+  };
+}
+
+function stockPrepareFailure({
+  input,
+  status = 'refused',
+  code,
+  retryable = false,
+}) {
+  const uncertain = status === 'uncertain';
+  return {
+    namespace: 'dexter-governed-agent-action/v1',
+    requestId: input.operationId,
+    executed: false,
+    attribution: null,
+    business: {
+      action: input.action,
+      assetId: null,
+      requestedCompanyQuery: input.companyQuery,
+      amountAtomic: input.amountAtomic ?? null,
+      destinationOwner: null,
+      protocolId: 'jupiter-v2',
+      lifecycle: uncertain ? 'unknown' : 'not-created',
+      settlement: 'not-submitted',
+      finality: 'not-final',
+      executionSucceeded: null,
+      programError: false,
+      refusalOrEscalationReasons: [code],
+      ambiguity: {
+        status: uncertain ? 'unresolved' : 'none',
+        retrySameRequestOnly: uncertain,
+      },
+      reconciliation: { required: false, availableToOwner: false },
+    },
+    status,
+    code,
+    explanation: 'Exact catalog stock failure.',
+    ...(uncertain
+      ? { retryWithSameRequestOnly: true }
+      : { retryable }),
   };
 }
 
@@ -709,6 +779,636 @@ test('generic approved asset identity passes without a named-token output enum',
   assert.equal(result.body.preview.symbol, 'TOK42');
 });
 
+test('share-quantity Buy sends the human target and never caller-derived token atoms', async () => {
+  const fixture = dynamicStockV2Fixture('tesla', OPERATION_ID);
+  const { input, prepared: expected } = fixture;
+  let calls = 0;
+  const result = await callGovernedAssetBackend({
+    apiBase: 'https://api.dexter.test',
+    secret: SECRET,
+    operation: 'prepare',
+    input,
+    mcpSessionId: SESSION_ID,
+    now: NOW,
+    fetchImpl: async (url, options) => {
+      calls += 1;
+      assert.equal(url, `https://api.dexter.test${PREPARE_PATH}`);
+      assert.deepEqual(JSON.parse(options.body), {
+        action: 'buy',
+        companyQuery: 'Tesla',
+        shareQuantity: '1.25',
+        maximumSpendAtomic: '300000000',
+        maxSlippageBps: 50,
+        maxPriceImpactBps: 10,
+      });
+      assert.equal('assetId' in JSON.parse(options.body), false);
+      return jsonResponse(200, expected);
+    },
+  });
+
+  assert.equal(calls, 1);
+  assert.equal(result.isError, false);
+  assert.deepEqual(result.body, expected);
+  assert.equal(result.body.preview.requestAmountKind, 'share-quantity');
+  assert.equal(result.body.preview.requestedShareQuantity, '1.25');
+  assert.equal(result.body.preview.minimumShareQuantity, '1.25');
+  assert.equal(result.body.preview.minimumOutputAtomic, '1250000');
+  assert.equal(
+    result.body.preview.shareQuantitySemantics,
+    'minimum-receive',
+  );
+  assert.equal(result.body.preview.overfillPossible, true);
+});
+
+test('prepare output accepts a full non-SPCX catalog-stock runtime envelope', () => {
+  const fixture = dynamicStockV2Fixture('tesla', OPERATION_ID);
+  const parsed = GOVERNED_ASSET_TOOL_OUTPUT_SCHEMAS.prepare.safeParse(
+    fixture.prepared,
+  );
+  assert.equal(
+    parsed.success,
+    true,
+    parsed.success ? undefined : JSON.stringify(parsed.error.issues),
+  );
+  assert.equal(parsed.data.preview.productIdentity.companyName, 'Tesla, Inc.');
+  assert.equal(parsed.data.preview.productIdentity.providerName, 'Backed Finance');
+  assert.equal(parsed.data.preview.productIdentity.legalIssuerName, 'Backed Assets (JE) Limited');
+  assert.equal(parsed.data.preview.productIdentity.issuer, 'Backed Assets (JE) Limited');
+  assert.equal(parsed.data.preview.requestedShareQuantity, '1.25');
+  assert.equal(parsed.data.preview.minimumShareQuantity, '1.25');
+  assert.equal(parsed.data.stockRuntime.namespace, 'dexter-delegated-stock-prepare-runtime-binding/v2');
+  assert.equal(parsed.data.preview.stockSelection.normalizedCompanyQuery, 'tesla');
+  assert.equal(parsed.data.preview.feeSummary.networkFee.status, 'not-yet-calculated');
+});
+
+test('prepare output rejects a provider substituted for the legal issuer', () => {
+  const mismatched = dynamicStockV2Fixture('tesla', OPERATION_ID).prepared;
+  mismatched.preview.productIdentity.issuer = 'Backed Finance';
+
+  const parsed = GOVERNED_ASSET_TOOL_OUTPUT_SCHEMAS.prepare.safeParse(mismatched);
+
+  assert.equal(parsed.success, false);
+  assert.equal(
+    parsed.error.issues.some((issue) => (
+      issue.path.join('.') === 'preview.productIdentity.issuer'
+      && issue.message.includes('formal legal issuer')
+    )),
+    true,
+  );
+});
+
+test('catalog stock Prepare preserves exact discovery and runtime refusal codes', async () => {
+  const input = {
+    operationId: OPERATION_ID,
+    action: 'buy',
+    companyQuery: 'Tesla',
+    amountAtomic: '1000000',
+  };
+  const cases = [
+    [422, stockPrepareFailure({ input, code: 'stock_company_not_found' })],
+    [422, stockPrepareFailure({ input, code: 'stock_company_ambiguous' })],
+    [503, stockPrepareFailure({
+      input,
+      code: 'stock_selection_unavailable',
+      retryable: true,
+    })],
+    [503, stockPrepareFailure({
+      input,
+      code: 'stock_vault_v2_runtime_unavailable',
+      retryable: true,
+    })],
+    [503, stockPrepareFailure({
+      input,
+      status: 'uncertain',
+      code: 'stock_prepare_recovery_unavailable',
+    })],
+  ];
+
+  for (const [httpStatus, responseBody] of cases) {
+    const result = await callGovernedAssetBackend({
+      apiBase: 'https://api.dexter.test',
+      secret: SECRET,
+      operation: 'prepare',
+      input,
+      mcpSessionId: SESSION_ID,
+      now: NOW,
+      fetchImpl: async () => jsonResponse(httpStatus, responseBody),
+    });
+    assert.equal(result.isError, true, responseBody.code);
+    assert.deepEqual(result.body, responseBody, responseBody.code);
+  }
+});
+
+test('direct static stock asset identity reaches the API refusal without local substitution', async () => {
+  const input = {
+    operationId: OPERATION_ID,
+    action: 'buy',
+    assetId: 'xstocks-tsla',
+    amountAtomic: '1000000',
+  };
+  const responseBody = {
+    namespace: 'dexter-governed-agent-action/v1',
+    requestId: OPERATION_ID,
+    executed: false,
+    attribution: null,
+    business: business({
+      assetId: 'xstocks-tsla',
+      lifecycle: 'refused',
+    }),
+    status: 'refused',
+    code: 'stock_catalog_selection_required',
+    explanation: 'Stock trading requires an exact released catalog selection.',
+    retryable: false,
+  };
+
+  const result = await callGovernedAssetBackend({
+    apiBase: 'https://api.dexter.test',
+    secret: SECRET,
+    operation: 'prepare',
+    input,
+    mcpSessionId: SESSION_ID,
+    now: NOW,
+    fetchImpl: async (_url, options) => {
+      assert.deepEqual(JSON.parse(options.body), {
+        action: 'buy',
+        assetId: 'xstocks-tsla',
+        amountAtomic: '1000000',
+      });
+      return jsonResponse(422, responseBody);
+    },
+  });
+  assert.equal(result.isError, true);
+  assert.deepEqual(result.body, responseBody);
+});
+
+test('fractional share-quantity Buy may omit the user ceiling', async () => {
+  const fixture = dynamicStockV2Fixture('tesla', OPERATION_ID);
+  const expected = fixture.prepared;
+  expected.preview.requestedShareQuantity = '0.25';
+  expected.preview.expectedShareQuantity = '0.26';
+  expected.preview.minimumShareQuantity = '0.25';
+  expected.preview.expectedOutputAtomic = '260000';
+  expected.preview.minimumOutputAtomic = '250000';
+  expected.preview.shareQuantityConversion.rawMinimumOutputAtomic = '250000';
+  expected.preview.requestedMaximumSpendAtomic = null;
+  const result = await callGovernedAssetBackend({
+    apiBase: 'https://api.dexter.test',
+    secret: SECRET,
+    operation: 'prepare',
+    input: {
+      operationId: OPERATION_ID,
+      action: 'buy',
+      companyQuery: 'Tesla',
+      shareQuantity: '0.25',
+      maxSlippageBps: 50,
+      maxPriceImpactBps: 10,
+    },
+    mcpSessionId: SESSION_ID,
+    now: NOW,
+    fetchImpl: async () => jsonResponse(200, expected),
+  });
+
+  assert.equal(result.isError, false);
+  assert.equal(result.body.preview.maximumInputAmountAtomic, '250000000');
+  assert.equal(result.body.preview.requestedMaximumSpendAtomic, null);
+  assert.equal(result.body.preview.minimumShareQuantity, '0.25');
+});
+
+test('share-quantity normalization rejects substituted human terms or conversion proof', async () => {
+  const fixture = dynamicStockV2Fixture('tesla', OPERATION_ID);
+  const { input } = fixture;
+  const hostile = [
+    (body) => { body.preview.requestAmountKind = 'input'; },
+    (body) => { body.preview.requestedShareQuantity = '1'; },
+    (body) => { body.preview.minimumShareQuantity = '1.24'; },
+    (body) => { body.preview.expectedShareQuantity = '1.24'; },
+    (body) => { body.preview.maximumInputAmountAtomic = '250000001'; },
+    (body) => { body.preview.requestedMaximumSpendAtomic = '600000000'; },
+    (body) => { body.preview.shareQuantityUnit = null; },
+    (body) => { body.preview.shareQuantitySemantics = null; },
+    (body) => { body.preview.overfillPossible = false; },
+    (body) => { body.preview.minimumOutputAtomic = '1249999'; },
+    (body) => {
+      body.preview.shareQuantityConversion.rawMinimumOutputAtomic = '1249999';
+    },
+    (body) => { body.preview.shareQuantityConversion.displayMultiplier = '0'; },
+    (body) => { body.preview.shareQuantityConversion.displayMultiplier = '0.5'; },
+    (body) => { delete body.preview.shareQuantityConversion; },
+    (body) => { body.business.amountAtomic = '300000001'; },
+    (body) => { body.preview.amountAtomic = '250000001'; },
+    (body) => { delete body.preview.requestedShareQuantity; },
+  ];
+
+  for (const mutate of hostile) {
+    const response = structuredClone(fixture.prepared);
+    mutate(response);
+    const result = await callGovernedAssetBackend({
+      apiBase: 'https://api.dexter.test',
+      secret: SECRET,
+      operation: 'prepare',
+      input,
+      mcpSessionId: SESSION_ID,
+      now: NOW,
+      fetchImpl: async () => jsonResponse(200, response),
+    });
+    assert.equal(result.isError, true);
+    assert.equal(result.body.code, 'governed_backend_response_invalid');
+  }
+});
+
+test('legacy USDC-budget Buy response remains valid without quantity metadata', async () => {
+  const expected = preparedResponse();
+  for (const field of [
+    'requestAmountKind',
+    'requestedShareQuantity',
+    'expectedShareQuantity',
+    'minimumShareQuantity',
+    'maximumInputAmountAtomic',
+    'requestedMaximumSpendAtomic',
+    'shareQuantityUnit',
+    'shareQuantitySemantics',
+    'overfillPossible',
+    'shareQuantityConversion',
+  ]) {
+    assert.equal(field in expected.preview, false, field);
+  }
+  const result = await callGovernedAssetBackend({
+    apiBase: 'https://api.dexter.test',
+    secret: SECRET,
+    operation: 'prepare',
+    input: {
+      operationId: OPERATION_ID,
+      action: 'buy',
+      assetId: 'dexter',
+      amountAtomic: '1000000',
+    },
+    mcpSessionId: SESSION_ID,
+    now: NOW,
+    fetchImpl: async () => jsonResponse(200, expected),
+  });
+  assert.equal(result.isError, false);
+  assert.deepEqual(result.body, expected);
+});
+
+test('dynamic non-SPCX Buy and Sell preserve full stock envelopes at every public placement', async () => {
+  for (const name of ['tesla', 'nvidia']) {
+    const fixture = dynamicStockV2Fixture(name, OPERATION_ID);
+    assert.equal(
+      GOVERNED_STOCK_TRADE_SUMMARY_SCHEMA.safeParse(
+        fixture.execute.tradeSummary,
+      ).success,
+      true,
+      name,
+    );
+    assert.equal(fixture.prepared.preview.stockSelection.assetId, fixture.status.assetId);
+    assert.equal(fixture.status.stockSelection.assetId, fixture.status.assetId);
+    assert.equal(fixture.status.stockV2Identity.intentId, fixture.status.intentId);
+    assert.equal(
+      fixture.status.stockV2Identity.tradeSummarySnapshotDigest,
+      STOCK_SNAPSHOT_DIGESTS[name],
+    );
+    assert.equal(fixture.execute.tradeSummary.assetId, fixture.status.assetId);
+    assert.equal(fixture.history.items[0].tradeSummary.assetId, fixture.status.assetId);
+    assert.equal(
+      fixture.reconcile.statusAfter.stockV2Identity.intentId,
+      fixture.status.intentId,
+    );
+
+    const cases = [
+      ['prepare', fixture.input, 200, fixture.prepared],
+      ['execute', { operationId: OPERATION_ID, intentId: INTENT_ID }, 200, fixture.execute],
+      ['status', { intentId: INTENT_ID }, 200, fixture.status],
+      ['reconcile', { intentId: INTENT_ID }, 202, fixture.reconcile],
+      ['history', { limit: 25 }, 200, fixture.history],
+    ];
+    for (const [operation, input, httpStatus, responseBody] of cases) {
+      const result = await callGovernedAssetBackend({
+        apiBase: 'https://api.dexter.test',
+        secret: SECRET,
+        operation,
+        input,
+        mcpSessionId: SESSION_ID,
+        now: NOW,
+        fetchImpl: async () => jsonResponse(httpStatus, responseBody),
+      });
+      assert.equal(result.isError, false, `${name}:${operation}`);
+      assert.deepEqual(result.body, responseBody, `${name}:${operation}`);
+    }
+  }
+});
+
+test('DEXTER non-stock controls remain valid across every public placement', async () => {
+  const prepared = preparedResponse();
+  prepared.preview.feeSummary.platformFee = {
+    amountAtomic: '7',
+    mint: ADDRESS,
+  };
+  prepared.preview.feeSummary.routeFees = [
+    { amountAtomic: '2', mint: ADDRESS },
+    { amountAtomic: '3', mint: ADDRESS },
+  ];
+  const execute = executeResponse();
+  const status = statusResponse();
+  status.transactionSignature = 'legacy-durable-signature';
+  const history = {
+    namespace: 'dexter-governed-transaction-history/v1',
+    items: [status],
+    nextCursor: null,
+  };
+  const reconcile = reconcileResponse({ statusAfter: status });
+  const cases = [
+    ['prepare', {
+      operationId: OPERATION_ID,
+      action: 'buy',
+      assetId: 'dexter',
+      amountAtomic: '1000000',
+    }, 200, prepared],
+    ['execute', { operationId: OPERATION_ID, intentId: INTENT_ID }, 200, execute],
+    ['status', { intentId: INTENT_ID }, 200, status],
+    ['history', { limit: 25 }, 200, history],
+    ['reconcile', { intentId: INTENT_ID }, 202, reconcile],
+  ];
+
+  for (const [operation, input, httpStatus, responseBody] of cases) {
+    const result = await callGovernedAssetBackend({
+      apiBase: 'https://api.dexter.test',
+      secret: SECRET,
+      operation,
+      input,
+      mcpSessionId: SESSION_ID,
+      now: NOW,
+      fetchImpl: async () => jsonResponse(httpStatus, responseBody),
+    });
+    assert.equal(result.isError, false, operation);
+    assert.deepEqual(result.body, responseBody, operation);
+  }
+  assert.equal('stockRuntime' in prepared, false);
+  assert.equal('stockSelection' in prepared.preview, false);
+  assert.equal('tradeSummary' in execute, false);
+  assert.equal('stockSelection' in status, false);
+  assert.equal('stockV2Identity' in status, false);
+});
+
+test('stock Prepare requires the exact stock fee summary without narrowing non-stock', async () => {
+  const fixture = dynamicStockV2Fixture('tesla', OPERATION_ID);
+  const hostile = [
+    (body) => {
+      body.preview.feeSummary.platformFee = {
+        amountAtomic: '1',
+        mint: body.preview.productIdentity.mint,
+      };
+    },
+    (body) => { body.preview.feeSummary.routeFees.reverse(); },
+    (body) => {
+      body.preview.feeSummary.routeFees[1] = {
+        ...body.preview.feeSummary.routeFees[0],
+      };
+    },
+  ];
+
+  for (const mutate of hostile) {
+    const response = structuredClone(fixture.prepared);
+    mutate(response);
+    const result = await callGovernedAssetBackend({
+      apiBase: 'https://api.dexter.test',
+      secret: SECRET,
+      operation: 'prepare',
+      input: fixture.input,
+      mcpSessionId: SESSION_ID,
+      now: NOW,
+      fetchImpl: async () => jsonResponse(200, response),
+    });
+    assert.equal(result.isError, true);
+    assert.equal(result.body.code, 'governed_backend_response_invalid');
+  }
+});
+
+test('stock trade summaries require exact public identity, fee, order, and canonical-share semantics', () => {
+  const canonical = dynamicStockV2Fixture('tesla', OPERATION_ID)
+    .execute.tradeSummary;
+  assert.equal(GOVERNED_STOCK_TRADE_SUMMARY_SCHEMA.safeParse(canonical).success, true);
+
+  const hostile = [
+    (summary) => { delete summary.productIdentity.providerName; },
+    (summary) => { delete summary.productIdentity.legalIssuerName; },
+    (summary) => {
+      summary.productIdentity.issuer = summary.productIdentity.providerName;
+    },
+    (summary) => {
+      summary.feeSummary.platformFee = {
+        amountAtomic: '1',
+        mint: summary.productIdentity.mint,
+      };
+    },
+    (summary) => { summary.feeSummary.routeFees.reverse(); },
+    (summary) => {
+      summary.feeSummary.routeFees[1] = {
+        ...summary.feeSummary.routeFees[0],
+      };
+    },
+    (summary) => { summary.requestedShareQuantity = '1.250'; },
+    (summary) => { summary.minimumShareQuantity = '1.250'; },
+    (summary) => {
+      summary.expectedShareQuantity = `1.${'1'.repeat(19)}`;
+    },
+  ];
+  for (const mutate of hostile) {
+    const summary = structuredClone(canonical);
+    mutate(summary);
+    assert.equal(GOVERNED_STOCK_TRADE_SUMMARY_SCHEMA.safeParse(summary).success, false);
+  }
+});
+
+test('confirmed stock execution is successful without waiting for finalized', async () => {
+  const responseBody = dynamicStockV2Fixture('tesla', OPERATION_ID).execute;
+  const result = await callGovernedAssetBackend({
+    apiBase: 'https://api.dexter.test',
+    secret: SECRET,
+    operation: 'execute',
+    input: { operationId: OPERATION_ID, intentId: INTENT_ID },
+    mcpSessionId: SESSION_ID,
+    now: NOW,
+    fetchImpl: async () => jsonResponse(200, responseBody),
+  });
+
+  assert.equal(result.isError, false);
+  assert.equal(result.body.status, 'confirmed');
+  assert.equal(result.body.business.finality, 'confirmed');
+  assert.equal(result.body.business.executionSucceeded, true);
+  assert.equal(result.body.tradeSummary.requestedShareQuantity, '1.25');
+});
+
+test('confirmed stock success requires a canonical 64-byte Solana signature', async () => {
+  for (const operation of ['execute', 'status']) {
+    const fixture = dynamicStockV2Fixture('tesla', OPERATION_ID);
+    const body = structuredClone(fixture[operation]);
+    body.transactionSignature = '2'.repeat(64);
+    const input = operation === 'execute'
+      ? { operationId: OPERATION_ID, intentId: INTENT_ID }
+      : { intentId: INTENT_ID };
+    const result = await callGovernedAssetBackend({
+      apiBase: 'https://api.dexter.test',
+      secret: SECRET,
+      operation,
+      input,
+      mcpSessionId: SESSION_ID,
+      now: NOW,
+      fetchImpl: async () => jsonResponse(200, body),
+    });
+    assert.equal(result.isError, true, operation);
+    assert.equal(result.body.code, 'governed_backend_response_invalid', operation);
+  }
+});
+
+test('execute accepts current Vault V2 stock boundary and recovery codes', async () => {
+  const fixture = dynamicStockV2Fixture('tesla', OPERATION_ID);
+  for (const code of [
+    'stock_public_identity_required',
+    'stock_vault_v2_runtime_unavailable',
+    'stock_vault_v2_runtime_identity_invalid',
+    'stock_vault_v2_runtime_identity_mismatch',
+  ]) {
+    const responseBody = structuredClone(fixture.execute);
+    responseBody.status = 'refused';
+    responseBody.attemptId = null;
+    responseBody.transactionSignature = null;
+    responseBody.executed = false;
+    responseBody.code = code;
+    responseBody.explanation = 'The exact stock execution boundary is unavailable.';
+    responseBody.evidenceDigest = null;
+    Object.assign(responseBody.business, {
+      lifecycle: 'prepared',
+      settlement: 'not-submitted',
+      finality: 'not-final',
+      executionSucceeded: null,
+      refusalOrEscalationReasons: [code],
+      reconciliation: { required: false, availableToOwner: false },
+    });
+    const httpStatus = code === 'stock_public_identity_required' ? 422 : 503;
+    const result = await callGovernedAssetBackend({
+      apiBase: 'https://api.dexter.test',
+      secret: SECRET,
+      operation: 'execute',
+      input: { operationId: OPERATION_ID, intentId: INTENT_ID },
+      mcpSessionId: SESSION_ID,
+      now: NOW,
+      fetchImpl: async () => jsonResponse(httpStatus, responseBody),
+    });
+    assert.equal(result.isError, true, code);
+    assert.deepEqual(result.body, responseBody, code);
+  }
+
+  const recoveryUnavailable = structuredClone(fixture.execute);
+  recoveryUnavailable.status = 'pending';
+  recoveryUnavailable.transactionSignature = null;
+  recoveryUnavailable.executed = false;
+  recoveryUnavailable.code = 'stock_vault_v2_recovery_unavailable';
+  recoveryUnavailable.explanation = 'The exact stock recovery boundary is unavailable.';
+  recoveryUnavailable.evidenceDigest = null;
+  Object.assign(recoveryUnavailable.business, {
+    lifecycle: 'claimed',
+    settlement: 'not-submitted',
+    finality: 'unknown',
+    executionSucceeded: null,
+    refusalOrEscalationReasons: [],
+    reconciliation: { required: true, availableToOwner: false },
+  });
+  const result = await callGovernedAssetBackend({
+    apiBase: 'https://api.dexter.test',
+    secret: SECRET,
+    operation: 'execute',
+    input: { operationId: OPERATION_ID, intentId: INTENT_ID },
+    mcpSessionId: SESSION_ID,
+    now: NOW,
+    fetchImpl: async () => jsonResponse(503, recoveryUnavailable),
+  });
+  assert.equal(result.isError, true);
+  assert.deepEqual(result.body, recoveryUnavailable);
+});
+
+test('trade summary fails closed on business, mint, token-program, or hidden stock evidence substitution', async () => {
+  const hostileExecute = [
+    (body) => { body.tradeSummary.amountAtomic = '1349344731'; },
+    (body) => {
+      body.tradeSummary.assetId = 'backpack-spcx-v2';
+      body.tradeSummary.productIdentity.assetId = 'backpack-spcx-v2';
+    },
+    (body) => {
+      Object.assign(body.tradeSummary, {
+        action: 'sell',
+        requestAmountKind: 'input',
+        requestedShareQuantity: null,
+        expectedShareQuantity: null,
+        minimumShareQuantity: null,
+        shareQuantityUnit: null,
+        shareQuantitySemantics: null,
+        requestedMaximumSpendAtomic: null,
+        overfillPossible: false,
+      });
+    },
+    (body) => { body.stockSelection = { mint: ADDRESS }; },
+    (body) => { body.quoteAttestation = { digest: 'a'.repeat(64) }; },
+  ];
+  for (const mutate of hostileExecute) {
+    const body = dynamicStockV2Fixture('tesla', OPERATION_ID).execute;
+    mutate(body);
+    const result = await callGovernedAssetBackend({
+      apiBase: 'https://api.dexter.test',
+      secret: SECRET,
+      operation: 'execute',
+      input: { operationId: OPERATION_ID, intentId: INTENT_ID },
+      mcpSessionId: SESSION_ID,
+      now: NOW,
+      fetchImpl: async () => jsonResponse(200, body),
+    });
+    assert.equal(result.isError, true);
+    assert.equal(result.body.code, 'governed_backend_response_invalid');
+  }
+
+  const hostileStatus = [
+    (body) => { body.tradeSummary.productIdentity.mint = ADDRESS; },
+    (body) => { body.tradeSummary.productIdentity.tokenProgram = 'spl-token'; },
+    (body) => { body.stockSelection.assetId = 'xstocks-other'; },
+    (body) => { body.stockV2Identity.intentId = '11111111-1111-4111-8111-111111111111'; },
+    (body) => {
+      body.stockSelection.companyName = 'Attacker Corp';
+      body.tradeSummary.productIdentity.companyName = 'Attacker Corp';
+    },
+    (body) => { delete body.stockV2Identity; },
+    (body) => { body.tradeSummary.unexpected = true; },
+  ];
+  for (const mutate of hostileStatus) {
+    const body = dynamicStockV2Fixture('tesla', OPERATION_ID).status;
+    mutate(body);
+    const result = await callGovernedAssetBackend({
+      apiBase: 'https://api.dexter.test',
+      secret: SECRET,
+      operation: 'status',
+      input: { intentId: INTENT_ID },
+      mcpSessionId: SESSION_ID,
+      now: NOW,
+      fetchImpl: async () => jsonResponse(200, body),
+    });
+    assert.equal(result.isError, true);
+    assert.equal(result.body.code, 'governed_backend_response_invalid');
+  }
+});
+
+test('legacy execute and status envelopes remain valid without tradeSummary', () => {
+  const execute = executeResponse();
+  const status = statusResponse();
+  assert.equal('tradeSummary' in execute, false);
+  assert.equal('tradeSummary' in status, false);
+  assert.equal(
+    GOVERNED_ASSET_TOOL_OUTPUT_SCHEMAS.execute.safeParse(execute).success,
+    true,
+  );
+  assert.equal(
+    GOVERNED_ASSET_TOOL_OUTPUT_SCHEMAS.status.safeParse(status).success,
+    true,
+  );
+});
+
 test('governed result policy preserves valid opaque identities that resemble bearer tokens', () => {
   const opaqueIdentity = 'open_abcdefghijklmnop';
   const opaquePlan = `dlt_${'a'.repeat(20)}`;
@@ -916,7 +1616,7 @@ test('prepare preserves exact reusable-mandate coverage and escalation states', 
       },
       mcpSessionId: SESSION_ID,
       now: NOW,
-      fetchImpl: async () => jsonResponse(409, refusal),
+      fetchImpl: async () => jsonResponse(422, refusal),
     });
     assert.equal(result.isError, true, code);
     assert.equal(result.body.code, code);
@@ -1128,20 +1828,49 @@ test('reconcile accepts every exact runtime outcome envelope', async () => {
   }
 });
 
-test('reconcile accepts the exact API 6c243 advanced-final public envelope', async () => {
+test('reconcile preserves current stock public-identity and V2 recovery refusals', async () => {
+  const fixture = dynamicStockV2Fixture('tesla', OPERATION_ID);
+  const fullIdentity = mutateReconcile(fixture.reconcile, (identity) => {
+    identity.outcome = 'unavailable';
+    identity.code = 'stock_vault_v2_recovery_unavailable';
+    identity.explanation = 'The exact release-bound stock recovery adapter is unavailable.';
+  });
+  const incompleteIdentity = mutateReconcile(fixture.reconcile, (identity) => {
+    identity.outcome = 'unavailable';
+    identity.code = 'stock_public_identity_required';
+    identity.explanation = 'The durable stock public identity is incomplete.';
+    delete identity.statusAfter.stockV2Identity;
+  });
+
+  for (const responseBody of [fullIdentity, incompleteIdentity]) {
+    const result = await callGovernedAssetBackend({
+      apiBase: 'https://api.dexter.test',
+      secret: SECRET,
+      operation: 'reconcile',
+      input: { intentId: INTENT_ID },
+      mcpSessionId: SESSION_ID,
+      now: NOW,
+      fetchImpl: async () => jsonResponse(409, responseBody),
+    });
+    assert.equal(result.isError, true, responseBody.code);
+    assert.deepEqual(result.body, responseBody, responseBody.code);
+  }
+});
+
+test('reconcile accepts the exact API fa0701b6 advanced-final public envelope', async () => {
   assert.equal(
     createHash('sha256')
-      .update(API_6C243_ADVANCED_FINAL_FIXTURE_BYTES)
+      .update(API_FA0701B6_ADVANCED_FINAL_FIXTURE_BYTES)
       .digest('hex'),
-    'ce947da8dbc22b602d5254949787b777b66095bb2530a707fb1db6d73b1b41d4',
+    'ad06690a3914e0ef0f359c4164eb62f78ca54abe6697a52672d739df63c2c352',
   );
   assert.equal(
-    API_6C243_ADVANCED_FINAL_FIXTURE.sourceCommit,
-    '6c243154e9e06f4e40830300c4027721645a33cc',
+    API_FA0701B6_ADVANCED_FINAL_FIXTURE.sourceCommit,
+    'fa0701b67625911b8ec97a5399f62ec97a69f976',
   );
   assert.equal(
     GOVERNED_ASSET_TOOL_OUTPUT_SCHEMAS.reconcile.safeParse(
-      API_6C243_ADVANCED_FINAL_FIXTURE.body,
+      API_FA0701B6_ADVANCED_FINAL_FIXTURE.body,
     ).success,
     true,
   );
@@ -1150,21 +1879,21 @@ test('reconcile accepts the exact API 6c243 advanced-final public envelope', asy
     apiBase: 'https://api.dexter.test',
     secret: SECRET,
     operation: 'reconcile',
-    input: API_6C243_ADVANCED_FINAL_FIXTURE.input,
+    input: API_FA0701B6_ADVANCED_FINAL_FIXTURE.input,
     mcpSessionId: SESSION_ID,
     now: NOW,
     fetchImpl: async () => jsonResponse(
-      API_6C243_ADVANCED_FINAL_FIXTURE.httpStatus,
-      API_6C243_ADVANCED_FINAL_FIXTURE.body,
+      API_FA0701B6_ADVANCED_FINAL_FIXTURE.httpStatus,
+      API_FA0701B6_ADVANCED_FINAL_FIXTURE.body,
     ),
   });
 
   assert.equal(result.isError, false);
-  assert.deepEqual(result.body, API_6C243_ADVANCED_FINAL_FIXTURE.body);
+  assert.deepEqual(result.body, API_FA0701B6_ADVANCED_FINAL_FIXTURE.body);
 });
 
 test('advanced-final reconciliation remains terminal, advancing, and identity exact', async () => {
-  const valid = API_6C243_ADVANCED_FINAL_FIXTURE.body;
+  const valid = API_FA0701B6_ADVANCED_FINAL_FIXTURE.body;
   const pendingFinal = mutateReconcile(valid, (body) => {
     body.outcome = 'pending';
     body.mutated = false;
@@ -1239,7 +1968,7 @@ test('advanced-final reconciliation remains terminal, advancing, and identity ex
     apiBase: 'https://api.dexter.test',
     secret: SECRET,
     operation: 'reconcile',
-    input: API_6C243_ADVANCED_FINAL_FIXTURE.input,
+    input: API_FA0701B6_ADVANCED_FINAL_FIXTURE.input,
     mcpSessionId: SESSION_ID,
     now: NOW,
     fetchImpl: async () => jsonResponse(200, ownerRefusalTerminal),
@@ -1276,7 +2005,7 @@ test('advanced-final reconciliation remains terminal, advancing, and identity ex
       apiBase: 'https://api.dexter.test',
       secret: SECRET,
       operation: 'reconcile',
-      input: API_6C243_ADVANCED_FINAL_FIXTURE.input,
+      input: API_FA0701B6_ADVANCED_FINAL_FIXTURE.input,
       mcpSessionId: SESSION_ID,
       now: NOW,
       fetchImpl: async () => jsonResponse(httpStatus, responseBody),
@@ -1737,6 +2466,55 @@ test('execute accepts only the canonical durable API outcome variants', async ()
   }
 });
 
+test('landed program errors remain structured so the receipt can render failure', () => {
+  const failed = executeResponse({
+    executed: false,
+    code: 'landed_program_error',
+    explanation: 'The protected program reported an execution error.',
+    business: {
+      executionSucceeded: false,
+      programError: true,
+    },
+  });
+  const result = buildGovernedAssetToolResult({
+    body: failed,
+    httpStatus: 200,
+    isError: true,
+  });
+  const projected = applyOpenToolResultPolicy(
+    'dexter_execute_asset_action',
+    result,
+  );
+
+  assert.equal(projected.isError, true);
+  assert.deepEqual(projected.structuredContent, failed);
+  assert.equal(projected.structuredContent.business.executionSucceeded, false);
+  assert.equal(projected.structuredContent.business.programError, true);
+});
+
+test('schema-valid execute refusals remain text-only', () => {
+  const refused = canonicalExecuteVariants()
+    .find(([, body]) => body.status === 'refused')[1];
+  assert.equal(
+    GOVERNED_ASSET_TOOL_OUTPUT_SCHEMAS.execute.safeParse(refused).success,
+    true,
+  );
+
+  const result = buildGovernedAssetToolResult({
+    body: refused,
+    httpStatus: 409,
+    isError: true,
+  });
+  const projected = applyOpenToolResultPolicy(
+    'dexter_execute_asset_action',
+    result,
+  );
+
+  assert.equal(projected.isError, true);
+  assert.equal(projected.structuredContent, undefined);
+  assert.equal(JSON.parse(projected.content[0].text).status, 'refused');
+});
+
 test('execute rejects structurally valid contradictory durable outcomes', async () => {
   const variants = canonicalExecuteVariants();
   const mutate = (index, change) => {
@@ -1755,7 +2533,7 @@ test('execute rejects structurally valid contradictory durable outcomes', async 
     mutate(0, (body) => { body.business.ambiguity.retrySameRequestOnly = true; }),
     mutate(0, (body) => { body.attribution.grant.revision = 0; }),
     [202, structuredClone(variants[0][1])],
-    mutate(2, (body) => { body.transactionSignature = '2'.repeat(64); }),
+    mutate(2, (body) => { body.transactionSignature = '2'.repeat(88); }),
     mutate(3, (body) => { body.transactionSignature = null; }),
     mutate(4, (body) => { body.business.settlement = 'not-submitted'; }),
     mutate(5, (body) => { body.attemptId = null; }),
@@ -1764,7 +2542,7 @@ test('execute rejects structurally valid contradictory durable outcomes', async 
       body.business.refusalOrEscalationReasons = ['different_reason'];
     }),
     mutate(8, (body) => { body.evidenceDigest = null; }),
-    mutate(9, (body) => { body.transactionSignature = '3'.repeat(64); }),
+    mutate(9, (body) => { body.transactionSignature = '3'.repeat(88); }),
   ];
 
   for (const [httpStatus, responseBody] of hostile) {

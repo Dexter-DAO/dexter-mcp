@@ -43,6 +43,7 @@ const CONNECTED = [
   'x402_search',
   'dexter_prepare_asset_action',
 ];
+const PRIVATE = ['resolve_wallet', 'auth_info'];
 function sha256(value) {
   return createHash('sha256').update(value).digest('hex');
 }
@@ -93,8 +94,6 @@ function descriptorFixture() {
       challengeRequiredParameters: [
         'resource_metadata',
         'scope',
-        'error',
-        'error_description',
       ],
     },
     anonymousToolNames: ['x402_search'],
@@ -160,6 +159,11 @@ function sourceFixture() {
     },
   }, null, 2)}\n`);
   writeFixtureFile(source, 'http-server-oauth.mjs', '// private fixture\n');
+  writeFixtureFile(
+    source,
+    'ecosystem.private.production.cjs',
+    '// private ecosystem fixture\n',
+  );
   writeFixtureFile(source, 'open-mcp-server.mjs', '// open fixture\n');
   writeFixtureFile(
     source,
@@ -266,6 +270,16 @@ function fixtureRunner(source, calls = [], descriptor = descriptorFixture()) {
             }
           : descriptor;
         return { stdout: JSON.stringify(materialized), stderr: '' };
+      }
+      if (
+        args[0] === '--input-type=module'
+        && args[1] === '--eval'
+        && args[2]?.includes('DEXTER_MCP_PRIVATE_ROSTER=')
+      ) {
+        return {
+          stdout: `\nDEXTER_MCP_PRIVATE_ROSTER=${JSON.stringify(PRIVATE)}\n`,
+          stderr: '',
+        };
       }
     }
     return execFileAsync(command, args, options);
@@ -419,9 +433,11 @@ test('release builder constructs the same sealed candidate from the same Git HEA
     new Date(git(source, ['show', '-s', '--format=%cI', 'HEAD'])).toISOString(),
   );
   assert.deepEqual(first.provenance.rosters, {
+    'dexter-mcp': PRIVATE,
     'dexter-open-mcp': CONNECTED,
   });
   assert.deepEqual(first.provenance.entrypoints, {
+    'dexter-mcp': 'production-bootstrap.mjs',
     'dexter-open-mcp': 'production-bootstrap.mjs',
   });
   assert.equal(
@@ -444,7 +460,7 @@ test('release builder constructs the same sealed candidate from the same Git HEA
     join(first.releaseDirectory, '.release-provenance.json'),
   );
   const sealedProvenance = JSON.parse(sealedProvenanceBytes.toString('utf8'));
-  assert.equal(sealedProvenance.schema, 'dexter-mcp-immutable-release/v3');
+  assert.equal(sealedProvenance.schema, 'dexter-mcp-immutable-release/v4');
   assert.equal(Object.hasOwn(sealedProvenance, 'artifactManifestSha256'), false);
   assert.equal(Object.hasOwn(sealedProvenance, 'builtAt'), false);
   assert.equal(
@@ -504,9 +520,23 @@ test('release builder constructs the same sealed candidate from the same Git HEA
   for (const call of calls.filter(({ command }) => (
     command === REVIEWED_NPM.nodeExecutable
   ))) {
-    assert.equal(call.privateProfile, undefined);
-    assert.equal(call.privateToolsets, undefined);
+    assert.equal(call.privateProfile, '');
+    assert.equal(call.privateToolsets, '');
   }
+  const privateRosterCalls = calls.filter(({ args }) => (
+    args[0] === '--input-type=module'
+    && args[1] === '--eval'
+    && args[2]?.includes('DEXTER_MCP_PRIVATE_ROSTER=')
+  ));
+  assert.equal(privateRosterCalls.length, 1);
+  assert.match(
+    privateRosterCalls[0].args[2],
+    /SEALED_PRIVATE_TOOLSET_PROFILE/,
+  );
+  assert.doesNotMatch(
+    privateRosterCalls[0].args[2],
+    /process\.env\.TOKEN_AI_MCP_(?:PROFILE|TOOLSETS)/,
+  );
   for (const call of calls) {
     assert.equal(call.env.NODE_OPTIONS, undefined);
     assert.equal(call.env.NODE_PATH, undefined);

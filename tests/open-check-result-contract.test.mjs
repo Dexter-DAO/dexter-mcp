@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { buildHostedCheckModelResult } from '../lib/open-check-result.mjs';
+import { OPEN_TOOL_CONTRACTS } from '../lib/open-tool-contracts.mjs';
 
 test('Hermes-visible check result contains only the supported request-and-ceiling path', () => {
   const structuredContent = buildHostedCheckModelResult({
@@ -102,6 +103,7 @@ test('free and provider-authenticated quote states keep only typed public scalar
       authRequired: false,
       authMode: 'unprotected',
       message: 'No payment required.',
+      data: { price: 42 },
       // Malformed scalars from a provisional backend must not survive the
       // strict public output contract.
       unusedBoolean: true,
@@ -114,7 +116,113 @@ test('free and provider-authenticated quote states keep only typed public scalar
   assert.equal(structuredContent.free, true);
   assert.equal(structuredContent.authRequired, false);
   assert.equal(structuredContent.authMode, 'unprotected');
+  assert.deepEqual(structuredContent.data, { price: 42 });
   assert.equal(Object.hasOwn(structuredContent, 'unusedBoolean'), false);
+  assert.equal(
+    OPEN_TOOL_CONTRACTS.x402_check.outputSchema.safeParse(structuredContent)
+      .success,
+    true,
+  );
+  assert.deepEqual(structuredContent.executionGuidance, {
+    supportedPath: 'provider_response',
+    readyForFetch: false,
+    intentRequired: false,
+    dispatchAtMostOnce: true,
+  });
+});
+
+test('provider failures stay failures instead of being presented as free access', () => {
+  const structuredContent = buildHostedCheckModelResult({
+    checkResult: {
+      ok: false,
+      free: false,
+      status: 500,
+      error: 'provider_request_failed',
+      reason: 'provider_returned_error',
+      retryable: true,
+      data: { message: 'seller unavailable' },
+    },
+    url: 'https://seller.example/data',
+    method: 'GET',
+  });
+
+  assert.equal(structuredContent.ok, false);
+  assert.equal(structuredContent.free, false);
+  assert.equal(structuredContent.statusCode, 500);
+  assert.equal(structuredContent.error, 'provider_request_failed');
+  assert.equal(structuredContent.reason, 'provider_returned_error');
+  assert.equal(structuredContent.retryable, true);
+  assert.deepEqual(structuredContent.executionGuidance, {
+    supportedPath: 'provider_error',
+    readyForFetch: false,
+    intentRequired: false,
+    dispatchAtMostOnce: true,
+  });
+  assert.equal(
+    OPEN_TOOL_CONTRACTS.x402_check.outputSchema.safeParse(structuredContent)
+      .success,
+    true,
+  );
+});
+
+test('SIWX checks finish in one probe without pretending a payment intent exists', () => {
+  const structuredContent = buildHostedCheckModelResult({
+    checkResult: {
+      ok: false,
+      authRequired: true,
+      authMode: 'siwx',
+      statusCode: 401,
+    },
+    url: 'https://seller.example/private',
+    method: 'GET',
+  });
+
+  assert.equal(structuredContent.intentId, null);
+  assert.equal(structuredContent.quoteOnly, true);
+  assert.equal(structuredContent.ok, false);
+  assert.equal(structuredContent.error, 'siwx_signer_unavailable');
+  assert.equal(
+    structuredContent.reason,
+    'connected_siwx_signer_unavailable',
+  );
+  assert.deepEqual(structuredContent.siwx, {
+    recognized: true,
+    signerAvailable: false,
+  });
+  assert.deepEqual(structuredContent.executionGuidance, {
+    supportedPath: 'siwx_unavailable',
+    readyForFetch: false,
+    intentRequired: false,
+    dispatchAtMostOnce: true,
+    reprobeAllowed: false,
+  });
+  assert.equal(
+    OPEN_TOOL_CONTRACTS.x402_check.outputSchema.safeParse(structuredContent)
+      .success,
+    true,
+  );
+});
+
+test('non-GET SIWX check marks the exact request already checked', () => {
+  const structuredContent = buildHostedCheckModelResult({
+    checkResult: {
+      ok: true,
+      authMode: 'siwx',
+      statusCode: 402,
+    },
+    url: 'https://seller.example/private',
+    method: 'POST',
+    rawBody: '{"q":"hello"}',
+    rawBodyProvided: true,
+  });
+
+  assert.equal(structuredContent.requestAlreadyChecked, true);
+  assert.equal(structuredContent.executionGuidance.reprobeAllowed, false);
+  assert.equal(
+    OPEN_TOOL_CONTRACTS.x402_check.outputSchema.safeParse(structuredContent)
+      .success,
+    true,
+  );
 });
 
 test('authenticated checks do not expose backend route names through errors', () => {

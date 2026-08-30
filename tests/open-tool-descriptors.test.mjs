@@ -28,6 +28,7 @@ import {
   OPEN_RELEASE_FINALIZATION_SCRIPTS,
   OPEN_RELEASE_INSTALL_ARGS,
 } from '../lib/open-release-finalization.mjs';
+import { GOVERNED_ASSET_WIDGET_URIS } from '../apps-sdk/widget-uris.mjs';
 
 const execFileAsync = promisify(execFile);
 
@@ -179,6 +180,34 @@ test('--emit-json emits exactly one descriptor document and exits', () => {
   const descriptor = JSON.parse(output);
   assert.equal(descriptor.kind, 'opendexter-hosted-tool-descriptors/v2');
   assert.deepEqual(descriptor.tools.map(({ name }) => name), CONNECTED);
+
+  for (const name of [
+    'dexter_prepare_asset_action',
+    'dexter_execute_asset_action',
+    'dexter_asset_action_status',
+    'dexter_reconcile_asset_action',
+  ]) {
+    const tool = descriptor.tools.find((candidate) => candidate.name === name);
+    assert.ok(tool, name);
+    assert.equal(tool._meta.ui.resourceUri, GOVERNED_ASSET_WIDGET_URIS.stockTrade);
+    assert.equal(tool._meta['ui/resourceUri'], GOVERNED_ASSET_WIDGET_URIS.stockTrade);
+    assert.equal(tool._meta['openai/outputTemplate'], GOVERNED_ASSET_WIDGET_URIS.stockTrade);
+    assert.equal(tool._meta['openai/resultCanProduceWidget'], true);
+    assert.equal(tool._meta['openai/widgetAccessible'], false);
+    assert.deepEqual(tool._meta.ui.visibility, ['model', 'app']);
+    assert.doesNotMatch(
+      tool._meta['openai/toolInvocation/invoked'],
+      /confirmed|executed|succeeded|complete/i,
+      `${name} invocation copy cannot claim transaction success`,
+    );
+  }
+
+  const history = descriptor.tools.find((candidate) =>
+    candidate.name === 'dexter_wallet_history');
+  assert.ok(history);
+  assert.equal(history._meta.ui.resourceUri, undefined);
+  assert.equal(history._meta['openai/widgetAccessible'], false);
+  assert.deepEqual(history._meta.ui.visibility, ['model']);
 });
 
 test('descriptor archive preflight rejects visible and hidden checkout state before npm', async (t) => {
@@ -400,18 +429,18 @@ test('source materializer emits one deterministic full hosted descriptor', async
   ));
   assert.equal(
     descriptor.sourceContracts.api.commit,
-    '6c243154e9e06f4e40830300c4027721645a33cc',
+    'fa0701b67625911b8ec97a5399f62ec97a69f976',
   );
   assert.equal(
     descriptor.sourceContracts.api.tree,
-    'ce2976ada70af9234291aa6a472b3d96a7a84989',
+    'dcee95df1d92018b8fcd8b43645fe63211383274',
   );
   assert.deepEqual(descriptor.sourceContracts.integratedApiRelease, {
     repository: 'https://github.com/Dexter-DAO/dexter-api',
     commit: acceptedProduction.api.sourceCommit,
     tree: acceptedProduction.api.sourceTree,
-    governedContractCommit: '6c243154e9e06f4e40830300c4027721645a33cc',
-    governedContractTree: 'ce2976ada70af9234291aa6a472b3d96a7a84989',
+    governedContractCommit: 'fa0701b67625911b8ec97a5399f62ec97a69f976',
+    governedContractTree: 'dcee95df1d92018b8fcd8b43645fe63211383274',
   });
   assert.deepEqual(descriptor.sourceContracts.portfolioProjection, {
     repository: 'https://github.com/Dexter-DAO/dexter-api',
@@ -475,14 +504,15 @@ test('source materializer emits one deterministic full hosted descriptor', async
     challengeRequiredParameters: [
       'resource_metadata',
       'scope',
-      'error',
-      'error_description',
     ],
   });
   assert.deepEqual(descriptor.anonymousToolNames, ANONYMOUS);
   assert.deepEqual(descriptor.oauthPromotedToolNames, PROMOTED);
   assert.deepEqual(descriptor.connectedToolNames, CONNECTED);
-  assert.deepEqual(descriptor.optionalOAuthToolNames, ['x402_check']);
+  assert.deepEqual(descriptor.optionalOAuthToolNames, [
+    'x402_check',
+    'x402_access',
+  ]);
   assert.deepEqual(descriptor.tools.map((tool) => tool.name), CONNECTED);
 
   for (const tool of descriptor.tools) {
@@ -537,7 +567,7 @@ test('source materializer emits one deterministic full hosted descriptor', async
   });
   assert.deepEqual(
     Object.keys(access.inputSchema.properties).sort(),
-    ['body', 'method', 'network', 'url'],
+    ['body', 'method', 'url'],
   );
   assert.equal(search._meta['ui/resourceUri'], search._meta.ui.resourceUri);
   assert.equal(search._meta['openai/outputTemplate'], search._meta.ui.resourceUri);

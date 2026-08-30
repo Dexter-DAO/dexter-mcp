@@ -65,7 +65,7 @@ function writeFileManifest(releaseDir, relativeFiles) {
   return { manifest, manifestPath };
 }
 
-function createReleaseCandidate(parent) {
+function createReleaseCandidate(parent, { privateService = false } = {}) {
   const commit = "a".repeat(40);
   const tree = "b".repeat(40);
   const releaseDir = path.join(parent, commit);
@@ -75,6 +75,12 @@ function createReleaseCandidate(parent) {
     path.join(root, "ecosystem.production.cjs"),
     path.join(releaseDir, "ecosystem.production.cjs"),
   );
+  if (privateService) {
+    cpSync(
+      path.join(root, "ecosystem.private.production.cjs"),
+      path.join(releaseDir, "ecosystem.private.production.cjs"),
+    );
+  }
   cpSync(
     path.join(root, "lib/open-release-provenance.cjs"),
     path.join(releaseDir, "lib/open-release-provenance.cjs"),
@@ -106,6 +112,20 @@ function createReleaseCandidate(parent) {
       "",
     ].join("\n"),
   );
+  if (privateService) {
+    writeFileSync(
+      path.join(releaseDir, "http-server-oauth.mjs"),
+      [
+        "import { writeFileSync } from 'node:fs';",
+        "export function startHttpServer() {",
+        "  if (process.env.START_MARKER_PATH) {",
+        "    writeFileSync(process.env.START_MARKER_PATH, 'private-started');",
+        "  }",
+        "}",
+        "",
+      ].join("\n"),
+    );
+  }
   writeFileSync(
     path.join(releaseDir, "lib/transitive-fixture.mjs"),
     "export const transitiveFixture = true;\n",
@@ -113,6 +133,7 @@ function createReleaseCandidate(parent) {
   const pkg = Buffer.from(JSON.stringify({ name: "dexter-mcp", version: "0.5.0" }));
   const lock = Buffer.from("{}\n");
   const rosters = {
+    ...(privateService ? { "dexter-mcp": ["resolve_wallet", "auth_info"] } : {}),
     "dexter-open-mcp": ["x402_search", "dexter_prepare_asset_action"],
   };
   const descriptor = Buffer.from(`${JSON.stringify({
@@ -153,11 +174,16 @@ function createReleaseCandidate(parent) {
     "package.json",
     "package-lock.json",
     "release/open-tool-descriptors.json",
+    ...(privateService
+      ? ["ecosystem.private.production.cjs", "http-server-oauth.mjs"]
+      : []),
   ];
   writeFileSync(
     path.join(releaseDir, ".release-provenance.json"),
     `${JSON.stringify({
-      schema: "dexter-mcp-immutable-release/v3",
+      schema: privateService
+        ? "dexter-mcp-immutable-release/v4"
+        : "dexter-mcp-immutable-release/v3",
       sourceCommit: commit,
       sourceTree: tree,
       sourceArchiveSha256: "c".repeat(64),
@@ -168,6 +194,7 @@ function createReleaseCandidate(parent) {
       npmVersion: "10.9.3",
       sourceCommittedAt: "2026-08-01T00:00:00.000Z",
       entrypoints: {
+        ...(privateService ? { "dexter-mcp": "production-bootstrap.mjs" } : {}),
         "dexter-open-mcp": "production-bootstrap.mjs",
       },
       rosters,
@@ -228,7 +255,7 @@ function releaseEnvironment(candidate, service, envFile) {
     autorestart: "true",
     max_restarts: "10",
     wait_ready: "true",
-    listen_timeout: "15000",
+    listen_timeout: "90000",
     kill_timeout: "10000",
     filter_env: "",
     NODE_APP_INSTANCE: "0",
@@ -357,7 +384,7 @@ test("production launcher binds only public OpenDexter to protected environment"
       assert.equal(app.instances, 1);
       assert.equal(app.autorestart, true);
       assert.equal(app.maxRestarts, 10);
-      assert.equal(app.listenTimeout, 15_000);
+      assert.equal(app.listenTimeout, 90_000);
       assert.equal(app.killTimeout, 10_000);
       assert.deepEqual(app.nodeArgs ?? [], []);
       assert.equal(app.scriptName, "production-bootstrap.mjs");
@@ -369,6 +396,61 @@ test("production launcher binds only public OpenDexter to protected environment"
       );
       assert.equal(app.releaseService, app.name);
     }
+  } finally {
+    removeCandidate(directory, candidate);
+  }
+});
+
+test("private runtime preflight binds the attested OAuth service", () => {
+  const directory = mkdtempSync(path.join(tmpdir(), "dexter-mcp-private-env-"));
+  const candidate = createReleaseCandidate(directory, { privateService: true });
+  const envFile = path.join(directory, "production.env");
+  const marker = path.join(directory, "private-started.marker");
+  try {
+    const macTextEncoding = process.env.__CF_USER_TEXT_ENCODING;
+    writeFileSync(
+      envFile,
+      [
+        `GOVERNED_AGENT_ACTIONS_HMAC_SECRET=${"s".repeat(32)}`,
+        `START_MARKER_PATH=${marker}`,
+        ...(macTextEncoding
+          ? [`__CF_USER_TEXT_ENCODING=${macTextEncoding}`]
+          : []),
+      ].join("\n"),
+      { mode: 0o600 },
+    );
+    const env = {
+      START_MARKER_PATH: marker,
+      ...(macTextEncoding
+        ? { __CF_USER_TEXT_ENCODING: macTextEncoding }
+        : {}),
+      ...releaseEnvironment(candidate, "dexter-mcp", envFile),
+    };
+    const runtime = spawnSync(
+      process.execPath,
+      [path.join(candidate.releaseDir, "direct-entrypoint.mjs")],
+      {
+        cwd: candidate.releaseDir,
+        env,
+        encoding: "utf8",
+        timeout: 5_000,
+      },
+    );
+    assert.equal(runtime.status, 0, runtime.stderr);
+    assert.equal(runtime.stdout, "verified");
+
+    const bootstrap = spawnSync(
+      process.execPath,
+      [path.join(candidate.releaseDir, "production-bootstrap.mjs")],
+      {
+        cwd: candidate.releaseDir,
+        env,
+        encoding: "utf8",
+        timeout: 5_000,
+      },
+    );
+    assert.equal(bootstrap.status, 0, bootstrap.stderr);
+    assert.equal(readFileSync(marker, "utf8"), "private-started");
   } finally {
     removeCandidate(directory, candidate);
   }
@@ -436,6 +518,13 @@ test("PM2 control Node 18 evaluates a launcher bound to sealed Node 22", () => {
   } finally {
     removeCandidate(directory, candidate);
   }
+});
+
+test("PM2 config shim gives sealed release evaluation a truthful timeout", () => {
+  const shim = productionPm2ConfigShim("/tmp/sealed/ecosystem.production.cjs")
+    .toString("utf8");
+  assert.match(shim, /timeout: 90_000,/);
+  assert.doesNotMatch(shim, /timeout: 10_000,/);
 });
 
 test("production launcher rejects every loader-influencing environment key", () => {
@@ -762,7 +851,7 @@ test("runtime accepts exact PM2 bookkeeping but refuses launch-authority or poli
       ["autorestart", "false"],
       ["max_restarts", "11"],
       ["wait_ready", "false"],
-      ["listen_timeout", "15001"],
+      ["listen_timeout", "90001"],
       ["kill_timeout", "10001"],
       ["filter_env", "TOKEN_AI_"],
       ["NODE_APP_INSTANCE", "1"],

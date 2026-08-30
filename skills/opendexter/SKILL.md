@@ -27,24 +27,23 @@ actually ship.
 | --- | --- | --- |
 | Discover a service or resource | `x402_search` | Anonymous |
 | Quote or custody an exact endpoint request | `x402_check` | Anonymous quote; OAuth intent |
-| Call one approved, API-custodied intent | `x402_fetch` | OAuth promotion |
-| Inspect one intent without redispatch | `x402_status` | OAuth promotion |
+| Call one approved, API-custodied intent | `x402_fetch` | Added after OAuth |
+| Inspect one intent without redispatch | `x402_status` | Added after OAuth |
 | Use wallet-proof or Sign-In-With-X access | `x402_access` | Anonymous |
 | Read wallet readiness, cash, reported credit capacity, deposit address, and activity | `x402_wallet` | Anonymous entry; OAuth data |
 | Read governed assets and currently allowed actions | `dexter_portfolio` | Anonymous entry; OAuth data |
-| Prepare an exact governed Send, Buy, or Sell | `dexter_prepare_asset_action` | OAuth promotion |
-| Execute one prepared governed intent | `dexter_execute_asset_action` | OAuth promotion |
-| Read durable governed intent status | `dexter_asset_action_status` | OAuth promotion |
-| Request same-intent reconciliation | `dexter_reconcile_asset_action` | OAuth promotion |
-| Read governed Send, Buy, and Sell history | `dexter_wallet_history` | OAuth promotion |
+| Prepare an exact governed Send, Buy, or Sell | `dexter_prepare_asset_action` | Added after OAuth |
+| Execute one prepared governed intent | `dexter_execute_asset_action` | Added after OAuth |
+| Read durable governed intent status | `dexter_asset_action_status` | Added after OAuth |
+| Request same-intent reconciliation | `dexter_reconcile_asset_action` | Added after OAuth |
+| Read governed Send, Buy, and Sell history | `dexter_wallet_history` | Added after OAuth |
 
-The exact anonymous roster is `x402_search`, `x402_check`, `x402_access`,
+Before OAuth, OpenDexter lists `x402_search`, `x402_check`, `x402_access`,
 `x402_wallet`, and `dexter_portfolio`. Wallet and portfolio return the native
-Connect path, not private data, before authorization. OAuth promotes
-`x402_fetch`, `x402_status`, `dexter_prepare_asset_action`,
-`dexter_execute_asset_action`, `dexter_asset_action_status`,
-`dexter_reconcile_asset_action`, and `dexter_wallet_history`, making the
-connected roster exactly twelve tools.
+Connect path until authorization succeeds. OAuth then adds `x402_fetch`,
+`x402_status`, `dexter_prepare_asset_action`, `dexter_execute_asset_action`,
+`dexter_asset_action_status`, `dexter_reconcile_asset_action`, and
+`dexter_wallet_history`. The connected roster contains all twelve tools.
 
 Deprecated compatibility and internal diagnostic endpoints are not user-facing
 product tools. Do not select them for a new request.
@@ -67,7 +66,7 @@ product tools. Do not select them for a new request.
 4. Read `quoteOnly` and `intentId`. An anonymous check is quote-only and cannot
    execute. Connect OpenDexter, then repeat the exact check once to obtain an
    opaque `intentId`. Never invent or reconstruct an intent ID.
-5. Read current seller `paymentOptions`, including amount in atomic units,
+5. Read current seller `paymentOptions`, including amount in integer base units,
    asset, network, payee, and expiry when present.
 6. Confirm that the current instruction or bounded delegated policy covers the
    exact seller, URL, method, body, and positive `maxAmountAtomic` ceiling. If
@@ -78,6 +77,13 @@ product tools. Do not select them for a new request.
    tab state, or prepared-purchase JSON.
 8. Report provider output separately from charge, merchant acknowledgment,
    chain finality, ambiguity, and reconciliation state.
+
+Say the merchant request was dispatched only when the returned
+`dispatch.boundary` is exactly `crossed`. A missing tool result, elapsed-time
+widget, or host-disabled/pre-server invocation is not dispatch evidence. If
+the host explicitly says it blocked the call before backend execution, report
+that no payment was sent. Otherwise, missing output means only that the call
+has not returned and no dispatch is confirmed.
 
 If the intent lacks execution authority, show the returned hosted consent URL
 and resume that same intent after consent. Do not re-check or mint a replacement
@@ -129,22 +135,61 @@ borrow, or pay execution.
 
 ## Governed Send, Buy, and Sell
 
-1. Use `dexter_portfolio` to identify the exact supported asset from an approved
-   holding or `approvedActionTarget` and confirm the requested action is
-   currently displayed as available. That display is context, not authority.
-   Pass only its non-null canonical `assetId`; never
-   substitute a symbol or send a mint, token program, network, or decimals as
-   authority.
+1. For Send and non-stock Buy or Sell, use `dexter_portfolio` to identify the
+   exact supported asset from an approved holding or `approvedActionTarget`
+   and confirm the requested action is currently displayed as available. Pass
+   only its non-null canonical `assetId`; never substitute a symbol or send a
+   mint, token program, network, or decimals as authority. For a natural-language
+   stock Buy or Sell, pass the user's exact human company name as
+   `companyQuery` instead. Dexter's catalog resolves and freezes the current
+   approved Solana product. Never replace a stock `companyQuery` with a
+   remembered or portfolio-derived `assetId`, symbol, or mint. Portfolio
+   remains useful inventory context for a stock Sell, but it does not select
+   the catalog route.
 2. Call `dexter_prepare_asset_action` with one stable `operationId` and the
-   exact action fields. For Buy, `amountAtomic` is the USDC budget in atomic
-   units (6 decimals). For Sell and Send, it is the selected asset amount using
-   the server-certified decimals. Send has no memo. Tool presence and input
-   acceptance are not runtime capability; only the exact Prepare result is.
+   exact action fields. A Buy has exactly one amount mode:
+   - Dollar-budget wording such as "buy $100 of Tesla" uses
+     `companyQuery: "Tesla"` and `amountAtomic` as the exact USDC budget to
+     spend, in integer base units with 6 decimals.
+   - Ordinary approved-stock quantity wording such as "buy 10 shares of
+     NVIDIA" uses `companyQuery: "NVIDIA"` and `shareQuantity: "10"`; "buy a
+     quarter share" uses `shareQuantity: "0.25"`. This is an
+     underlying-share-equivalent display quantity for Dexter's exact
+     catalog-selected Solana product. Keep it as a human decimal; Dexter
+     resolves the token base units without a remembered multiplier. It uses the
+     current product version, display multiplier, and raw token target. This
+     is minimum-receive semantics and the fill may be slightly larger. If the
+     user also says "spend no more than $5,000," pass `maximumSpendAtomic` as
+     `5000000000`, using USDC's 6 decimals.
+   Never pass both `amountAtomic` and `shareQuantity`, and never pass
+   `maximumSpendAtomic` without `shareQuantity`. If the user says "exactly,"
+   "no more than," or otherwise forbids receiving extra shares, explain that
+   this route guarantees a minimum and may overfill; ask whether an at-least
+   target is acceptable instead of silently weakening the request. Stock Sell
+   supports direct token input only: pass `companyQuery` plus `amountAtomic`
+   using the server-certified decimals; it does not accept `shareQuantity`.
+   For non-stock Sell and Send, pass `assetId` plus `amountAtomic`. Send has no
+   memo. Tool presence and input acceptance are not runtime capability; only
+   the exact Prepare result is.
 3. Read the returned `intentId`, policy result, approval state, expiry, and
-   preview. Prepare never signs or submits. `operationId` is only the
-   Idempotency-Key for an exact replay and grants no authority. A prepared
-   result with `approval.status=not-required` is covered by the reusable
-   mandate and may execute autonomously.
+   preview. A prepared stock result must include the exact release binding in
+   top-level `stockRuntime` and the frozen catalog pin in
+   `preview.stockSelection`; refuse a missing or substituted identity. For a
+   share-quantity Buy, verify `requestAmountKind` is
+   `share-quantity`, `requestedShareQuantity` exactly echoes the request,
+   `minimumShareQuantity` meets or exceeds it, and
+   `maximumInputAmountAtomic` exactly matches the frozen ExactIn
+   `amountAtomic`. `requestedMaximumSpendAtomic` separately echoes the user's
+   optional ceiling, and the frozen input must not exceed it.
+   `shareQuantityUnit=underlying-share-equivalent`,
+   `shareQuantitySemantics=minimum-receive`, and `overfillPossible=true` must
+   be disclosed as an at-least target, not an exact share count. The
+   `shareQuantityConversion` must bind the asset version, raw minimum output,
+   decimals, display multiplier, multiplier source, and observation slot.
+   Prepare never signs or submits. `operationId` is only the Idempotency-Key
+   for an exact replay and grants no authority. A prepared result with
+   `approval.status=not-required` is covered by the reusable mandate and may
+   execute autonomously.
 4. In the current integrated release, Send is preserved in this contract but
    Prepare refuses it with `protected_agent_send_sdk_required` before capacity
    reservation or intent creation. Stop there: do not call Execute or Reconcile
@@ -161,7 +206,11 @@ borrow, or pay execution.
    authorization, wallet, agent, or grant fields.
 7. After any timeout, uncertainty, pending state, or missing finality, call
    `dexter_asset_action_status` with that same `intentId`. Do not call Execute
-   again automatically.
+   again automatically. Stock Execute returns top-level `tradeSummary`; stock
+   Status returns top-level `stockSelection`, `tradeSummary`, and
+   `stockV2Identity`. A successful stock result requires a canonical 64-byte
+   Solana signature, confirmed or finalized commitment,
+   `executionSucceeded=true`, and one exact matching public identity envelope.
 8. When status says reconciliation is required, call
    `dexter_reconcile_asset_action` once for the same intent. It cannot expand
    mandate scope or create a replacement intent. Read its exact outcome and

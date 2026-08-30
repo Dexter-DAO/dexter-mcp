@@ -121,6 +121,10 @@ test('rejects a missing token instead of treating session state as authorization
 
 test('maps scope and stale-token failures to precise re-challenges', () => {
   assert.deepEqual(
+    oauthChallengeForVerification({ reason: 'missing_token' }),
+    {},
+  );
+  assert.deepEqual(
     oauthChallengeForVerification({ reason: 'insufficient_scope' }),
     {
       error: 'insufficient_scope',

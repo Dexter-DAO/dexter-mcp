@@ -60,6 +60,10 @@ test('public, wallet, portfolio, and payment tools have exact schemes', () => {
     { type: 'noauth' },
     { type: 'oauth2', scopes: ['vault'] },
   ]);
+  assert.deepEqual(OPEN_TOOL_SECURITY_SCHEMES.x402_access, [
+    { type: 'noauth' },
+    { type: 'oauth2', scopes: ['vault'] },
+  ]);
   assert.deepEqual(
     OPEN_TOOL_SECURITY_SCHEMES.x402_wallet,
     [{ type: 'oauth2', scopes: ['vault'] }],
@@ -127,6 +131,7 @@ test('protected-call classification follows the per-tool auth declaration', () =
     null,
   );
   assert.equal(findVaultProtectedToolCall(call('x402_check')), null);
+  assert.equal(findVaultProtectedToolCall(call('x402_access')), null);
   assert.equal(findVaultProtectedToolCall(call('x402_search')), null);
   assert.equal(findVaultProtectedToolCall(call('x402_pay')), null);
   assert.equal(findVaultProtectedToolCall(call('x402_compose_skill')), null);
@@ -236,10 +241,9 @@ test('resource metadata names the actual authorization-server issuer', () => {
   assert.deepEqual(OPEN_MCP_CHALLENGE_REQUIRED_PARAMETERS, [
     'resource_metadata',
     'scope',
-    'error',
-    'error_description',
   ]);
   assert.deepEqual(OPEN_MCP_PRM.scopes_supported, ['vault']);
+  assert.deepEqual(OPEN_MCP_PRM.bearer_methods_supported, ['header']);
 });
 
 test('path-inserted OpenDexter authorization metadata is fixed and vault-only', () => {
@@ -312,8 +316,8 @@ test('runtime challenge is host-native and contains no legacy pairing path', () 
   assert.deepEqual(result._meta['mcp/www_authenticate'], [VAULT_WWW_AUTHENTICATE]);
   assert.match(VAULT_WWW_AUTHENTICATE, new RegExp(`resource_metadata="${OPEN_MCP_PRM_URL}"`));
   assert.match(VAULT_WWW_AUTHENTICATE, /scope="vault"/);
-  assert.match(VAULT_WWW_AUTHENTICATE, /error="insufficient_scope"/);
-  assert.match(VAULT_WWW_AUTHENTICATE, /error_description="[^"]+"/);
+  assert.doesNotMatch(VAULT_WWW_AUTHENTICATE, /error=/);
+  assert.doesNotMatch(VAULT_WWW_AUTHENTICATE, /error_description=/);
 });
 
 test('unbound state cannot turn a synthetic not_enrolled lookup into wallet truth', () => {
@@ -431,6 +435,10 @@ test('runtime challenges preserve precise OAuth errors and escape header input',
   assert.equal(challenge.includes('\n'), false);
 
   const data = buildVaultAuthenticationRequired({ tool: 'x402_wallet' });
+  assert.match(data.instructions, /host only says Connected/);
+  assert.match(data.instructions, /plugin or integration settings/);
+  assert.match(data.instructions, /Authorize or Authenticate/);
+  assert.match(data.instructions, /successful protected tool retry proves it/);
   const result = vaultAuthenticationResult(data, {}, challenge);
   assert.deepEqual(result._meta['mcp/www_authenticate'], [challenge]);
 });

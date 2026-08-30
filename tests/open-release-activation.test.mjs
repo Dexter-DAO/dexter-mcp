@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
   chmod,
+  lstat,
   mkdtemp,
   readFile,
   readdir,
+  realpath,
   rm,
   writeFile,
 } from 'node:fs/promises';
@@ -13,14 +16,22 @@ import { resolve } from 'node:path';
 import { createRequire } from 'node:module';
 import test from 'node:test';
 import {
+  acquireReleaseCutoverLock,
   activateOpenRelease,
+  activatePrivateRelease,
   capturePriorOpenReleasePair,
   preservedPrivateProcessSnapshot,
   preflightOpenReleaseCandidate,
+  privateRestartPm2Config,
   productionPm2ConfigShim,
   readLoopbackHealth,
+  recoverPrivateRelease,
   startOpenReleaseCandidate,
   verifyPriorOpenReleaseRestartability,
+  verifyPriorPrivateReleaseRestartability,
+  verifyPrivateRollbackInputsStillExact,
+  verifyLegacyPrivateInterpreter,
+  verifyPm2DaemonLaunchAuthority,
   verifyProductionPm2Executable,
   verifyRestoredOpenReleasePair,
   verifyRunningOpenReleasePair,
@@ -33,6 +44,7 @@ import {
 
 const require = createRequire(import.meta.url);
 const {
+  LEGACY_PRIVATE_RELEASE_CONTRACT,
   OPEN_RELEASE_APPLICATION_NODE_EXECUTABLE,
 } = require('../lib/open-release-provenance.cjs');
 
@@ -46,20 +58,216 @@ const GOVERNED_SECRET = 'g'.repeat(32);
 const PROTECTED_SERVICE_SECRET = 'protected-service-secret';
 const PRODUCTION_PM2_HOME = '/home/branchmanager/.pm2';
 const HARNESS_PM2_TIMEOUT_MS = 250;
+const HARNESS_PM2_STARTUP_TIMEOUT_MS = 500;
 const DEXTER_SERVICES = ['dexter-open-mcp'];
 const FORBIDDEN_LOADER_KEYS = [
   'NODE_OPTIONS',
   'NODE_PATH',
+  'PM2_NODE_OPTIONS',
   'LD_PRELOAD',
   'LD_LIBRARY_PATH',
   'LD_AUDIT',
 ];
+const EXACT_DAEMON = Object.freeze({
+  bootId: 'b8a72f74-0912-45c5-8dcf-a237492acf9f\n',
+  cgroup: '0::/system.slice/pm2-branchmanager.service\n',
+  executable: '/home/branchmanager/.nvm/versions/node/v20.19.1/bin/node',
+  executableSha256:
+    'fea3f6e1e5eb8622bf1af1b85a9384ad88c673674e4b7c6bd223ca1127d1e5e9',
+  pid: 2432040,
+  startTimeTicks: '736087414',
+});
+const EXACT_SYSTEM_FILES = Object.freeze({
+  '/usr/bin/systemctl':
+    'e0d3d0e9444da1b2b58c792c3f5028b69f049b77d5ca17b3ec0d09f89117225b',
+  '/etc/systemd/system/pm2-branchmanager.service':
+    'cdc1563c1d7b3ac18eb0dda51547c4c59bc810e57dee93dbfdc98d59e7d43721',
+  '/etc/systemd/system/pm2-branchmanager.service.d/10-umask.conf':
+    '9e407d257aa91afd3bb98cbb2a571cbcc25f3ed631ef723ccb340c6de9c1c1d8',
+  '/etc/systemd/system/pm2-branchmanager.service.d/20-root-node.conf':
+    '78f3f6c8bfd59928f22f66e856c0ed7427a900cf23527d639d88b6e2e12c79c0',
+});
+const EXACT_SYSTEMD_PROPERTIES = Object.freeze({
+  ActiveState: 'active',
+  ControlGroup: '/system.slice/pm2-branchmanager.service',
+  DropInPaths: '/etc/systemd/system/pm2-branchmanager.service.d/10-umask.conf /etc/systemd/system/pm2-branchmanager.service.d/20-root-node.conf',
+  ExecReload: '{ path=/usr/bin/node ; argv[]=/usr/bin/node /usr/local/lib/node_modules/pm2/bin/pm2 reload all ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }',
+  ExecStart: '{ path=/usr/bin/node ; argv[]=/usr/bin/node /usr/local/lib/node_modules/pm2/bin/pm2 resurrect ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }',
+  ExecStop: '{ path=/usr/bin/node ; argv[]=/usr/bin/node /usr/local/lib/node_modules/pm2/bin/pm2 kill ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }',
+  FragmentPath: '/etc/systemd/system/pm2-branchmanager.service',
+  MainPID: String(EXACT_DAEMON.pid),
+  PIDFile: '/home/branchmanager/.pm2/pm2.pid',
+  SubState: 'running',
+  Type: 'forking',
+  User: 'branchmanager',
+});
+const EXACT_REPORT = Object.freeze({
+  argv: [
+    EXACT_DAEMON.executable,
+    '/usr/local/lib/node_modules/pm2/lib/Daemon.js',
+  ],
+  argv0: EXACT_DAEMON.executable,
+  gid: 1001,
+  node_version: '20.19.1',
+  pm2_version: '6.0.5',
+  uid: 1001,
+  user: 'branchmanager',
+});
+
+test('public and private cutovers share one fail-closed host lock', async () => {
+  const directory = await realpath(
+    await mkdtemp(resolve(tmpdir(), 'dexter-release-lock-')),
+  );
+  try {
+    const first = await acquireReleaseCutoverLock(directory);
+    await assert.rejects(
+      acquireReleaseCutoverLock(directory),
+      /another Dexter MCP release cutover is active/,
+    );
+    await first.release();
+    const next = await acquireReleaseCutoverLock(directory);
+    await next.release();
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('private recovery can reclaim a second dead recovery lock', async () => {
+  const directory = await realpath(
+    await mkdtemp(resolve(tmpdir(), 'dexter-recovery-lock-')),
+  );
+  const journalSha256 = 'a'.repeat(64);
+  try {
+    const activation = await acquireReleaseCutoverLock(directory);
+    const firstRecovery = await acquireReleaseCutoverLock(directory, {
+      recoverOwner: activation.owner,
+      recoverJournalSha256: journalSha256,
+      processAliveImpl: async () => false,
+    });
+    const secondRecovery = await acquireReleaseCutoverLock(directory, {
+      recoverOwner: activation.owner,
+      recoverJournalSha256: journalSha256,
+      processAliveImpl: async () => false,
+    });
+    assert.notDeepEqual(firstRecovery.owner, secondRecovery.owner);
+    await secondRecovery.release();
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('private recovery CLI rejects arguments before recovery side effects', () => {
+  const result = spawnSync(process.execPath, [
+    resolve('scripts/release/recover-private-release.mjs'),
+    'unexpected',
+  ], {
+    cwd: resolve('.'),
+    encoding: 'utf8',
+  });
+  assert.equal(result.status, 2);
+  assert.equal(result.stdout, '');
+  assert.match(result.stderr, /^Usage: npm run recover:mcp:private\n$/);
+});
 
 test('production activation binds the reviewed root-owned PM2 executable', async () => {
   assert.equal(
     await verifyProductionPm2Executable(),
     PRODUCTION_PM2_EXECUTABLE,
   );
+});
+
+test('PM2 daemon proof refuses ambient fork loader options', async () => {
+  const pid = 4242;
+  const pm2Home = PRODUCTION_PM2_HOME;
+  const pidPath = resolve(pm2Home, 'pm2.pid');
+  const stat = fakeProtectedEnvironmentStat();
+  const procStat = `${pid} (PM2 daemon) ${[
+    'S',
+    ...Array(18).fill('0'),
+    '987654321',
+  ].join(' ')}\n`;
+  const common = {
+    pm2Home,
+    lstatImpl: async (path) => {
+      assert.equal(path, pidPath);
+      return stat;
+    },
+    readlinkImpl: async (path) => {
+      assert.equal(path, `/proc/${pid}/exe`);
+      return PRODUCTION_NODE_EXECUTABLE;
+    },
+    realpathImpl: async (path) => path,
+  };
+  const readFileForEnvironment = (environment) => async (path) => {
+    if (path === pidPath) return Buffer.from(`${pid}\n`);
+    if (path === `/proc/${pid}/stat`) return procStat;
+    if (path === `/proc/${pid}/cmdline`) {
+      return Buffer.from(
+        `PM2 v6.0.5: God Daemon (${pm2Home})\0`,
+      );
+    }
+    if (path === `/proc/${pid}/environ`) return Buffer.from(environment);
+    throw new Error(`unexpected PM2 daemon fixture path ${path}`);
+  };
+  await assert.doesNotReject(verifyPm2DaemonLaunchAuthority({
+    ...common,
+    readFileImpl: readFileForEnvironment('HOME=/home/branchmanager\0'),
+  }));
+  await assert.rejects(
+    verifyPm2DaemonLaunchAuthority({
+      ...common,
+      readFileImpl: readFileForEnvironment(
+        'HOME=/home/branchmanager\0PM2_NODE_OPTIONS=--require /tmp/x.cjs\0',
+      ),
+    }),
+    /daemon launch authority is not exact/,
+  );
+});
+
+test('PM2 daemon proof accepts only the exact current legacy instance', async () => {
+  await assert.doesNotReject(
+    verifyPm2DaemonLaunchAuthority(exactLegacyDaemonFixture()),
+  );
+});
+
+test('PM2 daemon legacy exception rejects identity and provenance drift', async () => {
+  const cases = [
+    ['pid', { pid: EXACT_DAEMON.pid + 1 }],
+    ['start time', { startTimeTicks: '736087415' }],
+    ['boot', { bootId: 'different-boot\n' }],
+    ['cgroup', { cgroup: '0::/user.slice\n' }],
+    ['title', { title: 'PM2 v6.0.5: forged' }],
+    ['loader environment', { environment: 'PM2_NODE_OPTIONS=--require /tmp/x.cjs\0' }],
+    ['executable path', { executable: '/tmp/node' }],
+    ['executable image hash', { imageSha256: '0'.repeat(64) }],
+    ['executable image inode', { imageStat: { ino: 1870521 } }],
+    ['systemctl hash', {
+      systemFileHashes: { '/usr/bin/systemctl': '0'.repeat(64) },
+    }],
+    ['systemd MainPID', { systemdProperties: { MainPID: '1' } }],
+    ['systemd ExecStart', { systemdProperties: { ExecStart: 'forged' } }],
+    ['systemd drop-ins', { systemdProperties: { DropInPaths: 'forged' } }],
+    ['daemon report version', { report: { pm2_version: '6.0.8' } }],
+    ['daemon report argv', { report: { argv: ['/tmp/node'] } }],
+    ['final pid bytes race', { finalPid: EXACT_DAEMON.pid + 1 }],
+    ['final start-time race', { finalStartTimeTicks: '736087415' }],
+    ['final boot race', { finalBootId: 'different-boot\n' }],
+    ['final cgroup race', { finalCgroup: '0::/user.slice\n' }],
+    ['final executable-link race', { finalExecutable: '/tmp/node' }],
+    ['final title race', { finalTitle: 'PM2 v6.0.5: forged' }],
+    ['final loader race', {
+      finalEnvironment: 'PM2_NODE_OPTIONS=--require /tmp/x.cjs\0',
+    }],
+    ['mid-hash executable race', { imageAfterStat: { size: 99831241 } }],
+    ['final executable hash race', { finalImageSha256: '0'.repeat(64) }],
+  ];
+  for (const [label, overrides] of cases) {
+    await assert.rejects(
+      verifyPm2DaemonLaunchAuthority(exactLegacyDaemonFixture(overrides)),
+      /daemon launch authority is not exact/,
+      label,
+    );
+  }
 });
 
 test('a failing PM2 runtime verifier stops before the first jlist', async () => {
@@ -105,10 +313,16 @@ function sha256(value) {
   return createHash('sha256').update(value).digest('hex');
 }
 
-function releaseCandidate(releaseDir = '/sealed/releases/new') {
+function releaseCandidate(
+  releaseDir = '/sealed/releases/new',
+  { privateService = false } = {},
+) {
   return {
     releaseDir,
     provenance: {
+      schema: privateService
+        ? 'dexter-mcp-immutable-release/v4'
+        : 'dexter-mcp-immutable-release/v3',
       sourceCommit: COMMIT,
       sourceTree: TREE,
       artifactManifestSha256: MANIFEST,
@@ -116,9 +330,13 @@ function releaseCandidate(releaseDir = '/sealed/releases/new') {
       packageVersion: '0.5.0',
       nodeVersion: process.version,
       entrypoints: {
+        ...(privateService
+          ? { 'dexter-mcp': 'production-bootstrap.mjs' }
+          : {}),
         'dexter-open-mcp': 'production-bootstrap.mjs',
       },
       rosters: {
+        ...(privateService ? { 'dexter-mcp': PRIVATE_ROSTER } : {}),
         'dexter-open-mcp': OPEN_ROSTER,
       },
     },
@@ -220,7 +438,7 @@ function pm2Row(name, cwd, pid, roster, port, {
       autorestart: processPolicy.autorestart ?? true,
       wait_ready: processPolicy.waitReady ?? true,
       max_restarts: processPolicy.maxRestarts ?? 10,
-      listen_timeout: processPolicy.listenTimeout ?? 15_000,
+      listen_timeout: processPolicy.listenTimeout ?? 90_000,
       kill_timeout: processPolicy.killTimeout ?? 10_000,
       node_args: processPolicy.nodeArgs ?? [],
       args: processPolicy.scriptArgs ?? [],
@@ -296,6 +514,7 @@ function healthResponse(name, port, roster, release = identity(name)) {
     status: 200,
     json: async () => ({
       ok: true,
+      status: 'ok',
       service: name,
       port,
       tools: roster,
@@ -357,6 +576,7 @@ function expectedProcess(row) {
     forbiddenLoaderEnvironment: {
       NODE_OPTIONS: env.NODE_OPTIONS ?? null,
       NODE_PATH: env.NODE_PATH ?? null,
+      PM2_NODE_OPTIONS: env.PM2_NODE_OPTIONS ?? null,
       LD_PRELOAD: env.LD_PRELOAD ?? null,
       LD_LIBRARY_PATH: env.LD_LIBRARY_PATH ?? null,
       LD_AUDIT: env.LD_AUDIT ?? null,
@@ -520,6 +740,96 @@ function legacyOpenRow({
   };
 }
 
+function observedLegacyPrivateFixture() {
+  const persisted = Object.fromEntries(
+    LEGACY_PRIVATE_RELEASE_CONTRACT.runtime.persistedEnvironmentKeys.map(
+      (key) => [key, `fixture-${key.toLowerCase()}`],
+    ),
+  );
+  Object.assign(persisted, {
+    DEXTER_MCP_ENV_FILE:
+      LEGACY_PRIVATE_RELEASE_CONTRACT.runtime.environmentFile,
+    HOME: '/home/branchmanager',
+    NODE_ENV: 'production',
+    PATH: '/reviewed/runtime/path',
+    PM2_HOME: PRODUCTION_PM2_HOME,
+    TOKEN_AI_MCP_PORT: '3930',
+    unique_id: 'legacy-private-unique-id',
+    'dexter-mcp': '{}',
+  });
+  const fileEnvironment = Object.fromEntries(
+    LEGACY_PRIVATE_RELEASE_CONTRACT.runtime.environmentFileKeys.map((key) => [
+      key,
+      key === 'GOVERNED_AGENT_ACTIONS_HMAC_SECRET'
+        ? GOVERNED_SECRET
+        : persisted[key],
+    ]),
+  );
+  const environmentBytes = Buffer.from(`${Object.entries(fileEnvironment)
+    .map(([key, value]) => `${key}=${value}`)
+    .join('\n')}\n`);
+  const effectiveEnvironment = { ...persisted };
+  delete effectiveEnvironment.unique_id;
+  delete effectiveEnvironment['dexter-mcp'];
+  const pmId = 63;
+  const releaseDir = `/var/lib/dexter-mcp/releases/${
+    LEGACY_PRIVATE_RELEASE_CONTRACT.directoryName
+  }`;
+  const script = resolve(
+    releaseDir,
+    LEGACY_PRIVATE_RELEASE_CONTRACT.entrypoint,
+  );
+  const row = {
+    name: 'dexter-mcp',
+    pm_id: pmId,
+    pid: 2_432_302,
+    pm2_env: {
+      ...effectiveEnvironment,
+      NODE_APP_INSTANCE: 0,
+      autostart: true,
+      km_link: false,
+      node_version: process.versions.node,
+      pm_err_log_path: resolve(
+        PRODUCTION_PM2_HOME,
+        'logs',
+        `dexter-mcp-error-${pmId}.log`,
+      ),
+      pm_out_log_path: resolve(
+        PRODUCTION_PM2_HOME,
+        'logs',
+        `dexter-mcp-out-${pmId}.log`,
+      ),
+      pmx: true,
+      vizion_running: false,
+      name: 'dexter-mcp',
+      namespace: 'default',
+      cwd: releaseDir,
+      status: 'online',
+      restart_time: 0,
+      unstable_restarts: 0,
+      pm_id: pmId,
+      exec_mode: 'fork_mode',
+      instances: null,
+      autorestart: true,
+      max_restarts: 15,
+      node_args: [],
+      args: null,
+      filter_env: [''],
+      instance_var: 'NODE_APP_INSTANCE',
+      username: 'branchmanager',
+      watch: null,
+      merge_logs: null,
+      version: LEGACY_PRIVATE_RELEASE_CONTRACT.packageVersion,
+      pm_cwd: releaseDir,
+      pm_exec_path: script,
+      exec_interpreter:
+        LEGACY_PRIVATE_RELEASE_CONTRACT.runtime.interpreter,
+      env: persisted,
+    },
+  };
+  return { environmentBytes, releaseDir, row, script };
+}
+
 function legacyHealth(overrides = {}) {
   return {
     auth: 'optional',
@@ -570,6 +880,203 @@ function fakeProtectedEnvironmentStat() {
     ctimeMs: 100,
     isFile: () => true,
     isSymbolicLink: () => false,
+  };
+}
+
+function exactLegacyImageStat(overrides = {}) {
+  return {
+    dev: 66305,
+    gid: 1001,
+    ino: 1870520,
+    mode: 0o100755,
+    nlink: 1,
+    size: 99831240,
+    uid: 1001,
+    mtimeMs: 100,
+    ctimeMs: 100,
+    isFile: () => true,
+    isSymbolicLink: () => false,
+    ...overrides,
+  };
+}
+
+function exactLegacyDaemonFixture(overrides = {}) {
+  const pid = overrides.pid ?? EXACT_DAEMON.pid;
+  const pm2Home = PRODUCTION_PM2_HOME;
+  const pidPath = resolve(pm2Home, 'pm2.pid');
+  const procRoot = `/proc/${pid}`;
+  const counters = {
+    boot: 0,
+    cgroup: 0,
+    cmdline: 0,
+    environment: 0,
+    image: 0,
+    pid: 0,
+    pidStat: 0,
+    procStat: 0,
+    readlink: 0,
+  };
+  const protectedPidStat = fakeProtectedEnvironmentStat();
+  const procStat = (ticks) => `${pid} (PM2 daemon) ${[
+    'S',
+    ...Array(18).fill('0'),
+    ticks,
+  ].join(' ')}\n`;
+  return {
+    pm2Home,
+    lstatImpl: async (path) => {
+      if (path === pidPath) {
+        counters.pidStat += 1;
+        if (counters.pidStat > 1 && overrides.finalPidStat) {
+          return { ...protectedPidStat, ...overrides.finalPidStat };
+        }
+        return protectedPidStat;
+      }
+      if (Object.hasOwn(EXACT_SYSTEM_FILES, path)) {
+        return {
+          dev: 66305,
+          ino: 100,
+          mode: path === '/usr/bin/systemctl' ? 0o100755 : 0o100644,
+          nlink: 1,
+          uid: 0,
+          gid: 0,
+          size: 100,
+          mtimeMs: 100,
+          ctimeMs: 100,
+          isDirectory: () => false,
+          isFile: () => true,
+          isSymbolicLink: () => false,
+        };
+      }
+      throw new Error(`unexpected daemon lstat ${path}`);
+    },
+    openImpl: async (path, flags) => {
+      assert.equal(path, `${procRoot}/exe`);
+      assert.equal(flags, 'r');
+      const imageIndex = counters.image;
+      counters.image += 1;
+      const base = exactLegacyImageStat(
+        imageIndex === 0
+          ? overrides.imageStat
+          : overrides.finalImageStat,
+      );
+      const after = imageIndex === 0 && overrides.imageAfterStat
+        ? exactLegacyImageStat({ ...overrides.imageStat, ...overrides.imageAfterStat })
+        : base;
+      let statCalls = 0;
+      return {
+        stat: async () => {
+          statCalls += 1;
+          return statCalls === 1 ? base : after;
+        },
+        readFile: async () => Buffer.from(`daemon-image-${imageIndex}`),
+        close: async () => {},
+      };
+    },
+    readFileImpl: async (path) => {
+      if (path === pidPath) {
+        counters.pid += 1;
+        const observedPid = counters.pid > 1
+          ? (overrides.finalPid ?? pid)
+          : pid;
+        return Buffer.from(`${observedPid}\n`);
+      }
+      if (path === `${procRoot}/stat`) {
+        counters.procStat += 1;
+        return procStat(
+          counters.procStat > 1
+            ? (overrides.finalStartTimeTicks
+              ?? overrides.startTimeTicks
+              ?? EXACT_DAEMON.startTimeTicks)
+            : (overrides.startTimeTicks ?? EXACT_DAEMON.startTimeTicks),
+        );
+      }
+      if (path === `${procRoot}/cmdline`) {
+        counters.cmdline += 1;
+        return Buffer.from(
+          `${counters.cmdline > 1
+            ? (overrides.finalTitle
+              ?? overrides.title
+              ?? `PM2 v6.0.5: God Daemon (${pm2Home})`)
+            : (overrides.title
+              ?? `PM2 v6.0.5: God Daemon (${pm2Home})`)}\0`,
+        );
+      }
+      if (path === `${procRoot}/environ`) {
+        counters.environment += 1;
+        return Buffer.from(
+          counters.environment > 1
+            ? (overrides.finalEnvironment
+              ?? overrides.environment
+              ?? 'HOME=/home/branchmanager\0')
+            : (overrides.environment ?? 'HOME=/home/branchmanager\0'),
+        );
+      }
+      if (path === '/proc/sys/kernel/random/boot_id') {
+        counters.boot += 1;
+        return Buffer.from(
+          counters.boot > 1
+            ? (overrides.finalBootId ?? overrides.bootId ?? EXACT_DAEMON.bootId)
+            : (overrides.bootId ?? EXACT_DAEMON.bootId),
+        );
+      }
+      if (path === `${procRoot}/cgroup`) {
+        counters.cgroup += 1;
+        return Buffer.from(
+          counters.cgroup > 1
+            ? (overrides.finalCgroup ?? overrides.cgroup ?? EXACT_DAEMON.cgroup)
+            : (overrides.cgroup ?? EXACT_DAEMON.cgroup),
+        );
+      }
+      if (Object.hasOwn(EXACT_SYSTEM_FILES, path)) {
+        return Buffer.from(`system-file:${path}`);
+      }
+      throw new Error(`unexpected daemon read ${path}`);
+    },
+    readlinkImpl: async (path) => {
+      assert.equal(path, `${procRoot}/exe`);
+      counters.readlink += 1;
+      return counters.readlink > 1
+        ? (overrides.finalExecutable
+          ?? overrides.executable
+          ?? EXACT_DAEMON.executable)
+        : (overrides.executable ?? EXACT_DAEMON.executable);
+    },
+    realpathImpl: async (path) => path,
+    runCommand: async (command, args, options) => {
+      assert.equal(options.env.HOME, '/home/branchmanager');
+      if (command === '/usr/bin/systemctl') {
+        assert.equal(args[0], 'show');
+        return {
+          stdout: `${Object.entries({
+            ...EXACT_SYSTEMD_PROPERTIES,
+            ...overrides.systemdProperties,
+          }).map(([key, value]) => `${key}=${value}`).join('\n')}\n`,
+          stderr: overrides.systemdStderr ?? '',
+        };
+      }
+      assert.equal(command, PRODUCTION_NODE_EXECUTABLE);
+      assert.equal(args[0], '-e');
+      assert.match(args[1], /executeRemote\('getReport'/);
+      return {
+        stdout: JSON.stringify({ ...EXACT_REPORT, ...overrides.report }),
+        stderr: overrides.reportStderr ?? '',
+      };
+    },
+    sha256Impl: (bytes) => {
+      const value = Buffer.from(bytes).toString('utf8');
+      if (value.startsWith('system-file:')) {
+        const path = value.slice('system-file:'.length);
+        return overrides.systemFileHashes?.[path] ?? EXACT_SYSTEM_FILES[path];
+      }
+      if (value === 'daemon-image-0') {
+        return overrides.imageSha256 ?? EXACT_DAEMON.executableSha256;
+      }
+      if (value === 'daemon-image-1') {
+        return overrides.finalImageSha256 ?? EXACT_DAEMON.executableSha256;
+      }
+      throw new Error('unexpected daemon hash input');
+    },
   };
 }
 
@@ -693,7 +1200,7 @@ test('running proof binds PM2, kernel, nonsecret env, health, roster, and releas
     ['autorestart', false],
     ['wait_ready', false],
     ['max_restarts', 11],
-    ['listen_timeout', 15_001],
+    ['listen_timeout', 90_001],
     ['kill_timeout', 10_001],
     ['node_args', ['--no-warnings']],
   ];
@@ -735,6 +1242,31 @@ test('running proof binds PM2, kernel, nonsecret env, health, roster, and releas
     delete rows[1].pm2_env.env[key];
     delete rows[1].pm2_env[key];
   }
+});
+
+test('v4 running proof binds the private OAuth service without selecting public OpenDexter', async () => {
+  const release = releaseCandidate('/sealed/releases/new', {
+    privateService: true,
+  });
+  const rows = [
+    pm2Row('dexter-mcp', release.releaseDir, 901011, PRIVATE_ROSTER, 4930, {
+      interpreter: OPEN_RELEASE_APPLICATION_NODE_EXECUTABLE,
+    }),
+    pm2Row('dexter-open-mcp', release.releaseDir, 901012, OPEN_ROSTER, 4931),
+  ];
+  const result = await verifyRunningOpenReleasePair({
+    release,
+    rows,
+    services: ['dexter-mcp'],
+    expectedProcesses: {
+      'dexter-mcp': expectedProcess(rows[0]),
+    },
+    fetchImpl: async () => healthResponse(
+      'dexter-mcp', 4930, PRIVATE_ROSTER,
+    ),
+    ...fakeProc(rows),
+  });
+  assert.deepEqual(Object.keys(result.byName), ['dexter-mcp']);
 });
 
 test('kernel command line requires an exact script, not a substring match', async () => {
@@ -860,6 +1392,299 @@ test('private runtime snapshot binds its exact dynamic PM2 id, PID, counters, de
     },
   );
   assert.notDeepEqual(changedKernelSnapshot, baseline);
+});
+
+test('private restart proof refuses a missing script or changed protected environment', async () => {
+  const envBytes = Buffer.from(
+    `GOVERNED_AGENT_ACTIONS_HMAC_SECRET=${GOVERNED_SECRET}\n`,
+  );
+  const release = releaseCandidate('/sealed/releases/private-restart', {
+    privateService: true,
+  });
+  const row = pm2Row(
+    'dexter-mcp',
+    release.releaseDir,
+    3206770,
+    PRIVATE_ROSTER,
+    3930,
+    {
+      envFile: '/protected/private.env',
+      envFileSha256: sha256(envBytes),
+      interpreter: OPEN_RELEASE_APPLICATION_NODE_EXECUTABLE,
+    },
+  );
+  const proc = fakeProc([row]);
+  const expectedRuntime = await preservedPrivateProcessSnapshot([row], proc);
+  const common = {
+    row,
+    expectedRuntime,
+    expectedSavedRow: row,
+    processProofOptions: proc,
+    readSealedReleaseImpl: async () => release,
+    lstatImpl: async () => fakeProtectedEnvironmentStat(),
+    realpathImpl: async (path) => path,
+  };
+  await assert.doesNotReject(verifyPriorPrivateReleaseRestartability({
+    ...common,
+    readFileImpl: async () => envBytes,
+  }));
+  await assert.rejects(
+    verifyPriorPrivateReleaseRestartability({
+      ...common,
+      readFileImpl: async () => envBytes,
+      realpathImpl: async (path) => {
+        if (path === row.pm2_env.pm_exec_path) {
+          throw new Error('missing private script');
+        }
+        return path;
+      },
+    }),
+    /missing private script/,
+  );
+  await assert.rejects(
+    verifyPriorPrivateReleaseRestartability({
+      ...common,
+      readFileImpl: async () => Buffer.from(`${envBytes}changed=true\n`),
+    }),
+    /environment-file digest mismatch/,
+  );
+
+  const loaderRow = structuredClone(row);
+  loaderRow.pm2_env.NODE_OPTIONS = '--require /attacker/loader.cjs';
+  loaderRow.pm2_env.env.NODE_OPTIONS = '--require /attacker/loader.cjs';
+  const loaderProc = fakeProc([loaderRow]);
+  await assert.rejects(
+    verifyPriorPrivateReleaseRestartability({
+      ...common,
+      row: loaderRow,
+      expectedRuntime: await preservedPrivateProcessSnapshot(
+        [loaderRow],
+        loaderProc,
+      ),
+      expectedSavedRow: loaderRow,
+      processProofOptions: loaderProc,
+      readFileImpl: async () => envBytes,
+    }),
+    /forbidden loader input/,
+  );
+
+  const interpreterRow = structuredClone(row);
+  interpreterRow.pm2_env.exec_interpreter = '/attacker/node';
+  const interpreterProc = fakeProc([interpreterRow]);
+  await assert.rejects(
+    verifyPriorPrivateReleaseRestartability({
+      ...common,
+      row: interpreterRow,
+      expectedRuntime: await preservedPrivateProcessSnapshot(
+        [interpreterRow],
+        interpreterProc,
+      ),
+      expectedSavedRow: interpreterRow,
+      processProofOptions: interpreterProc,
+      readFileImpl: async () => envBytes,
+    }),
+    /interpreter is not restartable exactly/,
+  );
+
+  for (const [field, value] of [
+    ['node_args', ['--require', '/same-user/unsealed.cjs']],
+    ['args', ['--eval', 'require("/same-user/unsealed.cjs")']],
+    ['interpreter_args', ['--require', '/same-user/unsealed.cjs']],
+  ]) {
+    const argumentRow = structuredClone(row);
+    argumentRow.pm2_env[field] = value;
+    const argumentProc = fakeProc([argumentRow]);
+    await assert.rejects(
+      verifyPriorPrivateReleaseRestartability({
+        ...common,
+        row: argumentRow,
+        expectedRuntime: await preservedPrivateProcessSnapshot(
+          [argumentRow],
+          argumentProc,
+        ),
+        expectedSavedRow: argumentRow,
+        processProofOptions: argumentProc,
+        readFileImpl: async () => envBytes,
+      }),
+      /execution arguments are not exactly empty/,
+    );
+  }
+});
+
+test('legacy private restart proof binds the observed runtime1 PM2 and environment tuple', async () => {
+  const {
+    environmentBytes,
+    releaseDir,
+    row,
+    script,
+  } = observedLegacyPrivateFixture();
+  const proc = fakeProc([row]);
+  const expectedRuntime = await preservedPrivateProcessSnapshot([row], proc);
+  const release = {
+    ...legacyReleaseFixture(),
+    kind: 'legacy-private-v1',
+    releaseDir,
+    entrypoint: script,
+  };
+  const common = {
+    row,
+    expectedRuntime,
+    expectedSavedRow: row,
+    processProofOptions: proc,
+    readLegacyReleaseImpl: async () => release,
+    lstatImpl: async () => fakeProtectedEnvironmentStat(),
+    realpathImpl: async (path) => path,
+    verifyLegacyInterpreterImpl: async ({ interpreter }) => {
+      assert.equal(
+        interpreter,
+        LEGACY_PRIVATE_RELEASE_CONTRACT.runtime.interpreter,
+      );
+      return {
+        path: interpreter,
+        version: LEGACY_PRIVATE_RELEASE_CONTRACT.runtime.interpreterVersion,
+        sha256: LEGACY_PRIVATE_RELEASE_CONTRACT.runtime.interpreterSha256,
+        identity: { fixture: 'legacy-private-node' },
+      };
+    },
+  };
+  const priorProof = await verifyPriorPrivateReleaseRestartability({
+    ...common,
+    readFileImpl: async () => environmentBytes,
+  });
+  await assert.doesNotReject(verifyPrivateRollbackInputsStillExact({
+    row,
+    priorProof,
+    readLegacyReleaseImpl: async () => release,
+    lstatImpl: common.lstatImpl,
+    readFileImpl: async () => environmentBytes,
+    realpathImpl: common.realpathImpl,
+    verifyLegacyInterpreterImpl: common.verifyLegacyInterpreterImpl,
+  }));
+
+  await assert.rejects(
+    verifyPrivateRollbackInputsStillExact({
+      row,
+      priorProof,
+      readLegacyReleaseImpl: async () => release,
+      lstatImpl: common.lstatImpl,
+      readFileImpl: async () => environmentBytes,
+      realpathImpl: common.realpathImpl,
+      verifyLegacyInterpreterImpl: async ({ interpreter }) => ({
+        path: interpreter,
+        version: LEGACY_PRIVATE_RELEASE_CONTRACT.runtime.interpreterVersion,
+        sha256: '0'.repeat(64),
+        identity: { fixture: 'legacy-private-node' },
+      }),
+    }),
+    /code or interpreter changed after proof/,
+  );
+
+  await assert.rejects(
+    verifyPrivateRollbackInputsStillExact({
+      row,
+      priorProof,
+      readLegacyReleaseImpl: async () => release,
+      lstatImpl: common.lstatImpl,
+      readFileImpl: async () => Buffer.from(
+        `${environmentBytes.toString('utf8')}HOSTILE_ADDITION=true\n`,
+      ),
+      realpathImpl: common.realpathImpl,
+      verifyLegacyInterpreterImpl: common.verifyLegacyInterpreterImpl,
+    }),
+    /rollback environment changed after proof/,
+  );
+
+  const changedEnvironment = Buffer.from(
+    `${environmentBytes.toString('utf8')}HOSTILE_ADDITION=true\n`,
+  );
+  await assert.rejects(
+    verifyPriorPrivateReleaseRestartability({
+      ...common,
+      readFileImpl: async () => changedEnvironment,
+    }),
+    /environment-file keys changed/,
+  );
+
+  const changedRow = structuredClone(row);
+  delete changedRow.pm2_env.env.HARNESS_COOKIE;
+  delete changedRow.pm2_env.HARNESS_COOKIE;
+  const changedProc = fakeProc([changedRow]);
+  await assert.rejects(
+    verifyPriorPrivateReleaseRestartability({
+      ...common,
+      row: changedRow,
+      expectedRuntime: await preservedPrivateProcessSnapshot(
+        [changedRow],
+        changedProc,
+      ),
+      expectedSavedRow: changedRow,
+      processProofOptions: changedProc,
+      readFileImpl: async () => environmentBytes,
+    }),
+    /persisted environment keys changed/,
+  );
+});
+
+test('legacy private interpreter proof binds path, bytes, version, and inode', async () => {
+  const directory = await mkdtemp(resolve(tmpdir(), 'legacy-private-node-'));
+  const interpreter = resolve(directory, 'node');
+  const bytes = Buffer.from('reviewed legacy node fixture');
+  await writeFile(interpreter, bytes, { mode: 0o755 });
+  await chmod(interpreter, 0o755);
+  try {
+    const interpreterStat = await lstat(interpreter);
+    const expectedIdentity = {
+      dev: interpreterStat.dev,
+      ino: interpreterStat.ino,
+      mode: interpreterStat.mode & 0o7777,
+      nlink: interpreterStat.nlink,
+      uid: interpreterStat.uid,
+      gid: interpreterStat.gid,
+    };
+    const proof = await verifyLegacyPrivateInterpreter({
+      expectedInterpreter: interpreter,
+      interpreter,
+      expectedVersion: 'v22.19.0',
+      expectedSha256: sha256(bytes),
+      expectedIdentity,
+      realpathImpl: async (path) => path,
+      runCommandImpl: async (command, args) => {
+        assert.equal(command, interpreter);
+        assert.deepEqual(args, ['--version']);
+        return { stdout: 'v22.19.0\n' };
+      },
+    });
+    assert.equal(proof.sha256, sha256(bytes));
+    await assert.rejects(
+      verifyLegacyPrivateInterpreter({
+        expectedInterpreter: interpreter,
+        interpreter,
+        expectedVersion: 'v22.19.0',
+        expectedSha256: '0'.repeat(64),
+        expectedIdentity,
+        realpathImpl: async (path) => path,
+        runCommandImpl: async () => ({ stdout: 'v22.19.0\n' }),
+      }),
+      /interpreter digest changed/,
+    );
+    await assert.rejects(
+      verifyLegacyPrivateInterpreter({
+        expectedInterpreter: interpreter,
+        interpreter,
+        expectedVersion: 'v22.19.0',
+        expectedSha256: sha256(bytes),
+        expectedIdentity: {
+          ...expectedIdentity,
+          ino: expectedIdentity.ino + 1,
+        },
+        realpathImpl: async (path) => path,
+        runCommandImpl: async () => ({ stdout: 'v22.19.0\n' }),
+      }),
+      /interpreter filesystem identity is unsafe/,
+    );
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 test('health timeout is bounded even when an injected fetch ignores abort', async () => {
@@ -1437,6 +2262,8 @@ async function activationHarness({
   tamperCandidateDirectOnly = false,
   tamperSavedCandidateDirectOnly = false,
   tamperSavedUnrelated = false,
+  mutateLiveUnrelatedAfterCandidateStart = false,
+  candidateStartDelayMs = 0,
   swapEnvBeforeCandidateStart = false,
   swapEnvAfterCandidateSave = false,
   initialRows,
@@ -1458,6 +2285,7 @@ async function activationHarness({
   finalPriorHealthMutation = null,
   failWidgetPost = false,
   harnessPm2TimeoutMs = HARNESS_PM2_TIMEOUT_MS,
+  harnessPm2StartupTimeoutMs = HARNESS_PM2_STARTUP_TIMEOUT_MS,
 } = {}) {
   const directory = await mkdtemp(resolve(tmpdir(), 'opendexter-activation-'));
   const pm2Home = resolve(directory, 'pm2');
@@ -1657,6 +2485,12 @@ async function activationHarness({
       return { stdout: 'deleted' };
     }
     if (operation === 'start') {
+      if (candidateStartDelayMs > 0) {
+        await new Promise((resolveDelay) => setTimeout(
+          resolveDelay,
+          candidateStartDelayMs,
+        ));
+      }
       if (swapEnvBeforeCandidateStart) {
         await writeFile(envFile, [
           `GOVERNED_AGENT_ACTIONS_HMAC_SECRET=${GOVERNED_SECRET}`,
@@ -1677,6 +2511,11 @@ async function activationHarness({
         (row) => !DEXTER_SERVICES.includes(row.name),
       );
       rows = [...structuredClone(candidateRows), ...structuredClone(unrelated)];
+      if (mutateLiveUnrelatedAfterCandidateStart) {
+        const unrelatedRow = rows.find((row) => row.name === 'other-service');
+        unrelatedRow.pm2_env.OTHER_PORT = '4012';
+        unrelatedRow.pm2_env.env.OTHER_PORT = '4012';
+      }
       candidateStarted = true;
       return { stdout: 'started' };
     }
@@ -1782,6 +2621,7 @@ async function activationHarness({
       freshInstall,
       healthTimeoutMs: 20,
       pm2CommandTimeoutMs: harnessPm2TimeoutMs,
+      pm2StartupTimeoutMs: harnessPm2StartupTimeoutMs,
       preflightCandidate: (args) => preflightOpenReleaseCandidate({
         ...args,
         pm2Home: PRODUCTION_PM2_HOME,
@@ -1977,6 +2817,15 @@ test('candidate PM2 config shim is exact during start and removed afterward', as
       false,
     );
 
+    await startOpenReleaseCandidate({
+      ecosystem,
+      pm2Home: directory,
+      serviceName: 'dexter-mcp',
+      runPm2: async (args) => {
+        assert.deepEqual(args.slice(2), ['--only', 'dexter-mcp']);
+      },
+    });
+
     await assert.rejects(
       startOpenReleaseCandidate({
         ecosystem,
@@ -1994,6 +2843,800 @@ test('candidate PM2 config shim is exact during start and removed afterward', as
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
+});
+
+test('private rollback config contains one captured service and rejects loaders', () => {
+  const row = pm2Row(
+    'dexter-mcp',
+    '/sealed/releases/private-prior',
+    909991,
+    ['prior'],
+    3930,
+  );
+  const savedRow = dumpRows([row])[0];
+  const source = privateRestartPm2Config(savedRow).toString('utf8');
+  const encoded = source.match(/module\.exports = (.*);\n$/s)?.[1];
+  assert.notEqual(encoded, undefined);
+  const config = JSON.parse(encoded);
+  assert.equal(config.apps.length, 1);
+  assert.equal(config.apps[0].name, 'dexter-mcp');
+  assert.equal(
+    config.apps[0].script,
+    '/sealed/releases/private-prior/production-bootstrap.mjs',
+  );
+  assert.equal(
+    config.apps[0].env.SUPABASE_SERVICE_ROLE_KEY,
+    PROTECTED_SERVICE_SECRET,
+  );
+  assert.equal(Object.hasOwn(config.apps[0].env, 'unique_id'), false);
+  assert.equal(Object.hasOwn(config.apps[0].env, 'dexter-mcp'), false);
+
+  const loaderRow = structuredClone(savedRow);
+  loaderRow.env.NODE_OPTIONS = '--require /attacker/loader.cjs';
+  assert.throws(
+    () => privateRestartPm2Config(loaderRow),
+    /environment is not exact/,
+  );
+  for (const [field, value] of [
+    ['node_args', ['--require', '/same-user/unsealed.cjs']],
+    ['args', ['--eval', 'require("/same-user/unsealed.cjs")']],
+    ['interpreter_args', ['--require', '/same-user/unsealed.cjs']],
+  ]) {
+    const argumentRow = structuredClone(savedRow);
+    argumentRow[field] = value;
+    assert.throws(
+      () => privateRestartPm2Config(argumentRow),
+      /execution arguments are not exactly empty/,
+    );
+  }
+});
+
+async function privateActivationHarness({
+  candidateSaveBackupMode = 'exact',
+  changePrivateBeforeDelete = false,
+  degradePriorBeforeRecovery = false,
+  failRollbackDelete = false,
+  candidateStartMode = 'online',
+  evolveCandidateOnReject = false,
+  initialSavedMode = 'full',
+  replaceAfterTargetProof = false,
+  rejectCandidate = false,
+  rejectRollbackInputs = false,
+  recoverAfterFailure = false,
+  removeJournalDuringRecoveryPreflight = false,
+  mutateRollbackConfigDuringInputProof = false,
+  tamperRollbackApplicationEnvironment = false,
+} = {}) {
+  const directory = await realpath(
+    await mkdtemp(resolve(tmpdir(), 'dexter-private-activation-')),
+  );
+  const pm2Home = resolve(directory, 'pm2');
+  await import('node:fs/promises').then(({ mkdir }) => mkdir(pm2Home));
+  const envFile = await writeProtectedEnvironment(directory);
+  const envFileSha256 = sha256(await readFile(envFile));
+  const release = releaseCandidate('/sealed/releases/private-new', {
+    privateService: true,
+  });
+  const oldPrivateIdentity = identity('dexter-mcp', {
+    commit: '1'.repeat(40),
+    tree: '2'.repeat(40),
+    manifest: '3'.repeat(64),
+    descriptor: '4'.repeat(64),
+    version: '0.4.0',
+  });
+  const oldOpenIdentity = identity('dexter-open-mcp', {
+    commit: '5'.repeat(40),
+    tree: '6'.repeat(40),
+    manifest: '7'.repeat(64),
+    descriptor: '8'.repeat(64),
+    version: '0.4.0',
+  });
+  const priorRows = [
+    pm2Row('dexter-mcp', '/sealed/releases/private-old', 910001, ['old'], 5930, {
+      pm2Home,
+      envFile,
+      envFileSha256,
+      release: oldPrivateIdentity,
+    }),
+    pm2Row(
+      'dexter-open-mcp',
+      '/sealed/releases/open-old',
+      910002,
+      ['open-old'],
+      5931,
+      {
+        pm2Home,
+        envFile,
+        envFileSha256,
+        release: oldOpenIdentity,
+        interpreter: OPEN_RELEASE_APPLICATION_NODE_EXECUTABLE,
+      },
+    ),
+  ];
+  const candidatePrivate = pm2Row(
+    'dexter-mcp',
+    release.releaseDir,
+    920001,
+    PRIVATE_ROSTER,
+    4930,
+    {
+      pm2Home,
+      envFile,
+      envFileSha256,
+      interpreter: OPEN_RELEASE_APPLICATION_NODE_EXECUTABLE,
+    },
+  );
+  const savedOnlyRow = pm2Row(
+    'saved-only-worker',
+    '/sealed/releases/saved-only',
+    910003,
+    ['saved-only'],
+    5999,
+    {
+      pm2Home,
+      envFile,
+      envFileSha256,
+      pmId: 81,
+      release: identity('saved-only-worker'),
+    },
+  );
+  let rows = structuredClone(priorRows);
+  let deleteCount = 0;
+  let saveCount = 0;
+  const events = [];
+  const initialSavedRows = initialSavedMode === 'without-private'
+    ? [priorRows[1], savedOnlyRow]
+    : [...priorRows, savedOnlyRow];
+  const initialSavedBytes = initialSavedMode === 'absent'
+    ? null
+    : JSON.stringify(dumpRows(initialSavedRows));
+  if (initialSavedBytes !== null) {
+    await writeFile(
+      resolve(pm2Home, 'dump.pm2'),
+      initialSavedBytes,
+    );
+  }
+  const initialBackupBytes = JSON.stringify(dumpRows([savedOnlyRow]));
+  await writeFile(resolve(pm2Home, 'dump.pm2.bak'), initialBackupBytes);
+  const dynamicProc = {
+    realpathImpl: async (path) => path,
+    readlinkImpl: async (path) => {
+      const [, , pid, leaf] = path.split('/');
+      const row = rows.find((candidate) => String(candidate.pid) === pid);
+      if (leaf === 'exe') return row.pm2_env.exec_interpreter;
+      if (leaf === 'cwd') return row.pm2_env.pm_cwd;
+      throw new Error(`unexpected proc link ${path}`);
+    },
+    readFileImpl: async (path) => {
+      const [, , pid, leaf] = path.split('/');
+      const row = rows.find((candidate) => String(candidate.pid) === pid);
+      if (leaf === 'cmdline') {
+        return `${row.pm2_env.exec_interpreter}\0${row.pm2_env.pm_exec_path}\0`;
+      }
+      if (leaf === 'stat') {
+        const tail = [
+          'S',
+          ...Array(18).fill('0'),
+          String(Number(pid) * 100),
+        ];
+        return `${pid} (fixture node) ${tail.join(' ')}\n`;
+      }
+      throw new Error(`unexpected proc file ${path}`);
+    },
+  };
+  const runCommand = async (command, args) => {
+    assert.equal(command, PRODUCTION_NODE_EXECUTABLE);
+    assert.equal(args[0], PRODUCTION_PM2_EXECUTABLE);
+    const pm2Args = args.slice(1);
+    events.push(pm2Args.join(':'));
+    if (pm2Args[0] === 'jlist') return { stdout: JSON.stringify(rows) };
+    if (pm2Args[0] === 'save') {
+      saveCount += 1;
+      const primaryPath = resolve(pm2Home, 'dump.pm2');
+      const previousPrimary = await readFile(primaryPath).catch(
+        (error) => error?.code === 'ENOENT' ? null : Promise.reject(error),
+      );
+      if (saveCount === 2 && candidateSaveBackupMode === 'missing') {
+        await rm(resolve(pm2Home, 'dump.pm2.bak'), { force: true });
+      } else if (saveCount === 2 && candidateSaveBackupMode === 'wrong') {
+        await writeFile(resolve(pm2Home, 'dump.pm2.bak'), '[]');
+      } else if (previousPrimary !== null) {
+        await writeFile(resolve(pm2Home, 'dump.pm2.bak'), previousPrimary);
+      }
+      await writeFile(
+        primaryPath,
+        JSON.stringify(dumpRows(rows)),
+      );
+      return { stdout: 'saved' };
+    }
+    if (pm2Args[0] === 'delete') {
+      deleteCount += 1;
+      if (failRollbackDelete && deleteCount === 2) {
+        throw new Error('simulated crash during rollback delete');
+      }
+      rows = rows.filter((row) => String(row.pm_id) !== pm2Args[1]);
+      return { stdout: 'deleted' };
+    }
+    if (pm2Args[0] === 'start') {
+      assert.deepEqual(pm2Args.slice(2), ['--only', 'dexter-mcp']);
+      const rollback = pm2Args[1].includes('.opendexter-private-rollback-');
+      if (!rollback && candidateStartMode === 'absent-failure') {
+        throw new Error('candidate failed before PM2 row creation');
+      }
+      const started = rollback
+        ? {
+          ...structuredClone(priorRows[0]),
+          pid: 930001,
+          pm_id: 79,
+          pm2_env: {
+            ...structuredClone(priorRows[0].pm2_env),
+            pm_id: 79,
+            pm_err_log_path: resolve(
+              pm2Home,
+              'logs',
+              'dexter-mcp-error-79.log',
+            ),
+            pm_out_log_path: resolve(
+              pm2Home,
+              'logs',
+              'dexter-mcp-out-79.log',
+            ),
+          },
+        }
+        : structuredClone(candidatePrivate);
+      if (!rollback && [
+        'errored-failure',
+        'pre-ipc-errored-failure',
+      ].includes(candidateStartMode)) {
+        started.pid = 0;
+        started.pm2_env.status = 'errored';
+        started.pm2_env.restart_time = 10;
+        if (candidateStartMode === 'pre-ipc-errored-failure') {
+          delete started.pm2_env.node_version;
+        }
+      }
+      if (rollback) {
+        started.pm2_env.env.unique_id = 'pm2-generated-rollback-uuid';
+        if (tamperRollbackApplicationEnvironment) {
+          started.pm2_env.env.SUPABASE_SERVICE_ROLE_KEY =
+            'hostile-rollback-application-environment';
+        }
+      }
+      rows = [
+        started,
+        ...rows.filter((row) => row.name !== 'dexter-mcp'),
+      ];
+      if (!rollback && [
+        'errored-failure',
+        'pre-ipc-errored-failure',
+      ].includes(candidateStartMode)) {
+        throw new Error('candidate retained an errored PM2 row');
+      }
+      return { stdout: 'started' };
+    }
+    throw new Error(`unexpected PM2 operation ${pm2Args.join(' ')}`);
+  };
+  const fetchImpl = async (url) => {
+    const port = Number(new URL(url).port);
+    if (port === 5930) {
+      return {
+        status: 200,
+        json: async () => ({
+          ok: true,
+          status: 'ok',
+          oauth: true,
+          issuer: 'https://mcp.dexter.cash/mcp',
+          base: 'https://mcp.dexter.cash/mcp',
+          port,
+          toolProfile: null,
+          toolsetsEnv: null,
+          sessions: { transports: 0, servers: 0 },
+          timestamp: '2026-08-29T00:00:00.000Z',
+        }),
+      };
+    }
+    return healthResponse('dexter-mcp', port, PRIVATE_ROSTER);
+  };
+  const envStat = await lstat(envFile);
+  const preflight = {
+    envFile,
+    envFileSha256,
+    envFileIdentity: {
+      dev: envStat.dev,
+      ino: envStat.ino,
+      nlink: envStat.nlink,
+      uid: envStat.uid,
+      mode: envStat.mode,
+      size: envStat.size,
+      mtimeMs: envStat.mtimeMs,
+      ctimeMs: envStat.ctimeMs,
+    },
+    expectedProcesses: {
+      'dexter-mcp': expectedProcess(candidatePrivate),
+    },
+  };
+  try {
+    let result;
+    let error;
+    let recoveryResult;
+    let recoveryError;
+    try {
+      result = await activatePrivateRelease({
+        releaseCandidate: release,
+        runCommand,
+        fetchImpl,
+        pm2Home,
+        commandEnvironment: {
+          PATH: process.env.PATH,
+          DEXTER_MCP_ENV_FILE: envFile,
+        },
+        healthTimeoutMs: 20,
+        pm2CommandTimeoutMs: HARNESS_PM2_TIMEOUT_MS,
+        pm2StartupTimeoutMs: HARNESS_PM2_STARTUP_TIMEOUT_MS,
+        preflightCandidate: async ({ services }) => {
+          assert.deepEqual(services, ['dexter-mcp']);
+          return preflight;
+        },
+        verifyCandidate: async (args) => {
+          if (rejectCandidate) {
+            if (evolveCandidateOnReject) {
+              const current = rows.find((row) => row.name === 'dexter-mcp');
+              rows = [
+                {
+                  ...structuredClone(current),
+                  pid: current.pid + 7,
+                  pm2_env: {
+                    ...structuredClone(current.pm2_env),
+                    status: 'launching',
+                    restart_time: current.pm2_env.restart_time + 1,
+                    unstable_restarts:
+                      current.pm2_env.unstable_restarts + 1,
+                  },
+                },
+                ...rows.filter((row) => row.name !== 'dexter-mcp'),
+              ];
+            }
+            throw new Error('hostile_private_candidate');
+          }
+          return verifyRunningOpenReleasePair({
+            ...args,
+            ...fakeProc(args.rows),
+          });
+        },
+        verifyPriorRestartability: async () => {
+          if (changePrivateBeforeDelete) {
+            const current = rows.find((row) => row.name === 'dexter-mcp');
+            rows = [
+              {
+                ...structuredClone(current),
+                pid: current.pid + 100,
+              },
+              ...rows.filter((row) => row.name !== 'dexter-mcp'),
+            ];
+          }
+          return { fixture: 'private-restart-proof' };
+        },
+        verifyRollbackInputs: async ({ row, priorProof }) => {
+          assert.equal(row.name, 'dexter-mcp');
+          assert.deepEqual(priorProof, { fixture: 'private-restart-proof' });
+          events.push('verified-rollback-inputs');
+          if (mutateRollbackConfigDuringInputProof) {
+            const configName = (await readdir(pm2Home)).find(
+              (name) => name.startsWith('.opendexter-private-rollback-'),
+            );
+            assert.notEqual(configName, undefined);
+            await writeFile(resolve(pm2Home, configName), 'hostile-config');
+          }
+          if (rejectRollbackInputs) {
+            throw new Error('hostile_rollback_input_swap');
+          }
+          return true;
+        },
+        verifyDaemon: async ({ pm2Home: verifiedPm2Home }) => {
+          assert.equal(verifiedPm2Home, pm2Home);
+          events.push('verified-pm2-daemon');
+          return true;
+        },
+        verifyPm2Executable: async () => PRODUCTION_PM2_EXECUTABLE,
+        processProofOptions: dynamicProc,
+        beforePrivateDelete: async ({ phase }) => {
+          if (!replaceAfterTargetProof || phase !== 'activation') return;
+          const current = rows.find((row) => row.name === 'dexter-mcp');
+          const replacementPmId = 82;
+          rows = [
+            {
+              ...structuredClone(current),
+              pid: current.pid + 200,
+              pm_id: replacementPmId,
+              pm2_env: {
+                ...structuredClone(current.pm2_env),
+                pm_id: replacementPmId,
+                pm_err_log_path: resolve(
+                  pm2Home,
+                  'logs',
+                  `dexter-mcp-error-${replacementPmId}.log`,
+                ),
+                pm_out_log_path: resolve(
+                  pm2Home,
+                  'logs',
+                  `dexter-mcp-out-${replacementPmId}.log`,
+                ),
+              },
+            },
+            ...rows.filter((row) => row.name !== 'dexter-mcp'),
+          ];
+        },
+      });
+    } catch (caught) {
+      error = caught;
+    }
+    const eventsBeforeRecovery = events.length;
+    if (recoverAfterFailure) {
+      if (degradePriorBeforeRecovery) {
+        const current = rows.find((row) => row.name === 'dexter-mcp');
+        assert.notEqual(current, undefined);
+        const degraded = structuredClone(current);
+        degraded.pid = 0;
+        degraded.pm2_env.status = 'launching';
+        delete degraded.pm2_env.node_version;
+        rows = [
+          degraded,
+          ...rows.filter((row) => row.name !== 'dexter-mcp'),
+        ];
+      }
+      try {
+        recoveryResult = await recoverPrivateRelease({
+          runCommand,
+          fetchImpl,
+          pm2Home,
+          commandEnvironment: {
+            PATH: process.env.PATH,
+            DEXTER_MCP_ENV_FILE: envFile,
+          },
+          healthTimeoutMs: 20,
+          pm2CommandTimeoutMs: HARNESS_PM2_TIMEOUT_MS,
+          pm2StartupTimeoutMs: HARNESS_PM2_STARTUP_TIMEOUT_MS,
+          verifyPriorRestartability: async () => ({
+            fixture: 'private-restart-proof',
+          }),
+          verifyRollbackInputs: async ({ row, priorProof }) => {
+            assert.equal(row.name, 'dexter-mcp');
+            assert.deepEqual(priorProof, {
+              fixture: 'private-restart-proof',
+            });
+            events.push('recovery-verified-rollback-inputs');
+            return true;
+          },
+          verifyDaemon: async () => {
+            events.push('recovery-verified-pm2-daemon');
+            return true;
+          },
+          verifyPm2Executable: async () => {
+            if (removeJournalDuringRecoveryPreflight) {
+              await rm(resolve(
+                pm2Home,
+                '.dexter-mcp-private-cutover-journal.json',
+              ), { force: true });
+            }
+            return PRODUCTION_PM2_EXECUTABLE;
+          },
+          processAliveImpl: async () => false,
+          processProofOptions: dynamicProc,
+        });
+      } catch (caught) {
+        recoveryError = caught;
+      }
+    }
+    const savedBytes = await readFile(resolve(pm2Home, 'dump.pm2'), 'utf8')
+      .catch((readError) => readError?.code === 'ENOENT'
+        ? null
+        : Promise.reject(readError));
+    const savedBackupBytes = await readFile(
+      resolve(pm2Home, 'dump.pm2.bak'),
+      'utf8',
+    ).catch((readError) => readError?.code === 'ENOENT'
+      ? null
+      : Promise.reject(readError));
+    const journalPath = resolve(
+      pm2Home,
+      '.dexter-mcp-private-cutover-journal.json',
+    );
+    const journalBytes = await readFile(journalPath, 'utf8').catch(
+      (readError) => readError?.code === 'ENOENT'
+        ? null
+        : Promise.reject(readError),
+    );
+    return {
+      error,
+      events,
+      eventsBeforeRecovery,
+      result,
+      recoveryError,
+      recoveryResult,
+      rows,
+      initialSavedBytes,
+      initialBackupBytes,
+      journalBytes,
+      savedBytes,
+      savedBackupBytes,
+      savedRows: savedBytes === null ? [] : JSON.parse(savedBytes),
+      priorRows,
+    };
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+}
+
+test('private activation selects only dexter-mcp and preserves public OpenDexter', async () => {
+  const result = await privateActivationHarness();
+  assert.equal(result.error, undefined);
+  assert.equal(result.result.health['dexter-mcp'].ok, true);
+  assert.equal(
+    result.rows.find((row) => row.name === 'dexter-open-mcp').pid,
+    result.priorRows.find((row) => row.name === 'dexter-open-mcp').pid,
+  );
+  assert.equal(result.events.includes('delete:68'), false);
+  assert.ok(result.events.some((event) => event.endsWith(':--only:dexter-mcp')));
+  assert.deepEqual(
+    result.savedRows.map((row) => row.name).sort(),
+    ['dexter-mcp', 'dexter-open-mcp', 'saved-only-worker'],
+  );
+  assert.equal(result.journalBytes, null);
+});
+
+test('private activation commits only with the exact prior backup dump', async () => {
+  for (const candidateSaveBackupMode of ['missing', 'wrong']) {
+    const result = await privateActivationHarness({
+      candidateSaveBackupMode,
+    });
+    assert.match(
+      result.error?.message ?? '',
+      /private Dexter candidate failed; the exact prior state was restored/,
+    );
+    assert.equal(result.savedBytes, result.initialSavedBytes);
+    assert.equal(result.savedBackupBytes, result.initialBackupBytes);
+    assert.equal(result.journalBytes, null);
+    assert.equal(
+      result.rows.find((row) => row.name === 'dexter-mcp')
+        .pm2_env.pm_cwd,
+      result.priorRows.find((row) => row.name === 'dexter-mcp')
+        .pm2_env.pm_cwd,
+    );
+  }
+});
+
+test('private candidate failure restores the prior process and saved definition', async () => {
+  const result = await privateActivationHarness({ rejectCandidate: true });
+  assert.match(
+    result.error?.message ?? '',
+    /private Dexter candidate failed; the exact prior state was restored/,
+  );
+  assert.equal(
+    result.rows.find((row) => row.name === 'dexter-open-mcp').pid,
+    result.priorRows.find((row) => row.name === 'dexter-open-mcp').pid,
+  );
+  assert.equal(
+    result.rows.find((row) => row.name === 'dexter-mcp').pm2_env.pm_cwd,
+    result.priorRows.find((row) => row.name === 'dexter-mcp').pm2_env.pm_cwd,
+  );
+  assert.equal(result.events.includes('resurrect'), false);
+  assert.equal(
+    result.events.filter((event) => event.startsWith('start:')).length,
+    2,
+  );
+  assert.notEqual(
+    result.rows.find((row) => row.name === 'dexter-mcp')
+      .pm2_env.env.unique_id,
+    result.priorRows.find((row) => row.name === 'dexter-mcp')
+      .pm2_env.env.unique_id,
+  );
+  assert.ok(
+    result.events.indexOf('verified-rollback-inputs')
+      < result.events.findLastIndex((event) => event.startsWith('start:')),
+  );
+  assert.equal(result.savedBytes, result.initialSavedBytes);
+  assert.equal(result.savedBackupBytes, result.initialBackupBytes);
+  assert.equal(result.journalBytes, null);
+});
+
+test('private rollback handles absent and pre-IPC errored candidate starts', async () => {
+  for (const candidateStartMode of [
+    'absent-failure',
+    'errored-failure',
+    'pre-ipc-errored-failure',
+  ]) {
+    const result = await privateActivationHarness({ candidateStartMode });
+    assert.match(
+      result.error?.message ?? '',
+      /private Dexter candidate failed; the exact prior state was restored/,
+    );
+    assert.equal(
+      result.rows.find((row) => row.name === 'dexter-mcp')
+        .pm2_env.pm_cwd,
+      result.priorRows.find((row) => row.name === 'dexter-mcp')
+        .pm2_env.pm_cwd,
+    );
+    if (candidateStartMode !== 'absent-failure') {
+      assert.ok(result.events.includes('delete:69'));
+    }
+  }
+});
+
+test('private rollback follows one candidate PM2 id across restart drift', async () => {
+  const result = await privateActivationHarness({
+    rejectCandidate: true,
+    evolveCandidateOnReject: true,
+  });
+  assert.match(
+    result.error?.message ?? '',
+    /private Dexter candidate failed; the exact prior state was restored/,
+  );
+  assert.equal(
+    result.rows.find((row) => row.name === 'dexter-mcp').pm2_env.pm_cwd,
+    result.priorRows.find((row) => row.name === 'dexter-mcp').pm2_env.pm_cwd,
+  );
+});
+
+test('private rollback re-proves inputs before start and binds application env', async () => {
+  const swappedInput = await privateActivationHarness({
+    rejectCandidate: true,
+    rejectRollbackInputs: true,
+  });
+  assert.match(
+    swappedInput.error?.message ?? '',
+    /rollback could not be proven/,
+  );
+  assert.equal(
+    swappedInput.events.filter((event) => event.startsWith('start:')).length,
+    1,
+  );
+  assert.equal(
+    swappedInput.rows.some((row) => row.name === 'dexter-mcp'),
+    false,
+  );
+
+  const changedApplicationEnvironment = await privateActivationHarness({
+    rejectCandidate: true,
+    tamperRollbackApplicationEnvironment: true,
+  });
+  assert.match(
+    changedApplicationEnvironment.error?.message ?? '',
+    /rollback could not be proven/,
+  );
+  assert.equal(
+    changedApplicationEnvironment.events.includes('verified-rollback-inputs'),
+    true,
+  );
+
+  const changedConfig = await privateActivationHarness({
+    rejectCandidate: true,
+    mutateRollbackConfigDuringInputProof: true,
+  });
+  assert.match(changedConfig.error?.message ?? '', /rollback could not be proven/);
+  assert.equal(
+    changedConfig.events.filter((event) => event.startsWith('start:')).length,
+    1,
+  );
+});
+
+test('private failure restores an absent or private-free saved baseline exactly', async () => {
+  for (const initialSavedMode of ['absent', 'without-private']) {
+    const result = await privateActivationHarness({
+      initialSavedMode,
+      rejectCandidate: true,
+    });
+    assert.match(
+      result.error?.message ?? '',
+      /private Dexter candidate failed; the exact prior state was restored/,
+    );
+    assert.equal(result.savedBytes, result.initialSavedBytes);
+    assert.equal(result.savedBackupBytes, result.initialBackupBytes);
+    assert.equal(result.journalBytes, null);
+    if (initialSavedMode === 'without-private') {
+      assert.equal(
+        result.savedRows.some((row) => row.name === 'dexter-mcp'),
+        false,
+      );
+    }
+  }
+});
+
+test('private pre-delete race leaves the replacement runtime untouched', async () => {
+  const result = await privateActivationHarness({
+    changePrivateBeforeDelete: true,
+  });
+  assert.match(
+    result.error?.message ?? '',
+    /private Dexter runtime changed before (?:cutover|deletion)/,
+  );
+  assert.equal(
+    result.events.some((event) => event.startsWith('delete:')),
+    false,
+  );
+  assert.equal(result.events.includes('resurrect'), false);
+  assert.equal(
+    result.rows.find((row) => row.name === 'dexter-mcp').pid,
+    result.priorRows.find((row) => row.name === 'dexter-mcp').pid + 100,
+  );
+});
+
+test('private post-jlist replacement is never deleted by mutable name', async () => {
+  const result = await privateActivationHarness({
+    replaceAfterTargetProof: true,
+  });
+  assert.match(
+    result.error?.message ?? '',
+    /rollback could not be proven/,
+  );
+  assert.ok(result.events.includes('delete:69'));
+  assert.equal(result.events.includes('delete:82'), false);
+  assert.equal(result.events.includes('resurrect'), false);
+  assert.equal(
+    result.rows.find((row) => row.name === 'dexter-mcp').pm_id,
+    82,
+  );
+  assert.equal(result.savedBytes, result.initialSavedBytes);
+  assert.notEqual(result.journalBytes, null);
+  const journal = JSON.parse(result.journalBytes);
+  assert.equal(
+    journal.schema,
+    'dexter-mcp-private-cutover-journal/v1',
+  );
+  assert.equal(journal.savedState.primary.present, true);
+  assert.equal(journal.savedState.backup.present, true);
+});
+
+test('private recovery removes an exact candidate and restores both dumps', async () => {
+  const result = await privateActivationHarness({
+    failRollbackDelete: true,
+    recoverAfterFailure: true,
+    rejectCandidate: true,
+  });
+  assert.match(result.error?.message ?? '', /rollback could not be proven/);
+  assert.equal(result.recoveryError, undefined);
+  assert.deepEqual(result.recoveryResult, {
+    recovered: true,
+    service: 'dexter-mcp',
+  });
+  assert.equal(result.journalBytes, null);
+  assert.equal(result.savedBytes, result.initialSavedBytes);
+  assert.equal(result.savedBackupBytes, result.initialBackupBytes);
+  assert.equal(
+    result.rows.find((row) => row.name === 'dexter-mcp').pm2_env.pm_cwd,
+    result.priorRows.find((row) => row.name === 'dexter-mcp').pm2_env.pm_cwd,
+  );
+});
+
+test('private recovery replaces a degraded pre-IPC prior generation', async () => {
+  const result = await privateActivationHarness({
+    degradePriorBeforeRecovery: true,
+    recoverAfterFailure: true,
+    replaceAfterTargetProof: true,
+  });
+  assert.match(result.error?.message ?? '', /rollback could not be proven/);
+  assert.equal(result.recoveryError, undefined);
+  assert.equal(result.recoveryResult?.recovered, true);
+  const restored = result.rows.find((row) => row.name === 'dexter-mcp');
+  assert.equal(restored.pm2_env.status, 'online');
+  assert.equal(restored.pm2_env.pm_cwd, result.priorRows[0].pm2_env.pm_cwd);
+  assert.equal(result.journalBytes, null);
+});
+
+test('private recovery refuses a journal cleared before lock acquisition', async () => {
+  const result = await privateActivationHarness({
+    failRollbackDelete: true,
+    recoverAfterFailure: true,
+    rejectCandidate: true,
+    removeJournalDuringRecoveryPreflight: true,
+  });
+  assert.match(result.error?.message ?? '', /rollback could not be proven/);
+  assert.equal(result.recoveryResult, undefined);
+  assert.equal(result.recoveryError?.code, 'ENOENT');
+  assert.equal(result.events.length, result.eventsBeforeRecovery);
+  assert.equal(
+    result.rows.find((row) => row.name === 'dexter-mcp').pm2_env.pm_cwd,
+    '/sealed/releases/private-new',
+  );
 });
 
 test('candidate failure resurrects the sealed prior row and never executes a PM2 dump', async () => {
@@ -2109,7 +3752,10 @@ test('final post-source legacy health proof refuses stale or changed v1 state be
 });
 
 test('activation preserves unrelated live and saved definitions and bounds every PM2 operation', async () => {
-  const successful = await activationHarness({ includeUnrelated: true });
+  const successful = await activationHarness({
+    includeUnrelated: true,
+    candidateStartDelayMs: HARNESS_PM2_TIMEOUT_MS + 50,
+  });
   assert.equal(successful.error, undefined);
   assert.equal(
     successful.rows.find((row) => row.name === 'other-service')
@@ -2128,8 +3774,11 @@ test('activation preserves unrelated live and saved definitions and bounds every
     [...new Set(calls.map((call) => call.args[0]))].sort(),
     ['delete', 'jlist', 'resurrect', 'save', 'start'],
   );
-  for (const { options } of calls) {
-    assert.equal(options.timeout, HARNESS_PM2_TIMEOUT_MS);
+  for (const { args, options } of calls) {
+    const expectedTimeout = args[0] === 'start' || args[0] === 'resurrect'
+      ? HARNESS_PM2_STARTUP_TIMEOUT_MS
+      : HARNESS_PM2_TIMEOUT_MS;
+    assert.equal(options.timeout, expectedTimeout);
     assert.equal(options.killSignal, 'SIGKILL');
     assert.equal(options.signal instanceof AbortSignal, true);
   }
@@ -2159,6 +3808,38 @@ test('distinct unrelated saved and live definitions are each preserved', async (
       result.savedRows.find((row) => row.name === 'other-service')
         .env.OTHER_PORT,
       '4999',
+    );
+  }
+});
+
+test('unrelated live changes do not block a service-scoped OpenDexter cutover', async () => {
+  for (const rejectCandidate of [false, true]) {
+    const result = await activationHarness({
+      includeUnrelated: true,
+      mutateLiveUnrelatedAfterCandidateStart: true,
+      rejectCandidate,
+    });
+    if (rejectCandidate) {
+      assert.match(
+        result.error?.message ?? '',
+        /candidate failed; the exact prior state was restored/,
+      );
+    } else {
+      assert.equal(result.error, undefined);
+    }
+    assert.equal(
+      result.rows.find((row) => row.name === 'other-service')
+        .pm2_env.env.OTHER_PORT,
+      '4012',
+    );
+    assert.equal(
+      result.savedRows.find((row) => row.name === 'other-service')
+        .env.OTHER_PORT,
+      '4010',
+    );
+    assert.equal(
+      result.rows.find((row) => row.name === 'dexter-mcp').pid,
+      902001,
     );
   }
 });
@@ -2421,7 +4102,7 @@ test('saved candidate restart controls or loader injection are detected and roll
       ['autorestart', false],
       ['wait_ready', false],
       ['max_restarts', 11],
-      ['listen_timeout', 15_001],
+      ['listen_timeout', 90_001],
       ['kill_timeout', 10_001],
       ['node_args', ['--no-warnings']],
       ['filter_env', ['HOSTILE_SECRET_FILTER']],

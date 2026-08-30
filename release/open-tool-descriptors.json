@@ -6,25 +6,25 @@
     "kind": "opendexter-source-contracts/v3",
     "api": {
       "repository": "https://github.com/Dexter-DAO/dexter-api",
-      "commit": "6c243154e9e06f4e40830300c4027721645a33cc",
-      "tree": "ce2976ada70af9234291aa6a472b3d96a7a84989",
+      "commit": "fa0701b67625911b8ec97a5399f62ec97a69f976",
+      "tree": "dcee95df1d92018b8fcd8b43645fe63211383274",
       "consumerFixture": {
-        "path": "tests/fixtures/governed-agent-reconcile-advanced-final-6c243154.json",
-        "sha256": "ce947da8dbc22b602d5254949787b777b66095bb2530a707fb1db6d73b1b41d4",
+        "path": "tests/fixtures/governed-agent-reconcile-advanced-final-fa0701b6.json",
+        "sha256": "ad06690a3914e0ef0f359c4164eb62f78ca54abe6697a52672d739df63c2c352",
         "canonicalBodyDigest": "48e77a936f06fe07b66fee7c2cb9126e8305d4e180c2c304513d5f0ea1636e16"
       }
     },
     "integratedApiRelease": {
       "repository": "https://github.com/Dexter-DAO/dexter-api",
-      "commit": "66afc8ac707146efc827a7d2a7039f177542a331",
-      "tree": "6fbe9fc54a6cb8e8d4a3e0e13b3337dc11980fdb",
-      "governedContractCommit": "6c243154e9e06f4e40830300c4027721645a33cc",
-      "governedContractTree": "ce2976ada70af9234291aa6a472b3d96a7a84989"
+      "commit": "acf58d17990ce39dc0780cad1ae27641e7202bea",
+      "tree": "67c2b36f91efa84e52bddcbb2a0e1a6daadb91b6",
+      "governedContractCommit": "fa0701b67625911b8ec97a5399f62ec97a69f976",
+      "governedContractTree": "dcee95df1d92018b8fcd8b43645fe63211383274"
     },
     "portfolioProjection": {
       "repository": "https://github.com/Dexter-DAO/dexter-api",
-      "commit": "66afc8ac707146efc827a7d2a7039f177542a331",
-      "tree": "6fbe9fc54a6cb8e8d4a3e0e13b3337dc11980fdb",
+      "commit": "acf58d17990ce39dc0780cad1ae27641e7202bea",
+      "tree": "67c2b36f91efa84e52bddcbb2a0e1a6daadb91b6",
       "sourcePaths": [
         "src/portfolio/approvedActionTargets.ts",
         "src/routes/passkeyMcpBinding.ts",
@@ -39,8 +39,8 @@
     },
     "facilitator": {
       "repository": "https://github.com/Dexter-DAO/dexter-facilitator",
-      "commit": "fbfa45bc4c03c41f0eb9af84a6377ed6b29f2d55",
-      "tree": "aa2cd1a7b82174eedabe5e3afb8f0f84776d0ba1",
+      "commit": "f3cdbfb151a4fa8d6fffd294b243878b002d9666",
+      "tree": "b027fbf91b7c1ecc4a56b8db03ff5695b8ba57c0",
       "bindingFixture": {
         "consumerPath": "tests/fixtures/governed-agent-trade-api-facilitator-binding-v1.json",
         "apiPath": "tests/fixtures/governed-agent-trade-api-facilitator-binding-v1.json",
@@ -72,9 +72,7 @@
     ],
     "challengeRequiredParameters": [
       "resource_metadata",
-      "scope",
-      "error",
-      "error_description"
+      "scope"
     ]
   },
   "anonymousToolNames": [
@@ -108,7 +106,8 @@
     "dexter_wallet_history"
   ],
   "optionalOAuthToolNames": [
-    "x402_check"
+    "x402_check",
+    "x402_access"
   ],
   "tools": [
     {
@@ -120,7 +119,7 @@
         "properties": {
           "query": {
             "type": "string",
-            "description": "Natural-language description of the capability you want. e.g. \"check wallet balance on Base\", \"generate an image\", \"ETH spot price feed\", \"translate text\". Broad terms are valid — the ranker handles breadth internally. Do NOT pre-filter by category; the search layer handles that semantically."
+            "description": "Natural-language capability request, such as \"check wallet balance on Base\", \"generate an image\", \"ETH spot price feed\", or \"translate text\". Broad requests are valid; semantic ranking handles them directly."
           },
           "network": {
             "type": "string",
@@ -362,15 +361,19 @@
                 "enum": [
                   "fetch_by_intent",
                   "connect_then_recheck",
-                  "form_body_then_recheck"
+                  "form_body_then_recheck",
+                  "x402_access",
+                  "provider_response",
+                  "provider_error",
+                  "unsupported_auth",
+                  "siwx_unavailable"
                 ]
               },
               "readyForFetch": {
                 "type": "boolean"
               },
               "intentRequired": {
-                "type": "boolean",
-                "const": true
+                "type": "boolean"
               },
               "requiredCeilingField": {
                 "type": "string",
@@ -394,17 +397,41 @@
               "dispatchAtMostOnce": {
                 "type": "boolean",
                 "const": true
+              },
+              "reprobeAllowed": {
+                "type": "boolean",
+                "const": false
               }
             },
             "required": [
               "supportedPath",
               "readyForFetch",
               "intentRequired",
-              "requiredCeilingField",
-              "fetchArguments",
               "dispatchAtMostOnce"
             ],
             "additionalProperties": false
+          },
+          "siwx": {
+            "type": "object",
+            "properties": {
+              "recognized": {
+                "type": "boolean",
+                "const": true
+              },
+              "signerAvailable": {
+                "type": "boolean",
+                "const": false
+              }
+            },
+            "required": [
+              "recognized",
+              "signerAvailable"
+            ],
+            "additionalProperties": false
+          },
+          "requestAlreadyChecked": {
+            "type": "boolean",
+            "const": true
           },
           "enrichment": {},
           "enrichment_source": {
@@ -413,6 +440,7 @@
           "authMode": {
             "type": "string"
           },
+          "data": {},
           "inputSchema": {},
           "inputSchemaSource": {
             "type": "string"
@@ -425,6 +453,12 @@
           },
           "outputSchema": {},
           "error": {},
+          "reason": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
+          },
           "message": {
             "type": "string"
           },
@@ -508,7 +542,7 @@
     {
       "name": "x402_fetch",
       "title": "Call and Pay for an x402 API",
-      "description": "Execute one server-owned x402 purchase intent after approval. Accepts only the opaque intentId returned by an authenticated x402_check and maxAmountAtomic, the exact positive atomic ceiling approved by the user or delegated policy. URL, method, request body, seller offer, route, payee, network, asset, and challenge remain API-custodied. Never automatically retry an ambiguous or post-dispatch outcome; inspect the same intent with x402_status.",
+      "description": "Execute one server-owned x402 purchase intent after approval. Accepts only the opaque intentId returned by an authenticated x402_check and maxAmountAtomic, the exact positive atomic ceiling approved by the user or delegated policy. URL, method, request body, seller offer, route, payee, network, asset, and challenge remain API-custodied. Say the merchant request was dispatched only when the returned dispatch.boundary is crossed. A missing result or a host-disabled/pre-server invocation is not dispatch evidence. Never automatically retry an ambiguous or post-dispatch outcome; inspect the same intent with x402_status.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -521,7 +555,7 @@
           "maxAmountAtomic": {
             "type": "string",
             "pattern": "^[1-9]\\d{0,19}$",
-            "description": "Required approved maximum charge in USDC atomic units (positive 1-20 digit decimal string). The API binds it to this intent and rejects a different or larger charge."
+            "description": "Required approved maximum charge in USDC base units (positive 1-20 digit decimal string). The API binds it to this intent and rejects a different or larger charge."
           }
         },
         "required": [
@@ -547,6 +581,31 @@
             ]
           },
           "data": {},
+          "dispatch": {
+            "type": "object",
+            "properties": {
+              "boundary": {
+                "type": "string",
+                "enum": [
+                  "not_crossed",
+                  "crossed",
+                  "unknown"
+                ]
+              },
+              "evidence": {
+                "type": "string",
+                "enum": [
+                  "backend_delivery_state",
+                  "backend_result_unavailable"
+                ]
+              }
+            },
+            "required": [
+              "boundary",
+              "evidence"
+            ],
+            "additionalProperties": false
+          },
           "payment": {},
           "delivery": {},
           "reconciliation": {},
@@ -615,7 +674,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-fetch-result-64714fd2",
+          "resourceUri": "ui://dexter/x402-fetch-result-8996d1b0",
           "visibility": [
             "model",
             "app"
@@ -634,8 +693,8 @@
           "domain": "https://dexter.cash",
           "prefersBorder": true
         },
-        "ui/resourceUri": "ui://dexter/x402-fetch-result-64714fd2",
-        "openai/outputTemplate": "ui://dexter/x402-fetch-result-64714fd2",
+        "ui/resourceUri": "ui://dexter/x402-fetch-result-8996d1b0",
+        "openai/outputTemplate": "ui://dexter/x402-fetch-result-8996d1b0",
         "openai/resultCanProduceWidget": true,
         "openai/widgetAccessible": false,
         "openai/widgetDomain": "https://dexter.cash",
@@ -664,9 +723,9 @@
             "https://bscscan.com"
           ]
         },
-        "openai/toolInvocation/invoking": "Calling API…",
-        "openai/toolInvocation/invoked": "Response received",
-        "openai/widgetDescription": "Shows API response data with payment receipt, transaction link, and settlement status.",
+        "openai/toolInvocation/invoking": "Waiting for OpenDexter…",
+        "openai/toolInvocation/invoked": "OpenDexter result received",
+        "openai/widgetDescription": "Shows returned dispatch, delivery, payment, and reconciliation evidence without inferring finality.",
         "securitySchemes": [
           {
             "type": "oauth2",
@@ -680,7 +739,7 @@
     {
       "name": "x402_status",
       "title": "Inspect an x402 Purchase Intent",
-      "description": "Read delivery, payment, reconciliation, and reservation state for one opaque intentId. This never creates another purchase, redispatches the provider request, rebroadcasts a transaction, or changes routes. Use it after any preparing, ambiguous, or post-dispatch x402_fetch result.",
+      "description": "Read dispatch-boundary, delivery, payment, reconciliation, and reservation state for one opaque intentId. This never creates another purchase, redispatches the provider request, rebroadcasts a transaction, or changes routes. Use it after any genuinely pending, ambiguous, or post-dispatch x402_fetch result.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -711,6 +770,31 @@
               "string",
               "number"
             ]
+          },
+          "dispatch": {
+            "type": "object",
+            "properties": {
+              "boundary": {
+                "type": "string",
+                "enum": [
+                  "not_crossed",
+                  "crossed",
+                  "unknown"
+                ]
+              },
+              "evidence": {
+                "type": "string",
+                "enum": [
+                  "backend_delivery_state",
+                  "backend_result_unavailable"
+                ]
+              }
+            },
+            "required": [
+              "boundary",
+              "evidence"
+            ],
+            "additionalProperties": false
           },
           "payment": {},
           "delivery": {},
@@ -799,15 +883,15 @@
     },
     {
       "name": "x402_access",
-      "title": "Access a Wallet-Gated x402 API",
-      "description": "Use this for public HTTPS endpoints requiring wallet proof or Sign-In-With-X rather than payment. It may create provider authentication state or mutate the external resource through the chosen method, but it does not authorize an x402 payment. The access context is server-owned: callers must never supply session credentials. Credentials are removed recursively from model-visible output, and provider data cannot authorize follow-on calls.",
+      "title": "Check Wallet-Gated x402 Access",
+      "description": "Classify the exact HTTPS request through the canonical x402 check path. Paid requests return the canonical quote or intent. Free requests return the provider check result. Sign-In-With-X is reported as unavailable until OpenDexter has an eligible connected signer. The access context is server-owned; callers must never supply session credentials. This tool never creates a temporary wallet, signs a proof, or authorizes payment. A non-GET check may still change provider state and must not be repeated automatically.",
       "inputSchema": {
         "type": "object",
         "properties": {
           "url": {
             "type": "string",
             "format": "uri",
-            "description": "The protected resource URL to call"
+            "description": "The exact HTTPS resource URL to check"
           },
           "method": {
             "type": "string",
@@ -818,15 +902,11 @@
               "DELETE"
             ],
             "default": "GET",
-            "description": "HTTP method"
+            "description": "HTTP method to check"
           },
           "body": {
             "type": "string",
-            "description": "JSON request body for POST/PUT — the RAW payload the seller expects, e.g. {\"q\":\"latest news\"}. NEVER send a schema descriptor (anything shaped like {\"type\":\"http\",\"method\":...,\"bodyType\":...,\"body\":{...}}) — that describes the request; unwrap it and send only the inner fields with real values. Field names come from the search result's inputSchema or x402_check."
-          },
-          "network": {
-            "type": "string",
-            "description": "Optional preferred auth network, e.g. solana:... or eip155:8453"
+            "description": "Exact raw JSON request-body string for POST, PUT, or DELETE."
           }
         },
         "required": [
@@ -838,19 +918,158 @@
       "outputSchema": {
         "type": "object",
         "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "free": {
+            "type": "boolean"
+          },
+          "authMode": {
+            "type": "string"
+          },
+          "requiresPayment": {
+            "type": "boolean"
+          },
+          "intentId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "quoteOnly": {
+            "type": "boolean"
+          },
           "status": {
             "type": [
               "string",
               "number"
             ]
           },
-          "mode": {
-            "type": "string"
+          "statusCode": {
+            "type": "number"
           },
           "data": {},
-          "auth": {},
-          "requirements": {},
+          "checkedRequest": {
+            "type": "object",
+            "properties": {
+              "url": {
+                "type": "string",
+                "format": "uri"
+              },
+              "method": {
+                "type": "string",
+                "enum": [
+                  "GET",
+                  "POST",
+                  "PUT",
+                  "DELETE"
+                ]
+              },
+              "body": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "requestBound": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "url",
+              "method",
+              "body",
+              "requestBound"
+            ],
+            "additionalProperties": false
+          },
+          "siwx": {
+            "type": "object",
+            "properties": {
+              "recognized": {
+                "type": "boolean",
+                "const": true
+              },
+              "signerAvailable": {
+                "type": "boolean",
+                "const": false
+              }
+            },
+            "required": [
+              "recognized",
+              "signerAvailable"
+            ],
+            "additionalProperties": false
+          },
+          "requestAlreadyChecked": {
+            "type": "boolean",
+            "const": true
+          },
+          "executionGuidance": {
+            "type": "object",
+            "properties": {
+              "supportedPath": {
+                "type": "string",
+                "enum": [
+                  "fetch_by_intent",
+                  "connect_then_recheck",
+                  "form_body_then_recheck",
+                  "x402_access",
+                  "provider_response",
+                  "provider_error",
+                  "unsupported_auth",
+                  "siwx_unavailable"
+                ]
+              },
+              "readyForFetch": {
+                "type": "boolean"
+              },
+              "intentRequired": {
+                "type": "boolean"
+              },
+              "requiredCeilingField": {
+                "type": "string",
+                "const": "maxAmountAtomic"
+              },
+              "fetchArguments": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 2,
+                "items": [
+                  {
+                    "type": "string",
+                    "const": "intentId"
+                  },
+                  {
+                    "type": "string",
+                    "const": "maxAmountAtomic"
+                  }
+                ]
+              },
+              "dispatchAtMostOnce": {
+                "type": "boolean",
+                "const": true
+              },
+              "reprobeAllowed": {
+                "type": "boolean",
+                "const": false
+              }
+            },
+            "required": [
+              "supportedPath",
+              "readyForFetch",
+              "intentRequired",
+              "dispatchAtMostOnce"
+            ],
+            "additionalProperties": false
+          },
           "error": {},
+          "reason": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
+          },
           "message": {
             "type": "string"
           },
@@ -871,11 +1090,17 @@
       "securitySchemes": [
         {
           "type": "noauth"
+        },
+        {
+          "type": "oauth2",
+          "scopes": [
+            "vault"
+          ]
         }
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-fetch-result-64714fd2",
+          "resourceUri": "ui://dexter/x402-fetch-result-8996d1b0",
           "visibility": [
             "model"
           ],
@@ -893,8 +1118,8 @@
           "domain": "https://dexter.cash",
           "prefersBorder": true
         },
-        "ui/resourceUri": "ui://dexter/x402-fetch-result-64714fd2",
-        "openai/outputTemplate": "ui://dexter/x402-fetch-result-64714fd2",
+        "ui/resourceUri": "ui://dexter/x402-fetch-result-8996d1b0",
+        "openai/outputTemplate": "ui://dexter/x402-fetch-result-8996d1b0",
         "openai/resultCanProduceWidget": true,
         "openai/widgetAccessible": false,
         "openai/widgetDomain": "https://dexter.cash",
@@ -923,12 +1148,18 @@
             "https://bscscan.com"
           ]
         },
-        "openai/toolInvocation/invoking": "Signing access proof…",
-        "openai/toolInvocation/invoked": "Access response ready",
-        "openai/widgetDescription": "Shows identity-gated API responses with wallet proof details and any follow-up requirements.",
+        "openai/toolInvocation/invoking": "Checking access…",
+        "openai/toolInvocation/invoked": "Access checked",
+        "openai/widgetDescription": "Shows the request classification, payment intent when present, or current SIWX signer availability.",
         "securitySchemes": [
           {
             "type": "noauth"
+          },
+          {
+            "type": "oauth2",
+            "scopes": [
+              "vault"
+            ]
           }
         ]
       }
@@ -1696,7 +1927,7 @@
     {
       "name": "dexter_prepare_asset_action",
       "title": "Prepare a Governed Send, Buy, or Sell",
-      "description": "Persist and evaluate one exact Send, Buy, or Sell without signing or submitting it. Tool/schema presence is not runtime capability; only this Prepare response is authoritative. In the current integrated release, covered Buy and Sell may continue autonomously, while Send is preserved in the input contract but fails closed with protected_agent_send_sdk_required before capacity reservation or intent creation. Pass only a canonical assetId returned by dexter_portfolio from an approved holding or approvedActionTarget with the requested action available; Dexter resolves and binds its exact network, mint, token program, decimals, and supported actions. Buy amountAtomic is the USDC budget to spend; Sell and Send amountAtomic are selected-asset input. operationId is only the Idempotency-Key. The server resolves the wallet and reusable bounded mandate; enrollment, extension, or owner escalation happens outside model-callable tools only when the request is not already covered.",
+      "description": "Persist and evaluate one exact Send, Buy, or Sell without signing or submitting it. Treat this Prepare response as the proof of current runtime capability. For any natural-language stock Buy or Sell, pass companyQuery and let Dexter resolve and pin the current catalog product; never pass a remembered stock assetId, mint, or symbol. The assetId variants remain for a non-stock approved holding or approvedActionTarget returned by dexter_portfolio. In the current integrated release, covered Buy and Sell may continue autonomously, while Send is preserved in the input contract but fails closed with protected_agent_send_sdk_required before capacity reservation or intent creation. A Buy uses exactly one amount mode: amountAtomic is the exact USDC budget to spend, while shareQuantity is the human decimal underlying-share-equivalent quantity requested and may be paired with maximumSpendAtomic as a USDC ceiling. Keep shareQuantity as a human decimal; Dexter resolves the exact product version, current display multiplier, and raw minimum output. Never send both modes, and never treat shareQuantity as exact output because slight overfill is possible. Sell and Send amountAtomic are selected-asset input. operationId is only the Idempotency-Key. The server resolves the wallet and reusable bounded mandate; enrollment, extension, or owner escalation happens outside model-callable tools only when the request is not already covered.",
       "inputSchema": {
         "anyOf": [
           {
@@ -1718,13 +1949,13 @@
                 "minLength": 1,
                 "maxLength": 128,
                 "pattern": "^[a-z0-9][a-z0-9._:-]*$",
-                "description": "Canonical assetId returned by dexter_portfolio from an approved holding or approvedActionTarget. This is not a symbol or mint; Dexter resolves it to one exact network, mint, token program, decimals, and capability record."
+                "description": "Canonical assetId returned by dexter_portfolio from an approved holding or approvedActionTarget. Pass the assetId itself; Dexter resolves its exact network, mint, token program, decimals, and capability record."
               },
               "amountAtomic": {
                 "type": "string",
                 "maxLength": 20,
                 "pattern": "^[1-9][0-9]*$",
-                "description": "Exact selected-asset amount in atomic units. Use the server-certified decimals returned for this asset; never infer decimals from its symbol."
+                "description": "Exact selected-asset amount in integer base units. Use the server-certified decimals returned for this asset; never infer decimals from its symbol."
               },
               "destinationOwner": {
                 "type": "string",
@@ -1758,7 +1989,7 @@
               },
               "amountAtomic": {
                 "$ref": "#/anyOf/0/properties/amountAtomic",
-                "description": "Exact USDC budget to spend, in atomic units. The canonical settlement asset uses 6 decimals, so 1000000 means 1 USDC; assetId identifies the asset being bought."
+                "description": "Exact USDC budget to spend, in integer base units. The canonical settlement asset uses 6 decimals, so 1000000 means 1 USDC; assetId identifies the asset being bought."
               },
               "memo": {
                 "anyOf": [
@@ -1797,6 +2028,85 @@
               },
               "action": {
                 "type": "string",
+                "const": "buy"
+              },
+              "companyQuery": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256,
+                "description": "Human company or stock query for the catalog-owned stock route, such as Tesla, NVIDIA, or Moderna. Dexter normalizes the query and selects, pins, and returns the exact current Solana stock product. Never replace this with a remembered assetId, mint, or symbol."
+              },
+              "amountAtomic": {
+                "$ref": "#/anyOf/0/properties/amountAtomic",
+                "description": "Exact USDC budget to spend, in integer base units with 6 decimals, on the stock Dexter selects from the current catalog."
+              },
+              "memo": {
+                "$ref": "#/anyOf/1/properties/memo"
+              },
+              "maxSlippageBps": {
+                "$ref": "#/anyOf/1/properties/maxSlippageBps"
+              },
+              "maxPriceImpactBps": {
+                "$ref": "#/anyOf/1/properties/maxSlippageBps"
+              }
+            },
+            "required": [
+              "operationId",
+              "action",
+              "companyQuery",
+              "amountAtomic"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "operationId": {
+                "$ref": "#/anyOf/0/properties/operationId"
+              },
+              "action": {
+                "type": "string",
+                "const": "buy"
+              },
+              "companyQuery": {
+                "$ref": "#/anyOf/2/properties/companyQuery"
+              },
+              "shareQuantity": {
+                "type": "string",
+                "maxLength": 39,
+                "pattern": "^(?:0|[1-9][0-9]{0,19})(?:\\.[0-9]{1,18})?$",
+                "description": "Minimum underlying-share-equivalent quantity requested for the current catalog-selected Solana stock product, expressed as a human decimal such as 10 or 0.25. Dexter resolves the exact product version, current display multiplier, and raw token amount. This is a minimum-receive target and execution may receive slightly more."
+              },
+              "maximumSpendAtomic": {
+                "$ref": "#/anyOf/0/properties/amountAtomic",
+                "description": "Optional maximum USDC input permitted for this share-quantity Buy, in integer base units with 6 decimals. It is valid only with shareQuantity."
+              },
+              "memo": {
+                "$ref": "#/anyOf/1/properties/memo"
+              },
+              "maxSlippageBps": {
+                "$ref": "#/anyOf/1/properties/maxSlippageBps"
+              },
+              "maxPriceImpactBps": {
+                "$ref": "#/anyOf/1/properties/maxSlippageBps"
+              }
+            },
+            "required": [
+              "operationId",
+              "action",
+              "companyQuery",
+              "shareQuantity"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "operationId": {
+                "$ref": "#/anyOf/0/properties/operationId"
+              },
+              "action": {
+                "type": "string",
                 "const": "sell"
               },
               "assetId": {
@@ -1804,7 +2114,7 @@
               },
               "amountAtomic": {
                 "$ref": "#/anyOf/0/properties/amountAtomic",
-                "description": "Exact selected-asset amount to sell, in atomic units. Use the server-certified decimals returned for this asset; never infer decimals from its symbol."
+                "description": "Exact selected-asset amount to sell, in integer base units. Use the server-certified decimals returned for this asset; never infer decimals from its symbol."
               },
               "memo": {
                 "$ref": "#/anyOf/1/properties/memo"
@@ -1820,6 +2130,41 @@
               "operationId",
               "action",
               "assetId",
+              "amountAtomic"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "operationId": {
+                "$ref": "#/anyOf/0/properties/operationId"
+              },
+              "action": {
+                "type": "string",
+                "const": "sell"
+              },
+              "companyQuery": {
+                "$ref": "#/anyOf/2/properties/companyQuery"
+              },
+              "amountAtomic": {
+                "$ref": "#/anyOf/0/properties/amountAtomic",
+                "description": "Exact selected-stock token input in integer base units. Dexter resolves the current catalog product, token program, and decimals; never infer them from the company name or symbol."
+              },
+              "memo": {
+                "$ref": "#/anyOf/1/properties/memo"
+              },
+              "maxSlippageBps": {
+                "$ref": "#/anyOf/1/properties/maxSlippageBps"
+              },
+              "maxPriceImpactBps": {
+                "$ref": "#/anyOf/1/properties/maxSlippageBps"
+              }
+            },
+            "required": [
+              "operationId",
+              "action",
+              "companyQuery",
               "amountAtomic"
             ],
             "additionalProperties": false
@@ -1979,16 +2324,36 @@
                 ]
               },
               "assetId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "pattern": "^[a-z0-9][a-z0-9._:-]*$",
+                    "description": "Canonical assetId returned by dexter_portfolio from an approved holding or approvedActionTarget. Pass the assetId itself; Dexter resolves its exact network, mint, token program, decimals, and capability record."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Canonical assetId returned by dexter_portfolio from an approved holding or approvedActionTarget. Pass the assetId itself; Dexter resolves its exact network, mint, token program, decimals, and capability record."
+              },
+              "requestedCompanyQuery": {
                 "type": "string",
                 "minLength": 1,
-                "maxLength": 128,
-                "pattern": "^[a-z0-9][a-z0-9._:-]*$",
-                "description": "Canonical assetId returned by dexter_portfolio from an approved holding or approvedActionTarget. This is not a symbol or mint; Dexter resolves it to one exact network, mint, token program, decimals, and capability record."
+                "maxLength": 256
               },
               "amountAtomic": {
-                "type": "string",
-                "maxLength": 20,
-                "pattern": "^[1-9][0-9]*$"
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 20,
+                    "pattern": "^[1-9][0-9]*$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               },
               "destinationOwner": {
                 "anyOf": [
@@ -2179,6 +2544,31 @@
           "authoritySnapshotDigest": {
             "$ref": "#/properties/attribution/properties/runtime/properties/surfaceBindingDigest"
           },
+          "stockRuntime": {
+            "type": "object",
+            "properties": {
+              "namespace": {
+                "type": "string",
+                "const": "dexter-delegated-stock-prepare-runtime-binding/v2"
+              },
+              "runtimeReleaseDigest": {
+                "$ref": "#/properties/attribution/properties/runtime/properties/surfaceBindingDigest"
+              },
+              "requestClaimDigest": {
+                "$ref": "#/properties/stockRuntime/properties/runtimeReleaseDigest"
+              },
+              "durableIdentityDigest": {
+                "$ref": "#/properties/stockRuntime/properties/runtimeReleaseDigest"
+              }
+            },
+            "required": [
+              "namespace",
+              "runtimeReleaseDigest",
+              "requestClaimDigest",
+              "durableIdentityDigest"
+            ],
+            "additionalProperties": false
+          },
           "preview": {
             "type": "object",
             "properties": {
@@ -2186,7 +2576,7 @@
                 "$ref": "#/properties/business/properties/action"
               },
               "assetId": {
-                "$ref": "#/properties/business/properties/assetId"
+                "$ref": "#/properties/business/properties/assetId/anyOf/0"
               },
               "symbol": {
                 "type": "string",
@@ -2194,7 +2584,463 @@
                 "maxLength": 32
               },
               "amountAtomic": {
-                "$ref": "#/properties/business/properties/amountAtomic"
+                "$ref": "#/properties/business/properties/amountAtomic/anyOf/0"
+              },
+              "requestAmountKind": {
+                "type": "string",
+                "enum": [
+                  "input",
+                  "share-quantity"
+                ]
+              },
+              "requestedShareQuantity": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 39,
+                    "pattern": "^(?:0|[1-9][0-9]{0,19})(?:\\.([0-9]{0,17}[1-9]))?$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "expectedShareQuantity": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/preview/properties/requestedShareQuantity/anyOf/0"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "minimumShareQuantity": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/preview/properties/requestedShareQuantity/anyOf/0"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "maximumInputAmountAtomic": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/business/properties/amountAtomic/anyOf/0"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "requestedMaximumSpendAtomic": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/business/properties/amountAtomic/anyOf/0"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "shareQuantityUnit": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "const": "underlying-share-equivalent"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "shareQuantitySemantics": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "const": "minimum-receive"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "overfillPossible": {
+                "type": "boolean"
+              },
+              "productIdentity": {
+                "type": "object",
+                "properties": {
+                  "assetId": {
+                    "$ref": "#/properties/business/properties/assetId/anyOf/0"
+                  },
+                  "assetClass": {
+                    "type": "string",
+                    "enum": [
+                      "cash",
+                      "yield",
+                      "token",
+                      "stock",
+                      "fund",
+                      "nft",
+                      "rwa"
+                    ]
+                  },
+                  "companyName": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "productName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "symbol": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 32
+                  },
+                  "providerName": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "legalIssuerName": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "issuer": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "network": {
+                    "type": "string",
+                    "const": "solana-mainnet"
+                  },
+                  "mint": {
+                    "$ref": "#/properties/attribution/properties/wallet/properties/vaultPda"
+                  },
+                  "tokenProgram": {
+                    "type": "string",
+                    "enum": [
+                      "spl-token",
+                      "token-2022"
+                    ]
+                  },
+                  "decimals": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 18
+                  },
+                  "registryIdentityDigest": {
+                    "$ref": "#/properties/attribution/properties/runtime/properties/surfaceBindingDigest"
+                  }
+                },
+                "required": [
+                  "assetId",
+                  "assetClass",
+                  "companyName",
+                  "productName",
+                  "symbol",
+                  "issuer",
+                  "network",
+                  "mint",
+                  "tokenProgram",
+                  "decimals",
+                  "registryIdentityDigest"
+                ],
+                "additionalProperties": false
+              },
+              "stockSelection": {
+                "type": "object",
+                "properties": {
+                  "namespace": {
+                    "type": "string",
+                    "const": "dexter-governed-stock-selection-pin/v1"
+                  },
+                  "normalizedCompanyQuery": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "companyName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "productName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "productSymbol": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "providerName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "legalIssuerName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "underlyingId": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                  },
+                  "underlyingIdentityDigest": {
+                    "$ref": "#/properties/attribution/properties/runtime/properties/surfaceBindingDigest"
+                  },
+                  "selectionEventId": {
+                    "$ref": "#/properties/preview/properties/stockSelection/properties/underlyingId"
+                  },
+                  "selectionSequence": {
+                    "type": "string",
+                    "pattern": "^(0|[1-9][0-9]*)$"
+                  },
+                  "selectionDigest": {
+                    "$ref": "#/properties/attribution/properties/runtime/properties/surfaceBindingDigest"
+                  },
+                  "selectedVariantId": {
+                    "$ref": "#/properties/preview/properties/stockSelection/properties/underlyingId"
+                  },
+                  "assetId": {
+                    "$ref": "#/properties/business/properties/assetId/anyOf/0"
+                  },
+                  "productVersionId": {
+                    "$ref": "#/properties/preview/properties/stockSelection/properties/underlyingId"
+                  },
+                  "productVersionDigest": {
+                    "$ref": "#/properties/attribution/properties/runtime/properties/surfaceBindingDigest"
+                  },
+                  "onchainVersionId": {
+                    "$ref": "#/properties/preview/properties/stockSelection/properties/underlyingId"
+                  },
+                  "onchainVersionDigest": {
+                    "$ref": "#/properties/attribution/properties/runtime/properties/surfaceBindingDigest"
+                  },
+                  "executionProfileVersionId": {
+                    "$ref": "#/properties/preview/properties/stockSelection/properties/underlyingId"
+                  },
+                  "executionProfileDigest": {
+                    "$ref": "#/properties/attribution/properties/runtime/properties/surfaceBindingDigest"
+                  },
+                  "executionReleaseId": {
+                    "$ref": "#/properties/preview/properties/stockSelection/properties/underlyingId"
+                  },
+                  "releaseDigest": {
+                    "$ref": "#/properties/attribution/properties/runtime/properties/surfaceBindingDigest"
+                  },
+                  "registryIdentityDigest": {
+                    "$ref": "#/properties/attribution/properties/runtime/properties/surfaceBindingDigest"
+                  },
+                  "mint": {
+                    "type": "string",
+                    "minLength": 32,
+                    "maxLength": 44
+                  },
+                  "tokenProgram": {
+                    "type": "string",
+                    "enum": [
+                      "spl-token",
+                      "token-2022"
+                    ]
+                  },
+                  "decimals": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 18
+                  }
+                },
+                "required": [
+                  "namespace",
+                  "normalizedCompanyQuery",
+                  "companyName",
+                  "productName",
+                  "productSymbol",
+                  "providerName",
+                  "legalIssuerName",
+                  "underlyingId",
+                  "underlyingIdentityDigest",
+                  "selectionEventId",
+                  "selectionSequence",
+                  "selectionDigest",
+                  "selectedVariantId",
+                  "assetId",
+                  "productVersionId",
+                  "productVersionDigest",
+                  "onchainVersionId",
+                  "onchainVersionDigest",
+                  "executionProfileVersionId",
+                  "executionProfileDigest",
+                  "executionReleaseId",
+                  "releaseDigest",
+                  "registryIdentityDigest",
+                  "mint",
+                  "tokenProgram",
+                  "decimals"
+                ],
+                "additionalProperties": false
+              },
+              "feeSummary": {
+                "type": "object",
+                "properties": {
+                  "summary": {
+                    "type": "string",
+                    "const": "Trading fees are included in this quote; network fee is calculated at execution."
+                  },
+                  "platformFee": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "amountAtomic": {
+                            "type": "string",
+                            "maxLength": 20,
+                            "pattern": "^(0|[1-9][0-9]*)$"
+                          },
+                          "mint": {
+                            "$ref": "#/properties/attribution/properties/wallet/properties/vaultPda"
+                          }
+                        },
+                        "required": [
+                          "amountAtomic",
+                          "mint"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "routeFees": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/properties/preview/properties/feeSummary/properties/platformFee/anyOf/0"
+                    },
+                    "maxItems": 32
+                  },
+                  "networkFee": {
+                    "type": "object",
+                    "properties": {
+                      "status": {
+                        "type": "string",
+                        "const": "not-yet-calculated"
+                      },
+                      "amountLamports": {
+                        "type": "null"
+                      }
+                    },
+                    "required": [
+                      "status",
+                      "amountLamports"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "summary",
+                  "platformFee",
+                  "routeFees",
+                  "networkFee"
+                ],
+                "additionalProperties": false
+              },
+              "shareQuantityConversion": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "assetVersionId": {
+                        "$ref": "#/properties/requestId"
+                      },
+                      "rawMinimumOutputAtomic": {
+                        "$ref": "#/properties/business/properties/amountAtomic/anyOf/0"
+                      },
+                      "rawOutputDecimals": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 255
+                      },
+                      "displayMultiplier": {
+                        "$ref": "#/properties/preview/properties/requestedShareQuantity/anyOf/0"
+                      },
+                      "multiplierSource": {
+                        "type": "string",
+                        "enum": [
+                          "token-2022-scaled-ui",
+                          "identity"
+                        ]
+                      },
+                      "multiplierObservedAtSlot": {
+                        "$ref": "#/properties/preview/properties/feeSummary/properties/platformFee/anyOf/0/properties/amountAtomic"
+                      },
+                      "multiplierEffectiveAtUnixMs": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "assetVersionId",
+                      "rawMinimumOutputAtomic",
+                      "rawOutputDecimals",
+                      "displayMultiplier",
+                      "multiplierSource",
+                      "multiplierObservedAtSlot",
+                      "multiplierEffectiveAtUnixMs"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               },
               "inputMint": {
                 "anyOf": [
@@ -2223,9 +3069,7 @@
               "expectedOutputAtomic": {
                 "anyOf": [
                   {
-                    "type": "string",
-                    "maxLength": 20,
-                    "pattern": "^(0|[1-9][0-9]*)$"
+                    "$ref": "#/properties/preview/properties/feeSummary/properties/platformFee/anyOf/0/properties/amountAtomic"
                   },
                   {
                     "type": "null"
@@ -2235,7 +3079,7 @@
               "minimumOutputAtomic": {
                 "anyOf": [
                   {
-                    "$ref": "#/properties/preview/properties/expectedOutputAtomic/anyOf/0"
+                    "$ref": "#/properties/preview/properties/feeSummary/properties/platformFee/anyOf/0/properties/amountAtomic"
                   },
                   {
                     "type": "null"
@@ -2284,6 +3128,8 @@
               "assetId",
               "symbol",
               "amountAtomic",
+              "productIdentity",
+              "feeSummary",
               "inputMint",
               "outputMint",
               "destinationOwner",
@@ -2338,7 +3184,7 @@
                         "$ref": "#/properties/attribution/properties/wallet/properties/vaultPda"
                       },
                       "exactRentLamports": {
-                        "$ref": "#/properties/preview/properties/expectedOutputAtomic/anyOf/0"
+                        "$ref": "#/properties/preview/properties/feeSummary/properties/platformFee/anyOf/0/properties/amountAtomic"
                       },
                       "fundingPolicy": {
                         "type": "string",
@@ -2357,7 +3203,7 @@
                       "fundedLamports": {
                         "anyOf": [
                           {
-                            "$ref": "#/properties/preview/properties/expectedOutputAtomic/anyOf/0"
+                            "$ref": "#/properties/preview/properties/feeSummary/properties/platformFee/anyOf/0/properties/amountAtomic"
                           },
                           {
                             "type": "null"
@@ -2465,6 +3311,44 @@
         }
       ],
       "_meta": {
+        "ui": {
+          "resourceUri": "ui://dexter/stock-trade-b9969159",
+          "visibility": [
+            "model",
+            "app"
+          ],
+          "csp": {
+            "resourceDomains": [
+              "https://dexter.cash"
+            ],
+            "connectDomains": [
+              "https://dexter.cash",
+              "https://o4510869152923648.ingest.us.sentry.io"
+            ]
+          },
+          "domain": "https://dexter.cash",
+          "prefersBorder": true
+        },
+        "ui/resourceUri": "ui://dexter/stock-trade-b9969159",
+        "openai/outputTemplate": "ui://dexter/stock-trade-b9969159",
+        "openai/resultCanProduceWidget": true,
+        "openai/widgetAccessible": false,
+        "openai/widgetDomain": "https://dexter.cash",
+        "openai/widgetPrefersBorder": true,
+        "openai/widgetCSP": {
+          "connect_domains": [
+            "https://o4510869152923648.ingest.us.sentry.io"
+          ],
+          "resource_domains": [
+            "https://dexter.cash"
+          ],
+          "redirect_domains": [
+            "https://solscan.io"
+          ]
+        },
+        "openai/toolInvocation/invoking": "Preparing stock trade…",
+        "openai/toolInvocation/invoked": "Trade preview ready",
+        "openai/widgetDescription": "Shows the exact Solana stock product, requested and quoted share equivalents, fees, and truthful transaction state. Confirmed requires an exact signature, Solana confirmation, and successful execution.",
         "securitySchemes": [
           {
             "type": "oauth2",
@@ -2472,13 +3356,7 @@
               "vault"
             ]
           }
-        ],
-        "ui": {
-          "visibility": [
-            "model"
-          ]
-        },
-        "openai/widgetAccessible": false
+        ]
       }
     },
     {
@@ -2548,8 +3426,8 @@
             "anyOf": [
               {
                 "type": "string",
-                "minLength": 64,
-                "maxLength": 128
+                "minLength": 1,
+                "maxLength": 256
               },
               {
                 "type": "null"
@@ -2716,16 +3594,36 @@
                 ]
               },
               "assetId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "pattern": "^[a-z0-9][a-z0-9._:-]*$",
+                    "description": "Canonical assetId returned by dexter_portfolio from an approved holding or approvedActionTarget. Pass the assetId itself; Dexter resolves its exact network, mint, token program, decimals, and capability record."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Canonical assetId returned by dexter_portfolio from an approved holding or approvedActionTarget. Pass the assetId itself; Dexter resolves its exact network, mint, token program, decimals, and capability record."
+              },
+              "requestedCompanyQuery": {
                 "type": "string",
                 "minLength": 1,
-                "maxLength": 128,
-                "pattern": "^[a-z0-9][a-z0-9._:-]*$",
-                "description": "Canonical assetId returned by dexter_portfolio from an approved holding or approvedActionTarget. This is not a symbol or mint; Dexter resolves it to one exact network, mint, token program, decimals, and capability record."
+                "maxLength": 256
               },
               "amountAtomic": {
-                "type": "string",
-                "maxLength": 20,
-                "pattern": "^[1-9][0-9]*$"
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 20,
+                    "pattern": "^[1-9][0-9]*$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               },
               "destinationOwner": {
                 "anyOf": [
@@ -2847,6 +3745,297 @@
             ],
             "additionalProperties": false
           },
+          "tradeSummary": {
+            "type": "object",
+            "properties": {
+              "namespace": {
+                "type": "string",
+                "const": "dexter-governed-stock-trade-summary/v1"
+              },
+              "action": {
+                "type": "string",
+                "enum": [
+                  "buy",
+                  "sell"
+                ]
+              },
+              "assetId": {
+                "$ref": "#/properties/business/properties/assetId/anyOf/0"
+              },
+              "symbol": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 32
+              },
+              "amountAtomic": {
+                "$ref": "#/properties/business/properties/amountAtomic/anyOf/0"
+              },
+              "requestAmountKind": {
+                "type": "string",
+                "enum": [
+                  "input",
+                  "share-quantity"
+                ]
+              },
+              "requestedShareQuantity": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 39,
+                    "pattern": "^(?:0|[1-9][0-9]{0,19})(?:\\.([0-9]{0,17}[1-9]))?$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "expectedShareQuantity": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/tradeSummary/properties/requestedShareQuantity/anyOf/0"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "minimumShareQuantity": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/tradeSummary/properties/requestedShareQuantity/anyOf/0"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "shareQuantityUnit": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "const": "underlying-share-equivalent"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "shareQuantitySemantics": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "const": "minimum-receive"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "requestedMaximumSpendAtomic": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/business/properties/amountAtomic/anyOf/0"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "overfillPossible": {
+                "type": "boolean"
+              },
+              "productIdentity": {
+                "type": "object",
+                "properties": {
+                  "assetId": {
+                    "$ref": "#/properties/business/properties/assetId/anyOf/0"
+                  },
+                  "assetClass": {
+                    "type": "string",
+                    "enum": [
+                      "cash",
+                      "yield",
+                      "token",
+                      "stock",
+                      "fund",
+                      "nft",
+                      "rwa"
+                    ]
+                  },
+                  "companyName": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "productName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "symbol": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 32
+                  },
+                  "providerName": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "legalIssuerName": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "issuer": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "network": {
+                    "type": "string",
+                    "const": "solana-mainnet"
+                  },
+                  "mint": {
+                    "$ref": "#/properties/attribution/properties/wallet/properties/vaultPda"
+                  },
+                  "tokenProgram": {
+                    "type": "string",
+                    "enum": [
+                      "spl-token",
+                      "token-2022"
+                    ]
+                  },
+                  "decimals": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 18
+                  },
+                  "registryIdentityDigest": {
+                    "$ref": "#/properties/attribution/properties/runtime/properties/surfaceBindingDigest"
+                  }
+                },
+                "required": [
+                  "assetId",
+                  "assetClass",
+                  "companyName",
+                  "productName",
+                  "symbol",
+                  "issuer",
+                  "network",
+                  "mint",
+                  "tokenProgram",
+                  "decimals",
+                  "registryIdentityDigest"
+                ],
+                "additionalProperties": false
+              },
+              "feeSummary": {
+                "type": "object",
+                "properties": {
+                  "summary": {
+                    "type": "string",
+                    "const": "Trading fees are included in this quote; network fee is calculated at execution."
+                  },
+                  "platformFee": {
+                    "type": "null"
+                  },
+                  "routeFees": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "amountAtomic": {
+                          "type": "string",
+                          "maxLength": 20,
+                          "pattern": "^(0|[1-9][0-9]*)$"
+                        },
+                        "mint": {
+                          "$ref": "#/properties/attribution/properties/wallet/properties/vaultPda"
+                        }
+                      },
+                      "required": [
+                        "amountAtomic",
+                        "mint"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "maxItems": 32
+                  },
+                  "networkFee": {
+                    "type": "object",
+                    "properties": {
+                      "status": {
+                        "type": "string",
+                        "const": "not-yet-calculated"
+                      },
+                      "amountLamports": {
+                        "type": "null"
+                      }
+                    },
+                    "required": [
+                      "status",
+                      "amountLamports"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "summary",
+                  "platformFee",
+                  "routeFees",
+                  "networkFee"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "namespace",
+              "action",
+              "assetId",
+              "symbol",
+              "amountAtomic",
+              "requestAmountKind",
+              "requestedShareQuantity",
+              "expectedShareQuantity",
+              "minimumShareQuantity",
+              "shareQuantityUnit",
+              "shareQuantitySemantics",
+              "requestedMaximumSpendAtomic",
+              "overfillPossible",
+              "productIdentity",
+              "feeSummary"
+            ],
+            "additionalProperties": false
+          },
           "evidenceDigest": {
             "anyOf": [
               {
@@ -2890,6 +4079,44 @@
         }
       ],
       "_meta": {
+        "ui": {
+          "resourceUri": "ui://dexter/stock-trade-b9969159",
+          "visibility": [
+            "model",
+            "app"
+          ],
+          "csp": {
+            "resourceDomains": [
+              "https://dexter.cash"
+            ],
+            "connectDomains": [
+              "https://dexter.cash",
+              "https://o4510869152923648.ingest.us.sentry.io"
+            ]
+          },
+          "domain": "https://dexter.cash",
+          "prefersBorder": true
+        },
+        "ui/resourceUri": "ui://dexter/stock-trade-b9969159",
+        "openai/outputTemplate": "ui://dexter/stock-trade-b9969159",
+        "openai/resultCanProduceWidget": true,
+        "openai/widgetAccessible": false,
+        "openai/widgetDomain": "https://dexter.cash",
+        "openai/widgetPrefersBorder": true,
+        "openai/widgetCSP": {
+          "connect_domains": [
+            "https://o4510869152923648.ingest.us.sentry.io"
+          ],
+          "resource_domains": [
+            "https://dexter.cash"
+          ],
+          "redirect_domains": [
+            "https://solscan.io"
+          ]
+        },
+        "openai/toolInvocation/invoking": "Sending approved stock trade…",
+        "openai/toolInvocation/invoked": "Trade update ready",
+        "openai/widgetDescription": "Shows the exact Solana stock product, requested and quoted share equivalents, fees, and truthful transaction state. Confirmed requires an exact signature, Solana confirmation, and successful execution.",
         "securitySchemes": [
           {
             "type": "oauth2",
@@ -2897,13 +4124,7 @@
               "vault"
             ]
           }
-        ],
-        "ui": {
-          "visibility": [
-            "model"
-          ]
-        },
-        "openai/widgetAccessible": false
+        ]
       }
     },
     {
@@ -3014,7 +4235,7 @@
             "minLength": 1,
             "maxLength": 128,
             "pattern": "^[a-z0-9][a-z0-9._:-]*$",
-            "description": "Canonical assetId returned by dexter_portfolio from an approved holding or approvedActionTarget. This is not a symbol or mint; Dexter resolves it to one exact network, mint, token program, decimals, and capability record."
+            "description": "Canonical assetId returned by dexter_portfolio from an approved holding or approvedActionTarget. Pass the assetId itself; Dexter resolves its exact network, mint, token program, decimals, and capability record."
           },
           "assetMint": {
             "anyOf": [
@@ -3037,10 +4258,498 @@
               "token-2022"
             ]
           },
+          "stockSelection": {
+            "type": "object",
+            "properties": {
+              "namespace": {
+                "type": "string",
+                "const": "dexter-governed-stock-selection-pin/v1"
+              },
+              "normalizedCompanyQuery": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "companyName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "productName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "productSymbol": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "providerName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "legalIssuerName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "underlyingId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "underlyingIdentityDigest": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "selectionEventId": {
+                "$ref": "#/properties/stockSelection/properties/underlyingId"
+              },
+              "selectionSequence": {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]*)$"
+              },
+              "selectionDigest": {
+                "$ref": "#/properties/stockSelection/properties/underlyingIdentityDigest"
+              },
+              "selectedVariantId": {
+                "$ref": "#/properties/stockSelection/properties/underlyingId"
+              },
+              "assetId": {
+                "$ref": "#/properties/assetId"
+              },
+              "productVersionId": {
+                "$ref": "#/properties/stockSelection/properties/underlyingId"
+              },
+              "productVersionDigest": {
+                "$ref": "#/properties/stockSelection/properties/underlyingIdentityDigest"
+              },
+              "onchainVersionId": {
+                "$ref": "#/properties/stockSelection/properties/underlyingId"
+              },
+              "onchainVersionDigest": {
+                "$ref": "#/properties/stockSelection/properties/underlyingIdentityDigest"
+              },
+              "executionProfileVersionId": {
+                "$ref": "#/properties/stockSelection/properties/underlyingId"
+              },
+              "executionProfileDigest": {
+                "$ref": "#/properties/stockSelection/properties/underlyingIdentityDigest"
+              },
+              "executionReleaseId": {
+                "$ref": "#/properties/stockSelection/properties/underlyingId"
+              },
+              "releaseDigest": {
+                "$ref": "#/properties/stockSelection/properties/underlyingIdentityDigest"
+              },
+              "registryIdentityDigest": {
+                "$ref": "#/properties/stockSelection/properties/underlyingIdentityDigest"
+              },
+              "mint": {
+                "type": "string",
+                "minLength": 32,
+                "maxLength": 44
+              },
+              "tokenProgram": {
+                "type": "string",
+                "enum": [
+                  "spl-token",
+                  "token-2022"
+                ]
+              },
+              "decimals": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 18
+              }
+            },
+            "required": [
+              "namespace",
+              "normalizedCompanyQuery",
+              "companyName",
+              "productName",
+              "productSymbol",
+              "providerName",
+              "legalIssuerName",
+              "underlyingId",
+              "underlyingIdentityDigest",
+              "selectionEventId",
+              "selectionSequence",
+              "selectionDigest",
+              "selectedVariantId",
+              "assetId",
+              "productVersionId",
+              "productVersionDigest",
+              "onchainVersionId",
+              "onchainVersionDigest",
+              "executionProfileVersionId",
+              "executionProfileDigest",
+              "executionReleaseId",
+              "releaseDigest",
+              "registryIdentityDigest",
+              "mint",
+              "tokenProgram",
+              "decimals"
+            ],
+            "additionalProperties": false
+          },
+          "tradeSummary": {
+            "type": "object",
+            "properties": {
+              "namespace": {
+                "type": "string",
+                "const": "dexter-governed-stock-trade-summary/v1"
+              },
+              "action": {
+                "type": "string",
+                "enum": [
+                  "buy",
+                  "sell"
+                ]
+              },
+              "assetId": {
+                "$ref": "#/properties/assetId"
+              },
+              "symbol": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 32
+              },
+              "amountAtomic": {
+                "type": "string",
+                "maxLength": 20,
+                "pattern": "^[1-9][0-9]*$"
+              },
+              "requestAmountKind": {
+                "type": "string",
+                "enum": [
+                  "input",
+                  "share-quantity"
+                ]
+              },
+              "requestedShareQuantity": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 39,
+                    "pattern": "^(?:0|[1-9][0-9]{0,19})(?:\\.([0-9]{0,17}[1-9]))?$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "expectedShareQuantity": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/tradeSummary/properties/requestedShareQuantity/anyOf/0"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "minimumShareQuantity": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/tradeSummary/properties/requestedShareQuantity/anyOf/0"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "shareQuantityUnit": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "const": "underlying-share-equivalent"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "shareQuantitySemantics": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "const": "minimum-receive"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "requestedMaximumSpendAtomic": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/tradeSummary/properties/amountAtomic"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "overfillPossible": {
+                "type": "boolean"
+              },
+              "productIdentity": {
+                "type": "object",
+                "properties": {
+                  "assetId": {
+                    "$ref": "#/properties/assetId"
+                  },
+                  "assetClass": {
+                    "type": "string",
+                    "enum": [
+                      "cash",
+                      "yield",
+                      "token",
+                      "stock",
+                      "fund",
+                      "nft",
+                      "rwa"
+                    ]
+                  },
+                  "companyName": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "productName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "symbol": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 32
+                  },
+                  "providerName": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "legalIssuerName": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "issuer": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "network": {
+                    "type": "string",
+                    "const": "solana-mainnet"
+                  },
+                  "mint": {
+                    "$ref": "#/properties/assetMint/anyOf/1"
+                  },
+                  "tokenProgram": {
+                    "type": "string",
+                    "enum": [
+                      "spl-token",
+                      "token-2022"
+                    ]
+                  },
+                  "decimals": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 18
+                  },
+                  "registryIdentityDigest": {
+                    "$ref": "#/properties/stockSelection/properties/underlyingIdentityDigest"
+                  }
+                },
+                "required": [
+                  "assetId",
+                  "assetClass",
+                  "companyName",
+                  "productName",
+                  "symbol",
+                  "issuer",
+                  "network",
+                  "mint",
+                  "tokenProgram",
+                  "decimals",
+                  "registryIdentityDigest"
+                ],
+                "additionalProperties": false
+              },
+              "feeSummary": {
+                "type": "object",
+                "properties": {
+                  "summary": {
+                    "type": "string",
+                    "const": "Trading fees are included in this quote; network fee is calculated at execution."
+                  },
+                  "platformFee": {
+                    "type": "null"
+                  },
+                  "routeFees": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "amountAtomic": {
+                          "type": "string",
+                          "maxLength": 20,
+                          "pattern": "^(0|[1-9][0-9]*)$"
+                        },
+                        "mint": {
+                          "$ref": "#/properties/assetMint/anyOf/1"
+                        }
+                      },
+                      "required": [
+                        "amountAtomic",
+                        "mint"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "maxItems": 32
+                  },
+                  "networkFee": {
+                    "type": "object",
+                    "properties": {
+                      "status": {
+                        "type": "string",
+                        "const": "not-yet-calculated"
+                      },
+                      "amountLamports": {
+                        "type": "null"
+                      }
+                    },
+                    "required": [
+                      "status",
+                      "amountLamports"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "summary",
+                  "platformFee",
+                  "routeFees",
+                  "networkFee"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "namespace",
+              "action",
+              "assetId",
+              "symbol",
+              "amountAtomic",
+              "requestAmountKind",
+              "requestedShareQuantity",
+              "expectedShareQuantity",
+              "minimumShareQuantity",
+              "shareQuantityUnit",
+              "shareQuantitySemantics",
+              "requestedMaximumSpendAtomic",
+              "overfillPossible",
+              "productIdentity",
+              "feeSummary"
+            ],
+            "additionalProperties": false
+          },
+          "stockV2Identity": {
+            "type": "object",
+            "properties": {
+              "namespace": {
+                "type": "string",
+                "const": "dexter-governed-stock-v2-durable-identity/v1"
+              },
+              "runtimeReleaseDigest": {
+                "$ref": "#/properties/stockSelection/properties/underlyingIdentityDigest"
+              },
+              "intentId": {
+                "$ref": "#/properties/stockSelection/properties/underlyingId"
+              },
+              "requestIdentityHash": {
+                "$ref": "#/properties/stockV2Identity/properties/runtimeReleaseDigest"
+              },
+              "intentHash": {
+                "$ref": "#/properties/stockV2Identity/properties/runtimeReleaseDigest"
+              },
+              "preparedPlanHash": {
+                "$ref": "#/properties/stockV2Identity/properties/runtimeReleaseDigest"
+              },
+              "coordinateDigest": {
+                "$ref": "#/properties/stockV2Identity/properties/runtimeReleaseDigest"
+              },
+              "planDigest": {
+                "$ref": "#/properties/stockV2Identity/properties/runtimeReleaseDigest"
+              },
+              "attestationId": {
+                "$ref": "#/properties/stockSelection/properties/underlyingId"
+              },
+              "prepareDraftDigest": {
+                "$ref": "#/properties/stockV2Identity/properties/runtimeReleaseDigest"
+              },
+              "tradeSummarySnapshotDigest": {
+                "$ref": "#/properties/stockV2Identity/properties/runtimeReleaseDigest"
+              },
+              "requestClaimDigest": {
+                "$ref": "#/properties/stockV2Identity/properties/runtimeReleaseDigest"
+              },
+              "executionCapabilityReceiptDigest": {
+                "$ref": "#/properties/stockV2Identity/properties/runtimeReleaseDigest"
+              }
+            },
+            "required": [
+              "namespace",
+              "runtimeReleaseDigest",
+              "intentId",
+              "requestIdentityHash",
+              "intentHash",
+              "preparedPlanHash",
+              "coordinateDigest",
+              "planDigest",
+              "attestationId",
+              "prepareDraftDigest",
+              "tradeSummarySnapshotDigest",
+              "requestClaimDigest",
+              "executionCapabilityReceiptDigest"
+            ],
+            "additionalProperties": false
+          },
           "amountAtomic": {
-            "type": "string",
-            "maxLength": 20,
-            "pattern": "^[1-9][0-9]*$"
+            "$ref": "#/properties/tradeSummary/properties/amountAtomic"
           },
           "destinationOwner": {
             "anyOf": [
@@ -3108,8 +4817,7 @@
               "surfaceBindingDigest": {
                 "anyOf": [
                   {
-                    "type": "string",
-                    "pattern": "^[a-f0-9]{64}$"
+                    "$ref": "#/properties/stockSelection/properties/underlyingIdentityDigest"
                   },
                   {
                     "type": "null"
@@ -3159,7 +4867,7 @@
           "grantRevisionDigest": {
             "anyOf": [
               {
-                "$ref": "#/properties/runtime/properties/surfaceBindingDigest/anyOf/0"
+                "$ref": "#/properties/stockSelection/properties/underlyingIdentityDigest"
               },
               {
                 "type": "null"
@@ -3296,8 +5004,8 @@
             "anyOf": [
               {
                 "type": "string",
-                "minLength": 64,
-                "maxLength": 128
+                "minLength": 1,
+                "maxLength": 256
               },
               {
                 "type": "null"
@@ -3325,9 +5033,7 @@
           "confirmationSlot": {
             "anyOf": [
               {
-                "type": "string",
-                "maxLength": 20,
-                "pattern": "^(0|[1-9][0-9]*)$"
+                "$ref": "#/properties/tradeSummary/properties/feeSummary/properties/routeFees/items/properties/amountAtomic"
               },
               {
                 "type": "null"
@@ -3370,7 +5076,7 @@
           "reconciliationEvidenceDigest": {
             "anyOf": [
               {
-                "$ref": "#/properties/runtime/properties/surfaceBindingDigest/anyOf/0"
+                "$ref": "#/properties/stockSelection/properties/underlyingIdentityDigest"
               },
               {
                 "type": "null"
@@ -3506,6 +5212,44 @@
         }
       ],
       "_meta": {
+        "ui": {
+          "resourceUri": "ui://dexter/stock-trade-b9969159",
+          "visibility": [
+            "model",
+            "app"
+          ],
+          "csp": {
+            "resourceDomains": [
+              "https://dexter.cash"
+            ],
+            "connectDomains": [
+              "https://dexter.cash",
+              "https://o4510869152923648.ingest.us.sentry.io"
+            ]
+          },
+          "domain": "https://dexter.cash",
+          "prefersBorder": true
+        },
+        "ui/resourceUri": "ui://dexter/stock-trade-b9969159",
+        "openai/outputTemplate": "ui://dexter/stock-trade-b9969159",
+        "openai/resultCanProduceWidget": true,
+        "openai/widgetAccessible": false,
+        "openai/widgetDomain": "https://dexter.cash",
+        "openai/widgetPrefersBorder": true,
+        "openai/widgetCSP": {
+          "connect_domains": [
+            "https://o4510869152923648.ingest.us.sentry.io"
+          ],
+          "resource_domains": [
+            "https://dexter.cash"
+          ],
+          "redirect_domains": [
+            "https://solscan.io"
+          ]
+        },
+        "openai/toolInvocation/invoking": "Checking stock trade…",
+        "openai/toolInvocation/invoked": "Trade status ready",
+        "openai/widgetDescription": "Shows the exact Solana stock product, requested and quoted share equivalents, fees, and truthful transaction state. Confirmed requires an exact signature, Solana confirmation, and successful execution.",
         "securitySchemes": [
           {
             "type": "oauth2",
@@ -3513,13 +5257,7 @@
               "vault"
             ]
           }
-        ],
-        "ui": {
-          "visibility": [
-            "model"
-          ]
-        },
-        "openai/widgetAccessible": false
+        ]
       }
     },
     {
@@ -3605,7 +5343,9 @@
                   "agent_reconciliation_still_uncertain",
                   "reconciliation_not_required",
                   "agent_reconciliation_adapter_required",
-                  "agent_finality_adapter_required"
+                  "agent_finality_adapter_required",
+                  "stock_public_identity_required",
+                  "stock_vault_v2_recovery_unavailable"
                 ]
               },
               {
@@ -3706,7 +5446,7 @@
                 "minLength": 1,
                 "maxLength": 128,
                 "pattern": "^[a-z0-9][a-z0-9._:-]*$",
-                "description": "Canonical assetId returned by dexter_portfolio from an approved holding or approvedActionTarget. This is not a symbol or mint; Dexter resolves it to one exact network, mint, token program, decimals, and capability record."
+                "description": "Canonical assetId returned by dexter_portfolio from an approved holding or approvedActionTarget. Pass the assetId itself; Dexter resolves its exact network, mint, token program, decimals, and capability record."
               },
               "assetMint": {
                 "anyOf": [
@@ -3729,10 +5469,498 @@
                   "token-2022"
                 ]
               },
+              "stockSelection": {
+                "type": "object",
+                "properties": {
+                  "namespace": {
+                    "type": "string",
+                    "const": "dexter-governed-stock-selection-pin/v1"
+                  },
+                  "normalizedCompanyQuery": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "companyName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "productName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "productSymbol": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "providerName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "legalIssuerName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "underlyingId": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                  },
+                  "underlyingIdentityDigest": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "selectionEventId": {
+                    "$ref": "#/properties/statusAfter/properties/stockSelection/properties/underlyingId"
+                  },
+                  "selectionSequence": {
+                    "type": "string",
+                    "pattern": "^(0|[1-9][0-9]*)$"
+                  },
+                  "selectionDigest": {
+                    "$ref": "#/properties/statusAfter/properties/stockSelection/properties/underlyingIdentityDigest"
+                  },
+                  "selectedVariantId": {
+                    "$ref": "#/properties/statusAfter/properties/stockSelection/properties/underlyingId"
+                  },
+                  "assetId": {
+                    "$ref": "#/properties/statusAfter/properties/assetId"
+                  },
+                  "productVersionId": {
+                    "$ref": "#/properties/statusAfter/properties/stockSelection/properties/underlyingId"
+                  },
+                  "productVersionDigest": {
+                    "$ref": "#/properties/statusAfter/properties/stockSelection/properties/underlyingIdentityDigest"
+                  },
+                  "onchainVersionId": {
+                    "$ref": "#/properties/statusAfter/properties/stockSelection/properties/underlyingId"
+                  },
+                  "onchainVersionDigest": {
+                    "$ref": "#/properties/statusAfter/properties/stockSelection/properties/underlyingIdentityDigest"
+                  },
+                  "executionProfileVersionId": {
+                    "$ref": "#/properties/statusAfter/properties/stockSelection/properties/underlyingId"
+                  },
+                  "executionProfileDigest": {
+                    "$ref": "#/properties/statusAfter/properties/stockSelection/properties/underlyingIdentityDigest"
+                  },
+                  "executionReleaseId": {
+                    "$ref": "#/properties/statusAfter/properties/stockSelection/properties/underlyingId"
+                  },
+                  "releaseDigest": {
+                    "$ref": "#/properties/statusAfter/properties/stockSelection/properties/underlyingIdentityDigest"
+                  },
+                  "registryIdentityDigest": {
+                    "$ref": "#/properties/statusAfter/properties/stockSelection/properties/underlyingIdentityDigest"
+                  },
+                  "mint": {
+                    "type": "string",
+                    "minLength": 32,
+                    "maxLength": 44
+                  },
+                  "tokenProgram": {
+                    "type": "string",
+                    "enum": [
+                      "spl-token",
+                      "token-2022"
+                    ]
+                  },
+                  "decimals": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 18
+                  }
+                },
+                "required": [
+                  "namespace",
+                  "normalizedCompanyQuery",
+                  "companyName",
+                  "productName",
+                  "productSymbol",
+                  "providerName",
+                  "legalIssuerName",
+                  "underlyingId",
+                  "underlyingIdentityDigest",
+                  "selectionEventId",
+                  "selectionSequence",
+                  "selectionDigest",
+                  "selectedVariantId",
+                  "assetId",
+                  "productVersionId",
+                  "productVersionDigest",
+                  "onchainVersionId",
+                  "onchainVersionDigest",
+                  "executionProfileVersionId",
+                  "executionProfileDigest",
+                  "executionReleaseId",
+                  "releaseDigest",
+                  "registryIdentityDigest",
+                  "mint",
+                  "tokenProgram",
+                  "decimals"
+                ],
+                "additionalProperties": false
+              },
+              "tradeSummary": {
+                "type": "object",
+                "properties": {
+                  "namespace": {
+                    "type": "string",
+                    "const": "dexter-governed-stock-trade-summary/v1"
+                  },
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "buy",
+                      "sell"
+                    ]
+                  },
+                  "assetId": {
+                    "$ref": "#/properties/statusAfter/properties/assetId"
+                  },
+                  "symbol": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 32
+                  },
+                  "amountAtomic": {
+                    "type": "string",
+                    "maxLength": 20,
+                    "pattern": "^[1-9][0-9]*$"
+                  },
+                  "requestAmountKind": {
+                    "type": "string",
+                    "enum": [
+                      "input",
+                      "share-quantity"
+                    ]
+                  },
+                  "requestedShareQuantity": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 39,
+                        "pattern": "^(?:0|[1-9][0-9]{0,19})(?:\\.([0-9]{0,17}[1-9]))?$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "expectedShareQuantity": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/properties/statusAfter/properties/tradeSummary/properties/requestedShareQuantity/anyOf/0"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "minimumShareQuantity": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/properties/statusAfter/properties/tradeSummary/properties/requestedShareQuantity/anyOf/0"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "shareQuantityUnit": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "const": "underlying-share-equivalent"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "shareQuantitySemantics": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "const": "minimum-receive"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "requestedMaximumSpendAtomic": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/properties/statusAfter/properties/tradeSummary/properties/amountAtomic"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "overfillPossible": {
+                    "type": "boolean"
+                  },
+                  "productIdentity": {
+                    "type": "object",
+                    "properties": {
+                      "assetId": {
+                        "$ref": "#/properties/statusAfter/properties/assetId"
+                      },
+                      "assetClass": {
+                        "type": "string",
+                        "enum": [
+                          "cash",
+                          "yield",
+                          "token",
+                          "stock",
+                          "fund",
+                          "nft",
+                          "rwa"
+                        ]
+                      },
+                      "companyName": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "productName": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      },
+                      "symbol": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 32
+                      },
+                      "providerName": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "legalIssuerName": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "issuer": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "network": {
+                        "type": "string",
+                        "const": "solana-mainnet"
+                      },
+                      "mint": {
+                        "$ref": "#/properties/statusAfter/properties/assetMint/anyOf/1"
+                      },
+                      "tokenProgram": {
+                        "type": "string",
+                        "enum": [
+                          "spl-token",
+                          "token-2022"
+                        ]
+                      },
+                      "decimals": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 18
+                      },
+                      "registryIdentityDigest": {
+                        "$ref": "#/properties/statusAfter/properties/stockSelection/properties/underlyingIdentityDigest"
+                      }
+                    },
+                    "required": [
+                      "assetId",
+                      "assetClass",
+                      "companyName",
+                      "productName",
+                      "symbol",
+                      "issuer",
+                      "network",
+                      "mint",
+                      "tokenProgram",
+                      "decimals",
+                      "registryIdentityDigest"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "feeSummary": {
+                    "type": "object",
+                    "properties": {
+                      "summary": {
+                        "type": "string",
+                        "const": "Trading fees are included in this quote; network fee is calculated at execution."
+                      },
+                      "platformFee": {
+                        "type": "null"
+                      },
+                      "routeFees": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "amountAtomic": {
+                              "type": "string",
+                              "maxLength": 20,
+                              "pattern": "^(0|[1-9][0-9]*)$"
+                            },
+                            "mint": {
+                              "$ref": "#/properties/statusAfter/properties/assetMint/anyOf/1"
+                            }
+                          },
+                          "required": [
+                            "amountAtomic",
+                            "mint"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "maxItems": 32
+                      },
+                      "networkFee": {
+                        "type": "object",
+                        "properties": {
+                          "status": {
+                            "type": "string",
+                            "const": "not-yet-calculated"
+                          },
+                          "amountLamports": {
+                            "type": "null"
+                          }
+                        },
+                        "required": [
+                          "status",
+                          "amountLamports"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "summary",
+                      "platformFee",
+                      "routeFees",
+                      "networkFee"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "namespace",
+                  "action",
+                  "assetId",
+                  "symbol",
+                  "amountAtomic",
+                  "requestAmountKind",
+                  "requestedShareQuantity",
+                  "expectedShareQuantity",
+                  "minimumShareQuantity",
+                  "shareQuantityUnit",
+                  "shareQuantitySemantics",
+                  "requestedMaximumSpendAtomic",
+                  "overfillPossible",
+                  "productIdentity",
+                  "feeSummary"
+                ],
+                "additionalProperties": false
+              },
+              "stockV2Identity": {
+                "type": "object",
+                "properties": {
+                  "namespace": {
+                    "type": "string",
+                    "const": "dexter-governed-stock-v2-durable-identity/v1"
+                  },
+                  "runtimeReleaseDigest": {
+                    "$ref": "#/properties/statusAfter/properties/stockSelection/properties/underlyingIdentityDigest"
+                  },
+                  "intentId": {
+                    "$ref": "#/properties/statusAfter/properties/stockSelection/properties/underlyingId"
+                  },
+                  "requestIdentityHash": {
+                    "$ref": "#/properties/statusAfter/properties/stockV2Identity/properties/runtimeReleaseDigest"
+                  },
+                  "intentHash": {
+                    "$ref": "#/properties/statusAfter/properties/stockV2Identity/properties/runtimeReleaseDigest"
+                  },
+                  "preparedPlanHash": {
+                    "$ref": "#/properties/statusAfter/properties/stockV2Identity/properties/runtimeReleaseDigest"
+                  },
+                  "coordinateDigest": {
+                    "$ref": "#/properties/statusAfter/properties/stockV2Identity/properties/runtimeReleaseDigest"
+                  },
+                  "planDigest": {
+                    "$ref": "#/properties/statusAfter/properties/stockV2Identity/properties/runtimeReleaseDigest"
+                  },
+                  "attestationId": {
+                    "$ref": "#/properties/statusAfter/properties/stockSelection/properties/underlyingId"
+                  },
+                  "prepareDraftDigest": {
+                    "$ref": "#/properties/statusAfter/properties/stockV2Identity/properties/runtimeReleaseDigest"
+                  },
+                  "tradeSummarySnapshotDigest": {
+                    "$ref": "#/properties/statusAfter/properties/stockV2Identity/properties/runtimeReleaseDigest"
+                  },
+                  "requestClaimDigest": {
+                    "$ref": "#/properties/statusAfter/properties/stockV2Identity/properties/runtimeReleaseDigest"
+                  },
+                  "executionCapabilityReceiptDigest": {
+                    "$ref": "#/properties/statusAfter/properties/stockV2Identity/properties/runtimeReleaseDigest"
+                  }
+                },
+                "required": [
+                  "namespace",
+                  "runtimeReleaseDigest",
+                  "intentId",
+                  "requestIdentityHash",
+                  "intentHash",
+                  "preparedPlanHash",
+                  "coordinateDigest",
+                  "planDigest",
+                  "attestationId",
+                  "prepareDraftDigest",
+                  "tradeSummarySnapshotDigest",
+                  "requestClaimDigest",
+                  "executionCapabilityReceiptDigest"
+                ],
+                "additionalProperties": false
+              },
               "amountAtomic": {
-                "type": "string",
-                "maxLength": 20,
-                "pattern": "^[1-9][0-9]*$"
+                "$ref": "#/properties/statusAfter/properties/tradeSummary/properties/amountAtomic"
               },
               "destinationOwner": {
                 "anyOf": [
@@ -3800,8 +6028,7 @@
                   "surfaceBindingDigest": {
                     "anyOf": [
                       {
-                        "type": "string",
-                        "pattern": "^[a-f0-9]{64}$"
+                        "$ref": "#/properties/statusAfter/properties/stockSelection/properties/underlyingIdentityDigest"
                       },
                       {
                         "type": "null"
@@ -3851,7 +6078,7 @@
               "grantRevisionDigest": {
                 "anyOf": [
                   {
-                    "$ref": "#/properties/statusAfter/properties/runtime/properties/surfaceBindingDigest/anyOf/0"
+                    "$ref": "#/properties/statusAfter/properties/stockSelection/properties/underlyingIdentityDigest"
                   },
                   {
                     "type": "null"
@@ -3988,8 +6215,8 @@
                 "anyOf": [
                   {
                     "type": "string",
-                    "minLength": 64,
-                    "maxLength": 128
+                    "minLength": 1,
+                    "maxLength": 256
                   },
                   {
                     "type": "null"
@@ -4017,9 +6244,7 @@
               "confirmationSlot": {
                 "anyOf": [
                   {
-                    "type": "string",
-                    "maxLength": 20,
-                    "pattern": "^(0|[1-9][0-9]*)$"
+                    "$ref": "#/properties/statusAfter/properties/tradeSummary/properties/feeSummary/properties/routeFees/items/properties/amountAtomic"
                   },
                   {
                     "type": "null"
@@ -4062,7 +6287,7 @@
               "reconciliationEvidenceDigest": {
                 "anyOf": [
                   {
-                    "$ref": "#/properties/statusAfter/properties/runtime/properties/surfaceBindingDigest/anyOf/0"
+                    "$ref": "#/properties/statusAfter/properties/stockSelection/properties/underlyingIdentityDigest"
                   },
                   {
                     "type": "null"
@@ -4183,7 +6408,7 @@
             "additionalProperties": false
           },
           "digest": {
-            "$ref": "#/properties/statusAfter/properties/runtime/properties/surfaceBindingDigest/anyOf/0"
+            "$ref": "#/properties/statusAfter/properties/stockSelection/properties/underlyingIdentityDigest"
           }
         },
         "required": [
@@ -4217,6 +6442,44 @@
         }
       ],
       "_meta": {
+        "ui": {
+          "resourceUri": "ui://dexter/stock-trade-b9969159",
+          "visibility": [
+            "model",
+            "app"
+          ],
+          "csp": {
+            "resourceDomains": [
+              "https://dexter.cash"
+            ],
+            "connectDomains": [
+              "https://dexter.cash",
+              "https://o4510869152923648.ingest.us.sentry.io"
+            ]
+          },
+          "domain": "https://dexter.cash",
+          "prefersBorder": true
+        },
+        "ui/resourceUri": "ui://dexter/stock-trade-b9969159",
+        "openai/outputTemplate": "ui://dexter/stock-trade-b9969159",
+        "openai/resultCanProduceWidget": true,
+        "openai/widgetAccessible": false,
+        "openai/widgetDomain": "https://dexter.cash",
+        "openai/widgetPrefersBorder": true,
+        "openai/widgetCSP": {
+          "connect_domains": [
+            "https://o4510869152923648.ingest.us.sentry.io"
+          ],
+          "resource_domains": [
+            "https://dexter.cash"
+          ],
+          "redirect_domains": [
+            "https://solscan.io"
+          ]
+        },
+        "openai/toolInvocation/invoking": "Reconciling stock trade…",
+        "openai/toolInvocation/invoked": "Trade reconciliation update ready",
+        "openai/widgetDescription": "Shows the exact Solana stock product, requested and quoted share equivalents, fees, and truthful transaction state. Confirmed requires an exact signature, Solana confirmation, and successful execution.",
         "securitySchemes": [
           {
             "type": "oauth2",
@@ -4224,13 +6487,7 @@
               "vault"
             ]
           }
-        ],
-        "ui": {
-          "visibility": [
-            "model"
-          ]
-        },
-        "openai/widgetAccessible": false
+        ]
       }
     },
     {
@@ -4354,7 +6611,7 @@
                   "minLength": 1,
                   "maxLength": 128,
                   "pattern": "^[a-z0-9][a-z0-9._:-]*$",
-                  "description": "Canonical assetId returned by dexter_portfolio from an approved holding or approvedActionTarget. This is not a symbol or mint; Dexter resolves it to one exact network, mint, token program, decimals, and capability record."
+                  "description": "Canonical assetId returned by dexter_portfolio from an approved holding or approvedActionTarget. Pass the assetId itself; Dexter resolves its exact network, mint, token program, decimals, and capability record."
                 },
                 "assetMint": {
                   "anyOf": [
@@ -4377,10 +6634,498 @@
                     "token-2022"
                   ]
                 },
+                "stockSelection": {
+                  "type": "object",
+                  "properties": {
+                    "namespace": {
+                      "type": "string",
+                      "const": "dexter-governed-stock-selection-pin/v1"
+                    },
+                    "normalizedCompanyQuery": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    "companyName": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    "productName": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    "productSymbol": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "providerName": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    "legalIssuerName": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    "underlyingId": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                    },
+                    "underlyingIdentityDigest": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "selectionEventId": {
+                      "$ref": "#/properties/items/items/properties/stockSelection/properties/underlyingId"
+                    },
+                    "selectionSequence": {
+                      "type": "string",
+                      "pattern": "^(0|[1-9][0-9]*)$"
+                    },
+                    "selectionDigest": {
+                      "$ref": "#/properties/items/items/properties/stockSelection/properties/underlyingIdentityDigest"
+                    },
+                    "selectedVariantId": {
+                      "$ref": "#/properties/items/items/properties/stockSelection/properties/underlyingId"
+                    },
+                    "assetId": {
+                      "$ref": "#/properties/items/items/properties/assetId"
+                    },
+                    "productVersionId": {
+                      "$ref": "#/properties/items/items/properties/stockSelection/properties/underlyingId"
+                    },
+                    "productVersionDigest": {
+                      "$ref": "#/properties/items/items/properties/stockSelection/properties/underlyingIdentityDigest"
+                    },
+                    "onchainVersionId": {
+                      "$ref": "#/properties/items/items/properties/stockSelection/properties/underlyingId"
+                    },
+                    "onchainVersionDigest": {
+                      "$ref": "#/properties/items/items/properties/stockSelection/properties/underlyingIdentityDigest"
+                    },
+                    "executionProfileVersionId": {
+                      "$ref": "#/properties/items/items/properties/stockSelection/properties/underlyingId"
+                    },
+                    "executionProfileDigest": {
+                      "$ref": "#/properties/items/items/properties/stockSelection/properties/underlyingIdentityDigest"
+                    },
+                    "executionReleaseId": {
+                      "$ref": "#/properties/items/items/properties/stockSelection/properties/underlyingId"
+                    },
+                    "releaseDigest": {
+                      "$ref": "#/properties/items/items/properties/stockSelection/properties/underlyingIdentityDigest"
+                    },
+                    "registryIdentityDigest": {
+                      "$ref": "#/properties/items/items/properties/stockSelection/properties/underlyingIdentityDigest"
+                    },
+                    "mint": {
+                      "type": "string",
+                      "minLength": 32,
+                      "maxLength": 44
+                    },
+                    "tokenProgram": {
+                      "type": "string",
+                      "enum": [
+                        "spl-token",
+                        "token-2022"
+                      ]
+                    },
+                    "decimals": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 18
+                    }
+                  },
+                  "required": [
+                    "namespace",
+                    "normalizedCompanyQuery",
+                    "companyName",
+                    "productName",
+                    "productSymbol",
+                    "providerName",
+                    "legalIssuerName",
+                    "underlyingId",
+                    "underlyingIdentityDigest",
+                    "selectionEventId",
+                    "selectionSequence",
+                    "selectionDigest",
+                    "selectedVariantId",
+                    "assetId",
+                    "productVersionId",
+                    "productVersionDigest",
+                    "onchainVersionId",
+                    "onchainVersionDigest",
+                    "executionProfileVersionId",
+                    "executionProfileDigest",
+                    "executionReleaseId",
+                    "releaseDigest",
+                    "registryIdentityDigest",
+                    "mint",
+                    "tokenProgram",
+                    "decimals"
+                  ],
+                  "additionalProperties": false
+                },
+                "tradeSummary": {
+                  "type": "object",
+                  "properties": {
+                    "namespace": {
+                      "type": "string",
+                      "const": "dexter-governed-stock-trade-summary/v1"
+                    },
+                    "action": {
+                      "type": "string",
+                      "enum": [
+                        "buy",
+                        "sell"
+                      ]
+                    },
+                    "assetId": {
+                      "$ref": "#/properties/items/items/properties/assetId"
+                    },
+                    "symbol": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 32
+                    },
+                    "amountAtomic": {
+                      "type": "string",
+                      "maxLength": 20,
+                      "pattern": "^[1-9][0-9]*$"
+                    },
+                    "requestAmountKind": {
+                      "type": "string",
+                      "enum": [
+                        "input",
+                        "share-quantity"
+                      ]
+                    },
+                    "requestedShareQuantity": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 39,
+                          "pattern": "^(?:0|[1-9][0-9]{0,19})(?:\\.([0-9]{0,17}[1-9]))?$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "expectedShareQuantity": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/properties/items/items/properties/tradeSummary/properties/requestedShareQuantity/anyOf/0"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "minimumShareQuantity": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/properties/items/items/properties/tradeSummary/properties/requestedShareQuantity/anyOf/0"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "shareQuantityUnit": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "const": "underlying-share-equivalent"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "shareQuantitySemantics": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "const": "minimum-receive"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "requestedMaximumSpendAtomic": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/properties/items/items/properties/tradeSummary/properties/amountAtomic"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "overfillPossible": {
+                      "type": "boolean"
+                    },
+                    "productIdentity": {
+                      "type": "object",
+                      "properties": {
+                        "assetId": {
+                          "$ref": "#/properties/items/items/properties/assetId"
+                        },
+                        "assetClass": {
+                          "type": "string",
+                          "enum": [
+                            "cash",
+                            "yield",
+                            "token",
+                            "stock",
+                            "fund",
+                            "nft",
+                            "rwa"
+                          ]
+                        },
+                        "companyName": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 128
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "productName": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        },
+                        "symbol": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 32
+                        },
+                        "providerName": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 128
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "legalIssuerName": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 128
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "issuer": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 128
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "network": {
+                          "type": "string",
+                          "const": "solana-mainnet"
+                        },
+                        "mint": {
+                          "$ref": "#/properties/items/items/properties/assetMint/anyOf/1"
+                        },
+                        "tokenProgram": {
+                          "type": "string",
+                          "enum": [
+                            "spl-token",
+                            "token-2022"
+                          ]
+                        },
+                        "decimals": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 18
+                        },
+                        "registryIdentityDigest": {
+                          "$ref": "#/properties/items/items/properties/stockSelection/properties/underlyingIdentityDigest"
+                        }
+                      },
+                      "required": [
+                        "assetId",
+                        "assetClass",
+                        "companyName",
+                        "productName",
+                        "symbol",
+                        "issuer",
+                        "network",
+                        "mint",
+                        "tokenProgram",
+                        "decimals",
+                        "registryIdentityDigest"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "feeSummary": {
+                      "type": "object",
+                      "properties": {
+                        "summary": {
+                          "type": "string",
+                          "const": "Trading fees are included in this quote; network fee is calculated at execution."
+                        },
+                        "platformFee": {
+                          "type": "null"
+                        },
+                        "routeFees": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "amountAtomic": {
+                                "type": "string",
+                                "maxLength": 20,
+                                "pattern": "^(0|[1-9][0-9]*)$"
+                              },
+                              "mint": {
+                                "$ref": "#/properties/items/items/properties/assetMint/anyOf/1"
+                              }
+                            },
+                            "required": [
+                              "amountAtomic",
+                              "mint"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "maxItems": 32
+                        },
+                        "networkFee": {
+                          "type": "object",
+                          "properties": {
+                            "status": {
+                              "type": "string",
+                              "const": "not-yet-calculated"
+                            },
+                            "amountLamports": {
+                              "type": "null"
+                            }
+                          },
+                          "required": [
+                            "status",
+                            "amountLamports"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "summary",
+                        "platformFee",
+                        "routeFees",
+                        "networkFee"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "namespace",
+                    "action",
+                    "assetId",
+                    "symbol",
+                    "amountAtomic",
+                    "requestAmountKind",
+                    "requestedShareQuantity",
+                    "expectedShareQuantity",
+                    "minimumShareQuantity",
+                    "shareQuantityUnit",
+                    "shareQuantitySemantics",
+                    "requestedMaximumSpendAtomic",
+                    "overfillPossible",
+                    "productIdentity",
+                    "feeSummary"
+                  ],
+                  "additionalProperties": false
+                },
+                "stockV2Identity": {
+                  "type": "object",
+                  "properties": {
+                    "namespace": {
+                      "type": "string",
+                      "const": "dexter-governed-stock-v2-durable-identity/v1"
+                    },
+                    "runtimeReleaseDigest": {
+                      "$ref": "#/properties/items/items/properties/stockSelection/properties/underlyingIdentityDigest"
+                    },
+                    "intentId": {
+                      "$ref": "#/properties/items/items/properties/stockSelection/properties/underlyingId"
+                    },
+                    "requestIdentityHash": {
+                      "$ref": "#/properties/items/items/properties/stockV2Identity/properties/runtimeReleaseDigest"
+                    },
+                    "intentHash": {
+                      "$ref": "#/properties/items/items/properties/stockV2Identity/properties/runtimeReleaseDigest"
+                    },
+                    "preparedPlanHash": {
+                      "$ref": "#/properties/items/items/properties/stockV2Identity/properties/runtimeReleaseDigest"
+                    },
+                    "coordinateDigest": {
+                      "$ref": "#/properties/items/items/properties/stockV2Identity/properties/runtimeReleaseDigest"
+                    },
+                    "planDigest": {
+                      "$ref": "#/properties/items/items/properties/stockV2Identity/properties/runtimeReleaseDigest"
+                    },
+                    "attestationId": {
+                      "$ref": "#/properties/items/items/properties/stockSelection/properties/underlyingId"
+                    },
+                    "prepareDraftDigest": {
+                      "$ref": "#/properties/items/items/properties/stockV2Identity/properties/runtimeReleaseDigest"
+                    },
+                    "tradeSummarySnapshotDigest": {
+                      "$ref": "#/properties/items/items/properties/stockV2Identity/properties/runtimeReleaseDigest"
+                    },
+                    "requestClaimDigest": {
+                      "$ref": "#/properties/items/items/properties/stockV2Identity/properties/runtimeReleaseDigest"
+                    },
+                    "executionCapabilityReceiptDigest": {
+                      "$ref": "#/properties/items/items/properties/stockV2Identity/properties/runtimeReleaseDigest"
+                    }
+                  },
+                  "required": [
+                    "namespace",
+                    "runtimeReleaseDigest",
+                    "intentId",
+                    "requestIdentityHash",
+                    "intentHash",
+                    "preparedPlanHash",
+                    "coordinateDigest",
+                    "planDigest",
+                    "attestationId",
+                    "prepareDraftDigest",
+                    "tradeSummarySnapshotDigest",
+                    "requestClaimDigest",
+                    "executionCapabilityReceiptDigest"
+                  ],
+                  "additionalProperties": false
+                },
                 "amountAtomic": {
-                  "type": "string",
-                  "maxLength": 20,
-                  "pattern": "^[1-9][0-9]*$"
+                  "$ref": "#/properties/items/items/properties/tradeSummary/properties/amountAtomic"
                 },
                 "destinationOwner": {
                   "anyOf": [
@@ -4448,8 +7193,7 @@
                     "surfaceBindingDigest": {
                       "anyOf": [
                         {
-                          "type": "string",
-                          "pattern": "^[a-f0-9]{64}$"
+                          "$ref": "#/properties/items/items/properties/stockSelection/properties/underlyingIdentityDigest"
                         },
                         {
                           "type": "null"
@@ -4499,7 +7243,7 @@
                 "grantRevisionDigest": {
                   "anyOf": [
                     {
-                      "$ref": "#/properties/items/items/properties/runtime/properties/surfaceBindingDigest/anyOf/0"
+                      "$ref": "#/properties/items/items/properties/stockSelection/properties/underlyingIdentityDigest"
                     },
                     {
                       "type": "null"
@@ -4636,8 +7380,8 @@
                   "anyOf": [
                     {
                       "type": "string",
-                      "minLength": 64,
-                      "maxLength": 128
+                      "minLength": 1,
+                      "maxLength": 256
                     },
                     {
                       "type": "null"
@@ -4665,9 +7409,7 @@
                 "confirmationSlot": {
                   "anyOf": [
                     {
-                      "type": "string",
-                      "maxLength": 20,
-                      "pattern": "^(0|[1-9][0-9]*)$"
+                      "$ref": "#/properties/items/items/properties/tradeSummary/properties/feeSummary/properties/routeFees/items/properties/amountAtomic"
                     },
                     {
                       "type": "null"
@@ -4710,7 +7452,7 @@
                 "reconciliationEvidenceDigest": {
                   "anyOf": [
                     {
-                      "$ref": "#/properties/items/items/properties/runtime/properties/surfaceBindingDigest/anyOf/0"
+                      "$ref": "#/properties/items/items/properties/stockSelection/properties/underlyingIdentityDigest"
                     },
                     {
                       "type": "null"

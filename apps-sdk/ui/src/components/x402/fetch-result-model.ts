@@ -5,13 +5,20 @@ export type IntentOutcome =
   | 'failed'
   | 'unknown';
 
+export type DispatchBoundary =
+  | 'not_crossed'
+  | 'crossed'
+  | 'unknown'
+  | 'unreported';
+
 export type IntentLifecycleRow = Readonly<{
-  label: 'Delivery' | 'Payment' | 'Reconciliation' | 'Reservation';
+  label: 'Dispatch' | 'Delivery' | 'Payment' | 'Reconciliation' | 'Reservation';
   value: string;
 }>;
 
 export type IntentLifecycleModel = Readonly<{
   intentId: string | null;
+  dispatchBoundary: DispatchBoundary;
   outcome: IntentOutcome;
   eyebrow: string;
   title: string;
@@ -78,11 +85,31 @@ function reconciliationLabel(value: unknown): string {
   return 'Not reported';
 }
 
+function dispatchBoundary(value: unknown): DispatchBoundary {
+  if (!isRecord(value)) return 'unreported';
+  const boundary = cleanString(value.boundary);
+  return boundary === 'not_crossed'
+    || boundary === 'crossed'
+    || boundary === 'unknown'
+    ? boundary
+    : 'unreported';
+}
+
+function dispatchLabel(boundary: DispatchBoundary): string {
+  return {
+    not_crossed: 'Not crossed',
+    crossed: 'Crossed · backend evidence',
+    unknown: 'Unknown · inspect same intent',
+    unreported: 'Not reported',
+  }[boundary];
+}
+
 function token(value: string | null): string {
   return value?.toLowerCase().replace(/\s+/g, '_') ?? '';
 }
 
 function classifyOutcome(payload: UnknownRecord): IntentOutcome {
+  const boundary = dispatchBoundary(payload.dispatch);
   const status = token(cleanString(payload.status));
   const delivery = token(nestedState(payload.delivery));
   const payment = token(nestedState(payload.payment));
@@ -91,31 +118,55 @@ function classifyOutcome(payload: UnknownRecord): IntentOutcome {
     : {};
   const reconciliationState = token(nestedState(payload.reconciliation));
   const combined = [status, delivery, payment, reconciliationState].join(' ');
+  const reconciliationPending =
+    reconciliation.required === true && reconciliation.performed !== true;
+  const explicitError =
+    payload.ok === false
+    || payload.error === true
+    || cleanString(payload.error) !== null;
 
   if (
-    /ambiguous|uncertain|unknown|dispatch_possible|reconciliation_required/.test(combined)
-    || (reconciliation.required === true && reconciliation.performed !== true)
+    (
+      reconciliationPending
+      && Boolean(cleanString(payload.intentId))
+    ) || (
+      boundary === 'crossed'
+      && /ambiguous|uncertain|unknown|dispatch_possible|response_unavailable|reconciliation_required/.test(combined)
+    )
+    || (
+      boundary === 'unknown'
+      && Boolean(cleanString(payload.intentId))
+    )
   ) {
     return 'ambiguous';
+  }
+  if (
+    /failed|refused|expired|rejected|cancelled|canceled/.test(combined)
+    || explicitError
+  ) {
+    return 'failed';
   }
   if (/prepar|pending|signed|building|executing|dispatching/.test(combined)) {
     return 'preparing';
   }
-  if (/failed|refused|expired|rejected|cancelled|canceled/.test(combined)) {
-    return 'failed';
-  }
+  const paymentConfirmed = isRecord(payload.payment)
+    && (
+      payload.payment.confirmed === true
+      || payload.payment.settled === true
+      || token(nestedState(payload.payment)) === 'settled'
+      || token(nestedState(payload.payment)) === 'confirmed'
+    );
   if (
-    /resolved|complete|completed|success|succeeded|delivered/.test(combined)
-    || (isRecord(payload.payment) && payload.payment.confirmed === true)
+    boundary === 'crossed'
+    && delivery === 'response_received'
+    && paymentConfirmed
+    && !reconciliationPending
+    && (
+      payload.ok === true
+      || /resolved|complete|completed|success|succeeded|seller_accepted/.test(combined)
+    )
   ) {
     return 'complete';
-  }
-  if (
-    payload.ok === false
-    || payload.error === true
-    || cleanString(payload.error) !== null
-  ) {
-    return 'failed';
   }
   return 'unknown';
 }
@@ -128,6 +179,7 @@ export function buildSameIntentStatusPrompt(intentId: string): string {
 export function normalizeIntentLifecycle(value: unknown): IntentLifecycleModel {
   const payload = isRecord(value) ? value : {};
   const intentId = cleanString(payload.intentId);
+  const boundary = dispatchBoundary(payload.dispatch);
   const outcome = classifyOutcome(payload);
   const needsStatusCheck = Boolean(
     intentId && (outcome === 'preparing' || outcome === 'ambiguous'),
@@ -136,35 +188,37 @@ export function normalizeIntentLifecycle(value: unknown): IntentLifecycleModel {
     complete: {
       eyebrow: 'Intent · Complete',
       title: 'Purchase complete',
-      summary: 'Delivery and payment reached a terminal reported outcome.',
+      summary: 'Backend evidence reports merchant dispatch, seller response, and confirmed payment.',
     },
     preparing: {
       eyebrow: 'Intent · Preparing',
       title: 'Purchase is still preparing',
-      summary: 'Do not submit the purchase again. Check the same intent for progress.',
+      summary: 'A backend result is still pending. Do not submit the purchase again; check this same intent.',
     },
     ambiguous: {
       eyebrow: 'Intent · Reconcile',
       title: 'Outcome needs reconciliation',
-      summary: 'Dispatch or payment may have occurred. Do not retry the purchase.',
+      summary: 'Execution or payment outcome is unresolved. Do not retry the purchase.',
     },
     failed: {
       eyebrow: 'Intent · Stopped',
       title: 'Purchase not completed',
-      summary: 'The intent stopped without a reported successful outcome.',
+      summary: 'The backend returned an error without a reported successful purchase.',
     },
     unknown: {
       eyebrow: 'Intent · Status',
       title: 'Purchase status',
-      summary: 'Review the route-neutral lifecycle state reported for this intent.',
+      summary: 'No dispatch or finality claim can be inferred from an unreported result.',
     },
   }[outcome];
 
   return {
     intentId,
+    dispatchBoundary: boundary,
     outcome,
     ...copy,
     rows: [
+      { label: 'Dispatch', value: dispatchLabel(boundary) },
       { label: 'Delivery', value: deliveryLabel(payload.delivery) },
       { label: 'Payment', value: paymentLabel(payload.payment) },
       {

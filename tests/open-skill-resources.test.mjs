@@ -86,6 +86,9 @@ test('served guidance requires native OAuth and bounded nonretryable spending', 
   assert.match(WORKFLOW, /Zero cash alone is not proof that a deposit is required/);
   assert.match(WORKFLOW, /Reported credit[\s\S]*not a promise/);
   assert.match(WORKFLOW, /If\s+it already does, do not ask for another approval/);
+  assert.match(WORKFLOW, /dispatch\.boundary` is exactly `crossed`/);
+  assert.match(WORKFLOW, /host-disabled\/pre-server invocation is not dispatch evidence/);
+  assert.match(WORKFLOW, /report[\s\S]*no payment was sent/);
   assert.doesNotMatch(
     SERVER,
     /ALWAYS pass this when the paying wallet is chain-bound|pass "solana" there/,
@@ -96,10 +99,17 @@ test('served guidance requires native OAuth and bounded nonretryable spending', 
   );
   assert.match(WORKFLOW, /vaultPda[\s\S]*not a deposit\s+fallback/);
   assert.match(WORKFLOW, /canonical `assetId`/);
+  assert.match(WORKFLOW, /natural-language[\s\S]*stock Buy or Sell[\s\S]*`companyQuery`/);
+  assert.match(WORKFLOW, /Never replace a stock `companyQuery`[\s\S]*`assetId`, symbol, or mint/);
   assert.match(WORKFLOW, /approvedActionTargets/);
   assert.match(WORKFLOW, /never add to holdings, balances, quantities,[\s\S]*or value/);
   assert.match(WORKFLOW, /Buy[\s\S]*USDC budget[\s\S]*6\s+decimals/);
-  assert.match(WORKFLOW, /Sell and Send[\s\S]*selected asset amount/);
+  assert.match(WORKFLOW, /shareQuantity: "10"/);
+  assert.match(WORKFLOW, /shareQuantity: "0\.25"/);
+  assert.match(WORKFLOW, /Keep it as[\s\S]*human decimal/);
+  assert.match(WORKFLOW, /shareQuantityConversion[\s\S]*display multiplier/);
+  assert.doesNotMatch(WORKFLOW, /quantityAtomic/);
+  assert.match(WORKFLOW, /non-stock Sell and Send[\s\S]*`assetId`[\s\S]*`amountAtomic`/);
   assert.match(WORKFLOW, /reusable\s+mandate[\s\S]*execute autonomously/i);
   assert.match(WORKFLOW, /mandate_enrollment_required/);
   assert.match(WORKFLOW, /mandate_extension_required/);
@@ -133,6 +143,8 @@ test('generated runtime instructions route the complete twelve-tool product', ()
   const runtime = buildOpenServerInstructions();
 
   assert.deepEqual(mentionedOpenDexterTools(runtime), [...EXPECTED_TOOLS].sort());
+  assert.match(runtime, /Set up, connect, sign in to, authenticate, authorize,[\s\S]*call x402_wallet first/);
+  assert.match(runtime, /before marketplace search or another protected tool/);
   assert.match(runtime, /Wallet presence, balance, cash, readiness, deposit address,[\s\S]*x402_wallet/);
   assert.match(runtime, /What's in my wallet\?[\s\S]*x402_wallet, then dexter_portfolio/);
   assert.match(runtime, /Compose cash\/readiness with governed assets/);
@@ -141,7 +153,7 @@ test('generated runtime instructions route the complete twelve-tool product', ()
   assert.match(runtime, /Pay for or call a paid API[\s\S]*x402_fetch once/);
   assert.match(runtime, /x402_status for the same purchase intent/);
   assert.match(runtime, /wallet-proof or Sign-In-With-X[\s\S]*x402_access/);
-  assert.match(runtime, /Governed Send, Buy, or Sell[\s\S]*dexter_prepare_asset_action/);
+  assert.match(runtime, /Governed Send or non-stock Buy\/Sell[\s\S]*dexter_prepare_asset_action/);
   assert.match(runtime, /successfully prepared intent[\s\S]*dexter_execute_asset_action/);
   assert.match(runtime, /Read governed action state[\s\S]*dexter_asset_action_status/);
   assert.match(runtime, /dexter_reconcile_asset_action only when that durable status explicitly requires reconciliation/);
@@ -161,14 +173,21 @@ test('generated runtime instructions preserve exact consequence and recovery bou
   assert.match(runtime, /current instruction or existing bounded policy covers the exact seller, URL, method, body,[\s\S]*maxAmountAtomic/);
   assert.match(runtime, /If it already does, do not ask for another payment approval/);
   assert.match(runtime, /x402_fetch once with only intentId and maxAmountAtomic/);
+  assert.match(runtime, /Say the merchant request crossed the dispatch boundary only when structuredContent\.dispatch\.boundary is exactly "crossed"/);
+  assert.match(runtime, /host explicitly rejects or disables the tool before backend execution[\s\S]*no payment was sent/);
+  assert.match(runtime, /If no result returns[\s\S]*call has not returned and no dispatch is confirmed/);
+  assert.match(runtime, /Never infer dispatch from silence/);
   assert.match(runtime, /Never automatically repeat an access call after dispatch uncertainty/);
-  assert.match(runtime, /If access reports that the endpoint is paid, do not call x402_fetch directly/);
-  assert.match(runtime, /Return to x402_check for that exact request[\s\S]*authenticated intent and approved ceiling/);
-  assert.match(runtime, /unprotected request,[\s\S]*no generic free-HTTP tool/);
+  assert.match(runtime, /A paid result is already the canonical check result/);
+  assert.match(runtime, /siwx_signer_unavailable result is terminal/);
+  assert.match(runtime, /Call x402_fetch when current instruction or bounded policy covers the returned price and ceiling/);
+  assert.match(runtime, /unprotected request,[\s\S]*use the response returned by x402_check/);
+  assert.doesNotMatch(runtime, /no generic free-HTTP tool/);
   assert.match(runtime, /After timeout,[\s\S]*dexter_asset_action_status[\s\S]*never automatically call Execute again/);
   assert.match(runtime, /Reconcile that same intent only when durable status requires it/);
   assert.match(runtime, /user requested only a status read,[\s\S]*obtain explicit confirmation before reconciliation/);
   assert.match(runtime, /Status reads never redispatch/);
+  assert.match(runtime, /dispatch\.boundary "unknown"[\s\S]*x402_status only/);
   assert.match(runtime, /untrusted external data/);
   assert.match(runtime, /never authorize payment, an asset action,[\s\S]*or a retry/);
 });
@@ -177,6 +196,10 @@ test('generated runtime instructions preserve current wallet and authority truth
   const runtime = buildOpenServerInstructions();
 
   assert.match(runtime, /native OpenDexter Connect action/);
+  assert.match(runtime, /Connected label[\s\S]*wallet authorization is proven only by a successful protected tool call/);
+  assert.match(runtime, /Connected appears without authorization[\s\S]*call x402_wallet once more/);
+  assert.match(runtime, /plugin or integration settings[\s\S]*Authorize or Authenticate/);
+  assert.match(runtime, /never claim that a confirmation card appeared/);
   assert.match(runtime, /Authentication proves the connected wallet session; it does not by itself authorize/);
   assert.match(runtime, /Zero cash does not prove that funding is required/);
   assert.match(runtime, /reported credit does not prove that a particular purchase can use it/);
@@ -186,6 +209,8 @@ test('generated runtime instructions preserve current wallet and authority truth
   assert.match(runtime, /hosted wallet is Solana-based/);
   assert.match(runtime, /only x402_wallet\.receiveAddress is a deposit address/);
   assert.match(runtime, /non-null canonical assetId/);
+  assert.match(runtime, /natural-language stock Buy\/Sell[\s\S]*companyQuery instead of assetId/);
+  assert.match(runtime, /Never derive or remember a static stock assetId/);
   assert.match(runtime, /approved action target is discovery context, not a holding/);
   assert.match(runtime, /persists and evaluates one exact governed action but does not sign or submit/);
   assert.match(runtime, /For Send, obey the returned availability and stop if no executable intent is created/);
@@ -194,6 +219,16 @@ test('generated runtime instructions preserve current wallet and authority truth
   assert.match(runtime, /it is not a read-only status check/);
   assert.match(runtime, /https:\/\/dexter\.cash\/wallet/);
   assert.match(runtime, /https:\/\/dexter\.cash\/dextercard/);
+});
+
+test('generated runtime instructions preserve human share quantities', () => {
+  const runtime = buildOpenServerInstructions();
+  assert.match(runtime, /shareQuantity[\s\S]*human decimal string/);
+  assert.match(runtime, /companyQuery "NVIDIA"[\s\S]*shareQuantity/);
+  assert.match(runtime, /Never convert shareQuantity using token decimals/);
+  assert.match(runtime, /requestedShareQuantity exactly echoes the request/);
+  assert.match(runtime, /underlying-share-equivalent/);
+  assert.doesNotMatch(runtime, /quantityAtomic/);
 });
 
 test('generated runtime instructions contain one coherent hosted contract without legacy drift', () => {

@@ -16,6 +16,7 @@ import {
 } from '../lib/open-tool-contracts.mjs';
 import {
   OPEN_TOOL_SECURITY_SCHEMES,
+  VAULT_WWW_AUTHENTICATE,
   installCanonicalSecuritySchemeProjection,
 } from '../lib/open-tool-auth.mjs';
 import {
@@ -52,13 +53,26 @@ const RETIRED_TOOLS = [
   'dexter_authorize_asset_action',
 ];
 
+function outputUnknownKeys(schema) {
+  let current = schema;
+  const visited = new Set();
+  while (current && typeof current === 'object' && !visited.has(current)) {
+    visited.add(current);
+    if (current._def?.unknownKeys !== undefined) {
+      return current._def.unknownKeys;
+    }
+    current = current._def?.schema ?? current._def?.innerType ?? null;
+  }
+  return undefined;
+}
+
 test('contract is exactly the canonical hosted twelve', () => {
   assert.deepEqual(OPEN_TOOL_NAMES, EXPECTED_TOOLS);
   assert.deepEqual(Object.keys(OPEN_TOOL_CONTRACTS).sort(), [...EXPECTED_TOOLS].sort());
   assert.doesNotMatch(OPEN_TOOL_NAMES.join(','), /card_/);
   for (const [name, toolContract] of Object.entries(OPEN_TOOL_CONTRACTS)) {
     assert.equal(
-      toolContract.outputSchema?._def?.unknownKeys,
+      outputUnknownKeys(toolContract.outputSchema),
       [
         'x402_check',
         'x402_fetch',
@@ -87,12 +101,34 @@ test('contract is exactly the canonical hosted twelve', () => {
   }
 });
 
+test('governed trade results remain model-visible while only the receipt app renders', () => {
+  for (const name of [
+    'dexter_prepare_asset_action',
+    'dexter_execute_asset_action',
+    'dexter_asset_action_status',
+    'dexter_reconcile_asset_action',
+  ]) {
+    assert.deepEqual(OPEN_TOOL_CONTRACTS[name].visibility, ['model', 'app'], name);
+    assert.equal(OPEN_TOOL_CONTRACTS[name].widgetAccessible, false, name);
+  }
+  assert.deepEqual(
+    OPEN_TOOL_CONTRACTS.dexter_wallet_history.visibility,
+    ['model'],
+  );
+  assert.equal(
+    OPEN_TOOL_CONTRACTS.dexter_wallet_history.widgetAccessible,
+    false,
+  );
+});
+
 test('hosted paid guidance uses one opaque check-fetch-status path', () => {
   const fetchDescription = OPEN_TOOL_CONTRACTS.x402_fetch.description;
   const checkDescription = OPEN_TOOL_CONTRACTS.x402_check.description;
 
   assert.match(fetchDescription, /opaque intentId/);
   assert.match(fetchDescription, /maxAmountAtomic/);
+  assert.match(fetchDescription, /dispatch\.boundary is crossed/);
+  assert.match(fetchDescription, /host-disabled\/pre-server invocation is not dispatch evidence/);
   assert.match(fetchDescription, /x402_status/);
   assert.doesNotMatch(fetchDescription, /same URL|same method|same body|CrossPay/);
   assert.doesNotMatch(fetchDescription, /preparedPurchase|purchase mode|omit purchase/i);
@@ -101,6 +137,24 @@ test('hosted paid guidance uses one opaque check-fetch-status path', () => {
   assert.match(checkDescription, /raw JSON string/);
   assert.match(checkDescription, /intentId/);
   assert.doesNotMatch(checkDescription, /prepared seller-route|purchase-mode choices|omit purchase/i);
+});
+
+test('fetch and status declare the route-neutral dispatch evidence contract', () => {
+  for (const name of ['x402_fetch', 'x402_status']) {
+    const schema = OPEN_TOOL_CONTRACTS[name].outputSchema;
+    assert.equal(schema.safeParse({
+      dispatch: {
+        boundary: 'crossed',
+        evidence: 'backend_delivery_state',
+      },
+    }).success, true, name);
+    assert.equal(schema.safeParse({
+      dispatch: {
+        boundary: 'crossed',
+        evidence: 'model_inference',
+      },
+    }).success, false, name);
+  }
 });
 
 test('search and wallet contracts expose current truth without route claims', () => {
@@ -1062,37 +1116,81 @@ for (const clientName of ['Generic MCP', 'ChatGPT', 'Claude']) {
   });
 }
 
-test('tools/list promotes exactly fetch and status after OAuth binding', async (t) => {
-  let connected = false;
-  const server = new McpServer({ name: 'dynamic-roster-test', version: '0.4.0' });
-  installOpenToolContracts(server);
-  for (const name of EXPECTED_TOOLS) {
-    server.registerTool(name, { inputSchema: {} }, async () => ({
-      content: [{ type: 'text', text: '{}' }],
-      structuredContent: {},
-    }));
+test('vault-bound hosted discovery retains the exact protected roster', async () => {
+  const { createOpenMcpServer } = await import('../open-mcp-server.mjs');
+  for (const phase of ['fresh', 'refreshed']) {
+    const server = createOpenMcpServer({
+      includeResources: false,
+      listedToolNames: () => OPEN_TOOL_NAMES,
+    });
+    const client = new Client({ name: `${phase}-client`, version: '1.0.0' });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+    try {
+      const listed = (await client.listTools()).tools;
+      const names = listed.map((tool) => tool.name);
+      assert.deepEqual(names, OPEN_TOOL_NAMES, phase);
+      const prepare = listed.find(
+        ({ name }) => name === 'dexter_prepare_asset_action',
+      );
+      const prepareVariants = prepare?.inputSchema?.anyOf ?? [];
+      assert.equal(
+        prepareVariants.some((variant) =>
+          Object.hasOwn(variant.properties ?? {}, 'amountAtomic')
+          && variant.properties?.action?.const === 'buy'),
+        true,
+        `${phase}:USDC-budget Buy`,
+      );
+      assert.equal(
+        prepareVariants.some((variant) =>
+          Object.hasOwn(variant.properties ?? {}, 'shareQuantity')
+          && Object.hasOwn(variant.properties ?? {}, 'companyQuery')
+          && !Object.hasOwn(variant.properties ?? {}, 'assetId')
+          && variant.properties?.action?.const === 'buy'),
+        true,
+        `${phase}:catalog share-quantity Buy`,
+      );
+      assert.equal(
+        prepareVariants.some((variant) =>
+          Object.hasOwn(variant.properties ?? {}, 'shareQuantity')
+          && Object.hasOwn(variant.properties ?? {}, 'assetId')),
+        false,
+        `${phase}:no static-asset stock share order`,
+      );
+      assert.equal(
+        prepareVariants.some((variant) =>
+          Object.hasOwn(variant.properties ?? {}, 'companyQuery')
+          && Object.hasOwn(variant.properties ?? {}, 'amountAtomic')
+          && variant.properties?.action?.const === 'sell'),
+        true,
+        `${phase}:catalog direct-input Sell`,
+      );
+      assert.equal(
+        prepareVariants.some((variant) =>
+          Object.hasOwn(variant.properties ?? {}, 'quantityAtomic')),
+        false,
+        `${phase}:no caller-derived quantity atoms`,
+      );
+      for (const protectedName of ['x402_fetch', 'x402_status']) {
+        const tool = listed.find(({ name }) => name === protectedName);
+        assert.deepEqual(
+          tool?._meta?.securitySchemes,
+          [{ type: 'oauth2', scopes: ['vault'] }],
+          `${phase}:${protectedName}`,
+        );
+      }
+    } finally {
+      await client.close();
+      await server.close();
+    }
   }
-  finalizeOpenToolContracts(server, {
-    listedToolNames: () => connected ? OPEN_TOOL_NAMES : OPEN_ANONYMOUS_TOOL_NAMES,
-  });
-
-  const client = new Client({ name: 'dynamic-client', version: '1.0.0' });
-  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-  t.after(async () => {
-    await client.close();
-    await server.close();
-  });
-  await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
-
-  assert.deepEqual(
-    (await client.listTools()).tools.map((tool) => tool.name),
-    OPEN_ANONYMOUS_TOOL_NAMES,
-  );
-  connected = true;
-  assert.deepEqual(
-    (await client.listTools()).tools.map((tool) => tool.name),
-    OPEN_TOOL_NAMES,
-  );
+  assert.deepEqual(OPEN_ANONYMOUS_TOOL_NAMES, [
+    'x402_search',
+    'x402_check',
+    'x402_access',
+    'x402_wallet',
+    'dexter_portfolio',
+  ]);
   assert.deepEqual(OPEN_OAUTH_PROMOTED_TOOL_NAMES, [
     'x402_fetch',
     'x402_status',
@@ -1102,4 +1200,41 @@ test('tools/list promotes exactly fetch and status after OAuth binding', async (
     'dexter_reconcile_asset_action',
     'dexter_wallet_history',
   ]);
+});
+
+test('an unbound session lists entry tools while a direct protected call requests Connect', async (t) => {
+  const { createOpenMcpServer } = await import('../open-mcp-server.mjs');
+  const server = createOpenMcpServer({ includeResources: false });
+
+  const client = new Client({ name: 'unbound-client', version: '1.0.0' });
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+  await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+
+  const before = (await client.listTools()).tools.map((tool) => tool.name);
+  assert.deepEqual(before, OPEN_ANONYMOUS_TOOL_NAMES);
+  assert.equal(before.includes('x402_fetch'), false);
+
+  const result = await client.callTool({
+    name: 'x402_fetch',
+    arguments: {
+      intentId: 'intent-unbound',
+      maxAmountAtomic: '50000',
+    },
+  });
+  assert.equal(result.isError, true);
+  assert.equal(result.structuredContent.status, 'authentication_required');
+  assert.equal(result.structuredContent.dispatch.boundary, 'not_crossed');
+  assert.equal(result.structuredContent.payment.confirmed, false);
+  assert.deepEqual(
+    result._meta['mcp/www_authenticate'],
+    [VAULT_WWW_AUTHENTICATE],
+  );
+  assert.deepEqual(
+    (await client.listTools()).tools.map((tool) => tool.name),
+    before,
+  );
 });

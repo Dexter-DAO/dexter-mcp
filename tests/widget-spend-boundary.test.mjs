@@ -36,9 +36,11 @@ test('pricing widget continues in chat instead of invoking a money tool', async 
 });
 
 test('fetch result reports one intent lifecycle and never interprets rail modes', async () => {
-  const [fetchResult, lifecycleModel] = await Promise.all([
+  const [fetchResult, lifecycleModel, loading, server] = await Promise.all([
     source('apps-sdk/ui/src/entries/x402-fetch-result.tsx'),
     source('apps-sdk/ui/src/components/x402/fetch-result-model.ts'),
+    source('apps-sdk/ui/src/components/receipt/ReceiptLoading.tsx'),
+    source('open-mcp-server.mjs'),
   ]);
   const lifecycleSources = `${fetchResult}\n${lifecycleModel}`;
   assert.match(fetchResult, /normalizeIntentLifecycle/);
@@ -48,6 +50,15 @@ test('fetch result reports one intent lifecycle and never interprets rail modes'
   assert.match(lifecycleSources, /Reconciliation/);
   assert.match(lifecycleSources, /Reservation/);
   assert.match(fetchResult, /Open Dexter consent/);
+  assert.match(fetchResult, /toolOutput\.dispatch/);
+  assert.match(loading, /MISSING_TOOL_RESULT_TIMEOUT_SECONDS/);
+  assert.match(loading, /dx-receipt-error/);
+  assert.doesNotMatch(
+    loading,
+    /Submitting payment|Awaiting settlement|Payment cleared|settlement landed|seller is taking longer/i,
+  );
+  assert.match(server, /'Waiting for OpenDexter…', 'OpenDexter result received'/);
+  assert.doesNotMatch(server, /X402_WIDGET_URIS\.fetch, 'Calling API/);
   assert.match(fetchResult, /startsWith\('https:\/\/dexter\.cash\/'\)/);
   assert.doesNotMatch(
     lifecycleSources,

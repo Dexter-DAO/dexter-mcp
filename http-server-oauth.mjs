@@ -5,7 +5,10 @@ import http from 'node:http';
 import https from 'node:https';
 import { randomUUID, createPrivateKey, createPublicKey, createHmac } from 'node:crypto';
 import { buildMcpServer } from './common.mjs';
-import { logToolsetGroups } from './toolsets/index.mjs';
+import {
+  logToolsetGroups,
+  SEALED_PRIVATE_TOOLSET_PROFILE,
+} from './toolsets/index.mjs';
 import { invalidateX402Cache } from './registry/x402/index.mjs';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import dotenv from 'dotenv';
@@ -108,6 +111,27 @@ const ROOT_DIR = path.resolve(path.dirname(new URL(import.meta.url).pathname), '
 const APPS_SDK_ASSETS_DIR = path.resolve(ROOT_DIR, 'public/apps-sdk/assets');
 const OPEN_RELEASE_IDENTITY = readOpenReleaseIdentity();
 const EXPECTED_OPEN_RELEASE_ROSTER = readExpectedOpenReleaseRoster();
+const IS_SEALED_PRIVATE_RELEASE =
+  OPEN_RELEASE_IDENTITY?.service === 'dexter-mcp';
+
+function registeredToolNames(mcpServer) {
+  return mcpServer?._registeredTools
+    && typeof mcpServer._registeredTools === 'object'
+    ? Object.keys(mcpServer._registeredTools)
+    : [];
+}
+
+async function requireSealedSessionRoster(mcpServer) {
+  const names = registeredToolNames(mcpServer);
+  if (
+    EXPECTED_OPEN_RELEASE_ROSTER
+    && JSON.stringify(names) !== JSON.stringify(EXPECTED_OPEN_RELEASE_ROSTER)
+  ) {
+    try { await mcpServer.close(); } catch {}
+    throw new Error('dexter_mcp_release_roster_mismatch');
+  }
+  return names;
+}
 
 const PORT = Number(process.env.TOKEN_AI_MCP_PORT || 3930);
 const TOKEN = process.env.TOKEN_AI_MCP_TOKEN || '';
@@ -1656,11 +1680,24 @@ const server = http.createServer(async (req, res) => {
       let clientInfoName = null;
       try {
         const tools = url.searchParams.get('tools');
-        if (tools) includeToolsets = tools;
         const requestedProfile = url.searchParams.get('profile');
+        if (IS_SEALED_PRIVATE_RELEASE && (tools || requestedProfile)) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            error: 'sealed_private_roster_override_unavailable',
+          }));
+          return;
+        }
+        if (tools) includeToolsets = tools;
         if (requestedProfile) profile = requestedProfile;
       } catch {}
-      const mcpServer = await buildMcpServer({ includeToolsets, profile });
+      const mcpServer = await buildMcpServer({
+        includeToolsets,
+        profile: IS_SEALED_PRIVATE_RELEASE
+          ? SEALED_PRIVATE_TOOLSET_PROFILE
+          : profile,
+      });
+      await requireSealedSessionRoster(mcpServer);
       await mcpServer.connect(transport);
       // Propagate x-user-token on initialization, too
       try {
@@ -1776,16 +1813,17 @@ export async function startHttpServer() {
   // reachable so activation can prove the candidate did not inherit a stale
   // PM2 process or a different tool profile.
   const diagServer = await buildMcpServer({
-    includeToolsets: process.env.TOKEN_AI_MCP_TOOLSETS,
-    profile: process.env.TOKEN_AI_MCP_PROFILE,
+    includeToolsets: IS_SEALED_PRIVATE_RELEASE
+      ? undefined
+      : process.env.TOKEN_AI_MCP_TOOLSETS,
+    profile: IS_SEALED_PRIVATE_RELEASE
+      ? SEALED_PRIVATE_TOOLSET_PROFILE
+      : process.env.TOKEN_AI_MCP_PROFILE,
   });
   server.__dexterToolGroups = Array.isArray(diagServer?.__dexterToolGroups)
     ? diagServer.__dexterToolGroups
     : [];
-  server.__dexterToolNames = diagServer?._registeredTools
-    && typeof diagServer._registeredTools === 'object'
-    ? Object.keys(diagServer._registeredTools)
-    : [];
+  server.__dexterToolNames = await requireSealedSessionRoster(diagServer);
   const expectedRoster = process.env.NODE_ENV === 'production'
     ? requireSealedOpenReleaseRuntime({
       releaseDir: ROOT_DIR,
@@ -1805,7 +1843,7 @@ export async function startHttpServer() {
   process.send?.('ready');
   const jwtEnabled = Boolean(MCP_JWT_SECRET);
   if (!jwtEnabled) {
-    console.warn('[auth] MCP_JWT_SECRET not set — per-user Dexter MCP JWTs will be rejected (static TOKEN_AI_MCP_TOKEN and external OAuth still supported).');
+    console.warn('[auth] MCP_JWT_SECRET not set; per-user Dexter MCP JWTs will be rejected (static TOKEN_AI_MCP_TOKEN and external OAuth still supported).');
   }
 
   const localUrl = `http://localhost:${PORT}/mcp`;

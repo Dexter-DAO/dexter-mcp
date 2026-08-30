@@ -16,7 +16,7 @@ import {
   buildOpenMcpAuthorizationServerMetadata,
 } from '../lib/open-tool-auth.mjs';
 
-test('well-known manifest is generated from the five-to-twelve OAuth contract', () => {
+test('well-known manifest advertises the cumulative five-to-twelve OAuth contract', () => {
   const manifest = buildOpenMcpManifest();
   assert.equal(manifest.name, 'OpenDexter');
   assert.equal(manifest.namespace, 'opendexter');
@@ -41,10 +41,15 @@ test('well-known manifest is generated from the five-to-twelve OAuth contract', 
     'dexter_reconcile_asset_action',
     'dexter_wallet_history',
   ]);
-  assert.deepEqual(manifest.auth.conditionallyProtectedTools, ['x402_check']);
+  assert.deepEqual(manifest.auth.conditionallyProtectedTools, [
+    'x402_check',
+    'x402_access',
+  ]);
   assert.deepEqual(manifest.rosters.anonymous, OPEN_ANONYMOUS_TOOL_NAMES);
   assert.deepEqual(manifest.rosters.oauthPromotes, OPEN_OAUTH_PROMOTED_TOOL_NAMES);
   assert.deepEqual(manifest.rosters.connected, OPEN_TOOL_NAMES);
+  assert.equal(manifest.rosters.anonymous.length, 5);
+  assert.equal(manifest.rosters.oauthPromotes.length, 7);
   assert.deepEqual(manifest.tools.map((tool) => tool.name), OPEN_TOOL_NAMES);
   assert.equal(manifest.tools.length, 12);
   assert.match(manifest.description, /autonomous governed Buy and Sell/);
@@ -144,7 +149,7 @@ test('hosted source documentation states the current opaque-intent product contr
   ]) {
     assert.ok(readme.includes(`\`${name}\``), name);
   }
-  assert.match(readme, /exact twelve-tool\s+connected roster/i);
+  assert.match(readme, /complete connected roster/i);
   assert.match(readme, /replaces only\s+`dexter-open-mcp`/i);
   assert.match(readme, /legacy `dexter-mcp` PID, path,\s+configuration, and restart counters remain unchanged/i);
   assert.doesNotMatch(readme, /deletes both named PM2\s+processes/i);

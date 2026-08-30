@@ -11,29 +11,17 @@ prepared purchase object between tools.
 
 ## Public rosters
 
-The anonymous roster is exactly:
+The anonymous roster is `x402_search`, `x402_check`, `x402_access`,
+`x402_wallet`, and `dexter_portfolio`.
 
-1. `x402_search`
-2. `x402_check`
-3. `x402_access`
-4. `x402_wallet`
-5. `dexter_portfolio`
+Wallet and portfolio return the host-native Connect path until the MCP session
+has `scope=vault` and a durable wallet binding.
 
-`x402_wallet` and `dexter_portfolio` do not disclose user data anonymously.
-They surface the host-native Connect/OAuth path until the MCP session has
-`scope=vault` and a durable wallet binding.
+OAuth adds `x402_fetch`, `x402_status`, `dexter_prepare_asset_action`,
+`dexter_execute_asset_action`, `dexter_asset_action_status`,
+`dexter_reconcile_asset_action`, and `dexter_wallet_history`.
 
-OAuth promotes exactly seven tools:
-
-1. `x402_fetch`
-2. `x402_status`
-3. `dexter_prepare_asset_action`
-4. `dexter_execute_asset_action`
-5. `dexter_asset_action_status`
-6. `dexter_reconcile_asset_action`
-7. `dexter_wallet_history`
-
-The connected roster is therefore exactly twelve tools:
+The connected roster has twelve tools:
 
 1. `x402_search`
 2. `x402_check`
@@ -47,6 +35,9 @@ The connected roster is therefore exactly twelve tools:
 10. `dexter_asset_action_status`
 11. `dexter_reconcile_asset_action`
 12. `dexter_wallet_history`
+
+Per-tool security schemes still enforce OAuth after discovery. Protected calls
+require the current vault Bearer on every invocation.
 
 There are no public aliases, tab tools, purchase-mode selectors,
 `PreparedPurchase` inputs, card tools, model-callable owner-decision tools, or
@@ -131,16 +122,21 @@ refuses it with `protected_agent_send_sdk_required` before capacity reservation
 or intent creation. That refusal has no executable intent: callers must not call
 Execute or Reconcile and must not advertise Send as live.
 
-The public asset selector is a canonical registry ID matching
+Send and non-stock Buy/Sell use a canonical registry `assetId` matching
 `^[a-z0-9][a-z0-9._:-]{0,127}$`. It must come from an approved holding or an
 `approvedActionTarget` returned by `dexter_portfolio` with the requested action
 available; it is not a display symbol or mint. `approvedActionTargets` are
 separate from holdings and totals, so a zero-balance asset can be discoverable
-for Buy without becoming a synthetic holding or value. The API resolves the ID
-through its authoritative approved registry and freezes the exact network,
-mint, token program, decimals, capabilities, and identity digest in the intent
-and grant. The MCP never supplies those authority fields, and Prepare remains
-the execution-authority decision.
+for Buy without becoming a synthetic holding or value.
+
+A natural-language stock Buy/Sell uses the user's exact human `companyQuery`,
+not `assetId`. The API normalizes that query, resolves the current released
+catalog product, and freezes its selection lineage, network, mint, token
+program, decimals, capabilities, and identity digests. A caller must never
+replace the query with a remembered static stock `assetId`, symbol, or mint;
+the direct static-stock route fails closed with
+`stock_catalog_selection_required`. The MCP never supplies catalog authority
+fields, and Prepare remains the execution-authority decision.
 
 ### `dexter_prepare_asset_action`
 
@@ -158,7 +154,7 @@ Input is one of:
 {
   operationId: string;
   action: "buy";
-  assetId: string; // canonical approved registry ID for the asset being bought
+  assetId: string; // canonical approved non-stock registry ID
   amountAtomic: string; // canonical USDC input; 6 decimals
   memo?: string | null;
   maxSlippageBps?: number;
@@ -168,8 +164,39 @@ Input is one of:
 {
   operationId: string;
   action: "sell";
-  assetId: string; // canonical approved registry ID
+  assetId: string; // canonical approved non-stock registry ID
   amountAtomic: string; // selected asset, using server-certified decimals
+  memo?: string | null;
+  maxSlippageBps?: number;
+  maxPriceImpactBps?: number;
+}
+
+{
+  operationId: string;
+  action: "buy";
+  companyQuery: string; // exact human company/stock query
+  amountAtomic: string; // canonical USDC input; 6 decimals
+  memo?: string | null;
+  maxSlippageBps?: number;
+  maxPriceImpactBps?: number;
+}
+
+{
+  operationId: string;
+  action: "buy";
+  companyQuery: string;
+  shareQuantity: string; // human underlying-share-equivalent minimum
+  maximumSpendAtomic?: string; // optional USDC ceiling; 6 decimals
+  memo?: string | null;
+  maxSlippageBps?: number;
+  maxPriceImpactBps?: number;
+}
+
+{
+  operationId: string;
+  action: "sell";
+  companyQuery: string;
+  amountAtomic: string; // selected stock-token input, server-certified decimals
   memo?: string | null;
   maxSlippageBps?: number;
   maxPriceImpactBps?: number;
@@ -179,7 +206,17 @@ Input is one of:
 Send has no memo field because the canonical API refuses every non-null Send
 memo, including an empty string. Prepare persists and evaluates the exact
 request but does not sign or submit it. `operationId` is idempotency identity
-only and grants no authority.
+only and grants no authority. Stock share-quantity mode is Buy-only,
+minimum-receive semantics, and may overfill slightly. Never convert it with
+remembered token decimals or a display multiplier; the catalog route owns the
+current conversion. Sell accepts direct token input only.
+
+A successful stock Prepare contains top-level `stockRuntime` with namespace
+`dexter-delegated-stock-prepare-runtime-binding/v2` and the frozen
+`preview.stockSelection` with namespace
+`dexter-governed-stock-selection-pin/v1`. Its product identity names both the
+provider and formal legal issuer; the compatibility `issuer` equals the legal
+issuer.
 
 Mandate coverage is explicit:
 
@@ -207,7 +244,8 @@ Input is exactly:
 The API body is exactly `{}`. The public tool accepts no `action`, `attemptId`,
 `planId`, `preparedPlanHash`, `authorizationId`, or authority selector. A lost
 execute response is ambiguous: do not execute again. Read status, then request
-reconciliation for the same intent.
+reconciliation for the same intent. Stock Execute responses carry top-level
+`tradeSummary`; they do not expose a caller-supplied stock selector.
 
 ### `dexter_asset_action_status`
 
@@ -215,7 +253,12 @@ Input is exactly `{ intentId: string }`. It returns the canonical
 `dexter-governed-transaction-status/v1` record, including the operation
 ceremony, wallet and bounded mandate authority, lifecycle, receipt phases,
 submission, landing, non-landing, finality, and replay rules. It never
-dispatches execution.
+dispatches execution. Current stock records carry top-level `stockSelection`,
+`tradeSummary`, and `stockV2Identity` (namespace
+`dexter-governed-stock-v2-durable-identity/v1`). A stock success is exact only
+with a canonical 64-byte Solana signature, confirmed or finalized commitment,
+`executionSucceeded=true`, and matching selection, summary, durable intent,
+asset, mint, token program, and amount identities.
 
 ### `dexter_reconcile_asset_action`
 
@@ -226,13 +269,16 @@ intent and attempt, prior state version, complete durable status after the
 operation, mutation truth, recovery phase, and canonical response digest.
 Reconciliation is status-gated and never expands mandate scope or creates a
 replacement intent. The MCP does not retry reconciliation automatically.
+Stock lifecycle fields remain under `statusAfter`; there is no `current`
+alias.
 
 ### `dexter_wallet_history`
 
 Input is `{ limit?: 1..100, cursor?: string }`. It returns
 `dexter-governed-transaction-history/v1`, whose `items` are the same canonical
 status records and whose `nextCursor` is opaque. The caller cannot construct a
-wallet or authority filter.
+wallet or authority filter. Stock lifecycle fields remain on each `items[n]`
+Status record.
 
 Mandate enrollment, extension, and owner escalation remain out-of-band on the
 separately authenticated owner ceremony. Models cannot call, emulate, or

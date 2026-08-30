@@ -1325,6 +1325,11 @@ test('release activation uses only the sealed candidate verifier and transaction
     'npm run verify:release:runtime && npm run verify:release:installed '
       + '&& node scripts/release/activate-open-release.mjs',
   );
+  assert.equal(
+    pkg.scripts['deploy:mcp:private'],
+    'npm run verify:release:runtime && npm run verify:release:installed '
+      + '&& node scripts/release/activate-private-release.mjs',
+  );
   const deploySteps = pkg.scripts['deploy:mcp'].split(' && ');
   assert.equal(
     deploySteps.at(-1),
@@ -1335,6 +1340,10 @@ test('release activation uses only the sealed candidate verifier and transaction
     /pm2|startOrReload|--update-env|\b(?:restart|reload)\b/,
   );
   assert.doesNotMatch(pkg.scripts['deploy:mcp'], /echo .*restarted/);
+  assert.doesNotMatch(
+    pkg.scripts['deploy:mcp:private'],
+    /pm2|startOrReload|--update-env|\b(?:restart|reload)\b/,
+  );
   await assert.rejects(
     inspectSourceTrain({
       hostedRoot,

@@ -6,12 +6,15 @@ import {
   GOVERNED_ASSET_INPUT_SCHEMAS,
   GOVERNED_ASSET_TOOL_CONTRACTS,
   GOVERNED_ASSET_TOOL_NAMES,
+  GOVERNED_COMPANY_QUERY_SCHEMA,
   GOVERNED_HISTORY_CURSOR_MAX_LENGTH,
   GOVERNED_OPERATION_SEMANTICS,
+  GOVERNED_SHARE_QUANTITY_SCHEMA,
   REGISTERED_GOVERNED_ASSET_TOOL_NAMES,
   assertNoGovernedAuthorityOverrides,
 } from '../lib/governed-asset-contract.mjs';
 import {
+  OPEN_ANONYMOUS_TOOL_NAMES,
   OPEN_OAUTH_PROMOTED_TOOL_NAMES,
   OPEN_TOOL_NAMES,
 } from '../lib/open-tool-contracts.mjs';
@@ -37,6 +40,7 @@ test('exactly five governed tools are public and owner authorize stays inaccessi
   assert.deepEqual(Object.keys(GOVERNED_ASSET_TOOL_CONTRACTS), PUBLIC_TOOLS);
   for (const name of PUBLIC_TOOLS) {
     assert.equal(OPEN_TOOL_NAMES.includes(name), true, name);
+    assert.equal(OPEN_ANONYMOUS_TOOL_NAMES.includes(name), false, name);
     assert.equal(OPEN_OAUTH_PROMOTED_TOOL_NAMES.includes(name), true, name);
     assert.equal(GOVERNED_ASSET_TOOL_CONTRACTS[name].registered, true, name);
   }
@@ -118,6 +122,131 @@ test('prepare accepts any canonical registry assetId and keeps denomination expl
   assert.match(buySchema.shape.amountAtomic.description, /6 decimals/i);
   assert.match(sellSchema.shape.amountAtomic.description, /selected-asset amount/i);
   assert.match(sellSchema.shape.amountAtomic.description, /server-certified decimals/i);
+});
+
+test('natural-language stock Buy and Sell use one strict companyQuery catalog mode', () => {
+  const quantityBuy = {
+    operationId: OPERATION_ID,
+    action: 'buy',
+    companyQuery: 'Tesla',
+    shareQuantity: '10',
+    maximumSpendAtomic: '5000000000',
+    maxSlippageBps: 50,
+  };
+  assert.equal(
+    GOVERNED_ASSET_INPUT_SCHEMAS.prepare.safeParse(quantityBuy).success,
+    true,
+  );
+  assert.equal(
+    GOVERNED_ASSET_INPUT_SCHEMAS.prepare.safeParse({
+      ...quantityBuy,
+      maximumSpendAtomic: undefined,
+    }).success,
+    true,
+  );
+
+  for (const invalid of [
+    {
+      operationId: OPERATION_ID,
+      action: 'buy',
+      companyQuery: 'Tesla',
+    },
+    {
+      ...quantityBuy,
+      amountAtomic: '1000000',
+    },
+    {
+      operationId: OPERATION_ID,
+      action: 'buy',
+      companyQuery: 'Tesla',
+      maximumSpendAtomic: '5000000000',
+    },
+    {
+      operationId: OPERATION_ID,
+      action: 'sell',
+      companyQuery: 'Tesla',
+      shareQuantity: '10',
+    },
+    {
+      operationId: OPERATION_ID,
+      action: 'send',
+      companyQuery: 'Tesla',
+      shareQuantity: '10',
+      destinationOwner: ADDRESS,
+    },
+    {
+      operationId: OPERATION_ID,
+      action: 'buy',
+      companyQuery: 'Tesla',
+      quantityAtomic: '10000000',
+    },
+    {
+      operationId: OPERATION_ID,
+      action: 'buy',
+      assetId: 'backpack-spcx',
+      shareQuantity: '10',
+    },
+  ]) {
+    assert.equal(
+      GOVERNED_ASSET_INPUT_SCHEMAS.prepare.safeParse(invalid).success,
+      false,
+      JSON.stringify(invalid),
+    );
+  }
+
+  const options = GOVERNED_ASSET_INPUT_SCHEMAS.prepare._def.options;
+  const quantitySchema = options.find((schema) =>
+    schema.shape.action.safeParse('buy').success
+    && schema.shape.shareQuantity !== undefined
+    && schema.shape.companyQuery !== undefined);
+  assert.match(quantitySchema.shape.shareQuantity.description, /minimum/i);
+  assert.match(quantitySchema.shape.shareQuantity.description, /underlying-share-equivalent/i);
+  assert.match(quantitySchema.shape.shareQuantity.description, /may receive slightly more/i);
+  assert.match(quantitySchema.shape.shareQuantity.description, /current display multiplier/i);
+  assert.match(quantitySchema.shape.maximumSpendAtomic.description, /maximum USDC input/i);
+  assert.match(quantitySchema.shape.maximumSpendAtomic.description, /only with shareQuantity/i);
+
+  for (const valid of ['10', '0.25', '10.0', '18446744073709551615.123456789012345678']) {
+    assert.equal(GOVERNED_SHARE_QUANTITY_SCHEMA.safeParse(valid).success, true, valid);
+  }
+  assert.equal(GOVERNED_SHARE_QUANTITY_SCHEMA.parse('10.0'), '10');
+  assert.equal(GOVERNED_COMPANY_QUERY_SCHEMA.safeParse('NVIDIA').success, true);
+  assert.equal(GOVERNED_COMPANY_QUERY_SCHEMA.safeParse(' NVIDIA ').success, false);
+
+  const spendBuy = GOVERNED_ASSET_INPUT_SCHEMAS.prepare.safeParse({
+    operationId: OPERATION_ID,
+    action: 'buy',
+    companyQuery: 'Tesla',
+    amountAtomic: '1000000',
+  });
+  const sell = GOVERNED_ASSET_INPUT_SCHEMAS.prepare.safeParse({
+    operationId: OPERATION_ID,
+    action: 'sell',
+    companyQuery: 'NVIDIA',
+    amountAtomic: '1000000',
+  });
+  assert.equal(spendBuy.success, true);
+  assert.equal(sell.success, true);
+  assert.equal('assetId' in spendBuy.data, false);
+  assert.equal('assetId' in sell.data, false);
+  for (const invalid of [
+    '0',
+    '0.0',
+    '.25',
+    '01',
+    '1.',
+    '-1',
+    '1e1',
+    '10 shares',
+    '123456789012345678901',
+    '0.1234567890123456789',
+  ]) {
+    assert.equal(
+      GOVERNED_SHARE_QUANTITY_SCHEMA.safeParse(invalid).success,
+      false,
+      invalid,
+    );
+  }
 });
 
 test('execute accepts only operationId and intentId', () => {
@@ -210,13 +339,20 @@ test('operation identity never substitutes for authority or owner approval', () 
   const execute = GOVERNED_ASSET_TOOL_CONTRACTS.dexter_execute_asset_action.description;
   const reconcile = GOVERNED_ASSET_TOOL_CONTRACTS.dexter_reconcile_asset_action.description;
   assert.match(prepare, /Idempotency-Key/);
-  assert.match(prepare, /canonical assetId returned by dexter_portfolio/);
+  assert.match(prepare, /natural-language stock Buy or Sell, pass companyQuery/);
+  assert.match(prepare, /never pass a remembered stock assetId, mint, or symbol/);
+  assert.match(prepare, /assetId variants remain for a non-stock/);
   assert.match(prepare, /approved holding or approvedActionTarget/);
   assert.match(prepare, /reusable bounded mandate/);
   assert.match(prepare, /outside model-callable tools/);
-  assert.match(prepare, /only this Prepare response is authoritative/);
+  assert.match(prepare, /Treat this Prepare response as the proof/);
   assert.match(prepare, /protected_agent_send_sdk_required/);
   assert.match(prepare, /before capacity reservation or intent creation/);
+  assert.match(prepare, /exactly one amount mode/);
+  assert.match(prepare, /shareQuantity is the human decimal underlying-share-equivalent quantity/);
+  assert.match(prepare, /Keep shareQuantity as a human decimal/);
+  assert.match(prepare, /maximumSpendAtomic as a USDC ceiling/);
+  assert.match(prepare, /overfill is possible/);
   assert.match(execute, /grants no authority/);
   assert.match(execute, /covered by the bound reusable mandate may execute autonomously/);
   assert.match(execute, /Never call Execute after protected_agent_send_sdk_required/);

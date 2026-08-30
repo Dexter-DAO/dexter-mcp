@@ -1,18 +1,18 @@
-// Tests for the spend-tool OAuth challenge decision (lib/spend-challenge.mjs).
+// Tests for the raw vault OAuth challenge decision (lib/spend-challenge.mjs).
 // Runs on the built-in Node test runner — no framework install needed:
 //
 //   node --test tests/spend-challenge.test.mjs
 //
-// The decision is money-perimeter: a wrong `true` OAuth-walls a paying user;
+// The decision is an authorization boundary: a wrong `true` OAuth-walls a user;
 // a wrong `false` silently drops the vault rail advertisement. Every row of
 // the decision table from the 2026-07-05 plan is pinned here.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  SPEND_TOOL_NAMES,
-  hasSpendToolCall,
-  shouldChallengeSpend,
+  RAW_VAULT_CHALLENGE_TOOL_NAMES,
+  hasRawVaultChallengeToolCall,
+  shouldChallengeVaultAccess,
 } from '../lib/spend-challenge.mjs';
 
 const call = (name, id = 1) => ({
@@ -30,6 +30,8 @@ const UNBOUND = {
 };
 
 const PROTECTED_TOOL_NAMES = [
+  'x402_wallet',
+  'dexter_portfolio',
   'x402_fetch',
   'dexter_prepare_asset_action',
   'dexter_execute_asset_action',
@@ -39,59 +41,59 @@ const PROTECTED_TOOL_NAMES = [
 ];
 
 test('raw HTTP challenge set is exactly the canonical protected tool set', () => {
-  assert.deepEqual([...SPEND_TOOL_NAMES], PROTECTED_TOOL_NAMES);
+  assert.deepEqual([...RAW_VAULT_CHALLENGE_TOOL_NAMES], PROTECTED_TOOL_NAMES);
 });
 
 // ── Challenge fires: unbound, Bearer-less money-execution tools/call ────────
 
 for (const name of PROTECTED_TOOL_NAMES) {
   test(`challenges ${name} when unbound with no Bearer`, () => {
-    assert.equal(shouldChallengeSpend({ messages: call(name), ...UNBOUND }), true);
+    assert.equal(shouldChallengeVaultAccess({ messages: call(name), ...UNBOUND }), true);
   });
 }
 
-test('challenges when ANY message in a batch is a money-execution tools/call', () => {
+test('challenges when any message in a batch is a protected tools/call', () => {
   const batch = [rpc('tools/list'), call('x402_fetch'), rpc('resources/list', 3)];
-  assert.equal(shouldChallengeSpend({ messages: batch, ...UNBOUND }), true);
+  assert.equal(shouldChallengeVaultAccess({ messages: batch, ...UNBOUND }), true);
 });
 
 test('challenges a batch whose only spend call is last', () => {
   const batch = [call('x402_check'), call('x402_search', 2), call('x402_fetch', 3)];
-  assert.equal(shouldChallengeSpend({ messages: batch, ...UNBOUND }), true);
+  assert.equal(shouldChallengeVaultAccess({ messages: batch, ...UNBOUND }), true);
 });
 
 test('tolerates junk entries in a batch alongside a spend call', () => {
   const batch = [null, 42, 'nonsense', call('x402_fetch')];
-  assert.equal(shouldChallengeSpend({ messages: batch, ...UNBOUND }), true);
+  assert.equal(shouldChallengeVaultAccess({ messages: batch, ...UNBOUND }), true);
 });
 
 // ── Anonymous stays anonymous: browse-class never challenges ────────────────
 
 for (const name of [
-  'x402_search', 'x402_check', 'x402_access', 'x402_wallet', 'dexter_portfolio', 'x402_pay', 'dexter_passkey',
+  'x402_search', 'x402_check', 'x402_access', 'x402_pay', 'dexter_passkey',
   'x402_compose_skill', 'promote_skill', 'card_status', 'dexter_passkey_probe',
 ]) {
   test(`never challenges tools/call ${name}`, () => {
-    assert.equal(shouldChallengeSpend({ messages: call(name), ...UNBOUND }), false);
+    assert.equal(shouldChallengeVaultAccess({ messages: call(name), ...UNBOUND }), false);
   });
 }
 
 for (const method of ['initialize', 'tools/list', 'notifications/initialized', 'resources/list', 'ping']) {
   test(`never challenges method ${method}`, () => {
-    assert.equal(shouldChallengeSpend({ messages: rpc(method), ...UNBOUND }), false);
+    assert.equal(shouldChallengeVaultAccess({ messages: rpc(method), ...UNBOUND }), false);
   });
 }
 
 test('never challenges an all-anonymous batch', () => {
   const batch = [rpc('initialize'), rpc('tools/list', 2), call('x402_search', 3)];
-  assert.equal(shouldChallengeSpend({ messages: batch, ...UNBOUND }), false);
+  assert.equal(shouldChallengeVaultAccess({ messages: batch, ...UNBOUND }), false);
 });
 
 // ── Suppression inputs: verified Bearer / in-memory bound / durable bound ───
 
 test('a verified vault Bearer suppresses the raw challenge', () => {
   assert.equal(
-    shouldChallengeSpend({
+    shouldChallengeVaultAccess({
       messages: call('x402_fetch'),
       hasValidVaultBearer: true,
       boundInMemory: false,
@@ -103,7 +105,7 @@ test('a verified vault Bearer suppresses the raw challenge', () => {
 
 test('in-memory bound suppresses the challenge', () => {
   assert.equal(
-    shouldChallengeSpend({
+    shouldChallengeVaultAccess({
       messages: call('x402_fetch'),
       hasValidVaultBearer: false,
       boundInMemory: true,
@@ -115,7 +117,7 @@ test('in-memory bound suppresses the challenge', () => {
 
 test('durable binding suppresses the challenge (restart survivor)', () => {
   assert.equal(
-    shouldChallengeSpend({
+    shouldChallengeVaultAccess({
       messages: call('x402_fetch'),
       hasValidVaultBearer: false,
       boundInMemory: false,
@@ -125,10 +127,10 @@ test('durable binding suppresses the challenge (restart survivor)', () => {
   );
 });
 
-test('a durable legacy-link binding suppresses every governed raw challenge', () => {
-  for (const name of PROTECTED_TOOL_NAMES.slice(1)) {
+test('a durable legacy-link binding suppresses every raw challenge', () => {
+  for (const name of PROTECTED_TOOL_NAMES) {
     assert.equal(
-      shouldChallengeSpend({
+      shouldChallengeVaultAccess({
         messages: call(name),
         hasValidVaultBearer: false,
         boundInMemory: false,
@@ -157,25 +159,25 @@ for (const [label, body] of [
   ['whitespace-padded name', call(' x402_pay ')],
 ]) {
   test(`no challenge, no throw: ${label}`, () => {
-    assert.equal(shouldChallengeSpend({ messages: body, ...UNBOUND }), false);
+    assert.equal(shouldChallengeVaultAccess({ messages: body, ...UNBOUND }), false);
   });
 }
 
-// ── hasSpendToolCall directly ────────────────────────────────────────────────
+// ── hasRawVaultChallengeToolCall directly ────────────────────────────────────────────────
 
-test('hasSpendToolCall: single spend message', () => {
-  assert.equal(hasSpendToolCall(call('x402_fetch')), true);
+test('detects the wallet setup entry point', () => {
+  assert.equal(hasRawVaultChallengeToolCall(call('x402_wallet')), true);
 });
 
-test('hasSpendToolCall: retired paid alias is not executable', () => {
-  assert.equal(hasSpendToolCall(call('x402_pay')), false);
+test('hasRawVaultChallengeToolCall: retired paid alias is not executable', () => {
+  assert.equal(hasRawVaultChallengeToolCall(call('x402_pay')), false);
 });
 
-test('hasSpendToolCall: single non-spend message', () => {
-  assert.equal(hasSpendToolCall(call('x402_search')), false);
+test('hasRawVaultChallengeToolCall: public search', () => {
+  assert.equal(hasRawVaultChallengeToolCall(call('x402_search')), false);
 });
 
-test('hasSpendToolCall: batch detection', () => {
-  assert.equal(hasSpendToolCall([rpc('tools/list'), call('x402_fetch')]), true);
-  assert.equal(hasSpendToolCall([rpc('tools/list'), call('x402_check')]), false);
+test('hasRawVaultChallengeToolCall: batch detection', () => {
+  assert.equal(hasRawVaultChallengeToolCall([rpc('tools/list'), call('x402_fetch')]), true);
+  assert.equal(hasRawVaultChallengeToolCall([rpc('tools/list'), call('x402_check')]), false);
 });

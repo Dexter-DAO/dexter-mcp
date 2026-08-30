@@ -30,6 +30,7 @@ export default defineConfig({
         'solana-token-lookup': path.resolve(rootDir, 'solana-token-lookup.html'),
         'solana-swap-preview': path.resolve(rootDir, 'solana-swap-preview.html'),
         'solana-swap-execute': path.resolve(rootDir, 'solana-swap-execute.html'),
+        'stock-trade': path.resolve(rootDir, 'stock-trade.html'),
         'solana-send': path.resolve(rootDir, 'solana-send.html'),
         'identity-status': path.resolve(rootDir, 'identity-status.html'),
         'reputation-badge': path.resolve(rootDir, 'reputation-badge.html'),

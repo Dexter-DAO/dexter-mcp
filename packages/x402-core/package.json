@@ -19,9 +19,10 @@
     "LICENSE"
   ],
   "scripts": {
+    "test": "node ./scripts/run-contract-tests.mjs",
     "build": "tsup && tsc --emitDeclarationOnly --outDir dist",
     "typecheck": "tsc --noEmit",
-    "release:prepare": "npm run typecheck && npm run build && node ./scripts/check-module-formats.mjs",
+    "release:prepare": "npm test && npm run typecheck && npm run build && node ./scripts/check-module-formats.mjs",
     "prepublishOnly": "npm run release:prepare",
     "release": "npm publish --access public"
   },

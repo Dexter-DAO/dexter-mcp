@@ -36,3 +36,7 @@ export const DIAGNOSTIC_WIDGET_URIS = Object.freeze({
 export const PASSKEY_WIDGET_URIS = Object.freeze({
   onboard: versionedWidgetUri('ui://dexter/passkey-onboard', 'passkey-onboard.html'),
 });
+
+export const GOVERNED_ASSET_WIDGET_URIS = Object.freeze({
+  stockTrade: versionedWidgetUri('ui://dexter/stock-trade', 'stock-trade.html'),
+});
