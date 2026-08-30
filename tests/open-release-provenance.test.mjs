@@ -9,6 +9,7 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -51,7 +52,9 @@ function sealedFixture({
   openRoster = ['x402_search', 'dexter_prepare_asset_action'],
   privateRoster,
 } = {}) {
-  const parent = mkdtempSync(join(tmpdir(), 'opendexter-release-fixture-'));
+  const parent = realpathSync(
+    mkdtempSync(join(tmpdir(), 'opendexter-release-fixture-')),
+  );
   const releaseDir = join(parent, COMMIT);
   mkdirSync(join(releaseDir, 'release'), { recursive: true });
   const files = new Map([
@@ -167,7 +170,9 @@ function removeFixture(fixture) {
 }
 
 function legacyFixture({ privateAlias = false } = {}) {
-  const parent = mkdtempSync(join(tmpdir(), 'opendexter-legacy-release-'));
+  const parent = realpathSync(
+    mkdtempSync(join(tmpdir(), 'opendexter-legacy-release-')),
+  );
   const sourceCommit = '8'.repeat(40);
   const directoryName = privateAlias
     ? `${sourceCommit}-runtime1`
@@ -213,7 +218,11 @@ function legacyFixture({ privateAlias = false } = {}) {
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([relative, bytes]) => `F\t${sha256(bytes)}\t${relative}\n`)
     .join(''));
-  const manifestPath = `${releaseDir}.FILE-MANIFEST.tsv`;
+  const manifestDirectoryName = privateAlias ? sourceCommit : directoryName;
+  const manifestPath = join(
+    parent,
+    `${manifestDirectoryName}.FILE-MANIFEST.tsv`,
+  );
   const sidecarPath = `${manifestPath}.sha256`;
   writeFileSync(manifestPath, manifest, { mode: 0o600 });
   writeFileSync(
@@ -234,7 +243,7 @@ function legacyFixture({ privateAlias = false } = {}) {
     packageVersion: '0.4.0',
     packageManager: 'npm@10.9.3',
     node: '^20.19.0 || >=22.12.0',
-    ...(privateAlias ? { directoryName } : {}),
+    ...(privateAlias ? { directoryName, manifestDirectoryName } : {}),
     entrypoint: privateAlias
       ? 'http-server-oauth.mjs'
       : 'open-mcp-server.mjs',
@@ -408,6 +417,31 @@ test('legacy v1 reader accepts the exact private runtime alias contract', (t) =>
     release.entrypoint,
     join(fixture.releaseDir, 'http-server-oauth.mjs'),
   );
+  assert.equal(
+    fixture.manifestPath,
+    join(
+      fixture.parent,
+      `${fixture.contract.sourceCommit}.FILE-MANIFEST.tsv`,
+    ),
+  );
+  assert.equal(release.manifestPath, fixture.manifestPath);
+  assert.equal(release.sidecarPath, fixture.sidecarPath);
+  for (const manifestDirectoryName of [
+    fixture.contract.directoryName,
+    '../outside',
+    '/absolute',
+    'nested/name',
+    'g'.repeat(40),
+    'f'.repeat(39),
+  ]) {
+    assert.throws(
+      () => readSealedLegacyOpenRelease(
+        fixture.releaseDir,
+        { ...fixture.contract, manifestDirectoryName },
+      ),
+      /legacy OpenDexter manifest location is not exact/,
+    );
+  }
 });
 
 test('legacy v1 reader refuses changed bytes, extras, and sidecar drift', (t) => {
