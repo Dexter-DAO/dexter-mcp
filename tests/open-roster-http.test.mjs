@@ -223,6 +223,17 @@ test('one HTTP session moves from guest setup challenge to an authorized wallet 
     .setIssuedAt(now)
     .setExpirationTime(now + 300)
     .sign(privateKey);
+  const insufficientScopeToken = await new SignJWT({
+    scope: 'openid',
+    dexter_surface: 'b'.repeat(64),
+  })
+    .setProtectedHeader({ alg: 'ES256', kid: publicJwk.kid })
+    .setIssuer('https://dexter.cash')
+    .setAudience(OPEN_MCP_VAULT_AUDIENCE)
+    .setSubject('opendexter-setup-cycle-user')
+    .setIssuedAt(now)
+    .setExpirationTime(now + 300)
+    .sign(privateKey);
 
   let seedCalls = 0;
   let seedCompleted = false;
@@ -320,6 +331,12 @@ test('one HTTP session moves from guest setup challenge to an authorized wallet 
       preflight.headers.get('access-control-allow-headers') || '',
       /Authorization/i,
     );
+    for (const header of ['MCP-Protocol-Version', 'Mcp-Method', 'Mcp-Name']) {
+      assert.match(
+        preflight.headers.get('access-control-allow-headers') || '',
+        new RegExp(header, 'i'),
+      );
+    }
     assert.match(
       preflight.headers.get('access-control-expose-headers') || '',
       /WWW-Authenticate/i,
@@ -337,7 +354,7 @@ test('one HTTP session moves from guest setup challenge to an authorized wallet 
         try { requestMessage = JSON.parse(init.body); } catch { /* keep null */ }
       }
       let responseBody = null;
-      if (response.status === 401) {
+      if (response.status === 401 || response.status === 403) {
         responseBody = await response.clone().json();
       }
       exchanges.push({
@@ -390,7 +407,7 @@ test('one HTTP session moves from guest setup challenge to an authorized wallet 
       assert.deepEqual(challenge.responseBody, {
         jsonrpc: '2.0',
         error: { code: -32001, message: 'authentication required' },
-        id: null,
+        id: challenge.requestMessage.id,
       }, name);
     }
 
@@ -404,6 +421,20 @@ test('one HTTP session moves from guest setup challenge to an authorized wallet 
       buildVaultWwwAuthenticate({
         error: 'invalid_token',
         errorDescription: 'Connect OpenDexter with a valid vault authorization to continue',
+      }),
+    );
+
+    activeBearer = insufficientScopeToken;
+    await assert.rejects(
+      () => client.callTool({ name: 'x402_wallet', arguments: {} }),
+      (error) => error?.code === 403,
+    );
+    assert.equal(latestToolExchange('x402_wallet').status, 403);
+    assert.equal(
+      latestToolExchange('x402_wallet').wwwAuthenticate,
+      buildVaultWwwAuthenticate({
+        error: 'insufficient_scope',
+        errorDescription: 'Authorize OpenDexter with the vault scope to continue',
       }),
     );
 

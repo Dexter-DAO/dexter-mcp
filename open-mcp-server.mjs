@@ -2538,9 +2538,10 @@ function readRequestBody(req) {
 // pointer plus scope="vault" (the token claude.ai copies into its authorize
 // request — the Face-ID router). Touches NO session state: the client
 // retries on the same mcp-session-id after completing OAuth.
-function writeVaultChallenge(res, challenge = {}) {
+function writeVaultChallenge(res, challenge = {}, requestId = null) {
   const wwwAuthenticate = buildVaultWwwAuthenticate(challenge);
-  res.writeHead(401, {
+  const status = challenge?.error === 'insufficient_scope' ? 403 : 401;
+  res.writeHead(status, {
     'Content-Type': 'application/json',
     'Cache-Control': 'no-store',
     'WWW-Authenticate': wwwAuthenticate,
@@ -2548,7 +2549,7 @@ function writeVaultChallenge(res, challenge = {}) {
   res.end(JSON.stringify({
     jsonrpc: '2.0',
     error: { code: -32001, message: 'authentication required' },
-    id: null,
+    id: requestId,
   }));
 }
 
@@ -2680,7 +2681,10 @@ export function getUserBinding(sessionId) {
 function writeCors(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, DELETE');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, mcp-session-id, Authorization');
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'Content-Type, mcp-session-id, Authorization, MCP-Protocol-Version, Mcp-Method, Mcp-Name',
+  );
   res.setHeader('Access-Control-Expose-Headers', 'mcp-session-id, WWW-Authenticate');
 }
 
@@ -3055,7 +3059,7 @@ const httpServer = http.createServer(async (req, res) => {
           );
           if (requiresVaultBearer) {
             const challenge = oauthChallengeForVerification(verification);
-            writeVaultChallenge(res, challenge);
+            writeVaultChallenge(res, challenge, protectedCall?.id ?? null);
             return;
           }
           if (sessionMeta.get(sessionId)?.vaultAuthMode === VAULT_AUTH_MODE_OAUTH) {
@@ -3079,7 +3083,7 @@ const httpServer = http.createServer(async (req, res) => {
                 error: 'invalid_token',
                 errorDescription:
                   'This OpenDexter authorization belongs to a different session identity; connect again',
-              });
+              }, protectedCall?.id ?? null);
               return;
             }
           } else {
@@ -3120,7 +3124,7 @@ const httpServer = http.createServer(async (req, res) => {
           console.log(
             `[open-mcp] protected-tool challenge (401 → vault OAuth) sessionRef=${logRef(sessionId)}`,
           );
-          writeVaultChallenge(res);
+          writeVaultChallenge(res, {}, protectedCall?.id ?? null);
           return; // session state untouched — the client retries on the same id
         }
       }

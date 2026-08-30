@@ -241,8 +241,6 @@ test('resource metadata names the actual authorization-server issuer', () => {
   assert.deepEqual(OPEN_MCP_CHALLENGE_REQUIRED_PARAMETERS, [
     'resource_metadata',
     'scope',
-    'error',
-    'error_description',
   ]);
   assert.deepEqual(OPEN_MCP_PRM.scopes_supported, ['vault']);
   assert.deepEqual(OPEN_MCP_PRM.bearer_methods_supported, ['header']);
@@ -318,8 +316,8 @@ test('runtime challenge is host-native and contains no legacy pairing path', () 
   assert.deepEqual(result._meta['mcp/www_authenticate'], [VAULT_WWW_AUTHENTICATE]);
   assert.match(VAULT_WWW_AUTHENTICATE, new RegExp(`resource_metadata="${OPEN_MCP_PRM_URL}"`));
   assert.match(VAULT_WWW_AUTHENTICATE, /scope="vault"/);
-  assert.match(VAULT_WWW_AUTHENTICATE, /error="invalid_token"/);
-  assert.match(VAULT_WWW_AUTHENTICATE, /error_description="[^"]+"/);
+  assert.doesNotMatch(VAULT_WWW_AUTHENTICATE, /error=/);
+  assert.doesNotMatch(VAULT_WWW_AUTHENTICATE, /error_description=/);
 });
 
 test('unbound state cannot turn a synthetic not_enrolled lookup into wallet truth', () => {
