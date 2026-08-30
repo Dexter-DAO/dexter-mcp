@@ -504,8 +504,6 @@ test('source materializer emits one deterministic full hosted descriptor', async
     challengeRequiredParameters: [
       'resource_metadata',
       'scope',
-      'error',
-      'error_description',
     ],
   });
   assert.deepEqual(descriptor.anonymousToolNames, ANONYMOUS);

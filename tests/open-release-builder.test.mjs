@@ -94,8 +94,6 @@ function descriptorFixture() {
       challengeRequiredParameters: [
         'resource_metadata',
         'scope',
-        'error',
-        'error_description',
       ],
     },
     anonymousToolNames: ['x402_search'],
