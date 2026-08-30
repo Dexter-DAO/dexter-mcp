@@ -24,7 +24,7 @@ Edit `~/.cursor/mcp.json` and add:
       "url": "https://mcp.dexter.cash/mcp"
     },
     "OpenDexter": {
-      "url": "https://open.dexter.cash/mcp"
+      "url": "https://open.dexter.cash/mcp/vault"
     },
     "dexter-x402": {
       "command": "npx",
@@ -37,7 +37,9 @@ Edit `~/.cursor/mcp.json` and add:
 ### Notes
 
 - For `Dexter`, complete OAuth/login when prompted.
-- `OpenDexter` should not prompt for login.
+- `OpenDexter` opens wallet authorization before connecting. Use
+  `https://open.dexter.cash/mcp` instead when anonymous search must be available
+  before wallet authorization.
 - `dexter-x402` creates/uses a local wallet (typically `~/.dexterai-mcp/wallet.json`).
 
 ---
@@ -47,7 +49,8 @@ Edit `~/.cursor/mcp.json` and add:
 If adding through a hosted MCP connector UI:
 
 - **Dexter URL:** `https://mcp.dexter.cash/mcp`  
-- **OpenDexter URL:** `https://open.dexter.cash/mcp`
+- **OpenDexter URL:** `https://open.dexter.cash/mcp/vault`
+- **OpenDexter public-search URL:** `https://open.dexter.cash/mcp`
 
 The local command MCP (`dexter-x402`) is generally added in local MCP-capable clients (Cursor/Codex/Claude Code), not as a hosted URL connector.
 
@@ -73,11 +76,12 @@ Use this exact 3-tool flow on each connector:
 - Uses authenticated Dexter context.
 - `x402_fetch` should settle canonically when wallet/funds are available.
 
-### OpenDexter (unauthenticated hosted)
+### OpenDexter (hosted)
 
-- No login required.
-- If no local signer is configured, `x402_fetch` can return `session_required` with funding details.
-- After funding + token/session handoff, it proceeds through canonical x402 settlement.
+- `/mcp/vault` authorizes the passkey wallet before the MCP session starts.
+- `/mcp` keeps anonymous search available and asks for wallet authorization when
+  a protected tool is called.
+- After authorization and funding, `x402_fetch` proceeds through canonical x402 settlement.
 
 ### dexter-x402 (local command MCP)
 
@@ -90,7 +94,7 @@ Use this exact 3-tool flow on each connector:
 
 "Add these three MCPs:  
 1) `https://mcp.dexter.cash/mcp` (Dexter, login required),  
-2) `https://open.dexter.cash/mcp` (OpenDexter, no login),  
+2) `https://open.dexter.cash/mcp/vault` (OpenDexter, wallet authorization),
 3) local `npx -y @dexterai/x402-discovery@latest` (dexter-x402).  
 Then run `x402_wallet`, `x402_search` for `nansen`, and `x402_fetch` on a cheap endpoint in each one."
 
@@ -99,6 +103,7 @@ Then run `x402_wallet`, `x402_search` for `nansen`, and `x402_fetch` on a cheap 
 ## Troubleshooting in 30 Seconds
 
 - **OAuth prompt never appears for Dexter:** remove/re-add connector, confirm URL is exactly `https://mcp.dexter.cash/mcp`.
-- **OpenDexter returns `session_required`:** fund session and retry with provided session token.
+- **OpenDexter never opens authorization:** use the exact
+  `https://open.dexter.cash/mcp/vault` URL, remove the old connection, and add it again.
 - **dexter-x402 cannot settle:** fund local wallet and ensure chain/network match the quote requirements.
 - **Same tool names, different behavior:** expected; signer/account model differs across the three connectors.

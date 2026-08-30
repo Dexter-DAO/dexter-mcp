@@ -68,6 +68,17 @@ test('accepts vault among multiple space-delimited scopes', async () => {
   assert.equal((await verify(await token({ scope: 'openid vault profile' }))).ok, true);
 });
 
+test('rejects a multi-audience token even when the exact resource is included', async () => {
+  const result = await verify(await token({
+    audience: [AUDIENCE, 'https://open.dexter.cash/mcp/vault'],
+  }));
+  assert.deepEqual(result, {
+    ok: false,
+    reason: 'invalid_token',
+    detail: 'audience_must_be_one_exact_resource',
+  });
+});
+
 test('token refresh keeps one session identity while other valid Bearers mismatch', async () => {
   const first = await verify(await token());
   const meta = pinOAuthVaultIdentity(

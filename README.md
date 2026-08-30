@@ -23,6 +23,12 @@ This repo contains two hosted MCP servers and the shared `@dexterai/x402-core` p
 | **Dexter MCP** (authenticated) | `mcp.dexter.cash/mcp` | Dexter OAuth | Managed wallet, automatic |
 | **OpenDexter MCP** (hosted) | `open.dexter.cash/mcp` | Mixed per tool: public access or OAuth `scope=vault` | Session-bound passkey wallet; explicit user approval |
 
+OpenDexter also exposes the same twelve tools at
+`https://open.dexter.cash/mcp/vault`. That entry point requires OAuth before
+the MCP session starts. Use it in hosts that cannot complete a protected-tool
+challenge after connecting anonymously. Its tokens are issued for the exact
+`/mcp/vault` resource and cannot be replayed against `/mcp`.
+
 The npm packages (`@dexterai/opendexter`, `@dexterai/x402-discovery`) live in [Dexter-DAO/opendexter-ide](https://github.com/Dexter-DAO/opendexter-ide).
 
 This OpenDexter source candidate requires the coordinated internal package
@@ -211,8 +217,9 @@ before asking PM2 to load that config. The launcher rejects symlinks, hard
 links, foreign ownership, permissive modes, and inherited Node loader controls;
 the immutable release itself contains no credential file.
 
-**How wallet identity works.** OAuth authorizes the stable
-`https://open.dexter.cash/mcp` connector. Protected wallet and portfolio calls
+**How wallet identity works.** OAuth authorizes either the mixed
+`https://open.dexter.cash/mcp` resource or the always-protected
+`https://open.dexter.cash/mcp/vault` resource. Protected wallet and portfolio calls
 resolve the durable wallet binding for that authenticated MCP session and the
 stored passkey-vault identity behind it. They do not accept a caller-supplied
 wallet address or user handle. `x402_wallet` reads the bound passkey wallet;
