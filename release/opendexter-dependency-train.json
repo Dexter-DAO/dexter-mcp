@@ -9,7 +9,7 @@
   "repositories": {
     "hosted": {
       "remote": "https://github.com/Dexter-DAO/dexter-mcp.git",
-      "provenanceCommit": "fb2753f7e9f1e7503d3c61572787decf52499a76"
+      "provenanceCommit": "119d38ebc3bd2bbf440e3b9a1928b76be0a44c8a"
     },
     "opendexter-ide": {
       "remote": "https://github.com/Dexter-DAO/opendexter-ide.git",
@@ -45,7 +45,7 @@
       "source": "hosted",
       "path": "packages/x402-core",
       "entrypoint": "dist/index.js",
-      "treeHash": "1d6d241da3cb38072b8afff012e50e45f84c90f3",
+      "treeHash": "fb0977574fe35fb27b571f6eb708326f122e5848",
       "install": {
         "source": "workspace",
         "release": "workspace"
