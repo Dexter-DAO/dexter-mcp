@@ -758,9 +758,9 @@ async function exerciseSearchFlow({
   await surface.getByRole('button', {
     name: 'Check live terms for Atlas Price Feed',
   }).click();
-  await surface.getByRole('heading', { name: 'Connect for a bound quote' }).waitFor();
+  await surface.getByRole('heading', { name: 'Purchase unavailable' }).waitFor();
   await surface.getByText(
-    'Connect OpenDexter and repeat this check to create one server-held purchase intent. Nothing has been charged.',
+    'This check returned seller terms without an executable purchase intent. No payment can continue from this result.',
     { exact: true },
   ).waitFor();
   await surface.getByLabel('Checked at 12:34 PM').waitFor();
@@ -783,18 +783,10 @@ async function exerciseSearchFlow({
     `${hostName}: the PYUSD route must identify both its network and asset`,
   );
 
-  const reviewButton = surface.getByRole('button', { name: 'Connect & re-check' });
-  const reviewPresentation = await buttonPresentation(reviewButton);
-  assert.ok(
-    reviewPresentation.height >= 44,
-    `${hostName}: quote continuation must be at least 44px tall`,
-  );
-  await reviewButton.click();
-  const sentButton = surface.getByRole('button', { name: 'Opened in chat' });
   assert.equal(
-    await sentButton.isDisabled(),
-    true,
-    `${hostName}: an accepted continuation must disable repeat submission`,
+    await surface.getByRole('button', { name: /Connect|Review payment/ }).count(),
+    0,
+    `${hostName}: a missing-intent quote must expose no payment continuation`,
   );
   await surface.getByRole('button', { name: 'Compare', exact: true }).click();
   await surface.getByRole(
@@ -928,21 +920,22 @@ function assertSearchHostCalls(hostName, calls, kind, expectedToolCalls = 1) {
     'https://fixture.example/beacon',
   );
 
-  const followUpCall = kind === 'chatgpt'
-    ? calls.find((call) => call.kind === 'sendFollowUpMessage')
-    : calls.find((call) => call.method === 'ui/message');
-  assert.ok(followUpCall, `${hostName}: payment review must return to chat`);
-  const followUpText = kind === 'chatgpt'
-    ? followUpCall.args?.prompt
-    : followUpCall.params?.content?.find((item) => item.type === 'text')?.text;
+  const followUpCalls = calls.filter((call) => (
+    kind === 'chatgpt'
+      ? call.kind === 'sendFollowUpMessage'
+      : call.method === 'ui/message'
+  ));
+  const missingIntentFollowUps = followUpCalls.filter((call) => {
+    const text = kind === 'chatgpt'
+      ? call.args?.prompt
+      : call.params?.content?.find((item) => item.type === 'text')?.text;
+    return /Connect OpenDexter|fixture\.example\/atlas/.test(text ?? '');
+  });
   assert.equal(
-    followUpText,
-    'Connect OpenDexter, then repeat x402_check for Atlas Price Feed with url '
-      + 'https://fixture.example/atlas, method GET, and omit body. Use the authenticated re-check '
-      + 'only if it returns a non-quote-only intentId. Do not call x402_fetch from '
-      + 'this quote.',
+    missingIntentFollowUps.length,
+    0,
+    `${hostName}: a missing-intent quote must not ask chat to reconnect or re-check`,
   );
-  assert.doesNotMatch(followUpText, /preparedPurchase|purchaseOptions|purchase mode/i);
 
   const displayCall = kind === 'chatgpt'
     ? calls.find((call) => call.kind === 'requestDisplayMode')

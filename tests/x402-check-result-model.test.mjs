@@ -52,8 +52,8 @@ test('classifies a paid quote without implying that payment occurred', () => {
   });
 });
 
-test('anonymous or malformed check output remains quote-only without an intent', () => {
-  const anonymous = normalizeX402CheckResult({
+test('missing-intent or malformed check output remains quote-only', () => {
+  const explicitQuoteOnly = normalizeX402CheckResult({
     requiresPayment: true,
     statusCode: 402,
     authMode: 'paid',
@@ -69,8 +69,8 @@ test('anonymous or malformed check output remains quote-only without an intent',
     quoteOnly: false,
   });
 
-  assert.equal(anonymous.intentId, null);
-  assert.equal(anonymous.quoteOnly, true);
+  assert.equal(explicitQuoteOnly.intentId, null);
+  assert.equal(explicitQuoteOnly.quoteOnly, true);
   assert.equal(missingIntent.intentId, null);
   assert.equal(missingIntent.quoteOnly, true);
 });

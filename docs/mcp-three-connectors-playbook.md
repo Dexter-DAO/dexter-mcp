@@ -1,21 +1,19 @@
-# Dexter MCP: Add & Try All 3 Connectors
+# Dexter MCP connector setup
 
-## What You Are Adding
+Dexter ships three MCP connection models:
 
-You are adding three separate MCP servers:
+1. **Dexter** (`user-Dexter`) is the hosted MCP for a managed Dexter account.
+   It uses Dexter OAuth.
+2. **OpenDexter** (`user-OpenDexter`) is the hosted MCP for a session-bound
+   Dexter Wallet. Its canonical URL requires OAuth before tool discovery or
+   use. One authorization covers search, wallet, portfolio, access, payment,
+   and governed actions.
+3. **dexter-x402** (`user-dexter-x402`) is a local command MCP. It uses a local
+   wallet and key for direct x402 payments.
 
-1. **Dexter** (`user-Dexter`)  
-   Hosted MCP with OAuth authentication and full managed Dexter context.
-2. **OpenDexter** (`user-OpenDexter`)  
-   Hosted MCP with no user login requirement (open/public flow).
-3. **dexter-x402** (`user-dexter-x402`)  
-   Local command-based MCP (`@dexterai/x402-discovery`) using a local wallet/key for direct x402 payments.
+## Cursor configuration
 
----
-
-## 1) Add in Cursor (recommended config)
-
-Edit `~/.cursor/mcp.json` and add:
+Add the three servers to `~/.cursor/mcp.json`:
 
 ```json
 {
@@ -34,74 +32,64 @@ Edit `~/.cursor/mcp.json` and add:
 }
 ```
 
-### Notes
+Complete the host-native OAuth flow for both hosted connectors. OpenDexter uses
+only `https://open.dexter.cash/mcp`; the authorized connection exposes its
+twelve product tools. `dexter-x402` creates or reuses a local wallet, usually
+at `~/.dexterai-mcp/wallet.json`.
 
-- For `Dexter`, complete OAuth/login when prompted.
-- `OpenDexter` supports public search immediately. It asks for wallet
-  authorization when a protected wallet or payment tool is called.
-- `dexter-x402` creates/uses a local wallet (typically `~/.dexterai-mcp/wallet.json`).
+## Hosted connector UIs
 
----
+Use these endpoints when ChatGPT, Claude, or another hosted MCP client asks for
+a server URL:
 
-## 2) Add in ChatGPT Connectors (hosted endpoints)
+- **Dexter:** `https://mcp.dexter.cash/mcp`
+- **OpenDexter:** `https://open.dexter.cash/mcp`
 
-If adding through a hosted MCP connector UI:
+The local `dexter-x402` command belongs in clients that can run local MCP
+processes, such as Cursor, Codex, or Claude Code.
 
-- **Dexter URL:** `https://mcp.dexter.cash/mcp`  
-- **OpenDexter URL:** `https://open.dexter.cash/mcp`
+## First-use proof
 
-The local command MCP (`dexter-x402`) is generally added in local MCP-capable clients (Cursor/Codex/Claude Code), not as a hosted URL connector.
+Run this flow on each connector that exposes the named tool:
 
----
+1. Finish connector authorization and confirm the tool list loads.
+2. Search the marketplace for `"nansen"` with `x402_search`.
+3. Call `x402_wallet` and confirm its wallet and funding context.
+4. Call `x402_check` on a selected low-cost x402 endpoint. A purchasable result
+   carries `quoteOnly=false`; keep its opaque `intentId`. Stop if
+   `quoteOnly=true`, because that result has no executable intent.
+5. When the exact seller, request, and `maxAmountAtomic` ceiling are covered by
+   the user's instruction or bounded policy, call `x402_fetch` once with that
+   `intentId`.
+6. If dispatch or settlement is uncertain, call `x402_status` with the same
+   `intentId`. Never submit a second fetch for that intent.
 
-## 3) First-Time Smoke Test (Run Per Connector)
+For OpenDexter, the same authorized connection handles discovery, the wallet
+and portfolio, identity-gated access, paid requests, and governed actions.
+Payment still follows the checked intent and exact spending ceiling.
 
-Use this exact 3-tool flow on each connector:
+The local connector uses its own wallet and signer. Confirm that its wallet has
+the asset and network required by the selected quote before fetching.
 
-1. `x402_wallet`  
-   Confirms signer/wallet context for that connector.
-2. `x402_search` with query `"nansen"`  
-   Confirms marketplace discovery.
-3. `x402_fetch` on a low-cost known x402 URL  
-   Confirms canonical paid execution path.
+## Short setup script
 
----
+"Add Dexter at `https://mcp.dexter.cash/mcp`, OpenDexter at
+`https://open.dexter.cash/mcp`, and the local
+`npx -y @dexterai/x402-discovery@latest` connector. Authorize the hosted
+connectors, search for `nansen`, inspect the wallet, check a cheap endpoint,
+and fetch it once with the approved ceiling."
 
-## Expected Behavior by Connector
+## Troubleshooting
 
-### Dexter (authenticated hosted)
-
-- Uses authenticated Dexter context.
-- `x402_fetch` should settle canonically when wallet/funds are available.
-
-### OpenDexter (hosted)
-
-- Public search is available before wallet authorization.
-- A protected tool call starts wallet authorization when needed.
-- After authorization and funding, `x402_fetch` proceeds through canonical x402 settlement.
-
-### dexter-x402 (local command MCP)
-
-- Uses local wallet/private key on your machine.
-- `x402_fetch` settles directly if wallet has funds for required network/asset.
-
----
-
-## Simple Explain-It-to-Anyone Script
-
-"Add these three MCPs:  
-1) `https://mcp.dexter.cash/mcp` (Dexter, login required),  
-2) `https://open.dexter.cash/mcp` (OpenDexter),
-3) local `npx -y @dexterai/x402-discovery@latest` (dexter-x402).  
-Then run `x402_wallet`, `x402_search` for `nansen`, and `x402_fetch` on a cheap endpoint in each one."
-
----
-
-## Troubleshooting in 30 Seconds
-
-- **OAuth prompt never appears for Dexter:** remove/re-add connector, confirm URL is exactly `https://mcp.dexter.cash/mcp`.
-- **OpenDexter never opens authorization:** call `x402_wallet`, then open the
-  host's OpenDexter settings and choose Authorize or Authenticate if no native
-  authorization action appears.
-- **dexter-x402 cannot settle:** fund local wallet and ensure chain/network match the quote requirements.
-- **Same tool names, different behavior:** expected; signer/account model differs across the three connectors.
+- If hosted authorization never starts, confirm the exact server URL and that
+  the client supports remote MCP OAuth. Clear the incomplete connector record,
+  add the same canonical endpoint again, and finish the host-native flow.
+- If OpenDexter authorizes but its tools remain unavailable, treat setup as
+  incomplete. Capture the authorization and tool-list errors before retrying.
+- If `x402_wallet` reports missing binding or funding, use its returned state
+  and `receiveAddress`; do not infer a deposit address from another wallet
+  field.
+- If payment returns an ambiguous or post-dispatch state, inspect the same
+  intent with `x402_status`. Preserve its identity and avoid another fetch.
+- The three connectors use different account and signer models, so compare
+  their returned wallet context before comparing payment behavior.

@@ -72,7 +72,7 @@ test('non-GET check without a body requires body formation and a recheck', () =>
   );
 });
 
-test('anonymous check is quote-only and cannot produce an executable intent', () => {
+test('an authorized paid check without an intent is non-executable', () => {
   const structuredContent = buildHostedCheckModelResult({
     checkResult: {
       requiresPayment: true,
@@ -90,7 +90,15 @@ test('anonymous check is quote-only and cannot produce an executable intent', ()
   assert.equal(structuredContent.executionGuidance.readyForFetch, false);
   assert.equal(
     structuredContent.executionGuidance.supportedPath,
-    'connect_then_recheck',
+    'intent_unavailable',
+  );
+  assert.equal(
+    Object.hasOwn(structuredContent.executionGuidance, 'fetchArguments'),
+    false,
+  );
+  assert.equal(
+    Object.hasOwn(structuredContent.executionGuidance, 'requiredCeilingField'),
+    false,
   );
   assert.doesNotMatch(JSON.stringify(structuredContent), /challenge|selectedRail/);
 });

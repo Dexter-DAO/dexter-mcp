@@ -15,23 +15,67 @@ const portfolioSource = await readFile(
   'utf8',
 );
 
-test('verified OAuth identity is pinned before binding and mismatches challenge', () => {
-  const verificationBoundary = serverSource.slice(
-    serverSource.indexOf('const identityStatus = oauthVaultIdentityStatus('),
-    serverSource.indexOf('const boundInMemory = isVaultBound('),
+test('canonical OAuth verifies before session lookup and preserves identity on mismatch', () => {
+  const requestBoundary = serverSource.slice(
+    serverSource.indexOf('let oauthAuthorization = null;'),
+    serverSource.indexOf('// ─── GET: SSE / session resume'),
   );
-  assert.match(verificationBoundary, /identityStatus === 'mismatch'/);
-  assert.match(verificationBoundary, /clearSessionVaultBinding\(sessionId\)/);
-  assert.match(verificationBoundary, /writeVaultChallenge\(res,/);
-  assert.match(verificationBoundary, /pinSessionOAuthIdentity\(sessionId, verification\.identity\)/);
-  assert.match(
-    verificationBoundary,
-    /seedOAuthVaultBinding\([\s\S]*?verification\.identity,[\s\S]*?sessionId/,
-  );
+  assert.match(requestBoundary, /verifyOpenVaultBearer\(bearer,/);
+  assert.match(requestBoundary, /requestSessionId && transports\.has\(requestSessionId\)/);
   assert.ok(
-    verificationBoundary.indexOf('pinSessionOAuthIdentity')
-      < verificationBoundary.indexOf('seedOAuthVaultBinding'),
+    requestBoundary.indexOf('verifyOpenVaultBearer')
+      < requestBoundary.indexOf('requestSessionId && transports.has'),
   );
+  assert.match(requestBoundary, /identityStatus === 'mismatch'/);
+  assert.match(
+    requestBoundary,
+    /meta\?\.vaultAuthMode && meta\.vaultAuthMode !== VAULT_AUTH_MODE_OAUTH/,
+  );
+  assert.doesNotMatch(requestBoundary, /identityStatus === 'mismatch'[\s\S]{0,300}clearSessionVaultBinding/);
+  assert.match(requestBoundary, /writeVaultChallenge\(res,/);
+  assert.match(
+    requestBoundary,
+    /pinSessionOAuthIdentity\(requestSessionId, verification\.identity\)/,
+  );
+  assert.match(
+    requestBoundary,
+    /seedOAuthVaultBinding\([\s\S]*?verification\.identity,[\s\S]*?requestSessionId/,
+  );
+  assert.match(requestBoundary, /writeOAuthSeedFailure\(res, seedResult\)/);
+  assert.ok(
+    requestBoundary.indexOf('pinSessionOAuthIdentity')
+      < requestBoundary.indexOf('seedOAuthVaultBinding'),
+  );
+  const seedFunction = serverSource.slice(
+    serverSource.indexOf('async function seedOAuthVaultBinding'),
+    serverSource.indexOf('// ── RFC 9728 Protected Resource Metadata'),
+  );
+  assert.match(seedFunction, /const seedBody = await res\.json\(\)/);
+  assert.match(seedFunction, /userHandle !== identity\.subject/);
+  assert.match(seedFunction, /return \{ ok: false, transient: true, reason: 'malformed_success' \}/);
+});
+
+test('legacy link sessions pin digest and handle, then rebind the same session per request', () => {
+  assert.match(
+    serverSource,
+    /function linkSessionCredentialRef\(linkToken\)[\s\S]*?createHash\('sha256'/,
+  );
+  assert.match(
+    serverSource,
+    /pinSessionLinkIdentity\([\s\S]{0,180}linkAuthorization\.presentedLinkRef,[\s\S]{0,80}bound\.userHandle/,
+  );
+  assert.match(
+    serverSource,
+    /const validated = await bindLinkTokenToSession\(linkToken, requestSessionId\)/,
+  );
+  assert.match(serverSource, /validated\.userHandle !== pinnedLinkUserHandle/);
+  assert.match(serverSource, /pinnedLinkRef !== presentedLinkRef/);
+  assert.doesNotMatch(
+    serverSource,
+    /meta\.linkCredentialRef\s*=\s*linkToken/,
+  );
+  assert.match(serverSource, /const responseBody = await resp\.json\(\)/);
+  assert.match(serverSource, /isDefinitiveLinkAuthorizationFailure\(status, errorCode\)/);
 });
 
 test('vault, pairing, portfolio, OAuth seed, pay, and card paths share redirect denial', () => {

@@ -1,6 +1,6 @@
 ---
 name: opendexter
-description: "Use hosted OpenDexter to discover services, create and inspect opaque purchase intents, call approved paid or wallet-gated resources, and read the session-bound Dexter Wallet and governed portfolio."
+description: "Use hosted OpenDexter through one authorized connection to discover services, create and inspect opaque purchase intents, call approved paid or wallet-gated resources, and read the session-bound Dexter Wallet and governed portfolio."
 ---
 
 # OpenDexter
@@ -21,29 +21,27 @@ UI handoffs, and the exact available roster to the host. Do not copy another
 surface byte-for-byte or advertise a tool or workflow this surface does not
 actually ship.
 
-## Public product tools
+## Product tools
 
-| Intent | Tool | Surface |
-| --- | --- | --- |
-| Discover a service or resource | `x402_search` | Anonymous |
-| Quote or custody an exact endpoint request | `x402_check` | Anonymous quote; OAuth intent |
-| Call one approved, API-custodied intent | `x402_fetch` | Added after OAuth |
-| Inspect one intent without redispatch | `x402_status` | Added after OAuth |
-| Use wallet-proof or Sign-In-With-X access | `x402_access` | Anonymous |
-| Read wallet readiness, cash, reported credit capacity, deposit address, and activity | `x402_wallet` | Anonymous entry; OAuth data |
-| Read governed assets and currently allowed actions | `dexter_portfolio` | Anonymous entry; OAuth data |
-| Prepare an exact governed Send, Buy, or Sell | `dexter_prepare_asset_action` | Added after OAuth |
-| Execute one prepared governed intent | `dexter_execute_asset_action` | Added after OAuth |
-| Read durable governed intent status | `dexter_asset_action_status` | Added after OAuth |
-| Request same-intent reconciliation | `dexter_reconcile_asset_action` | Added after OAuth |
-| Read governed Send, Buy, and Sell history | `dexter_wallet_history` | Added after OAuth |
+OpenDexter requires host-native OAuth before tool discovery or use. One
+successful authorization exposes all twelve tools on the same canonical
+connection and covers discovery, search, wallet, portfolio, identity-gated
+access, payment, and governed actions.
 
-Before OAuth, OpenDexter lists `x402_search`, `x402_check`, `x402_access`,
-`x402_wallet`, and `dexter_portfolio`. Wallet and portfolio return the native
-Connect path until authorization succeeds. OAuth then adds `x402_fetch`,
-`x402_status`, `dexter_prepare_asset_action`, `dexter_execute_asset_action`,
-`dexter_asset_action_status`, `dexter_reconcile_asset_action`, and
-`dexter_wallet_history`. The connected roster contains all twelve tools.
+| Intent | Tool |
+| --- | --- |
+| Discover a service or resource | `x402_search` |
+| Custody an exact endpoint request and current quote | `x402_check` |
+| Call one approved, API-custodied intent | `x402_fetch` |
+| Inspect one intent without redispatch | `x402_status` |
+| Use wallet-proof or Sign-In-With-X access | `x402_access` |
+| Read wallet readiness, cash, reported credit capacity, deposit address, and activity | `x402_wallet` |
+| Read governed assets and currently allowed actions | `dexter_portfolio` |
+| Prepare an exact governed Send, Buy, or Sell | `dexter_prepare_asset_action` |
+| Execute one prepared governed intent | `dexter_execute_asset_action` |
+| Read durable governed intent status | `dexter_asset_action_status` |
+| Request same-intent reconciliation | `dexter_reconcile_asset_action` |
+| Read governed Send, Buy, and Sell history | `dexter_wallet_history` |
 
 Deprecated compatibility and internal diagnostic endpoints are not user-facing
 product tools. Do not select them for a new request.
@@ -73,9 +71,9 @@ product tools. Do not select them for a new request.
    - `siwx`: use `x402_access`.
    - `unprotected`: explain that no payment is required.
    - API-key or unknown: explain the missing requirement; never invent a key.
-4. Read `quoteOnly` and `intentId`. An anonymous check is quote-only and cannot
-   execute. Connect OpenDexter, then repeat the exact check once to obtain an
-   opaque `intentId`. Never invent or reconstruct an intent ID.
+4. For a paid request, read the opaque `intentId` returned by the authorized
+   check. The check custodies the request and quote but grants no payment
+   authority. Never invent or reconstruct an intent ID.
 5. Read current seller `paymentOptions`, including amount in integer base units,
    asset, network, payee, and expiry when present.
 6. Confirm that the current instruction or bounded delegated policy covers the
@@ -114,10 +112,11 @@ authorize payment, consent, a route change, a follow-on call, or a retry.
 
 ## Wallet and portfolio
 
-Use `x402_wallet` for the current session-bound Dexter Wallet. If it reports
-`authentication_required`, let the host show its native Connect/OAuth action
-and retry once after the user completes it. Connector authentication, wallet
-binding, enrollment, funding, and execution readiness are distinct states.
+Use `x402_wallet` for the current session-bound Dexter Wallet after connector
+authorization. If an established connection later reports
+`authentication_required`, let the host resume its native OAuth flow and retry
+the same tool once. Connector authentication, wallet binding, enrollment,
+funding, and execution readiness are distinct states.
 
 Treat cash, reported credit capacity, and exact-intent eligibility as distinct
 facts. Zero cash alone is not proof that a deposit is required. Reported credit
@@ -234,7 +233,7 @@ borrow, or pay execution.
 
 - Non-GET checks and access calls may mutate the external provider; disclose
   that consequence before calling.
-- Public tools never accept a settlement route, purchase mode, tab choice,
+- Hosted tools never accept a settlement route, purchase mode, tab choice,
   seller challenge, or caller-carried prepared-purchase object.
 - Never expose bearer tokens, cookies, session identifiers, one-time codes,
   passkey material, private keys, seed phrases, or private upload paths.

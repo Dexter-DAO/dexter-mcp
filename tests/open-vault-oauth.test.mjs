@@ -126,6 +126,21 @@ test('rejects a tampered signature', async () => {
   assert.deepEqual(await verify(tampered), { ok: false, reason: 'invalid_token' });
 });
 
+test('classifies verifier infrastructure failures separately from invalid tokens', async () => {
+  for (const error of [
+    Object.assign(new Error('request timed out'), { code: 'ERR_JWKS_TIMEOUT' }),
+    Object.assign(new Error('Expected 200 OK'), { code: 'ERR_JOSE_GENERIC' }),
+    new TypeError('fetch failed'),
+  ]) {
+    const result = await verifyOpenVaultBearer('header.payload.signature', {
+      verificationKey: publicKey,
+      audience: AUDIENCE,
+      verify: async () => { throw error; },
+    });
+    assert.deepEqual(result, { ok: false, reason: 'verification_unavailable' });
+  }
+});
+
 test('rejects a missing token instead of treating session state as authorization', async () => {
   assert.deepEqual(await verify(undefined), { ok: false, reason: 'missing_token' });
 });
@@ -146,7 +161,7 @@ test('maps scope and stale-token failures to precise re-challenges', () => {
     oauthChallengeForVerification({ reason: 'token_expired' }),
     {
       error: 'invalid_token',
-      errorDescription: 'Your OpenDexter authorization is stale; connect again to continue',
+      errorDescription: 'The OpenDexter access token expired; refresh it and retry',
     },
   );
 });

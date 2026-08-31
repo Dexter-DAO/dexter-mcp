@@ -97,6 +97,7 @@ export function SearchQuotePanel({
   const actionLabel = getContinueLabel(
     quote.classification,
     intentReady,
+    requestBound,
   );
 
   useEffect(() => {
@@ -222,10 +223,11 @@ export function SearchQuotePanel({
 function getContinueLabel(
   classification: X402CheckClassification,
   intentReady: boolean,
+  requestBound: boolean,
 ): string | null {
   switch (classification) {
     case 'paid':
-      return intentReady ? 'Review payment' : 'Connect & re-check';
+      return intentReady ? 'Review payment' : requestBound ? null : 'Complete request';
     case 'free':
       return 'Use it now';
     case 'siwx':
@@ -233,7 +235,11 @@ function getContinueLabel(
     case 'apiKey':
       return 'Review access';
     case 'hybrid':
-      return intentReady ? 'Review access and payment' : 'Connect & re-check';
+      return intentReady
+        ? 'Review access and payment'
+        : requestBound
+          ? null
+          : 'Complete request';
     case 'error':
       return null;
   }
@@ -248,12 +254,17 @@ function getQuoteCopy(
     !intentReady
     && (classification === 'paid' || classification === 'hybrid')
   ) {
+    if (requestBound) {
+      return {
+        eyebrow: 'Current terms',
+        title: 'Purchase unavailable',
+        body: 'This check returned seller terms without an executable purchase intent. No payment can continue from this result.',
+      };
+    }
     return {
-      eyebrow: requestBound ? 'Quote only' : 'Price estimate',
-      title: 'Connect for a bound quote',
-      body: requestBound
-        ? 'Connect OpenDexter and repeat this check to create one server-held purchase intent. Nothing has been charged.'
-        : 'Connect OpenDexter, form the exact raw request body, and repeat this check before payment review. Nothing has been charged.',
+      eyebrow: 'Price estimate',
+      title: 'Exact request required',
+      body: 'Form the exact raw request body and repeat this check before payment review. Nothing has been charged.',
     };
   }
   return COPY[classification];

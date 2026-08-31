@@ -1346,7 +1346,8 @@ function SearchQuotePanel({
   }).format(checkedAt);
   const actionLabel = getContinueLabel(
     quote.classification,
-    intentReady
+    intentReady,
+    requestBound
   );
   reactExports.useEffect(() => {
     const frame = requestAnimationFrame(() => {
@@ -1426,10 +1427,10 @@ function SearchQuotePanel({
     }
   );
 }
-function getContinueLabel(classification, intentReady) {
+function getContinueLabel(classification, intentReady, requestBound) {
   switch (classification) {
     case "paid":
-      return intentReady ? "Review payment" : "Connect & re-check";
+      return intentReady ? "Review payment" : requestBound ? null : "Complete request";
     case "free":
       return "Use it now";
     case "siwx":
@@ -1437,17 +1438,24 @@ function getContinueLabel(classification, intentReady) {
     case "apiKey":
       return "Review access";
     case "hybrid":
-      return intentReady ? "Review access and payment" : "Connect & re-check";
+      return intentReady ? "Review access and payment" : requestBound ? null : "Complete request";
     case "error":
       return null;
   }
 }
 function getQuoteCopy(classification, requestBound, intentReady) {
   if (!intentReady && (classification === "paid" || classification === "hybrid")) {
+    if (requestBound) {
+      return {
+        eyebrow: "Current terms",
+        title: "Purchase unavailable",
+        body: "This check returned seller terms without an executable purchase intent. No payment can continue from this result."
+      };
+    }
     return {
-      eyebrow: requestBound ? "Quote only" : "Price estimate",
-      title: "Connect for a bound quote",
-      body: requestBound ? "Connect OpenDexter and repeat this check to create one server-held purchase intent. Nothing has been charged." : "Connect OpenDexter, form the exact raw request body, and repeat this check before payment review. Nothing has been charged."
+      eyebrow: "Price estimate",
+      title: "Exact request required",
+      body: "Form the exact raw request body and repeat this check before payment review. Nothing has been charged."
     };
   }
   return COPY[classification];
@@ -1589,9 +1597,12 @@ function paidContinuationPrompt(resource, quote) {
   );
   const requestBound = quote.checkedRequest?.requestBound ?? isSearchCheckRequestBound(resource.method);
   const body = isSearchCheckRequestBound(method) ? null : quote.checkedRequest?.body ?? null;
-  if (quote.quoteOnly || !quote.intentId || !requestBound) {
-    const bodyInstruction = isSearchCheckRequestBound(method) ? "and omit body" : body === null ? "and first form the exact raw body string required for the request" : `and pass body as the exact raw string ${JSON.stringify(body)}`;
-    return `Connect OpenDexter, then repeat x402_check for ${resource.name} with url ${checkedUrl}, method ${method}, ${bodyInstruction}. Use the authenticated re-check only if it returns a non-quote-only intentId. Do not call x402_fetch from this quote.`;
+  if (!requestBound) {
+    const bodyInstruction = body === null ? "first form the exact raw body string required for the request" : `pass body as the exact raw string ${JSON.stringify(body)}`;
+    return `Complete the ${method} request for ${resource.name} at ${checkedUrl}: ${bodyInstruction}, then repeat x402_check. Call x402_fetch only if the new result carries quoteOnly=false and an intentId.`;
+  }
+  if (quote.quoteOnly || !quote.intentId) {
+    return `The authorized x402_check for ${resource.name} at ${checkedUrl} returned no executable purchase intent. Tell the user that purchasing is unavailable for this checked quote. Do not call x402_fetch or ask the user to connect again.`;
   }
   const route = exactCeilingRoute(quote.routes);
   if (!route?.amountAtomic) {

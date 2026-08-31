@@ -49,7 +49,8 @@ test('search can only open a safe next step before payment', () => {
   assert.match(entry, /normalizeX402CheckResult/);
   assert.match(entry, /structuredContent/);
   assert.match(entry, /call x402_fetch once with only intentId/);
-  assert.match(entry, /Connect OpenDexter, then repeat x402_check/);
+  assert.match(entry, /returned no executable purchase intent/);
+  assert.match(entry, /Do not call x402_fetch or ask the user to connect again/);
   assert.doesNotMatch(
     entry,
     /call x402_fetch once with (?:url|method|body)/i,

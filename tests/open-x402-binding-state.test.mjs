@@ -37,11 +37,11 @@ test('only the API typed 404 proves that no wallet binding exists', async () => 
       status: 200,
       headers: { 'content-type': 'application/json' },
     })),
-    { ok: true, bound: true },
+    { ok: true, bound: true, userHandle: 'bound-user' },
   );
 });
 
-test('a binding outage stays distinct from an anonymous quote', () => {
+test('a binding outage stays distinct from a missing-intent quote', () => {
   const result = buildX402CheckBindingUnavailable({
     url: 'https://merchant.example/price',
     method: 'POST',

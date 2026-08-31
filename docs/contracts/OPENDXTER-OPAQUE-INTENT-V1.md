@@ -9,35 +9,30 @@ purchase. Dexter, not the caller, owns the request, seller terms, route, and
 execution state. The caller receives one opaque `intentId` and never carries a
 prepared purchase object between tools.
 
-## Public rosters
+## Authorized roster
 
-The anonymous roster is `x402_search`, `x402_check`, `x402_access`,
-`x402_wallet`, and `dexter_portfolio`.
+The canonical `https://open.dexter.cash/mcp` resource requires OAuth
+`scope=vault` before MCP initialization, tool discovery, or invocation. One
+successful authorization covers discovery and search, exact request checks,
+wallet and portfolio reads, identity-gated access, payment, and governed
+actions. The authorized roster has twelve tools:
 
-Wallet and portfolio return the host-native Connect path until the MCP session
-has `scope=vault` and a durable wallet binding.
+- `x402_search`
+- `x402_check`
+- `x402_fetch`
+- `x402_status`
+- `x402_access`
+- `x402_wallet`
+- `dexter_portfolio`
+- `dexter_prepare_asset_action`
+- `dexter_execute_asset_action`
+- `dexter_asset_action_status`
+- `dexter_reconcile_asset_action`
+- `dexter_wallet_history`
 
-OAuth adds `x402_fetch`, `x402_status`, `dexter_prepare_asset_action`,
-`dexter_execute_asset_action`, `dexter_asset_action_status`,
-`dexter_reconcile_asset_action`, and `dexter_wallet_history`.
-
-The connected roster has twelve tools:
-
-1. `x402_search`
-2. `x402_check`
-3. `x402_fetch`
-4. `x402_status`
-5. `x402_access`
-6. `x402_wallet`
-7. `dexter_portfolio`
-8. `dexter_prepare_asset_action`
-9. `dexter_execute_asset_action`
-10. `dexter_asset_action_status`
-11. `dexter_reconcile_asset_action`
-12. `dexter_wallet_history`
-
-Per-tool security schemes still enforce OAuth after discovery. Protected calls
-require the current vault Bearer on every invocation.
+Each tool carries the OAuth security scheme and requires the current vault
+Bearer on every invocation. The authenticated MCP session supplies the durable
+wallet binding used by wallet, portfolio, payment, and governed-action tools.
 
 There are no public aliases, tab tools, purchase-mode selectors,
 `PreparedPurchase` inputs, card tools, model-callable owner-decision tools, or
@@ -58,8 +53,8 @@ Input:
 ```
 
 `body` is a string, not parsed JSON. For a non-GET request, OpenDexter passes
-the exact string to the check boundary and, for an authenticated check, asks
-the API to retain that request with the seller challenge and terms. It does
+the exact string to the check boundary and asks the API to retain that request
+with the seller challenge and terms. It does
 not parse, canonicalize, reformat, or reserialize the string. Whitespace, key
 order, numeric spelling, escaping, and an explicitly present empty string
 therefore remain caller-selected. At the API custody boundary, exactness means
@@ -67,14 +62,11 @@ the string is UTF-8 encoded once; the resulting bytes are the bytes hashed,
 stored, probed, and dispatched. JSON-envelope escaping is not part of the
 provider body.
 
-An anonymous check is quote-only. It may return current pricing and schema
-information, but returns no executable intent. The caller connects OpenDexter
-and repeats the check to create one.
-
-An authenticated check asks the API to create and durably custody the exact
-request. Its executable result contains an opaque `intentId`. A check does not
-authorize payment. A non-GET check can still mutate the external provider and
-must be treated as consequential.
+A check asks the API to create and durably custody the exact request. A
+purchasable result carries `quoteOnly=false` and an opaque `intentId`;
+`quoteOnly=true` carries no executable intent. A check does not authorize
+payment. A non-GET check can still mutate the external provider and must be
+treated as consequential.
 
 ### `x402_fetch`
 
@@ -339,8 +331,10 @@ POST /v2/pay/anon/x402/status
 The internal request envelope adds the server-derived `mcp_session_id`.
 `check` carries URL, method, and the exact body string; `fetch` carries only
 session ID, intent ID, and ceiling; `status` carries only session ID and intent
-ID. These route names are deliberately centralized because the paired API
-contract is not release-final. They are not public MCP arguments.
+ID. These route names are deliberately centralized while the paired API
+contract remains provisional. The historical `anon` path segment names the
+internal API seam; OAuth admission occurs at the canonical MCP boundary before
+this route is reachable.
 
 This branch does not contain release-final API handlers for all three paths.
 The route-neutral Native Exact handlers examined as a donor exist only in a

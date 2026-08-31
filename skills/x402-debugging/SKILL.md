@@ -7,11 +7,13 @@ description: "Diagnose hosted OpenDexter x402, OAuth, wallet-binding, intent, pr
 
 Identify the failed layer before retrying:
 
-1. **Connector discovery**: the host cannot list the OpenDexter tools.
-2. **OAuth connection**: a protected tool returns `authentication_required`.
+1. **Connector registration**: the host cannot reach the canonical OpenDexter
+   endpoint or discover its OAuth metadata.
+2. **OAuth connection**: authorization fails before tools appear, or an
+   established connection later returns `authentication_required`.
 3. **Wallet binding**: OAuth succeeded, but no ready Dexter Wallet is bound.
-4. **Quote or intent custody**: `x402_check` cannot obtain requirements, or an
-   anonymous quote has no executable `intentId`.
+4. **Quote or intent custody**: an authorized `x402_check` cannot obtain
+   requirements or create an executable `intentId`.
 5. **Hosted authority**: the same intent needs consent before execution.
 6. **Payment build**: requirements exist, but payment proof was not constructed.
 7. **Dispatch or validation**: proof was sent and rejected.
@@ -21,21 +23,21 @@ Identify the failed layer before retrying:
 
 These layers are independent. Connector installation, OAuth, wallet binding,
 passkey enrollment, payment construction, and merchant settlement do not prove
-one another.
+one another. One completed OAuth connection supplies discovery and search,
+wallet, portfolio, access, payment, and governed-action tools.
 
 ## Safe response
 
-- For `authentication_required`, let the host show Connect, complete native
-  OAuth, and retry the same tool once.
-- For wallet-not-ready, call `x402_wallet`; do not invent or surface a
-  personalized connector or legacy pairing URL.
+- For an initial OAuth failure, use the host's native authorization action on
+  `https://open.dexter.cash/mcp`, finish OAuth, and reload the tool list once.
+- If an established connection later returns `authentication_required`, let
+  the host resume OAuth and retry the same tool once.
+- For wallet-not-ready, call `x402_wallet` and use its returned binding state.
 - For a returned `funding_required` result, use the returned `receiveAddress`.
   Never infer insufficient funds from zero cash alone: reported credit may
   exist, or its read may be unavailable, and exact-intent eligibility is a
   separate fact. Never use `vaultPda` or Swig state as a deposit fallback.
 - For quote-above-limit, stop and request a new explicit ceiling from the user.
-- For `quoteOnly`, Connect and repeat the same exact check; do not invent an
-  intent ID.
 - For hosted consent, preserve the same `intentId`, complete the returned
   Dexter consent surface, and resume only that intent.
 - For malformed requirements or build failure, preserve `intentId`, stage, and

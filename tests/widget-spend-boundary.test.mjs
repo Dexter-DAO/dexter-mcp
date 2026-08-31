@@ -19,7 +19,8 @@ test('pricing widget continues in chat instead of invoking a money tool', async 
   assert.match(pricing, /Exact request:/);
   assert.match(pricing, /maxAmountAtomic/);
   assert.match(pricing, /call x402_fetch once with only intentId/);
-  assert.match(pricing, /Connect OpenDexter, then repeat x402_check/);
+  assert.match(pricing, /returned no executable purchase intent/);
+  assert.match(pricing, /Do not call x402_fetch or ask the user to connect again/);
   assert.match(pricing, /pass body as the exact raw string/);
   assert.doesNotMatch(
     pricing,
@@ -30,7 +31,7 @@ test('pricing widget continues in chat instead of invoking a money tool', async 
     /preparedPurchase|purchaseOptions|purchase mode|omit purchase/i,
   );
   assert.match(action, /Review payment/);
-  assert.match(action, /Connect & re-check/);
+  assert.match(action, /Complete request/);
   assert.match(pricingTypes, /body\?: string/);
   assert.doesNotMatch(pricingTypes, /sampleInputBody/);
 });

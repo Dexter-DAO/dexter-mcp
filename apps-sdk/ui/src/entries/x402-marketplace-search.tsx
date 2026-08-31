@@ -139,15 +139,17 @@ function paidContinuationPrompt(
   const body = isSearchCheckRequestBound(method)
     ? null
     : quote.checkedRequest?.body ?? null;
-  if (quote.quoteOnly || !quote.intentId || !requestBound) {
-    const bodyInstruction = isSearchCheckRequestBound(method)
-      ? 'and omit body'
-      : body === null
-        ? 'and first form the exact raw body string required for the request'
-        : `and pass body as the exact raw string ${JSON.stringify(body)}`;
-    return `Connect OpenDexter, then repeat x402_check for ${resource.name} with url ${checkedUrl}, method ${method}, ${bodyInstruction}. `
-      + 'Use the authenticated re-check only if it returns a non-quote-only intentId. '
-      + 'Do not call x402_fetch from this quote.';
+  if (!requestBound) {
+    const bodyInstruction = body === null
+      ? 'first form the exact raw body string required for the request'
+      : `pass body as the exact raw string ${JSON.stringify(body)}`;
+    return `Complete the ${method} request for ${resource.name} at ${checkedUrl}: ${bodyInstruction}, then repeat x402_check. `
+      + 'Call x402_fetch only if the new result carries quoteOnly=false and an intentId.';
+  }
+  if (quote.quoteOnly || !quote.intentId) {
+    return `The authorized x402_check for ${resource.name} at ${checkedUrl} returned no executable purchase intent. `
+      + 'Tell the user that purchasing is unavailable for this checked quote. '
+      + 'Do not call x402_fetch or ask the user to connect again.';
   }
 
   const route = exactCeilingRoute(quote.routes);

@@ -233,7 +233,7 @@ function FetchAction({
   status = "idle",
   onFetch
 }) {
-  const label = status === "sending" ? "Opening review…" : status === "sent" ? "Review opened in chat" : intentReady ? "Review payment" : "Connect & re-check";
+  const label = status === "sending" ? "Opening review…" : status === "sent" ? "Review opened in chat" : intentReady ? "Review payment" : "Complete request";
   return /* @__PURE__ */ jsxRuntimeExports.jsxs(Button, { color: "primary", block: true, onClick: onFetch, disabled, children: [
     label,
     price && status !== "sent" ? ` · ${price}` : ""
@@ -283,10 +283,13 @@ function sellerTerms(route) {
   return `${route.amountAtomic} atomic units of ${asset} on ${network}${recipient}`;
 }
 function paidContinuationPrompt(request, routes, intentId, quoteOnly) {
-  if (quoteOnly || !intentId || !request.requestBound) {
+  if (!request.requestBound) {
     const exactRequest = request.url ? `url ${request.url}, method ${request.method}` : "the same URL and method";
-    const bodyInstruction = request.method === "GET" ? "and omit body" : request.body === null ? "and first form the exact raw body string required for the request" : `and pass body as the exact raw string ${JSON.stringify(request.body)}`;
-    return `Connect OpenDexter, then repeat x402_check with ${exactRequest} ${bodyInstruction}. Use the authenticated re-check only if it returns a non-quote-only intentId. Do not call x402_fetch from this quote.`;
+    const bodyInstruction = request.body === null ? "first form the exact raw body string required for the request" : `pass body as the exact raw string ${JSON.stringify(request.body)}`;
+    return `Complete ${exactRequest}: ${bodyInstruction}, then repeat x402_check. Call x402_fetch only if the new result carries quoteOnly=false and an intentId.`;
+  }
+  if (quoteOnly || !intentId) {
+    return `The authorized x402_check for ${request.method} ${request.url} returned no executable purchase intent. Tell the user that purchasing is unavailable for this checked quote. Do not call x402_fetch or ask the user to connect again.`;
   }
   const route = exactCeilingRoute(routes);
   if (!route?.amountAtomic) {
@@ -498,26 +501,31 @@ function PricingCheck() {
         sizeBytes: enrichment?.resource?.response_size_bytes ?? null
       }
     ),
-    checkedRequest?.url && sendFollowUp ? /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx(
-        FetchAction,
-        {
-          price: displayedPrice,
-          intentReady,
-          status: continueState.status,
-          disabled: continueState.status === "sending" || continueState.status === "sent",
-          onFetch: handleContinue
-        }
-      ),
-      continueState.status === "error" ? /* @__PURE__ */ jsxRuntimeExports.jsx(
-        Alert,
-        {
-          color: "danger",
-          title: "Couldn’t open chat",
-          description: continueState.message
-        }
-      ) : null
-    ] }) : null,
+    checkedRequest?.url && sendFollowUp ? intentReady || !requestBound ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+      FetchAction,
+      {
+        price: displayedPrice,
+        intentReady,
+        status: continueState.status,
+        disabled: continueState.status === "sending" || continueState.status === "sent",
+        onFetch: handleContinue
+      }
+    ) : /* @__PURE__ */ jsxRuntimeExports.jsx(
+      Alert,
+      {
+        color: "warning",
+        title: "Purchase unavailable",
+        description: "This check returned current seller terms without an executable purchase intent. No payment can continue from this result."
+      }
+    ) : null,
+    continueState.status === "error" ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+      Alert,
+      {
+        color: "danger",
+        title: "Couldn't open chat",
+        description: continueState.message
+      }
+    ) : null,
     /* @__PURE__ */ jsxRuntimeExports.jsx(DebugPanel, { widgetName: "x402-pricing" })
   ] });
 }

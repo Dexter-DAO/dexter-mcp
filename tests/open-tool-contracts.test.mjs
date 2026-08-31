@@ -16,7 +16,6 @@ import {
 } from '../lib/open-tool-contracts.mjs';
 import {
   OPEN_TOOL_SECURITY_SCHEMES,
-  VAULT_WWW_AUTHENTICATE,
   installCanonicalSecuritySchemeProjection,
 } from '../lib/open-tool-auth.mjs';
 import {
@@ -1274,57 +1273,18 @@ test('vault-bound hosted discovery retains the exact protected roster', async ()
       await server.close();
     }
   }
-  assert.deepEqual(OPEN_ANONYMOUS_TOOL_NAMES, [
-    'x402_search',
-    'x402_check',
-    'x402_access',
-    'x402_wallet',
-    'dexter_portfolio',
-  ]);
-  assert.deepEqual(OPEN_OAUTH_PROMOTED_TOOL_NAMES, [
-    'x402_fetch',
-    'x402_status',
-    'dexter_prepare_asset_action',
-    'dexter_execute_asset_action',
-    'dexter_asset_action_status',
-    'dexter_reconcile_asset_action',
-    'dexter_wallet_history',
-  ]);
+  assert.deepEqual(OPEN_ANONYMOUS_TOOL_NAMES, []);
+  assert.deepEqual(OPEN_OAUTH_PROMOTED_TOOL_NAMES, OPEN_TOOL_NAMES);
 });
 
-test('an unbound session lists entry tools while a direct protected call requests Connect', async (t) => {
-  const { createOpenMcpServer } = await import('../open-mcp-server.mjs');
-  const server = createOpenMcpServer({ includeResources: false });
-
-  const client = new Client({ name: 'unbound-client', version: '1.0.0' });
-  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-  t.after(async () => {
-    await client.close();
-    await server.close();
-  });
-  await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
-
-  const before = (await client.listTools()).tools.map((tool) => tool.name);
-  assert.deepEqual(before, OPEN_ANONYMOUS_TOOL_NAMES);
-  assert.equal(before.includes('x402_fetch'), false);
-
-  const result = await client.callTool({
-    name: 'x402_fetch',
-    arguments: {
-      intentId: 'intent-unbound',
-      maxAmountAtomic: '50000',
-    },
-  });
-  assert.equal(result.isError, true);
-  assert.equal(result.structuredContent.status, 'authentication_required');
-  assert.equal(result.structuredContent.dispatch.boundary, 'not_crossed');
-  assert.equal(result.structuredContent.payment.confirmed, false);
-  assert.deepEqual(
-    result._meta['mcp/www_authenticate'],
-    [VAULT_WWW_AUTHENTICATE],
-  );
-  assert.deepEqual(
-    (await client.listTools()).tools.map((tool) => tool.name),
-    before,
-  );
+test('the contract exposes zero tools anonymously and all twelve after OAuth', () => {
+  assert.deepEqual(OPEN_ANONYMOUS_TOOL_NAMES, []);
+  assert.deepEqual(OPEN_OAUTH_PROMOTED_TOOL_NAMES, OPEN_TOOL_NAMES);
+  for (const name of OPEN_TOOL_NAMES) {
+    assert.deepEqual(
+      OPEN_TOOL_CONTRACTS[name].securitySchemes,
+      [{ type: 'oauth2', scopes: ['vault'] }],
+      name,
+    );
+  }
 });

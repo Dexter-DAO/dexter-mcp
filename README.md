@@ -21,7 +21,7 @@ This repo contains two hosted MCP servers and the shared `@dexterai/x402-core` p
 | Product | Endpoint | Auth | Payment |
 |---------|----------|------|---------|
 | **Dexter MCP** (authenticated) | `mcp.dexter.cash/mcp` | Dexter OAuth | Managed wallet, automatic |
-| **OpenDexter MCP** (hosted) | `open.dexter.cash/mcp` | Mixed per tool: public access or OAuth `scope=vault` | Session-bound passkey wallet; explicit user approval |
+| **OpenDexter MCP** (hosted) | `open.dexter.cash/mcp` | OAuth `scope=vault` before discovery or use | Session-bound passkey wallet; explicit user or policy authority |
 
 The npm packages (`@dexterai/opendexter`, `@dexterai/x402-discovery`) live in [Dexter-DAO/opendexter-ide](https://github.com/Dexter-DAO/opendexter-ide).
 
@@ -91,7 +91,8 @@ deterministic provenance, the exact descriptor, and a complete file manifest
 that also authenticates the provenance bytes. It replaces only
 `dexter-open-mcp`, while proving the separate legacy `dexter-mcp` PID, path,
 configuration, and restart counters remain unchanged. It verifies the new
-public process's PM2 and kernel paths, health, exact 5/12 roster, and release
+public process's PM2 and kernel paths, health, authorization challenge,
+authenticated twelve-tool roster, and release
 identity before `pm2 save`. Any mismatch independently restores and re-verifies
 the prior public OpenDexter process without restarting the private service. It
 never reloads or updates an existing process in place. This is still activation,
@@ -102,14 +103,15 @@ proof.
 
 ## OpenDexter: the hosted x402 buyer
 
-OpenDexter is the hosted MCP server behind the OpenDexter connector. Before
-authorization it lists search, quote-only price inspection, identity-gated
-access, wallet, and portfolio. Wallet and portfolio return the host-native
-Connect path until the session has OAuth `scope=vault` and a durable wallet
-binding. Authorization adds the seven account-bound payment and governed-asset
-tools below.
+OpenDexter is the hosted MCP server behind the OpenDexter connector. The
+canonical `https://open.dexter.cash/mcp` resource requires OAuth `scope=vault`
+before MCP initialization, tool discovery, or invocation. One successful
+authorization covers discovery and search, exact request checks, wallet and
+portfolio reads, identity-gated access, payment, and governed actions on the
+same connection. Consequential calls still require the exact user instruction
+or bounded policy authority described below.
 
-The complete connected roster is:
+The authorized roster is:
 
 1) `x402_search`
 2) `x402_check`
@@ -124,17 +126,17 @@ The complete connected roster is:
 11) `dexter_reconcile_asset_action`
 12) `dexter_wallet_history`
 
-The anonymous roster is `x402_search`, `x402_check`, `x402_access`,
-`x402_wallet`, and `dexter_portfolio`. OAuth adds `x402_fetch`, `x402_status`,
-and the five governed-asset tools. Compatibility aliases, composed-skill,
-passkey-probe, and card tools stay outside this hosted roster.
+Every tool in this roster carries the OAuth security scheme and requires the
+current vault Bearer on each invocation. Compatibility aliases,
+composed-skill, passkey-probe, and card tools stay outside this hosted roster.
 
 `x402_check` accepts the endpoint URL, method, and optional exact raw
-request-body string. Anonymous checks are quote-only. An
-authenticated check asks Dexter to custody the request and seller terms and
-returns one opaque `intentId`. `x402_fetch` accepts only that `intentId` and an
-explicit user- or policy-approved `maxAmountAtomic` ceiling. It never accepts
-URL, body, route, tab, seller, or caller-carried prepared-purchase JSON.
+request-body string. A check asks Dexter to custody the request and seller
+terms. A purchasable result carries `quoteOnly=false` and one opaque
+`intentId`; `quoteOnly=true` carries no executable intent. `x402_fetch` accepts
+that `intentId` plus an explicit user- or policy-approved `maxAmountAtomic`
+ceiling. It never accepts URL, body, route, tab, seller, or caller-carried
+prepared-purchase JSON.
 `x402_status` accepts only the same `intentId` and reads state without
 redispatching.
 
@@ -148,7 +150,7 @@ Internal settlement-rail choice remains API-owned and is not a public tool or
 mode menu.
 
 Governed Buy and Sell, plus the preserved fail-closed Send contract, use one
-API-owned intent through five public tools. `dexter_prepare_asset_action`
+API-owned intent through five hosted tools. `dexter_prepare_asset_action`
 accepts one stable `operationId` plus the
 exact action fields and persists/evaluates the request without signing or
 submitting it. Send and non-stock Buy/Sell use the canonical `assetId` returned
@@ -211,10 +213,11 @@ before asking PM2 to load that config. The launcher rejects symlinks, hard
 links, foreign ownership, permissive modes, and inherited Node loader controls;
 the immutable release itself contains no credential file.
 
-**How wallet identity works.** OAuth authorizes the mixed
-`https://open.dexter.cash/mcp` resource. Protected wallet and portfolio calls
-resolve the durable wallet binding for that authenticated MCP session and the
-stored passkey-vault identity behind it. They do not accept a caller-supplied
+**How wallet identity works.** OAuth authorizes the canonical
+`https://open.dexter.cash/mcp` resource before tool discovery. The same
+authorized MCP session resolves the durable wallet binding and stored
+passkey-vault identity for every product tool. Wallet and portfolio calls use
+that binding. They do not accept a caller-supplied
 wallet address or user handle. `x402_wallet` reads the bound passkey wallet;
 `dexter_portfolio` reads its governed asset inventory without changing the
 spendable balance. Its optional `approvedActionTargets` are a separate,
@@ -234,9 +237,9 @@ install guidance, and seller-side `opendexter audition <url>` command live in
 | | OpenDexter MCP | `@dexterai/opendexter` |
 |---|---|---|
 | Transport | Hosted HTTP MCP | Local stdio MCP |
-| Authorization | Mixed per-tool OAuth contract | Local process and signer |
+| Authorization | OAuth required before discovery and use | Local process and signer |
 | Wallet identity | Durable passkey wallet bound to the authenticated MCP session | User-controlled local signer |
-| Executable roster | Twelve discoverable tools; protected calls require OAuth | Independently versioned; verify the installed package |
+| Executable roster | Twelve tools on one authorized connection | Independently versioned; verify the installed package |
 | Seller onboarding | Not exposed as a hosted tool | `opendexter audition <url>` |
 | Best for | ChatGPT, Claude, hosted agents | Codex, Claude Code, CLI agents |
 

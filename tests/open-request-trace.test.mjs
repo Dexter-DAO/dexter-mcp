@@ -5,8 +5,8 @@ import {
   summarizeFreshMcpRequest,
 } from '../lib/open-request-trace.mjs';
 
-test('connection trace is on in production and explicitly controllable elsewhere', () => {
-  assert.equal(isOpenMcpConnectionTraceEnabled({ NODE_ENV: 'production' }), true);
+test('connection trace is off by default in production and explicitly opt-in', () => {
+  assert.equal(isOpenMcpConnectionTraceEnabled({ NODE_ENV: 'production' }), false);
   assert.equal(
     isOpenMcpConnectionTraceEnabled({
       NODE_ENV: 'production',

@@ -123,18 +123,21 @@ function paidContinuationPrompt(
   intentId: string | null,
   quoteOnly: boolean,
 ): string {
-  if (quoteOnly || !intentId || !request.requestBound) {
+  if (!request.requestBound) {
     const exactRequest = request.url
       ? `url ${request.url}, method ${request.method}`
       : 'the same URL and method';
-    const bodyInstruction = request.method === 'GET'
-      ? 'and omit body'
-      : request.body === null
-        ? 'and first form the exact raw body string required for the request'
-        : `and pass body as the exact raw string ${JSON.stringify(request.body)}`;
-    return `Connect OpenDexter, then repeat x402_check with ${exactRequest} ${bodyInstruction}. `
-      + 'Use the authenticated re-check only if it returns a non-quote-only intentId. '
-      + 'Do not call x402_fetch from this quote.';
+    const bodyInstruction = request.body === null
+      ? 'first form the exact raw body string required for the request'
+      : `pass body as the exact raw string ${JSON.stringify(request.body)}`;
+    return `Complete ${exactRequest}: ${bodyInstruction}, then repeat x402_check. `
+      + 'Call x402_fetch only if the new result carries quoteOnly=false and an intentId.';
+  }
+
+  if (quoteOnly || !intentId) {
+    return `The authorized x402_check for ${request.method} ${request.url} returned no executable purchase intent. `
+      + 'Tell the user that purchasing is unavailable for this checked quote. '
+      + 'Do not call x402_fetch or ask the user to connect again.';
   }
 
   const route = exactCeilingRoute(routes);
@@ -434,7 +437,7 @@ function PricingCheck() {
       />
 
       {checkedRequest?.url && sendFollowUp ? (
-        <>
+        intentReady || !requestBound ? (
           <FetchAction
             price={displayedPrice}
             intentReady={intentReady}
@@ -445,14 +448,20 @@ function PricingCheck() {
             }
             onFetch={handleContinue}
           />
-          {continueState.status === 'error' ? (
-            <Alert
-              color="danger"
-              title="Couldn’t open chat"
-              description={continueState.message}
-            />
-          ) : null}
-        </>
+        ) : (
+          <Alert
+            color="warning"
+            title="Purchase unavailable"
+            description="This check returned current seller terms without an executable purchase intent. No payment can continue from this result."
+          />
+        )
+      ) : null}
+      {continueState.status === 'error' ? (
+        <Alert
+          color="danger"
+          title="Couldn't open chat"
+          description={continueState.message}
+        />
       ) : null}
 
       <DebugPanel widgetName="x402-pricing" />

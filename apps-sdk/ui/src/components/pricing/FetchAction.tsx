@@ -22,7 +22,7 @@ export function FetchAction({
         ? 'Review opened in chat'
         : intentReady
           ? 'Review payment'
-          : 'Connect & re-check';
+          : 'Complete request';
   return (
     <Button color="primary" block onClick={onFetch} disabled={disabled}>
       {label}
