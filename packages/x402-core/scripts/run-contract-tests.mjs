@@ -24,6 +24,7 @@ try {
   execFileSync(process.execPath, [
     '--test',
     join(outputDirectory, 'check.purchase.test.js'),
+    join(outputDirectory, 'search.price-contract.test.js'),
   ], {
     cwd: packageRoot,
     stdio: 'inherit',

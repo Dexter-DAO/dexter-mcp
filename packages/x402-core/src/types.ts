@@ -166,6 +166,16 @@ export interface RawCapabilityResponse {
     categories?: string[] | null;
     requireVerified?: boolean;
   };
+  /** Effective price bounds the API applied after merging all sources. */
+  appliedConstraints?: {
+    maxPriceUsdc: number | null;
+    minPriceUsdc: number | null;
+    paidOnly?: boolean;
+  };
+  /** Effective ordering the API applied inside each relevance tier. */
+  appliedOrdering?: {
+    sortBy?: CapabilitySearchSortBy;
+  };
   strongResults: RawCapabilityResult[];
   relatedResults: RawCapabilityResult[];
   results?: RawCapabilityResult[];
@@ -328,7 +338,14 @@ export interface FormattedResource {
 export type NoMatchReason =
   | 'below_similarity_threshold'
   | 'below_strong_threshold'
+  | 'no_results_with_price_controls'
   | null;
+
+/** Ordering applied independently inside the strong and related tiers. */
+export type CapabilitySearchSortBy =
+  | 'relevance'
+  | 'price_asc'
+  | 'price_desc';
 
 /**
  * Options for semantic capability search.
@@ -339,6 +356,14 @@ export interface CapabilitySearchOptions {
   unverified?: boolean;
   testnets?: boolean;
   rerank?: boolean;
+  /** Hard upper bound for the x402 API invocation price, in USDC. */
+  maxPriceUsdc?: number;
+  /** Hard lower bound for the x402 API invocation price, in USDC. */
+  minPriceUsdc?: number;
+  /** Require a known primary USDC invocation price greater than zero. */
+  paidOnly?: boolean;
+  /** Order results inside each relevance tier. */
+  sortBy?: CapabilitySearchSortBy;
   debug?: boolean;
   endpoint?: string;
 }
@@ -365,6 +390,21 @@ export interface CapabilitySearchResult {
   intent: {
     capabilityText: string;
     expandedCapabilityText?: string;
+    maxPriceUsdc?: number | null;
+    minPriceUsdc?: number | null;
+  };
+  /** Effective price bounds the API confirmed for this result set.
+   *  Optional so callers compiled against x402-core <=1.5 can continue to
+   *  pass their existing CapabilitySearchResult objects to buildSearchResponse.
+   */
+  appliedConstraints?: {
+    maxPriceUsdc: number | null;
+    minPriceUsdc: number | null;
+    paidOnly?: boolean;
+  };
+  /** Effective ordering the API confirmed for each relevance tier. */
+  appliedOrdering?: {
+    sortBy: CapabilitySearchSortBy;
   };
   /** See {@link SearchConfidence}. Absent on responses from old dexter-api
    *  builds; consumers must guard. */
@@ -389,13 +429,13 @@ export type SearchMode = 'direct' | 'related_only' | 'empty' | 'error';
 export interface SearchMeta {
   mode: SearchMode;
   note: string;
-  rankingMode?: 'full' | 'degraded' | string;
+  rankingMode?: 'full' | 'degraded';
   degradedMessage?: string;
 }
 
 export interface SearchResponse {
   success: boolean;
-  rankingMode?: 'full' | 'degraded' | string;
+  rankingMode?: 'full' | 'degraded';
   degradedMessage?: string | null;
   /** Total count: strongResults.length + relatedResults.length. The legacy
    *  `resources` field (a flat concatenation of the two) was removed when
@@ -409,7 +449,22 @@ export interface SearchResponse {
   topSimilarity: number | null;
   noMatchReason: NoMatchReason;
   rerank: { enabled: boolean; applied: boolean };
-  intent: { capabilityText: string; expandedCapabilityText?: string };
+  intent: {
+    capabilityText: string;
+    expandedCapabilityText?: string;
+    maxPriceUsdc?: number | null;
+    minPriceUsdc?: number | null;
+  };
+  /** Price bounds the API confirmed it applied to this result set. */
+  appliedConstraints: {
+    maxPriceUsdc: number | null;
+    minPriceUsdc: number | null;
+    paidOnly: boolean;
+  };
+  /** Ordering the API confirmed inside each relevance tier. */
+  appliedOrdering: {
+    sortBy: CapabilitySearchSortBy;
+  };
   searchMeta: SearchMeta;
   /** Raw error detail — present only when success is false. Kept separate
    *  from searchMeta.note so the user-facing note stays clean while logs

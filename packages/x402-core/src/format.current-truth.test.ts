@@ -125,6 +125,7 @@ describe('current capability truth projection', () => {
       noMatchReason: null,
       rerank: { enabled: true, applied: true },
       intent: { capabilityText: 'buy running shoes' },
+      appliedConstraints: { maxPriceUsdc: null, minPriceUsdc: null },
       durationMs: 20,
     };
 
@@ -168,6 +169,7 @@ describe('current capability truth projection', () => {
       noMatchReason: null,
       rerank: { enabled: true, applied: true },
       intent: { capabilityText: 'read an exact resource' },
+      appliedConstraints: { maxPriceUsdc: null, minPriceUsdc: null },
       durationMs: 20,
     };
 
@@ -230,6 +232,7 @@ describe('current capability truth projection', () => {
       noMatchReason: null,
       rerank: { enabled: true, applied: true },
       intent: { capabilityText: 'read an unsupported resource' },
+      appliedConstraints: { maxPriceUsdc: null, minPriceUsdc: null },
       durationMs: 20,
     };
 
@@ -261,6 +264,7 @@ describe('current capability truth projection', () => {
       noMatchReason: null,
       rerank: { enabled: true, applied: true },
       intent: { capabilityText: 'inspect headers' },
+      appliedConstraints: { maxPriceUsdc: null, minPriceUsdc: null },
       durationMs: 20,
     };
 
@@ -295,6 +299,7 @@ describe('current capability truth projection', () => {
       noMatchReason: null,
       rerank: { enabled: true, applied: true },
       intent: { capabilityText: 'read a resource' },
+      appliedConstraints: { maxPriceUsdc: null, minPriceUsdc: null },
       durationMs: 20,
     };
 

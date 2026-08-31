@@ -149,7 +149,17 @@ function normalizePaymentReceipt(paymentReceipt, response) {
  * Semantic capability search via @dexterai/x402-core.
  * All HTTP logic, formatting, and response building comes from the shared package.
  */
-async function searchCapability({ query, limit, unverified, testnets, rerank }) {
+async function searchCapability({
+  query,
+  limit,
+  unverified,
+  testnets,
+  rerank,
+  maxPriceUsdc,
+  minPriceUsdc,
+  paidOnly,
+  sortBy,
+}) {
   const rawQuery = typeof query === 'string' ? query.trim() : '';
   logX402SearchDebug('start', {
     rawQuery,
@@ -157,6 +167,10 @@ async function searchCapability({ query, limit, unverified, testnets, rerank }) 
     unverified: Boolean(unverified),
     testnets: Boolean(testnets),
     rerank: rerank !== false,
+    maxPriceUsdc: maxPriceUsdc ?? null,
+    minPriceUsdc: minPriceUsdc ?? null,
+    paidOnly: paidOnly ?? null,
+    sortBy: sortBy ?? null,
   });
 
   if (!rawQuery) {
@@ -172,6 +186,10 @@ async function searchCapability({ query, limit, unverified, testnets, rerank }) 
     unverified,
     testnets,
     rerank,
+    maxPriceUsdc,
+    minPriceUsdc,
+    paidOnly,
+    sortBy,
     endpoint,
   });
 
@@ -372,14 +390,19 @@ export function registerX402ClientToolset(server) {
     title: 'x402 Capability Search',
     description:
       'Semantic capability search over the Dexter x402 marketplace. ' +
-      'Pass a natural-language query and get back two tiers: strongResults (high-confidence capability hits) ' +
+      'Pass a natural-language query. maxPriceUsdc and minPriceUsdc set hard bounds on the primary USDC invocation price. paidOnly requires a known positive price. sortBy orders each relevance tier while strong results stay ahead of related results. A typed control is usable only when appliedConstraints or appliedOrdering confirms it. Keep product and order budgets in the query. ' +
+      'Results come back in two tiers: strongResults (high-confidence capability hits) ' +
       'and relatedResults (adjacent services that cleared the similarity floor). ' +
-      'The ranker handles synonym expansion and alternate phrasings internally — do NOT pre-filter by chain or category. ' +
+      'The ranker handles synonym expansion and alternate phrasings internally. ' +
       'Top strong results are reordered by a cross-encoder LLM rerank unless rerank:false is passed. ' +
       'Use searchMeta.mode to distinguish a direct hit (strong matches present) from related_only (only adjacencies) or empty (nothing in the index). ' +
       'Each result exposes a chains[] array with every payment option the resource accepts.',
     inputSchema: {
-      query: z.string().describe('Natural-language description of the capability you want. e.g. "check wallet balance on Base", "generate an image", "ETH spot price feed". Do NOT pre-filter by chain or category; the search layer handles those semantically.'),
+      query: z.string().describe('Natural-language description of the capability you want, such as "check wallet balance on Base", "generate an image", or "ETH spot price feed". Pass the job directly; search handles chain and category semantics.'),
+      maxPriceUsdc: z.number().finite().nonnegative().optional().describe('Optional hard ceiling, in USDC, for invoking the discovered API.'),
+      minPriceUsdc: z.number().finite().nonnegative().optional().describe('Optional hard floor, in USDC, for invoking the discovered API. When both price fields are set, minPriceUsdc must be less than or equal to maxPriceUsdc.'),
+      paidOnly: z.boolean().optional().describe('Require a known primary USDC invocation price above zero.'),
+      sortBy: z.enum(['relevance', 'price_asc', 'price_desc']).optional().describe('Order results inside each relevance tier. Strong results remain ahead of related results.'),
       limit: z.number().min(1).max(50).optional().describe('Max results across strong + related tiers combined (1-50, default 20)'),
       unverified: z.boolean().optional().describe('Include unverified resources (default false). Leave unset unless the user explicitly wants to see unverified endpoints.'),
       testnets: z.boolean().optional().describe('Include testnet-only resources (default false).'),

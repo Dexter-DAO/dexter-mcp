@@ -476,7 +476,18 @@ function payableOn(result, prefix) {
  * Semantic capability search via @dexterai/x402-core.
  * All HTTP logic, formatting, and response building comes from the shared package.
  */
-async function x402Search({ query, limit, unverified, testnets, rerank, network }) {
+async function x402Search({
+  query,
+  limit,
+  unverified,
+  testnets,
+  rerank,
+  network,
+  maxPriceUsdc,
+  minPriceUsdc,
+  paidOnly,
+  sortBy,
+}) {
   const rawQuery = typeof query === 'string' ? query.trim() : '';
   logX402SearchDebug('start', {
     queryRef: logRef(rawQuery),
@@ -485,6 +496,10 @@ async function x402Search({ query, limit, unverified, testnets, rerank, network 
     unverified: Boolean(unverified),
     testnets: Boolean(testnets),
     rerank: rerank !== false,
+    maxPriceUsdc: maxPriceUsdc ?? null,
+    minPriceUsdc: minPriceUsdc ?? null,
+    paidOnly: paidOnly ?? null,
+    sortBy: sortBy ?? null,
   });
 
   if (!rawQuery) {
@@ -505,30 +520,69 @@ async function x402Search({ query, limit, unverified, testnets, rerank, network 
     unverified,
     testnets,
     rerank,
+    maxPriceUsdc,
+    minPriceUsdc,
+    paidOnly,
+    sortBy,
     endpoint,
   });
-
-  const response = buildSearchResponse(searchResult);
 
   // Hard payability filter — applied AFTER ranking so relevance is untouched;
   // we only remove what the caller's wallet cannot pay.
   const prefix = resolveNetworkPrefix(network);
+  let filteredSearchResult = searchResult;
+  let dropped = 0;
+  if (prefix) {
+    const strongResults = searchResult.strongResults.filter((result) =>
+      payableOn(result, prefix));
+    const relatedResults = searchResult.relatedResults.filter((result) =>
+      payableOn(result, prefix));
+    const beforeCount =
+      searchResult.strongResults.length + searchResult.relatedResults.length;
+    dropped = beforeCount - strongResults.length - relatedResults.length;
+    if (dropped > 0) {
+      // Confidence and triangulation describe the pre-filter ranking set.
+      // Omit them when that set changes instead of attaching stale evidence
+      // to a different visible top result.
+      const {
+        confidence: _staleConfidence,
+        triangulate: _staleTriangulate,
+        ...stableSearchResult
+      } = searchResult;
+      filteredSearchResult = {
+        ...stableSearchResult,
+        strongResults,
+        relatedResults,
+        strongCount: strongResults.length,
+        relatedCount: relatedResults.length,
+        topSimilarity:
+          strongResults[0]?.similarity
+          ?? relatedResults[0]?.similarity
+          ?? null,
+        noMatchReason: strongResults.length > 0
+          ? null
+          : relatedResults.length > 0
+            ? 'below_strong_threshold'
+            : null,
+      };
+    }
+  }
+
+  const response = buildSearchResponse(filteredSearchResult);
+
   if (network && !prefix) {
     response.searchMeta.note = `${response.searchMeta.note} (network "${network}" not recognized — filter skipped; use "solana", "base", or a CAIP-2 id)`;
   } else if (prefix) {
-    const beforeCount = response.strongResults.length + response.relatedResults.length;
-    response.strongResults = response.strongResults.filter((r) => payableOn(r, prefix));
-    response.relatedResults = response.relatedResults.filter((r) => payableOn(r, prefix));
-    response.strongCount = response.strongResults.length;
-    response.relatedCount = response.relatedResults.length;
-    response.count = response.strongCount + response.relatedCount;
-    const dropped = beforeCount - response.count;
     if (dropped > 0) {
-      response.searchMeta.note = `${response.searchMeta.note}; ${dropped} result(s) hidden — not payable on ${network}`;
-    }
-    if (response.count === 0 && beforeCount > 0) {
-      response.searchMeta.mode = 'empty';
-      response.tip = `Matches exist but none are payable on ${network}. Try a different phrasing — or the capability may only be sold on other networks today.`;
+      if (response.count === 0) {
+        response.searchMeta.note =
+          `${dropped} match${dropped === 1 ? '' : 'es'} found, but none accept payment on ${network}`;
+        response.tip =
+          `No visible match accepts ${network}. Retry without the network filter or choose another network.`;
+      } else {
+        response.searchMeta.note =
+          `${response.searchMeta.note}; ${dropped} other-network result${dropped === 1 ? '' : 's'} hidden by the ${network} filter`;
+      }
     }
   }
 
@@ -2031,10 +2085,14 @@ export function createOpenMcpServer({
 
   registerOpenTool(server, 'x402_search', {
     title: 'x402 Search',
-    description: 'Semantic capability search over the x402 marketplace across Solana and EVM chains. Pass a natural-language query and get back two tiers: strongResults (high-confidence capability hits) and relatedResults (adjacent services that cleared the similarity floor). The ranker handles synonym expansion and alternate phrasings internally — do NOT pre-filter by chain or category. Use rankingMode and degradedMessage to disclose when reduced fallback ranking was used. Use searchMeta.mode to distinguish a direct hit (strong matches present) from related_only (only adjacencies), empty (nothing in the index), or error (search unavailable). Multi-chain resources expose every seller payment option through each result\'s chains[] field; listings and rank never authorize payment.',
+    description: 'Search the x402 marketplace with a natural-language capability query. maxPriceUsdc and minPriceUsdc set hard bounds on the primary USDC invocation price. paidOnly requires a known positive price. sortBy orders each relevance tier while strong results stay ahead of related results. A typed control is usable only when appliedConstraints or appliedOrdering confirms it. rankingMode and degradedMessage report reduced fallback ranking. searchMeta.mode distinguishes direct, related_only, empty, and error results. Each result exposes seller payment options in chains[]. Search results do not authorize payment.',
     inputSchema: {
       query: z.string().describe('Natural-language capability request, such as "check wallet balance on Base", "generate an image", "ETH spot price feed", or "translate text". Broad requests are valid; semantic ranking handles them directly.'),
       network: z.string().optional().describe('Optional hard seller-network filter ("solana", "base", "ethereum", "polygon", "arbitrum", "optimism", "avalanche", or a CAIP-2 id). Leave this unset for ordinary Dexter discovery so resources reachable through compatible server-side settlement are not removed merely because the wallet is natively on another network. Set it only when the user explicitly requires a seller on that network.'),
+      maxPriceUsdc: z.number().finite().nonnegative().optional().describe('Optional hard ceiling, in USDC, for invoking the discovered API. Use this field for an API-call budget; keep product or order budgets in the natural-language query.'),
+      minPriceUsdc: z.number().finite().nonnegative().optional().describe('Optional hard floor, in USDC, for invoking the discovered API. When both price fields are set, minPriceUsdc must be less than or equal to maxPriceUsdc.'),
+      paidOnly: z.boolean().optional().describe('Require a known primary USDC invocation price above zero.'),
+      sortBy: z.enum(['relevance', 'price_asc', 'price_desc']).optional().describe('Order results inside each relevance tier. Strong results remain ahead of related results.'),
       limit: z.number().min(1).max(50).optional().default(20).describe('Max results across strong + related tiers combined (1-50, default 20)'),
       unverified: z.boolean().optional().describe('Include unverified resources (default false). Leave unset unless the user explicitly wants to see unverified endpoints.'),
       testnets: z.boolean().optional().describe('Include testnet-only resources (default false). Testnets are excluded by default to keep the marketplace view clean.'),
