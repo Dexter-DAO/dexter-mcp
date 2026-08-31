@@ -105,6 +105,10 @@ import {
   safeErrorLabel,
   safeUrlOrigin,
 } from './lib/safe-log-fields.mjs';
+import {
+  isOpenMcpConnectionTraceEnabled,
+  summarizeFreshMcpRequest,
+} from './lib/open-request-trace.mjs';
 import { isWebauthnProbeTelemetryEnabled } from './lib/webauthn-probe-telemetry.mjs';
 import {
   OPEN_MCP_VAULT_AUDIENCE,
@@ -184,6 +188,8 @@ const API_BASE_FALLBACK = resolveInternalApiOrigin(process.env);
 const LOG_CORRELATION_KEY =
   String(process.env.OPEN_MCP_LOG_REDACTION_KEY || '').trim() || randomUUID();
 const logRef = createLogRef(LOG_CORRELATION_KEY);
+const OPEN_MCP_CONNECTION_TRACE_ENABLED =
+  isOpenMcpConnectionTraceEnabled(process.env);
 const WEBAUTHN_PROBE_TELEMETRY_ENABLED =
   isWebauthnProbeTelemetryEnabled(process.env);
 const legacyIntentBridge = createLegacyIntentBridge();
@@ -3259,6 +3265,47 @@ const httpServer = http.createServer(async (req, res) => {
       return;
     }
 
+    // A fresh initialize has no standard "the user clicked Authorize" bit.
+    // This production-safe trace records only an allowlisted request shape so we can
+    // compare connection bursts without retaining client identity, content,
+    // credentials, addresses, or raw identifiers. Reading drains the stream,
+    // so the parsed body must be passed to handleRequest below.
+    let tracedFreshBody;
+    let hasTracedFreshBody = false;
+    let freshRequestRef = null;
+    if (OPEN_MCP_CONNECTION_TRACE_ENABLED) {
+      let rawBody;
+      try {
+        rawBody = await readRequestBody(req);
+      } catch (err) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          jsonrpc: '2.0',
+          error: { code: -32700, message: 'Parse error', data: safeErrorLabel(err) },
+          id: null,
+        }));
+        return;
+      }
+      try {
+        tracedFreshBody = JSON.parse(rawBody);
+      } catch (err) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          jsonrpc: '2.0',
+          error: { code: -32700, message: 'Parse error', data: safeErrorLabel(err) },
+          id: null,
+        }));
+        return;
+      }
+      hasTracedFreshBody = true;
+      freshRequestRef = logRef(randomUUID());
+      console.log('[open-mcp] connection trace', JSON.stringify({
+        event: 'fresh_request',
+        requestRef: freshRequestRef,
+        ...summarizeFreshMcpRequest(req.headers, tracedFreshBody),
+      }));
+    }
+
     const transport = installCanonicalSecuritySchemeProjection(
       new StreamableHTTPServerTransport({
       sessionIdGenerator: () => randomUUID(),
@@ -3266,6 +3313,13 @@ const httpServer = http.createServer(async (req, res) => {
         touchSession(sid);
         pinSessionResource(sid, requestedMcpResource);
         transports.set(sid, transport);
+        if (freshRequestRef) {
+          console.log('[open-mcp] connection trace', JSON.stringify({
+            event: 'session_initialized',
+            requestRef: freshRequestRef,
+            sessionRef: logRef(sid),
+          }));
+        }
         if (incomingBinding) {
           userBindings.set(sid, incomingBinding);
           markSessionAccountBound(sid);
@@ -3296,7 +3350,11 @@ const httpServer = http.createServer(async (req, res) => {
 
     const mcpServer = createOpenMcpServer();
     await mcpServer.connect(transport);
-    await transport.handleRequest(req, res);
+    if (hasTracedFreshBody) {
+      await transport.handleRequest(req, res, tracedFreshBody);
+    } else {
+      await transport.handleRequest(req, res);
+    }
     // Exchange the presented link token for a vault binding on the freshly
     // created session — response is already written, and the client must
     // receive it before any tool call arrives, so the binding lands first.
