@@ -32,7 +32,7 @@ const OAUTH_IDENTITY = Object.freeze({
 });
 
 const PUBLIC_RESOURCE = 'https://open.dexter.cash/mcp';
-const VAULT_RESOURCE = 'https://open.dexter.cash/mcp/vault';
+const OTHER_RESOURCE = 'https://other.example/mcp';
 
 test('an MCP session is pinned immutably to its initialization resource', () => {
   const meta = pinOpenSessionResource(
@@ -42,10 +42,10 @@ test('an MCP session is pinned immutably to its initialization resource', () => 
 
   assert.equal(openSessionResourceOf(meta), PUBLIC_RESOURCE);
   assert.equal(openSessionResourceStatus(meta, PUBLIC_RESOURCE), 'match');
-  assert.equal(openSessionResourceStatus(meta, VAULT_RESOURCE), 'mismatch');
+  assert.equal(openSessionResourceStatus(meta, OTHER_RESOURCE), 'mismatch');
   assert.doesNotThrow(() => pinOpenSessionResource(meta, PUBLIC_RESOURCE));
   assert.throws(
-    () => pinOpenSessionResource(meta, VAULT_RESOURCE),
+    () => pinOpenSessionResource(meta, OTHER_RESOURCE),
     /open_session_resource_mismatch/,
   );
 });

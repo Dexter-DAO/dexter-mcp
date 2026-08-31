@@ -17,10 +17,6 @@ import {
   OPEN_TOOL_NAMES,
 } from '../lib/open-tool-contracts.mjs';
 import {
-  AUTH_FIRST_VAULT_WWW_AUTHENTICATE,
-  OPEN_MCP_AUTH_FIRST_PRM,
-  OPEN_MCP_AUTH_FIRST_PRM_URL,
-  OPEN_MCP_AUTH_FIRST_RESOURCE,
   OPEN_MCP_VAULT_AUDIENCE,
   VAULT_WWW_AUTHENTICATE,
   buildVaultWwwAuthenticate,
@@ -82,7 +78,7 @@ async function stopChild(child) {
   if (child.exitCode === null) child.kill('SIGKILL');
 }
 
-test('mixed HTTP discovery stays public while the exact vault resource authenticates before initialization', async () => {
+test('HTTP discovery lists five anonymously and twelve immediately after Bearer initialization', async () => {
   const { privateKey, publicKey } = await generateKeyPair('ES256');
   const publicJwk = await exportJWK(publicKey);
   Object.assign(publicJwk, {
@@ -91,53 +87,19 @@ test('mixed HTTP discovery stays public while the exact vault resource authentic
     use: 'sig',
   });
   const now = Math.floor(Date.now() / 1_000);
-  const authFirstToken = await new SignJWT({
+  const token = await new SignJWT({
     scope: 'vault',
     dexter_surface: 'a'.repeat(64),
   })
     .setProtectedHeader({ alg: 'ES256', kid: publicJwk.kid })
     .setIssuer('https://dexter.cash')
-    .setAudience(OPEN_MCP_AUTH_FIRST_RESOURCE)
-    .setSubject('opendexter-roster-test-user')
-    .setIssuedAt(now)
-    .setExpirationTime(now + 300)
-    .sign(privateKey);
-  const authFirstOtherIdentityToken = await new SignJWT({
-    scope: 'vault',
-    dexter_surface: 'd'.repeat(64),
-  })
-    .setProtectedHeader({ alg: 'ES256', kid: publicJwk.kid })
-    .setIssuer('https://dexter.cash')
-    .setAudience(OPEN_MCP_AUTH_FIRST_RESOURCE)
-    .setSubject('opendexter-other-roster-test-user')
-    .setIssuedAt(now)
-    .setExpirationTime(now + 300)
-    .sign(privateKey);
-  const canonicalToken = await new SignJWT({
-    scope: 'vault',
-    dexter_surface: 'b'.repeat(64),
-  })
-    .setProtectedHeader({ alg: 'ES256', kid: publicJwk.kid })
-    .setIssuer('https://dexter.cash')
     .setAudience(OPEN_MCP_VAULT_AUDIENCE)
-    .setSubject('opendexter-wrong-resource-test-user')
-    .setIssuedAt(now)
-    .setExpirationTime(now + 300)
-    .sign(privateKey);
-  const seedFailureToken = await new SignJWT({
-    scope: 'vault',
-    dexter_surface: 'c'.repeat(64),
-  })
-    .setProtectedHeader({ alg: 'ES256', kid: publicJwk.kid })
-    .setIssuer('https://dexter.cash')
-    .setAudience(OPEN_MCP_AUTH_FIRST_RESOURCE)
-    .setSubject('opendexter-seed-failure-test-user')
+    .setSubject('opendexter-roster-test-user')
     .setIssuedAt(now)
     .setExpirationTime(now + 300)
     .sign(privateKey);
 
   let seedCalls = 0;
-  let failedSeedCalls = 0;
   let seedCompleted = false;
   const dependencyServer = createHttpServer(async (request, response) => {
     try {
@@ -154,18 +116,10 @@ test('mixed HTTP discovery stays public while the exact vault resource authentic
         request.method === 'POST'
         && url.pathname === '/api/passkey-vault/pair/oauth-seed'
       ) {
-        let rawBody = '';
-        for await (const chunk of request) {
-          rawBody += chunk;
-        }
-        const body = JSON.parse(rawBody);
-        if (body.access_token === seedFailureToken) {
-          failedSeedCalls += 1;
-          response.writeHead(503, { 'content-type': 'application/json' });
-          response.end(JSON.stringify({ ok: false }));
-          return;
-        }
         seedCalls += 1;
+        for await (const _chunk of request) {
+          // Consume the body before delaying the response.
+        }
         await new Promise((resolve) => setTimeout(resolve, 150));
         seedCompleted = true;
         response.writeHead(200, { 'content-type': 'application/json' });
@@ -207,152 +161,32 @@ test('mixed HTTP discovery stays public while the exact vault resource authentic
   child.stderr.on('data', (chunk) => { output.text += chunk; });
 
   let anonymousClient = null;
-  let anonymousTransport = null;
   let authenticatedClient = null;
-  let authenticatedTransport = null;
   try {
     await waitForStartup(child, openMcpPort, output);
     const mcpUrl = new URL(`http://127.0.0.1:${openMcpPort}/mcp`);
-    const vaultUrl = new URL(`http://127.0.0.1:${openMcpPort}/mcp/vault`);
-
-    const vaultMetadata = await fetch(
-      `http://127.0.0.1:${openMcpPort}/.well-known/oauth-protected-resource/mcp/vault`,
-    );
-    assert.equal(vaultMetadata.status, 200);
-    assert.deepEqual(await vaultMetadata.json(), OPEN_MCP_AUTH_FIRST_PRM);
-
-    const initializeBody = JSON.stringify({
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'initialize',
-      params: {
-        protocolVersion: '2025-06-18',
-        capabilities: {},
-        clientInfo: { name: 'auth-first-roster-probe', version: '1.0.0' },
-      },
-    });
-    const unauthenticatedInitialize = await fetch(vaultUrl, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json, text/event-stream',
-        'Content-Type': 'application/json',
-      },
-      body: initializeBody,
-    });
-    assert.equal(unauthenticatedInitialize.status, 401);
-    assert.equal(
-      unauthenticatedInitialize.headers.get('www-authenticate'),
-      AUTH_FIRST_VAULT_WWW_AUTHENTICATE,
-    );
-    assert.match(
-      unauthenticatedInitialize.headers.get('access-control-expose-headers') || '',
-      /WWW-Authenticate/i,
-    );
-
-    const wrongAudienceInitialize = await fetch(vaultUrl, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json, text/event-stream',
-        Authorization: `Bearer ${canonicalToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: initializeBody,
-    });
-    assert.equal(wrongAudienceInitialize.status, 401);
-    assert.equal(
-      wrongAudienceInitialize.headers.get('www-authenticate'),
-      buildVaultWwwAuthenticate({
-        error: 'invalid_token',
-        errorDescription: 'Connect OpenDexter with a valid vault authorization to continue',
-        resourceMetadataUrl: OPEN_MCP_AUTH_FIRST_PRM_URL,
-      }),
-    );
-
-    const invalidAcceptInitialize = await fetch(vaultUrl, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        Authorization: `Bearer ${authFirstToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: initializeBody,
-    });
-    assert.equal(invalidAcceptInitialize.status, 406);
-    assert.equal(invalidAcceptInitialize.headers.get('mcp-session-id'), null);
-    assert.equal(seedCalls, 0);
-    assert.equal(failedSeedCalls, 0);
-
-    const invalidContentTypeInitialize = await fetch(vaultUrl, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json, text/event-stream',
-        Authorization: `Bearer ${authFirstToken}`,
-        'Content-Type': 'text/plain',
-      },
-      body: initializeBody,
-    });
-    assert.equal(invalidContentTypeInitialize.status, 415);
-    assert.equal(invalidContentTypeInitialize.headers.get('mcp-session-id'), null);
-    assert.equal(seedCalls, 0);
-    assert.equal(failedSeedCalls, 0);
-
-    const malformedInitialize = await fetch(vaultUrl, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json, text/event-stream',
-        Authorization: `Bearer ${authFirstToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        id: 2,
-        method: 'initialize',
-        params: {},
-      }),
-    });
-    assert.equal(malformedInitialize.status, 400);
-    assert.equal(malformedInitialize.headers.get('mcp-session-id'), null);
-    assert.equal(seedCalls, 0);
-    assert.equal(failedSeedCalls, 0);
-
-    const unavailableSeed = await fetch(vaultUrl, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json, text/event-stream',
-        Authorization: `Bearer ${seedFailureToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: initializeBody,
-    });
-    assert.equal(unavailableSeed.status, 503);
-    assert.equal(unavailableSeed.headers.get('mcp-session-id'), null);
-    assert.equal(unavailableSeed.headers.get('retry-after'), '1');
-    assert.equal(seedCalls, 0);
-    assert.equal(failedSeedCalls, 1);
 
     anonymousClient = new Client({
       name: 'anonymous-roster-test',
       version: '1.0.0',
     });
-    anonymousTransport = new StreamableHTTPClientTransport(mcpUrl);
-    await anonymousClient.connect(anonymousTransport);
-    assert.ok(anonymousTransport.sessionId);
+    await anonymousClient.connect(new StreamableHTTPClientTransport(mcpUrl));
     assert.deepEqual(
       (await anonymousClient.listTools()).tools.map(({ name }) => name),
       OPEN_ANONYMOUS_TOOL_NAMES,
     );
+    await closeClient(anonymousClient);
+    anonymousClient = null;
 
     authenticatedClient = new Client({
       name: 'authenticated-roster-test',
       version: '1.0.0',
     });
-    authenticatedTransport = new StreamableHTTPClientTransport(vaultUrl, {
+    await authenticatedClient.connect(new StreamableHTTPClientTransport(mcpUrl, {
       requestInit: {
-        headers: { Authorization: `Bearer ${authFirstToken}` },
+        headers: { Authorization: `Bearer ${token}` },
       },
-    });
-    await authenticatedClient.connect(authenticatedTransport);
-    assert.ok(authenticatedTransport.sessionId);
+    }));
 
     const authenticatedTools = await authenticatedClient.listTools();
     assert.equal(seedCompleted, true, 'tools/list returned before vault binding completed');
@@ -361,116 +195,6 @@ test('mixed HTTP discovery stays public while the exact vault resource authentic
       authenticatedTools.tools.map(({ name }) => name),
       OPEN_TOOL_NAMES,
     );
-
-    const otherIdentityOnSession = await fetch(vaultUrl, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json, text/event-stream',
-        Authorization: `Bearer ${authFirstOtherIdentityToken}`,
-        'Content-Type': 'application/json',
-        'MCP-Protocol-Version': '2025-06-18',
-        'mcp-session-id': authenticatedTransport.sessionId,
-      },
-      body: JSON.stringify({ jsonrpc: '2.0', id: 90, method: 'tools/list', params: {} }),
-    });
-    assert.equal(otherIdentityOnSession.status, 401);
-    assert.match(
-      otherIdentityOnSession.headers.get('www-authenticate') || '',
-      /error="invalid_token"/,
-    );
-    assert.deepEqual(
-      (await authenticatedClient.listTools()).tools.map(({ name }) => name),
-      OPEN_TOOL_NAMES,
-    );
-    assert.equal(seedCalls, 1, 'foreign identity forced a vault reseed');
-
-    const crossRouteRequest = async ({
-      url,
-      sessionId,
-      method,
-      authorization = null,
-    }) => fetch(url, {
-      method,
-      headers: {
-        Accept: 'application/json, text/event-stream',
-        ...(authorization ? { Authorization: `Bearer ${authorization}` } : {}),
-        'MCP-Protocol-Version': '2025-06-18',
-        'mcp-session-id': sessionId,
-        ...(method === 'POST' ? { 'Content-Type': 'application/json' } : {}),
-      },
-      ...(method === 'POST'
-        ? {
-            body: JSON.stringify({
-              jsonrpc: '2.0',
-              id: 91,
-              method: 'tools/list',
-              params: {},
-            }),
-          }
-        : {}),
-    });
-
-    const unauthenticatedCanonicalSessionProbe = await crossRouteRequest({
-      url: vaultUrl,
-      sessionId: anonymousTransport.sessionId,
-      method: 'POST',
-    });
-    assert.equal(unauthenticatedCanonicalSessionProbe.status, 401);
-    assert.equal(
-      unauthenticatedCanonicalSessionProbe.headers.get('www-authenticate'),
-      AUTH_FIRST_VAULT_WWW_AUTHENTICATE,
-    );
-
-    for (const method of ['POST', 'GET', 'DELETE']) {
-      const canonicalSessionOnVault = await crossRouteRequest({
-        url: vaultUrl,
-        sessionId: anonymousTransport.sessionId,
-        method,
-        authorization: authFirstToken,
-      });
-      assert.equal(canonicalSessionOnVault.status, 404, method);
-
-      const vaultSessionOnCanonical = await crossRouteRequest({
-        url: mcpUrl,
-        sessionId: authenticatedTransport.sessionId,
-        method,
-      });
-      assert.equal(vaultSessionOnCanonical.status, 404, method);
-    }
-    assert.equal(seedCalls, 1, 'cross-resource requests mutated the vault binding');
-    assert.deepEqual(
-      (await anonymousClient.listTools()).tools.map(({ name }) => name),
-      OPEN_ANONYMOUS_TOOL_NAMES,
-    );
-    assert.deepEqual(
-      (await authenticatedClient.listTools()).tools.map(({ name }) => name),
-      OPEN_TOOL_NAMES,
-    );
-
-    for (const method of ['POST', 'GET', 'DELETE']) {
-      const missingSessionBearer = await crossRouteRequest({
-        url: vaultUrl,
-        sessionId: authenticatedTransport.sessionId,
-        method,
-      });
-      assert.equal(missingSessionBearer.status, 401, method);
-      assert.equal(
-        missingSessionBearer.headers.get('www-authenticate'),
-        AUTH_FIRST_VAULT_WWW_AUTHENTICATE,
-      );
-    }
-    assert.deepEqual(
-      (await authenticatedClient.listTools()).tools.map(({ name }) => name),
-      OPEN_TOOL_NAMES,
-    );
-
-    const authorizedDelete = await crossRouteRequest({
-      url: vaultUrl,
-      sessionId: authenticatedTransport.sessionId,
-      method: 'DELETE',
-      authorization: authFirstToken,
-    });
-    assert.equal(authorizedDelete.status, 200);
   } finally {
     await closeClient(anonymousClient);
     await closeClient(authenticatedClient);

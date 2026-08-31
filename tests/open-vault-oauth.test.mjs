@@ -70,7 +70,7 @@ test('accepts vault among multiple space-delimited scopes', async () => {
 
 test('rejects a multi-audience token even when the exact resource is included', async () => {
   const result = await verify(await token({
-    audience: [AUDIENCE, 'https://open.dexter.cash/mcp/vault'],
+    audience: [AUDIENCE, 'https://other.example/mcp'],
   }));
   assert.deepEqual(result, {
     ok: false,

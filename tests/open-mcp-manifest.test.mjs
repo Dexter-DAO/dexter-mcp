@@ -8,8 +8,6 @@ import {
   OPEN_TOOL_NAMES,
 } from '../lib/open-tool-contracts.mjs';
 import {
-  OPEN_MCP_AUTH_FIRST_PRM_URL,
-  OPEN_MCP_AUTH_FIRST_RESOURCE,
   OPEN_MCP_AUTHORIZATION_SERVER,
   OPEN_MCP_AUTHORIZATION_SERVER_METADATA,
   OPEN_MCP_PRM,
@@ -23,17 +21,8 @@ test('well-known manifest advertises the cumulative five-to-twelve OAuth contrac
   assert.equal(manifest.name, 'OpenDexter');
   assert.equal(manifest.namespace, 'opendexter');
   assert.equal(manifest.url, OPEN_MCP_VAULT_AUDIENCE);
-  assert.deepEqual(manifest.endpoints, {
-    public: OPEN_MCP_VAULT_AUDIENCE,
-    vault: OPEN_MCP_AUTH_FIRST_RESOURCE,
-  });
   assert.equal(manifest.auth.protectedResourceMetadata, OPEN_MCP_PRM_URL);
   assert.equal(manifest.auth.authorizationServer, OPEN_MCP_AUTHORIZATION_SERVER);
-  assert.deepEqual(manifest.auth.alwaysProtected, {
-    resource: OPEN_MCP_AUTH_FIRST_RESOURCE,
-    protectedResourceMetadata: OPEN_MCP_AUTH_FIRST_PRM_URL,
-    scope: 'vault',
-  });
   assert.deepEqual(OPEN_MCP_PRM.scopes_supported, ['vault']);
   assert.deepEqual(
     buildOpenMcpAuthorizationServerMetadata(

@@ -5,11 +5,6 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import {
-  AUTH_FIRST_VAULT_WWW_AUTHENTICATE,
-  OPEN_MCP_AUTH_FIRST_PRM,
-  OPEN_MCP_AUTH_FIRST_PRM_PATH,
-  OPEN_MCP_AUTH_FIRST_PRM_URL,
-  OPEN_MCP_AUTH_FIRST_RESOURCE,
   OPEN_MCP_AUTHORIZATION_SERVER,
   OPEN_MCP_AUTHORIZATION_SERVER_METADATA,
   OPEN_MCP_CHALLENGE_REQUIRED_PARAMETERS,
@@ -31,7 +26,6 @@ import {
   projectCanonicalSecuritySchemes,
   projectCanonicalSecuritySchemesOnMessage,
   registerOpenTool,
-  openMcpProtectedResourceMetadataForPath,
   vaultAuthenticationReason,
   vaultAuthenticationResult,
   withOpenToolAuth,
@@ -290,32 +284,14 @@ test('OpenDexter authorization metadata helper excludes both legacy discovery ra
   );
 });
 
-test('mixed and OAuth-first metadata routes serve exact resource identifiers', () => {
+test('both protected-resource metadata routes serve the same corrected issuer', () => {
   for (const pathname of [
     '/.well-known/oauth-protected-resource',
     '/.well-known/oauth-protected-resource/mcp',
   ]) {
     assert.equal(isOpenMcpProtectedResourceMetadataPath(pathname), true);
     assert.deepEqual(OPEN_MCP_PRM.authorization_servers, ['https://mcp.dexter.cash/mcp']);
-    assert.equal(openMcpProtectedResourceMetadataForPath(pathname), OPEN_MCP_PRM);
   }
-  assert.equal(
-    openMcpProtectedResourceMetadataForPath(
-      OPEN_MCP_AUTH_FIRST_PRM_PATH,
-    ),
-    OPEN_MCP_AUTH_FIRST_PRM,
-  );
-  assert.equal(OPEN_MCP_AUTH_FIRST_PRM.resource, OPEN_MCP_AUTH_FIRST_RESOURCE);
-  assert.deepEqual(
-    OPEN_MCP_AUTH_FIRST_PRM.authorization_servers,
-    ['https://mcp.dexter.cash/mcp'],
-  );
-  assert.equal(
-    isOpenMcpProtectedResourceMetadataPath(
-      OPEN_MCP_AUTH_FIRST_PRM_PATH,
-    ),
-    true,
-  );
   assert.equal(
     isOpenMcpProtectedResourceMetadataPath('/mcp/.well-known/oauth-protected-resource'),
     false,
@@ -339,10 +315,6 @@ test('runtime challenge is host-native and contains no legacy pairing path', () 
   assert.deepEqual(result.structuredContent, data);
   assert.deepEqual(result._meta['mcp/www_authenticate'], [VAULT_WWW_AUTHENTICATE]);
   assert.match(VAULT_WWW_AUTHENTICATE, new RegExp(`resource_metadata="${OPEN_MCP_PRM_URL}"`));
-  assert.match(
-    AUTH_FIRST_VAULT_WWW_AUTHENTICATE,
-    new RegExp(`resource_metadata="${OPEN_MCP_AUTH_FIRST_PRM_URL}"`),
-  );
   assert.match(VAULT_WWW_AUTHENTICATE, /scope="vault"/);
   assert.doesNotMatch(VAULT_WWW_AUTHENTICATE, /error=/);
   assert.doesNotMatch(VAULT_WWW_AUTHENTICATE, /error_description=/);
