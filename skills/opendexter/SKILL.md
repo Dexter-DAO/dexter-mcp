@@ -53,8 +53,11 @@ product tools. Do not select them for a new request.
 1. Call `x402_search` with the user's actual job. Leave its network filter unset
    unless the user explicitly requires a seller on one network; compatible
    server-side settlement may make a seller on another network reachable from
-   the Dexter account. If `rankingMode` is `degraded`, surface the accompanying
-   `degradedMessage`; reduced ranking is not the same as no result.
+   the Dexter account. Put a hard API invocation-price ceiling or floor in
+   `maxPriceUsdc` or `minPriceUsdc`, then confirm the returned
+   `appliedConstraints`. Keep product and order budgets in the query. If
+   `rankingMode` is `degraded`, surface the accompanying `degradedMessage`;
+   reduced ranking is not the same as no result.
 2. Call `x402_check` on the selected exact HTTPS endpoint and request shape.
    For a non-GET request, pass `body` as the exact raw JSON string. Do not parse,
    normalize, reformat, or reserialize it.

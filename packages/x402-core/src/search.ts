@@ -14,9 +14,31 @@ import type {
   RawCapabilityResponse,
 } from './types.js';
 import { formatResource } from './format.js';
+import { normalizeRankingState } from './ranking.js';
 
 const DEFAULT_ENDPOINT = 'https://x402.dexter.cash/api/x402gle/capability';
 const DEFAULT_TIMEOUT = 20_000;
+
+function assertUsdcPriceConstraint(
+  field: 'maxPriceUsdc' | 'minPriceUsdc',
+  value: unknown,
+): asserts value is number | undefined {
+  if (value === undefined) return;
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+    throw new TypeError(
+      `capabilitySearch: ${field} must be a finite nonnegative number`,
+    );
+  }
+}
+
+function returnedUsdcPriceConstraint(
+  field: 'maxPriceUsdc' | 'minPriceUsdc',
+  value: unknown,
+): number | null | undefined {
+  if (value === undefined || value === null) return value;
+  assertUsdcPriceConstraint(field, value);
+  return value;
+}
 
 /**
  * Search the Dexter x402 marketplace using semantic capability search.
@@ -49,9 +71,23 @@ export async function capabilitySearch(
     unverified,
     testnets,
     rerank,
+    maxPriceUsdc,
+    minPriceUsdc,
     debug,
     endpoint = DEFAULT_ENDPOINT,
   } = options;
+
+  assertUsdcPriceConstraint('maxPriceUsdc', maxPriceUsdc);
+  assertUsdcPriceConstraint('minPriceUsdc', minPriceUsdc);
+  if (
+    maxPriceUsdc !== undefined
+    && minPriceUsdc !== undefined
+    && minPriceUsdc > maxPriceUsdc
+  ) {
+    throw new RangeError(
+      'capabilitySearch: minPriceUsdc must be less than or equal to maxPriceUsdc',
+    );
+  }
 
   const params = new URLSearchParams();
   params.set('q', query);
@@ -59,6 +95,12 @@ export async function capabilitySearch(
   if (unverified) params.set('unverified', 'true');
   if (testnets) params.set('testnets', 'true');
   if (rerank === false) params.set('rerank', 'false');
+  if (maxPriceUsdc !== undefined) {
+    params.set('maxPriceUsdc', String(maxPriceUsdc));
+  }
+  if (minPriceUsdc !== undefined) {
+    params.set('minPriceUsdc', String(minPriceUsdc));
+  }
   if (debug) params.set('debug', 'true');
 
   const url = `${endpoint}?${params.toString()}`;
@@ -97,12 +139,71 @@ export async function capabilitySearch(
   const related = Array.isArray(data.relatedResults) ? data.relatedResults : [];
   const rerankInfo = data.rerank ?? { enabled: false, applied: false };
   const intentInfo = data.intent ?? { capabilityText: '' };
+  const returnedMaxPriceUsdc = returnedUsdcPriceConstraint(
+    'maxPriceUsdc',
+    intentInfo.maxPriceUsdc,
+  );
+  const returnedMinPriceUsdc = returnedUsdcPriceConstraint(
+    'minPriceUsdc',
+    intentInfo.minPriceUsdc,
+  );
+  const confirmedMaxPriceUsdc = returnedUsdcPriceConstraint(
+    'maxPriceUsdc',
+    data.appliedConstraints?.maxPriceUsdc,
+  );
+  const confirmedMinPriceUsdc = returnedUsdcPriceConstraint(
+    'minPriceUsdc',
+    data.appliedConstraints?.minPriceUsdc,
+  );
+  const appliedMaxPriceUsdc = confirmedMaxPriceUsdc !== undefined
+    ? confirmedMaxPriceUsdc
+    : returnedMaxPriceUsdc ?? null;
+  const appliedMinPriceUsdc = confirmedMinPriceUsdc !== undefined
+    ? confirmedMinPriceUsdc
+    : returnedMinPriceUsdc ?? null;
+  if (
+    typeof appliedMaxPriceUsdc === 'number'
+    && typeof appliedMinPriceUsdc === 'number'
+    && appliedMinPriceUsdc > appliedMaxPriceUsdc
+  ) {
+    throw new Error(
+      'Capability search returned inconsistent applied price constraints',
+    );
+  }
+  if (
+    maxPriceUsdc !== undefined
+    && (
+      !data.appliedConstraints
+      || typeof confirmedMaxPriceUsdc !== 'number'
+      || confirmedMaxPriceUsdc > maxPriceUsdc
+    )
+  ) {
+    throw new Error(
+      'Capability search did not confirm the requested maxPriceUsdc constraint',
+    );
+  }
+  if (
+    minPriceUsdc !== undefined
+    && (
+      !data.appliedConstraints
+      || typeof confirmedMinPriceUsdc !== 'number'
+      || confirmedMinPriceUsdc < minPriceUsdc
+    )
+  ) {
+    throw new Error(
+      'Capability search did not confirm the requested minPriceUsdc constraint',
+    );
+  }
+  const ranking = normalizeRankingState(
+    data.rankingMode,
+    data.degradedMessage,
+  );
 
   return {
     query: data.query ?? query,
-    ...(data.rankingMode ? { rankingMode: data.rankingMode } : {}),
-    ...(data.degradedMessage !== undefined
-      ? { degradedMessage: data.degradedMessage }
+    ...(ranking.rankingMode ? { rankingMode: ranking.rankingMode } : {}),
+    ...(ranking.degradedMessage
+      ? { degradedMessage: ranking.degradedMessage }
       : {}),
     strongResults: strong.map(formatResource),
     relatedResults: related.map(formatResource),
@@ -118,6 +219,16 @@ export async function capabilitySearch(
     intent: {
       capabilityText: intentInfo.capabilityText,
       expandedCapabilityText: intentInfo.expandedCapabilityText,
+      ...(returnedMaxPriceUsdc !== undefined
+        ? { maxPriceUsdc: returnedMaxPriceUsdc }
+        : {}),
+      ...(returnedMinPriceUsdc !== undefined
+        ? { minPriceUsdc: returnedMinPriceUsdc }
+        : {}),
+    },
+    appliedConstraints: {
+      maxPriceUsdc: appliedMaxPriceUsdc,
+      minPriceUsdc: appliedMinPriceUsdc,
     },
     // Forward honesty diagnostics verbatim. Older dexter-api builds may not
     // ship these; conditional spread keeps the property absent rather than

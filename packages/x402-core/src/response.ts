@@ -11,6 +11,7 @@ import type {
   SearchResponse,
   SearchMeta,
 } from './types.js';
+import { normalizeRankingState } from './ranking.js';
 
 const SOURCE = 'Dexter x402 Marketplace (https://dexter.cash)';
 
@@ -132,21 +133,67 @@ export function buildSearchResponse(result: CapabilitySearchResult): SearchRespo
   // pushing broad searches past MCP client max-result limits. Consumers
   // read strongResults/relatedResults directly (count remains as a
   // convenience for "how many total did I get").
-  const totalCount = result.strongResults.length + result.relatedResults.length;
+  const strongCount = result.strongResults.length;
+  const relatedCount = result.relatedResults.length;
+  const totalCount = strongCount + relatedCount;
+  const topResult = result.strongResults[0] ?? result.relatedResults[0] ?? null;
+  const topSimilarity =
+    topResult && Number.isFinite(topResult.similarity)
+      ? topResult.similarity
+      : totalCount > 0 && Number.isFinite(result.topSimilarity)
+        ? result.topSimilarity
+        : null;
+  const noMatchReason = strongCount > 0
+    ? null
+    : relatedCount > 0
+      ? 'below_strong_threshold'
+      : result.noMatchReason;
+  const normalizedResult: CapabilitySearchResult = {
+    ...result,
+    strongCount,
+    relatedCount,
+    topSimilarity,
+    noMatchReason,
+  };
+  const ranking = normalizeRankingState(
+    result.rankingMode,
+    result.degradedMessage,
+  );
+  const constraintSource = result.appliedConstraints ?? result.intent;
+  let maxPriceUsdc =
+    typeof constraintSource.maxPriceUsdc === 'number'
+    && Number.isFinite(constraintSource.maxPriceUsdc)
+    && constraintSource.maxPriceUsdc >= 0
+      ? constraintSource.maxPriceUsdc
+      : null;
+  let minPriceUsdc =
+    typeof constraintSource.minPriceUsdc === 'number'
+    && Number.isFinite(constraintSource.minPriceUsdc)
+    && constraintSource.minPriceUsdc >= 0
+      ? constraintSource.minPriceUsdc
+      : null;
+  if (
+    maxPriceUsdc !== null
+    && minPriceUsdc !== null
+    && minPriceUsdc > maxPriceUsdc
+  ) {
+    maxPriceUsdc = null;
+    minPriceUsdc = null;
+  }
 
   return {
     success: true,
-    ...(result.rankingMode ? { rankingMode: result.rankingMode } : {}),
-    ...(result.degradedMessage !== undefined
-      ? { degradedMessage: result.degradedMessage }
+    ...(ranking.rankingMode ? { rankingMode: ranking.rankingMode } : {}),
+    ...(ranking.degradedMessage
+      ? { degradedMessage: ranking.degradedMessage }
       : {}),
     count: totalCount,
     strongResults: result.strongResults,
     relatedResults: result.relatedResults,
-    strongCount: result.strongCount,
-    relatedCount: result.relatedCount,
-    topSimilarity: result.topSimilarity,
-    noMatchReason: result.noMatchReason,
+    strongCount,
+    relatedCount,
+    topSimilarity,
+    noMatchReason,
     rerank: {
       enabled: result.rerank.enabled,
       applied: result.rerank.applied,
@@ -154,12 +201,22 @@ export function buildSearchResponse(result: CapabilitySearchResult): SearchRespo
     intent: {
       capabilityText: result.intent.capabilityText,
       expandedCapabilityText: result.intent.expandedCapabilityText,
+      ...(result.intent.maxPriceUsdc !== undefined
+        ? { maxPriceUsdc: result.intent.maxPriceUsdc }
+        : {}),
+      ...(result.intent.minPriceUsdc !== undefined
+        ? { minPriceUsdc: result.intent.minPriceUsdc }
+        : {}),
+    },
+    appliedConstraints: {
+      maxPriceUsdc,
+      minPriceUsdc,
     },
     searchMeta: {
-      ...buildSearchMeta(result),
-      ...(result.rankingMode ? { rankingMode: result.rankingMode } : {}),
-      ...(result.degradedMessage
-        ? { degradedMessage: result.degradedMessage }
+      ...buildSearchMeta(normalizedResult),
+      ...(ranking.rankingMode ? { rankingMode: ranking.rankingMode } : {}),
+      ...(ranking.degradedMessage
+        ? { degradedMessage: ranking.degradedMessage }
         : {}),
     },
     // Honesty diagnostics — forwarded verbatim. Confidence is always present
@@ -167,7 +224,7 @@ export function buildSearchResponse(result: CapabilitySearchResult): SearchRespo
     // actionable (top match unprofiled AND profile-backed alternates exist).
     ...(result.confidence ? { confidence: result.confidence } : {}),
     ...(result.triangulate ? { triangulate: result.triangulate } : {}),
-    tip: buildTip(result),
+    tip: buildTip(normalizedResult),
     source: SOURCE,
   };
 }
@@ -195,6 +252,10 @@ export function buildSearchErrorResponse(_error: string): SearchResponse {
     noMatchReason: null,
     rerank: { enabled: false, applied: false },
     intent: { capabilityText: '' },
+    appliedConstraints: {
+      maxPriceUsdc: null,
+      minPriceUsdc: null,
+    },
     searchMeta: {
       mode: 'error',
       note: 'Marketplace search is temporarily unavailable. Please try again in a moment.',

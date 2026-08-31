@@ -74,6 +74,7 @@ test('contract is exactly the canonical hosted twelve', () => {
     assert.equal(
       outputUnknownKeys(toolContract.outputSchema),
       [
+        'x402_search',
         'x402_check',
         'x402_fetch',
         'x402_status',
@@ -162,14 +163,54 @@ test('search and wallet contracts expose current truth without route claims', ()
   const wallet = OPEN_TOOL_CONTRACTS.x402_wallet;
 
   assert.match(search.description, /rankingMode=degraded/);
+  assert.match(search.description, /maxPriceUsdc/);
+  assert.match(search.description, /appliedConstraints/);
   assert.match(search.description, /do not ask twice/);
   assert.equal(Object.hasOwn(search.outputSchema.shape, 'rankingMode'), true);
   assert.equal(Object.hasOwn(search.outputSchema.shape, 'degradedMessage'), true);
-  assert.equal(search.outputSchema.safeParse({
+  const validSearchOutput = {
     success: true,
     rankingMode: 'degraded',
     degradedMessage: 'Reduced ranking is active.',
-  }).success, true);
+    count: 0,
+    strongResults: [],
+    relatedResults: [],
+    strongCount: 0,
+    relatedCount: 0,
+    topSimilarity: null,
+    noMatchReason: 'below_similarity_threshold',
+    rerank: { enabled: true, applied: false },
+    intent: {
+      capabilityText: 'weather data',
+      maxPriceUsdc: 0.01,
+      minPriceUsdc: null,
+    },
+    appliedConstraints: {
+      maxPriceUsdc: 0.01,
+      minPriceUsdc: null,
+    },
+    searchMeta: {
+      mode: 'empty',
+      note: 'No matching result.',
+      rankingMode: 'degraded',
+      degradedMessage: 'Reduced ranking is active.',
+    },
+    tip: 'Try another query.',
+    source: 'Dexter x402 Marketplace (https://dexter.cash)',
+    providerDataPolicy: PROVIDER_DATA_POLICY,
+  };
+  assert.equal(search.outputSchema.safeParse(validSearchOutput).success, true);
+  assert.equal(search.outputSchema.safeParse({
+    ...validSearchOutput,
+    unexpectedRoute: 'leak',
+  }).success, false);
+  assert.equal(search.outputSchema.safeParse({
+    ...validSearchOutput,
+    appliedConstraints: {
+      maxPriceUsdc: 0.01,
+      minPriceUsdc: 0.02,
+    },
+  }).success, false);
 
   assert.match(wallet.description, /Cash, credit capacity, and exact-intent execution eligibility are distinct/);
   assert.match(wallet.description, /zero cash alone is not proof/i);
@@ -1002,6 +1043,7 @@ test('real SDK tools/list exposes executable schemas, OAuth, annotations, and me
     assert.equal(
       listed.outputSchema.additionalProperties,
       [
+        'x402_search',
         'x402_check',
         'x402_fetch',
         'x402_status',
@@ -1026,6 +1068,13 @@ test('real SDK tools/list exposes executable schemas, OAuth, annotations, and me
           forbidden,
         );
       }
+    }
+    if (listed.name === 'x402_search') {
+      assert.equal(listed.outputSchema.additionalProperties, false);
+      assert.equal(
+        Object.hasOwn(listed.outputSchema.properties ?? {}, 'appliedConstraints'),
+        true,
+      );
     }
     if (listed.name === 'x402_check') {
       assert.equal(
@@ -1130,6 +1179,19 @@ test('vault-bound hosted discovery retains the exact protected roster', async ()
       const listed = (await client.listTools()).tools;
       const names = listed.map((tool) => tool.name);
       assert.deepEqual(names, OPEN_TOOL_NAMES, phase);
+      const search = listed.find(({ name }) => name === 'x402_search');
+      for (const field of ['maxPriceUsdc', 'minPriceUsdc']) {
+        assert.equal(
+          search?.inputSchema?.properties?.[field]?.type,
+          'number',
+          `${phase}:${field}`,
+        );
+        assert.equal(
+          search?.inputSchema?.properties?.[field]?.minimum,
+          0,
+          `${phase}:${field}`,
+        );
+      }
       const prepare = listed.find(
         ({ name }) => name === 'dexter_prepare_asset_action',
       );

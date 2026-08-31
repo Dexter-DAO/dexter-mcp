@@ -1,0 +1,337 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
+
+import {
+  OPEN_TOOL_CONTRACTS,
+  OPEN_TOOL_NAMES,
+} from '../lib/open-tool-contracts.mjs';
+import { createOpenMcpServer } from '../open-mcp-server.mjs';
+
+function capabilityPayload(overrides = {}) {
+  return {
+    ok: true,
+    query: 'weather data',
+    rankingMode: 'full',
+    intent: {
+      capabilityText: 'weather data',
+      maxPriceUsdc: 0.01,
+      minPriceUsdc: null,
+    },
+    appliedConstraints: {
+      maxPriceUsdc: 0.01,
+      minPriceUsdc: null,
+    },
+    strongResults: [],
+    relatedResults: [],
+    strongCount: 0,
+    relatedCount: 0,
+    topSimilarity: null,
+    noMatchReason: 'below_similarity_threshold',
+    rerank: { enabled: true, applied: false },
+    durationMs: 8,
+    ...overrides,
+  };
+}
+
+function rawResource({ resourceId, tier, network, similarity }) {
+  return {
+    resourceId,
+    resourceUrl: `https://${resourceId}.example.test/data`,
+    displayName: resourceId,
+    method: 'GET',
+    pricing: {
+      usdc: 0.005,
+      network,
+      networkLabel: network,
+      asset: 'USDC',
+      mode: 'fixed',
+      quoteRequired: false,
+      chains: [{
+        network,
+        networkLabel: network,
+        asset: 'USDC',
+        scheme: 'exact',
+        priceAtomic: '5000',
+        priceUsdc: 0.005,
+        priceLabel: '$0.005',
+      }],
+    },
+    execution: {
+      sideEffectful: false,
+      effect: null,
+      automatedVerification: 'enabled',
+      userExecution: 'allowed',
+      confirmationRequired: false,
+      availability: 'available',
+      requiresExplicitInput: false,
+      quoteMayCreateProviderReservation: false,
+    },
+    verification: {
+      status: 'pass',
+      paid: true,
+      qualityScore: 90,
+      lastVerifiedAt: '2026-08-31T00:00:00.000Z',
+    },
+    usage: {
+      totalSettlements: 1,
+      totalVolumeUsdc: 0.005,
+      lastSettlementAt: '2026-08-31T00:00:00.000Z',
+    },
+    description: 'Fixture data service.',
+    category: 'data',
+    tier,
+    similarity,
+    why: 'Fixture relevance.',
+    serviceProfile: null,
+  };
+}
+
+async function connectedOpenClient(t, name) {
+  const server = createOpenMcpServer({
+    includeResources: false,
+    listedToolNames: () => OPEN_TOOL_NAMES,
+  });
+  const client = new Client({ name, version: '1.0.0' });
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  await Promise.all([
+    server.connect(serverTransport),
+    client.connect(clientTransport),
+  ]);
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+  return client;
+}
+
+test('hosted x402_search sends and returns the typed hard ceiling', async (t) => {
+  const previousFetch = globalThis.fetch;
+  const captured = { requestedUrl: null };
+  globalThis.fetch = async (input) => {
+    captured.requestedUrl = new URL(String(input));
+    return new Response(JSON.stringify(capabilityPayload()), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  };
+  t.after(() => {
+    globalThis.fetch = previousFetch;
+  });
+
+  const client = await connectedOpenClient(t, 'price-contract-test');
+
+  const result = await client.callTool({
+    name: 'x402_search',
+    arguments: {
+      query: 'weather data',
+      maxPriceUsdc: 0.01,
+    },
+  });
+
+  assert.notEqual(result.isError, true);
+  assert.equal(captured.requestedUrl?.searchParams.get('maxPriceUsdc'), '0.01');
+  assert.deepEqual(result.structuredContent.appliedConstraints, {
+    maxPriceUsdc: 0.01,
+    minPriceUsdc: null,
+  });
+  assert.equal(
+    result.structuredContent.providerDataPolicy.trust,
+    'untrusted_external_data',
+  );
+});
+
+test('real SDK search keeps its strict output shape after credential scrubbing', async (t) => {
+  const previousFetch = globalThis.fetch;
+  const credentialShapedQuery = 'open_abcdefghijklmnop';
+  globalThis.fetch = async () => new Response(JSON.stringify(capabilityPayload({
+    query: credentialShapedQuery,
+    intent: {
+      capabilityText: credentialShapedQuery,
+      maxPriceUsdc: 0.01,
+      minPriceUsdc: null,
+    },
+  })), {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  });
+  t.after(() => {
+    globalThis.fetch = previousFetch;
+  });
+
+  const client = await connectedOpenClient(t, 'search-scrub-contract-test');
+  const result = await client.callTool({
+    name: 'x402_search',
+    arguments: {
+      query: credentialShapedQuery,
+      maxPriceUsdc: 0.01,
+    },
+  });
+
+  assert.notEqual(result.isError, true);
+  assert.doesNotMatch(JSON.stringify(result), /open_abcdefghijklmnop/);
+  assert.equal(
+    result.structuredContent.intent.capabilityText,
+    'Credential-like text was removed.',
+  );
+  assert.equal(
+    OPEN_TOOL_CONTRACTS.x402_search.outputSchema.safeParse(
+      result.structuredContent,
+    ).success,
+    true,
+  );
+});
+
+test('network filtering rebuilds every visible search fact', async (t) => {
+  const previousFetch = globalThis.fetch;
+  const baseStrong = rawResource({
+    resourceId: 'base-strong',
+    tier: 'strong',
+    network: 'eip155:8453',
+    similarity: 0.97,
+  });
+  const solanaRelated = rawResource({
+    resourceId: 'solana-related',
+    tier: 'related',
+    network: 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp',
+    similarity: 0.61,
+  });
+  globalThis.fetch = async () => new Response(JSON.stringify(capabilityPayload({
+    strongResults: [baseStrong],
+    relatedResults: [solanaRelated],
+    strongCount: 1,
+    relatedCount: 1,
+    topSimilarity: 0.97,
+    noMatchReason: null,
+    confidence: {
+      profileCoverage: 0,
+      topMatchProfileBacked: false,
+      triangulatableAlternates: ['base-strong'],
+    },
+    triangulate: {
+      reason: 'Pre-filter reason.',
+      alternateResourceIds: ['base-strong'],
+    },
+  })), {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  });
+  t.after(() => {
+    globalThis.fetch = previousFetch;
+  });
+
+  const client = await connectedOpenClient(t, 'network-filter-contract-test');
+  const result = await client.callTool({
+    name: 'x402_search',
+    arguments: {
+      query: 'fixture data',
+      network: 'solana',
+    },
+  });
+  const output = result.structuredContent;
+
+  assert.notEqual(result.isError, true);
+  assert.deepEqual(output.strongResults, []);
+  assert.deepEqual(
+    output.relatedResults.map(({ resourceId }) => resourceId),
+    ['solana-related'],
+  );
+  assert.equal(output.count, 1);
+  assert.equal(output.strongCount, 0);
+  assert.equal(output.relatedCount, 1);
+  assert.equal(output.topSimilarity, 0.61);
+  assert.equal(output.noMatchReason, 'below_strong_threshold');
+  assert.equal(output.searchMeta.mode, 'related_only');
+  assert.match(output.searchMeta.note, /closest related services/);
+  assert.match(output.searchMeta.note, /1 other-network result hidden/);
+  assert.match(output.tip, /No exact match/);
+  assert.equal(output.confidence, undefined);
+  assert.equal(output.triangulate, undefined);
+  assert.equal(
+    OPEN_TOOL_CONTRACTS.x402_search.outputSchema.safeParse(output).success,
+    true,
+  );
+});
+
+test('network filtering reports an empty payable set without a false similarity reason', async (t) => {
+  const previousFetch = globalThis.fetch;
+  const baseStrong = rawResource({
+    resourceId: 'base-only',
+    tier: 'strong',
+    network: 'eip155:8453',
+    similarity: 0.94,
+  });
+  globalThis.fetch = async () => new Response(JSON.stringify(capabilityPayload({
+    strongResults: [baseStrong],
+    relatedResults: [],
+    strongCount: 1,
+    relatedCount: 0,
+    topSimilarity: 0.94,
+    noMatchReason: null,
+  })), {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  });
+  t.after(() => {
+    globalThis.fetch = previousFetch;
+  });
+
+  const client = await connectedOpenClient(t, 'network-empty-contract-test');
+  const result = await client.callTool({
+    name: 'x402_search',
+    arguments: {
+      query: 'fixture data',
+      network: 'solana',
+    },
+  });
+  const output = result.structuredContent;
+
+  assert.notEqual(result.isError, true);
+  assert.equal(output.count, 0);
+  assert.equal(output.strongCount, 0);
+  assert.equal(output.relatedCount, 0);
+  assert.equal(output.topSimilarity, null);
+  assert.equal(output.noMatchReason, null);
+  assert.equal(output.searchMeta.mode, 'empty');
+  assert.equal(
+    output.searchMeta.note,
+    '1 match found, but none accept payment on solana',
+  );
+  assert.match(output.tip, /Retry without the network filter/);
+  assert.equal(
+    OPEN_TOOL_CONTRACTS.x402_search.outputSchema.safeParse(output).success,
+    true,
+  );
+});
+
+test('unknown API ranking modes stay schema-safe through the real SDK', async (t) => {
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify(capabilityPayload({
+    rankingMode: 'future-ranking-v3',
+  })), {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  });
+  t.after(() => {
+    globalThis.fetch = previousFetch;
+  });
+
+  const client = await connectedOpenClient(t, 'ranking-mode-contract-test');
+  const result = await client.callTool({
+    name: 'x402_search',
+    arguments: { query: 'weather data' },
+  });
+
+  assert.notEqual(result.isError, true);
+  assert.equal(result.structuredContent.rankingMode, 'degraded');
+  assert.equal(result.structuredContent.searchMeta.rankingMode, 'degraded');
+  assert.match(result.structuredContent.degradedMessage, /cannot interpret/);
+  assert.equal(
+    OPEN_TOOL_CONTRACTS.x402_search.outputSchema.safeParse(
+      result.structuredContent,
+    ).success,
+    true,
+  );
+});
