@@ -23,12 +23,6 @@ This repo contains two hosted MCP servers and the shared `@dexterai/x402-core` p
 | **Dexter MCP** (authenticated) | `mcp.dexter.cash/mcp` | Dexter OAuth | Managed wallet, automatic |
 | **OpenDexter MCP** (hosted) | `open.dexter.cash/mcp` | Mixed per tool: public access or OAuth `scope=vault` | Session-bound passkey wallet; explicit user approval |
 
-OpenDexter also exposes the same twelve tools at
-`https://open.dexter.cash/mcp/vault`. That entry point requires OAuth before
-the MCP session starts. Use it in hosts that cannot complete a protected-tool
-challenge after connecting anonymously. Its tokens are issued for the exact
-`/mcp/vault` resource and cannot be replayed against `/mcp`.
-
 The npm packages (`@dexterai/opendexter`, `@dexterai/x402-discovery`) live in [Dexter-DAO/opendexter-ide](https://github.com/Dexter-DAO/opendexter-ide).
 
 This OpenDexter source candidate requires the coordinated internal package
@@ -117,26 +111,26 @@ tools below.
 
 The complete connected roster is:
 
-1. `x402_search`
-2. `x402_check`
-3. `x402_fetch`
-4. `x402_status`
-5. `x402_access`
-6. `x402_wallet`
-7. `dexter_portfolio`
-8. `dexter_prepare_asset_action`
-9. `dexter_execute_asset_action`
-10. `dexter_asset_action_status`
-11. `dexter_reconcile_asset_action`
-12. `dexter_wallet_history`
+1) `x402_search`
+2) `x402_check`
+3) `x402_fetch`
+4) `x402_status`
+5) `x402_access`
+6) `x402_wallet`
+7) `dexter_portfolio`
+8) `dexter_prepare_asset_action`
+9) `dexter_execute_asset_action`
+10) `dexter_asset_action_status`
+11) `dexter_reconcile_asset_action`
+12) `dexter_wallet_history`
 
 The anonymous roster is `x402_search`, `x402_check`, `x402_access`,
 `x402_wallet`, and `dexter_portfolio`. OAuth adds `x402_fetch`, `x402_status`,
 and the five governed-asset tools. Compatibility aliases, composed-skill,
 passkey-probe, and card tools stay outside this hosted roster.
 
-Search never pays. `x402_check` accepts the endpoint URL, method, and optional
-exact raw request-body string. Anonymous checks are quote-only. An
+`x402_check` accepts the endpoint URL, method, and optional exact raw
+request-body string. Anonymous checks are quote-only. An
 authenticated check asks Dexter to custody the request and seller terms and
 returns one opaque `intentId`. `x402_fetch` accepts only that `intentId` and an
 explicit user- or policy-approved `maxAmountAtomic` ceiling. It never accepts
@@ -217,9 +211,8 @@ before asking PM2 to load that config. The launcher rejects symlinks, hard
 links, foreign ownership, permissive modes, and inherited Node loader controls;
 the immutable release itself contains no credential file.
 
-**How wallet identity works.** OAuth authorizes either the mixed
-`https://open.dexter.cash/mcp` resource or the always-protected
-`https://open.dexter.cash/mcp/vault` resource. Protected wallet and portfolio calls
+**How wallet identity works.** OAuth authorizes the mixed
+`https://open.dexter.cash/mcp` resource. Protected wallet and portfolio calls
 resolve the durable wallet binding for that authenticated MCP session and the
 stored passkey-vault identity behind it. They do not accept a caller-supplied
 wallet address or user handle. `x402_wallet` reads the bound passkey wallet;

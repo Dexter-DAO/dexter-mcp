@@ -23,7 +23,6 @@ import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { createRemoteJWKSet } from 'jose';
 import dotenv from 'dotenv';
@@ -108,9 +107,6 @@ import {
 } from './lib/safe-log-fields.mjs';
 import { isWebauthnProbeTelemetryEnabled } from './lib/webauthn-probe-telemetry.mjs';
 import {
-  OPEN_MCP_AUTH_FIRST_PATH,
-  OPEN_MCP_AUTH_FIRST_PRM_URL,
-  OPEN_MCP_AUTH_FIRST_RESOURCE,
   OPEN_MCP_VAULT_AUDIENCE,
   assertOpenToolAuthPolicyCoverage,
   buildVaultAuthenticationRequired,
@@ -2613,16 +2609,8 @@ function readRequestBody(req) {
 // pointer plus scope="vault" (the token claude.ai copies into its authorize
 // request — the Face-ID router). Touches NO session state: the client
 // retries on the same mcp-session-id after completing OAuth.
-function writeVaultChallenge(
-  res,
-  challenge = {},
-  requestId = null,
-  resourceMetadataUrl = undefined,
-) {
-  const wwwAuthenticate = buildVaultWwwAuthenticate({
-    ...challenge,
-    ...(resourceMetadataUrl ? { resourceMetadataUrl } : {}),
-  });
+function writeVaultChallenge(res, challenge = {}, requestId = null) {
+  const wwwAuthenticate = buildVaultWwwAuthenticate(challenge);
   const status = challenge?.error === 'insufficient_scope' ? 403 : 401;
   res.writeHead(status, {
     'Content-Type': 'application/json',
@@ -3012,48 +3000,21 @@ const httpServer = http.createServer(async (req, res) => {
     return;
   }
 
-  // The canonical path remains mixed-auth. /mcp/vault is the same curated
-  // server behind a transport-level OAuth gate for hosts that cannot complete
-  // a runtime challenge after anonymous discovery.
-  const authFirstEntrance = pathname === OPEN_MCP_AUTH_FIRST_PATH;
-  if (pathname !== '/' && pathname !== '/mcp' && !authFirstEntrance) {
+  // OpenDexter has one mixed-auth MCP entrance. Public tools are available
+  // immediately; protected tools trigger OAuth only when invoked.
+  if (pathname !== '/' && pathname !== '/mcp') {
     res.writeHead(404, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: 'Not found' }));
     return;
   }
 
-  const requestedMcpResource = authFirstEntrance
-    ? OPEN_MCP_AUTH_FIRST_RESOURCE
-    : OPEN_MCP_VAULT_AUDIENCE;
+  const requestedMcpResource = OPEN_MCP_VAULT_AUDIENCE;
   const requestSessionId = typeof req.headers['mcp-session-id'] === 'string'
     ? req.headers['mcp-session-id'].trim()
     : '';
 
-  // Per-server authorization for the OAuth-first entrance. Every request must
-  // carry an ES256 vault token minted for this exact resource. The canonical
-  // /mcp route keeps its existing mixed per-tool policy and audience.
-  let authFirstAuthorization = null;
-  if (authFirstEntrance) {
-    const bearer = extractBearer(req);
-    const verification = await verifyOpenVaultBearer(bearer, {
-      verificationKey: DEXTER_JWKS,
-      audience: OPEN_MCP_AUTH_FIRST_RESOURCE,
-    });
-    if (!verification.ok) {
-      writeVaultChallenge(
-        res,
-        oauthChallengeForVerification(verification),
-        null,
-        OPEN_MCP_AUTH_FIRST_PRM_URL,
-      );
-      return;
-    }
-    authFirstAuthorization = { bearer, verification };
-  }
-
   // A session belongs permanently to the exact MCP resource that initialized
-  // it. On the OAuth-first path, verify the Bearer before this comparison so a
-  // caller cannot probe canonical session IDs without authorization.
+  // it, preventing a session identifier from crossing resource boundaries.
   if (requestSessionId && transports.has(requestSessionId)) {
     const resourceStatus = openSessionResourceStatus(
       sessionMeta.get(requestSessionId),
@@ -3068,48 +3029,6 @@ const httpServer = http.createServer(async (req, res) => {
         error: 'Session not found for this MCP resource. Re-initialize.',
       }));
       return;
-    }
-  }
-
-  if (authFirstAuthorization) {
-    const { bearer, verification } = authFirstAuthorization;
-    if (requestSessionId && transports.has(requestSessionId)) {
-      const identityStatus = oauthVaultIdentityStatus(
-        sessionMeta.get(requestSessionId),
-        verification.identity,
-      );
-      if (identityStatus === 'mismatch') {
-        writeVaultChallenge(res, {
-          error: 'invalid_token',
-          errorDescription:
-            'This OpenDexter authorization belongs to a different session identity; connect again',
-        }, null, OPEN_MCP_AUTH_FIRST_PRM_URL);
-        return;
-      }
-      if (identityStatus === 'unpinned') {
-        pinSessionOAuthIdentity(requestSessionId, verification.identity);
-      }
-      if (!isVaultBound(sessionMeta.get(requestSessionId))) {
-        const seeded = await seedOAuthVaultBinding(
-          bearer,
-          verification.payload,
-          verification.identity,
-          requestSessionId,
-        );
-        if (!seeded) {
-          res.writeHead(503, {
-            'Content-Type': 'application/json',
-            'Cache-Control': 'no-store',
-            'Retry-After': '1',
-          });
-          res.end(JSON.stringify({
-            jsonrpc: '2.0',
-            error: { code: -32603, message: 'Authorization is temporarily unavailable. Retry.' },
-            id: null,
-          }));
-          return;
-        }
-      }
     }
   }
 
@@ -3165,7 +3084,7 @@ const httpServer = http.createServer(async (req, res) => {
       // Token present but session not yet vault-bound (bind failed at init,
       // or the client added the token mid-session): retry without blocking
       // the in-flight request.
-      if (!authFirstEntrance && linkToken && !isVaultBound(sessionMeta.get(sessionId))) {
+      if (linkToken && !isVaultBound(sessionMeta.get(sessionId))) {
         void bindLinkTokenToSession(linkToken, sessionId);
       }
 
@@ -3224,11 +3143,10 @@ const httpServer = http.createServer(async (req, res) => {
         bearerPresent: Boolean(bearer),
       });
       if (requiresVaultBearer || acceptsOptionalVaultBearer) {
-        const verification = authFirstAuthorization?.verification
-          ?? await verifyOpenVaultBearer(bearer, {
-            verificationKey: DEXTER_JWKS,
-            audience: OPEN_MCP_VAULT_AUDIENCE,
-          });
+        const verification = await verifyOpenVaultBearer(bearer, {
+          verificationKey: DEXTER_JWKS,
+          audience: OPEN_MCP_VAULT_AUDIENCE,
+        });
         if (!verification.ok) {
           console.warn(
             `[open-mcp] rejected vault Bearer (${verification.reason}) for `
@@ -3250,6 +3168,7 @@ const httpServer = http.createServer(async (req, res) => {
             verification.identity,
           );
           if (identityStatus === 'mismatch') {
+            clearSessionVaultBinding(sessionId);
             console.warn(
               `[open-mcp] rejected vault Bearer identity switch for `
               + `${protectedCall?.name || 'optional OAuth promotion'} `
@@ -3340,187 +3259,51 @@ const httpServer = http.createServer(async (req, res) => {
       return;
     }
 
-    let initialParsedBody;
-    let authFirstSessionId = null;
-    if (authFirstAuthorization) {
-      const accept = String(req.headers.accept || '');
-      if (!accept.includes('application/json') || !accept.includes('text/event-stream')) {
-        res.writeHead(406, {
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-store',
-        });
-        res.end(JSON.stringify({
-          jsonrpc: '2.0',
-          error: {
-            code: -32000,
-            message: 'Not Acceptable: Client must accept both application/json and text/event-stream',
-          },
-          id: null,
-        }));
-        return;
-      }
-      const contentType = String(req.headers['content-type'] || '');
-      if (!contentType.includes('application/json')) {
-        res.writeHead(415, {
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-store',
-        });
-        res.end(JSON.stringify({
-          jsonrpc: '2.0',
-          error: {
-            code: -32000,
-            message: 'Unsupported Media Type: Content-Type must be application/json',
-          },
-          id: null,
-        }));
-        return;
-      }
-      let rawBody;
-      try {
-        rawBody = await readRequestBody(req);
-        initialParsedBody = JSON.parse(rawBody);
-      } catch (err) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
-          jsonrpc: '2.0',
-          error: { code: -32700, message: 'Parse error', data: String(err) },
-          id: null,
-        }));
-        return;
-      }
-      if (
-        !isInitializeRequest(initialParsedBody)
-      ) {
-        res.writeHead(400, {
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-store',
-        });
-        res.end(JSON.stringify({
-          jsonrpc: '2.0',
-          error: { code: -32600, message: 'Invalid MCP initialize request.' },
-          id: initialParsedBody?.id ?? null,
-        }));
-        return;
-      }
-
-      authFirstSessionId = randomUUID();
-      touchSession(authFirstSessionId);
-      pinSessionResource(authFirstSessionId, requestedMcpResource);
-      pinSessionOAuthIdentity(
-        authFirstSessionId,
-        authFirstAuthorization.verification.identity,
-      );
-    }
-
-    let transport = null;
-    try {
-      transport = installCanonicalSecuritySchemeProjection(
-        new StreamableHTTPServerTransport({
-        sessionIdGenerator: () => authFirstSessionId ?? randomUUID(),
-        onsessioninitialized: (sid) => {
-          touchSession(sid);
-          pinSessionResource(sid, requestedMcpResource);
-          transports.set(sid, transport);
-          if (authFirstAuthorization) {
-            pinSessionOAuthIdentity(sid, authFirstAuthorization.verification.identity);
-          }
-          if (incomingBinding) {
-            userBindings.set(sid, incomingBinding);
-            markSessionAccountBound(sid);
-            console.log(
-              `[open-mcp] session created ref=${logRef(sid)} `
-              + `(active: ${transports.size}) userRef=${logRef(incomingBinding.userId)}`,
-            );
-          } else {
-            console.log(
-              `[open-mcp] session created ref=${logRef(sid)} (active: ${transports.size})`,
-            );
-          }
-        },
-        }),
-      );
-
-      transport.onclose = () => {
-        const sid = transport.sessionId;
-        if (sid) {
-          transports.delete(sid);
-          userBindings.delete(sid);
-          sessionMeta.delete(sid);
+    const transport = installCanonicalSecuritySchemeProjection(
+      new StreamableHTTPServerTransport({
+      sessionIdGenerator: () => randomUUID(),
+      onsessioninitialized: (sid) => {
+        touchSession(sid);
+        pinSessionResource(sid, requestedMcpResource);
+        transports.set(sid, transport);
+        if (incomingBinding) {
+          userBindings.set(sid, incomingBinding);
+          markSessionAccountBound(sid);
           console.log(
-            `[open-mcp] session closed ref=${logRef(sid)} (active: ${transports.size})`,
+            `[open-mcp] session created ref=${logRef(sid)} `
+            + `(active: ${transports.size}) userRef=${logRef(incomingBinding.userId)}`,
+          );
+        } else {
+          console.log(
+            `[open-mcp] session created ref=${logRef(sid)} (active: ${transports.size})`,
           );
         }
-      };
+      },
+      }),
+    );
 
-      const mcpServer = createOpenMcpServer();
-      await mcpServer.connect(transport);
-      if (authFirstAuthorization) {
-        const seeded = await seedOAuthVaultBinding(
-          authFirstAuthorization.bearer,
-          authFirstAuthorization.verification.payload,
-          authFirstAuthorization.verification.identity,
-          authFirstSessionId,
+    transport.onclose = () => {
+      const sid = transport.sessionId;
+      if (sid) {
+        transports.delete(sid);
+        userBindings.delete(sid);
+        sessionMeta.delete(sid);
+        console.log(
+          `[open-mcp] session closed ref=${logRef(sid)} (active: ${transports.size})`,
         );
-        if (!seeded) {
-          try {
-            await transport.close();
-          } catch {
-            // The maps below remain the authoritative cleanup path.
-          }
-          transports.delete(authFirstSessionId);
-          userBindings.delete(authFirstSessionId);
-          sessionMeta.delete(authFirstSessionId);
-          res.writeHead(503, {
-            'Content-Type': 'application/json',
-            'Cache-Control': 'no-store',
-            'Retry-After': '1',
-          });
-          res.end(JSON.stringify({
-            jsonrpc: '2.0',
-            error: { code: -32603, message: 'Authorization is temporarily unavailable. Retry.' },
-            id: initialParsedBody?.id ?? null,
-          }));
-          return;
-        }
       }
-      await transport.handleRequest(req, res, initialParsedBody);
-      // Exchange the presented link token for a vault binding on the freshly
-      // created session — response is already written, and the client must
-      // receive it before any tool call arrives, so the binding lands first.
-      if (!authFirstEntrance && linkToken && transport.sessionId) {
-        await bindLinkTokenToSession(linkToken, transport.sessionId);
-      }
-      return;
-    } catch (error) {
-      if (!authFirstSessionId) throw error;
-      const provisionalSessionId = transport?.sessionId ?? authFirstSessionId;
-      try {
-        await transport?.close();
-      } catch {
-        // The maps below remain the authoritative cleanup path.
-      }
-      transports.delete(provisionalSessionId);
-      userBindings.delete(provisionalSessionId);
-      sessionMeta.delete(provisionalSessionId);
-      console.warn(
-        `[open-mcp] auth-first initialization failed (${safeErrorLabel(error)})`,
-      );
-      if (!res.headersSent) {
-        res.writeHead(503, {
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-store',
-          'Retry-After': '1',
-        });
-        res.end(JSON.stringify({
-          jsonrpc: '2.0',
-          error: { code: -32603, message: 'Authorization is temporarily unavailable. Retry.' },
-          id: initialParsedBody?.id ?? null,
-        }));
-      } else if (!res.writableEnded) {
-        res.destroy();
-      }
-      return;
+    };
+
+    const mcpServer = createOpenMcpServer();
+    await mcpServer.connect(transport);
+    await transport.handleRequest(req, res);
+    // Exchange the presented link token for a vault binding on the freshly
+    // created session — response is already written, and the client must
+    // receive it before any tool call arrives, so the binding lands first.
+    if (linkToken && transport.sessionId) {
+      await bindLinkTokenToSession(linkToken, transport.sessionId);
     }
+    return;
   }
 
   // ─── DELETE: close session ──────────────────────────────────────────
