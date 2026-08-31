@@ -23,6 +23,10 @@ function capabilityPayload(overrides = {}) {
     appliedConstraints: {
       maxPriceUsdc: 0.01,
       minPriceUsdc: null,
+      paidOnly: false,
+    },
+    appliedOrdering: {
+      sortBy: 'relevance',
     },
     strongResults: [],
     relatedResults: [],
@@ -36,14 +40,14 @@ function capabilityPayload(overrides = {}) {
   };
 }
 
-function rawResource({ resourceId, tier, network, similarity }) {
+function rawResource({ resourceId, tier, network, similarity, priceUsdc = 0.005 }) {
   return {
     resourceId,
     resourceUrl: `https://${resourceId}.example.test/data`,
     displayName: resourceId,
     method: 'GET',
     pricing: {
-      usdc: 0.005,
+      usdc: priceUsdc,
       network,
       networkLabel: network,
       asset: 'USDC',
@@ -54,9 +58,9 @@ function rawResource({ resourceId, tier, network, similarity }) {
         networkLabel: network,
         asset: 'USDC',
         scheme: 'exact',
-        priceAtomic: '5000',
-        priceUsdc: 0.005,
-        priceLabel: '$0.005',
+        priceAtomic: String(Math.round(priceUsdc * 1_000_000)),
+        priceUsdc,
+        priceLabel: `$${priceUsdc}`,
       }],
     },
     execution: {
@@ -107,12 +111,19 @@ async function connectedOpenClient(t, name) {
   return client;
 }
 
-test('hosted x402_search sends and returns the typed hard ceiling', async (t) => {
+test('hosted x402_search sends and returns typed price, paid, and ordering controls', async (t) => {
   const previousFetch = globalThis.fetch;
   const captured = { requestedUrl: null };
   globalThis.fetch = async (input) => {
     captured.requestedUrl = new URL(String(input));
-    return new Response(JSON.stringify(capabilityPayload()), {
+    return new Response(JSON.stringify(capabilityPayload({
+      appliedConstraints: {
+        maxPriceUsdc: 0.01,
+        minPriceUsdc: null,
+        paidOnly: true,
+      },
+      appliedOrdering: { sortBy: 'price_asc' },
+    })), {
       status: 200,
       headers: { 'content-type': 'application/json' },
     });
@@ -128,19 +139,101 @@ test('hosted x402_search sends and returns the typed hard ceiling', async (t) =>
     arguments: {
       query: 'weather data',
       maxPriceUsdc: 0.01,
+      paidOnly: true,
+      sortBy: 'price_asc',
     },
   });
 
   assert.notEqual(result.isError, true);
   assert.equal(captured.requestedUrl?.searchParams.get('maxPriceUsdc'), '0.01');
+  assert.equal(captured.requestedUrl?.searchParams.get('paidOnly'), 'true');
+  assert.equal(captured.requestedUrl?.searchParams.get('sortBy'), 'price_asc');
   assert.deepEqual(result.structuredContent.appliedConstraints, {
     maxPriceUsdc: 0.01,
     minPriceUsdc: null,
+    paidOnly: true,
+  });
+  assert.deepEqual(result.structuredContent.appliedOrdering, {
+    sortBy: 'price_asc',
   });
   assert.equal(
     result.structuredContent.providerDataPolicy.trust,
     'untrusted_external_data',
   );
+});
+
+test('network filtering preserves API order and confirmed search metadata', async (t) => {
+  const previousFetch = globalThis.fetch;
+  const solanaHigh = rawResource({
+    resourceId: 'solana-high',
+    tier: 'strong',
+    network: 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp',
+    similarity: 0.93,
+    priceUsdc: 0.009,
+  });
+  const baseMiddle = rawResource({
+    resourceId: 'base-middle',
+    tier: 'strong',
+    network: 'eip155:8453',
+    similarity: 0.96,
+    priceUsdc: 0.006,
+  });
+  const solanaLow = rawResource({
+    resourceId: 'solana-low',
+    tier: 'strong',
+    network: 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp',
+    similarity: 0.91,
+    priceUsdc: 0.003,
+  });
+  globalThis.fetch = async () => new Response(JSON.stringify(capabilityPayload({
+    appliedConstraints: {
+      maxPriceUsdc: 0.01,
+      minPriceUsdc: null,
+      paidOnly: true,
+    },
+    appliedOrdering: { sortBy: 'price_desc' },
+    strongResults: [solanaHigh, baseMiddle, solanaLow],
+    strongCount: 3,
+    topSimilarity: 0.93,
+    noMatchReason: null,
+  })), {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  });
+  t.after(() => {
+    globalThis.fetch = previousFetch;
+  });
+
+  const client = await connectedOpenClient(t, 'network-order-contract-test');
+  const result = await client.callTool({
+    name: 'x402_search',
+    arguments: {
+      query: 'fixture data',
+      network: 'solana',
+      maxPriceUsdc: 0.01,
+      paidOnly: true,
+      sortBy: 'price_desc',
+    },
+  });
+  const output = result.structuredContent;
+
+  assert.notEqual(result.isError, true);
+  assert.deepEqual(
+    output.strongResults.map(({ resourceId }) => resourceId),
+    ['solana-high', 'solana-low'],
+  );
+  assert.deepEqual(
+    output.strongResults.map(({ priceUsdc }) => priceUsdc),
+    [0.009, 0.003],
+  );
+  assert.deepEqual(output.appliedConstraints, {
+    maxPriceUsdc: 0.01,
+    minPriceUsdc: null,
+    paidOnly: true,
+  });
+  assert.deepEqual(output.appliedOrdering, { sortBy: 'price_desc' });
+  assert.equal(output.count, 2);
+  assert.equal(output.strongCount, 2);
 });
 
 test('real SDK search keeps its strict output shape after credential scrubbing', async (t) => {
@@ -176,6 +269,14 @@ test('real SDK search keeps its strict output shape after credential scrubbing',
     result.structuredContent.intent.capabilityText,
     'Credential-like text was removed.',
   );
+  assert.deepEqual(result.structuredContent.appliedConstraints, {
+    maxPriceUsdc: 0.01,
+    minPriceUsdc: null,
+    paidOnly: false,
+  });
+  assert.deepEqual(result.structuredContent.appliedOrdering, {
+    sortBy: 'relevance',
+  });
   assert.equal(
     OPEN_TOOL_CONTRACTS.x402_search.outputSchema.safeParse(
       result.structuredContent,
@@ -199,6 +300,12 @@ test('network filtering rebuilds every visible search fact', async (t) => {
     similarity: 0.61,
   });
   globalThis.fetch = async () => new Response(JSON.stringify(capabilityPayload({
+    appliedConstraints: {
+      maxPriceUsdc: 0.01,
+      minPriceUsdc: null,
+      paidOnly: true,
+    },
+    appliedOrdering: { sortBy: 'price_desc' },
     strongResults: [baseStrong],
     relatedResults: [solanaRelated],
     strongCount: 1,
@@ -228,6 +335,8 @@ test('network filtering rebuilds every visible search fact', async (t) => {
     arguments: {
       query: 'fixture data',
       network: 'solana',
+      paidOnly: true,
+      sortBy: 'price_desc',
     },
   });
   const output = result.structuredContent;
@@ -249,6 +358,8 @@ test('network filtering rebuilds every visible search fact', async (t) => {
   assert.match(output.tip, /No exact match/);
   assert.equal(output.confidence, undefined);
   assert.equal(output.triangulate, undefined);
+  assert.equal(output.appliedConstraints.paidOnly, true);
+  assert.deepEqual(output.appliedOrdering, { sortBy: 'price_desc' });
   assert.equal(
     OPEN_TOOL_CONTRACTS.x402_search.outputSchema.safeParse(output).success,
     true,
@@ -334,4 +445,53 @@ test('unknown API ranking modes stay schema-safe through the real SDK', async (t
     ).success,
     true,
   );
+});
+
+test('hosted x402_search fails closed when paidOnly is not confirmed', async (t) => {
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify(capabilityPayload({
+    appliedConstraints: {
+      maxPriceUsdc: 0.01,
+      minPriceUsdc: null,
+    },
+  })), {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  });
+  t.after(() => {
+    globalThis.fetch = previousFetch;
+  });
+
+  const client = await connectedOpenClient(t, 'paid-only-fail-closed-test');
+  const result = await client.callTool({
+    name: 'x402_search',
+    arguments: { query: 'weather data', paidOnly: true },
+  });
+
+  assert.equal(result.isError, true);
+  assert.equal(result.structuredContent.success, false);
+  assert.equal(result.structuredContent.searchMeta.mode, 'error');
+});
+
+test('hosted x402_search fails closed when typed sortBy is not echoed', async (t) => {
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify(capabilityPayload({
+    appliedOrdering: { sortBy: 'relevance' },
+  })), {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  });
+  t.after(() => {
+    globalThis.fetch = previousFetch;
+  });
+
+  const client = await connectedOpenClient(t, 'sort-fail-closed-test');
+  const result = await client.callTool({
+    name: 'x402_search',
+    arguments: { query: 'weather data', sortBy: 'price_asc' },
+  });
+
+  assert.equal(result.isError, true);
+  assert.equal(result.structuredContent.success, false);
+  assert.equal(result.structuredContent.searchMeta.mode, 'error');
 });

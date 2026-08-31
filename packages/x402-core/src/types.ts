@@ -170,6 +170,11 @@ export interface RawCapabilityResponse {
   appliedConstraints?: {
     maxPriceUsdc: number | null;
     minPriceUsdc: number | null;
+    paidOnly?: boolean;
+  };
+  /** Effective ordering the API applied inside each relevance tier. */
+  appliedOrdering?: {
+    sortBy?: CapabilitySearchSortBy;
   };
   strongResults: RawCapabilityResult[];
   relatedResults: RawCapabilityResult[];
@@ -333,7 +338,14 @@ export interface FormattedResource {
 export type NoMatchReason =
   | 'below_similarity_threshold'
   | 'below_strong_threshold'
+  | 'no_results_with_price_controls'
   | null;
+
+/** Ordering applied independently inside the strong and related tiers. */
+export type CapabilitySearchSortBy =
+  | 'relevance'
+  | 'price_asc'
+  | 'price_desc';
 
 /**
  * Options for semantic capability search.
@@ -348,6 +360,10 @@ export interface CapabilitySearchOptions {
   maxPriceUsdc?: number;
   /** Hard lower bound for the x402 API invocation price, in USDC. */
   minPriceUsdc?: number;
+  /** Require a known primary USDC invocation price greater than zero. */
+  paidOnly?: boolean;
+  /** Order results inside each relevance tier. */
+  sortBy?: CapabilitySearchSortBy;
   debug?: boolean;
   endpoint?: string;
 }
@@ -384,6 +400,11 @@ export interface CapabilitySearchResult {
   appliedConstraints?: {
     maxPriceUsdc: number | null;
     minPriceUsdc: number | null;
+    paidOnly?: boolean;
+  };
+  /** Effective ordering the API confirmed for each relevance tier. */
+  appliedOrdering?: {
+    sortBy: CapabilitySearchSortBy;
   };
   /** See {@link SearchConfidence}. Absent on responses from old dexter-api
    *  builds; consumers must guard. */
@@ -438,6 +459,11 @@ export interface SearchResponse {
   appliedConstraints: {
     maxPriceUsdc: number | null;
     minPriceUsdc: number | null;
+    paidOnly: boolean;
+  };
+  /** Ordering the API confirmed inside each relevance tier. */
+  appliedOrdering: {
+    sortBy: CapabilitySearchSortBy;
   };
   searchMeta: SearchMeta;
   /** Raw error detail — present only when success is false. Kept separate

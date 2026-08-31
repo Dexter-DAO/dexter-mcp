@@ -8,7 +8,10 @@ import type {
   CapabilitySearchResult,
 } from './types.js';
 
-function capabilityPayload(intent: Record<string, unknown>) {
+function capabilityPayload(
+  intent: Record<string, unknown>,
+  controls: { paidOnly?: boolean; sortBy?: string } = {},
+) {
   const appliedConstraints = {
     maxPriceUsdc: typeof intent.maxPriceUsdc === 'number'
       ? intent.maxPriceUsdc
@@ -16,6 +19,7 @@ function capabilityPayload(intent: Record<string, unknown>) {
     minPriceUsdc: typeof intent.minPriceUsdc === 'number'
       ? intent.minPriceUsdc
       : null,
+    paidOnly: controls.paidOnly ?? false,
   };
   return {
     ok: true,
@@ -26,6 +30,9 @@ function capabilityPayload(intent: Record<string, unknown>) {
       ...intent,
     },
     appliedConstraints,
+    appliedOrdering: {
+      sortBy: controls.sortBy ?? 'relevance',
+    },
     strongResults: [],
     relatedResults: [],
     strongCount: 0,
@@ -37,7 +44,7 @@ function capabilityPayload(intent: Record<string, unknown>) {
   };
 }
 
-test('capability search sends and preserves confirmed hard price bounds', async (t) => {
+test('capability search sends and preserves confirmed typed search controls', async (t) => {
   const previousFetch = globalThis.fetch;
   t.after(() => {
     globalThis.fetch = previousFetch;
@@ -46,10 +53,13 @@ test('capability search sends and preserves confirmed hard price bounds', async 
   const captured: { requestedUrl?: URL } = {};
   globalThis.fetch = async (input) => {
     captured.requestedUrl = new URL(String(input));
-    return new Response(JSON.stringify(capabilityPayload({
-      maxPriceUsdc: 0.01,
-      minPriceUsdc: 0.002,
-    })), {
+    return new Response(JSON.stringify(capabilityPayload(
+      {
+        maxPriceUsdc: 0.01,
+        minPriceUsdc: 0.002,
+      },
+      { paidOnly: true, sortBy: 'price_asc' },
+    )), {
       status: 200,
       headers: { 'content-type': 'application/json' },
     });
@@ -59,16 +69,22 @@ test('capability search sends and preserves confirmed hard price bounds', async 
     query: 'weather data',
     maxPriceUsdc: 0.01,
     minPriceUsdc: 0.002,
+    paidOnly: true,
+    sortBy: 'price_asc',
     endpoint: 'https://api.example.test/search',
   });
   const output = buildSearchResponse(result);
 
   assert.equal(captured.requestedUrl?.searchParams.get('maxPriceUsdc'), '0.01');
   assert.equal(captured.requestedUrl?.searchParams.get('minPriceUsdc'), '0.002');
+  assert.equal(captured.requestedUrl?.searchParams.get('paidOnly'), 'true');
+  assert.equal(captured.requestedUrl?.searchParams.get('sortBy'), 'price_asc');
   assert.deepEqual(output.appliedConstraints, {
     maxPriceUsdc: 0.01,
     minPriceUsdc: 0.002,
+    paidOnly: true,
   });
+  assert.deepEqual(output.appliedOrdering, { sortBy: 'price_asc' });
   assert.equal(output.intent.maxPriceUsdc, 0.01);
   assert.equal(output.intent.minPriceUsdc, 0.002);
 });
@@ -82,10 +98,13 @@ test('natural-language-only search remains compatible and preserves parsed bound
   const captured: { requestedUrl?: URL } = {};
   globalThis.fetch = async (input) => {
     captured.requestedUrl = new URL(String(input));
-    return new Response(JSON.stringify(capabilityPayload({
-      maxPriceUsdc: 0.01,
-      minPriceUsdc: null,
-    })), {
+    return new Response(JSON.stringify(capabilityPayload(
+      {
+        maxPriceUsdc: 0.01,
+        minPriceUsdc: null,
+      },
+      { paidOnly: true, sortBy: 'price_asc' },
+    )), {
       status: 200,
       headers: { 'content-type': 'application/json' },
     });
@@ -99,13 +118,41 @@ test('natural-language-only search remains compatible and preserves parsed bound
 
   assert.equal(captured.requestedUrl?.searchParams.has('maxPriceUsdc'), false);
   assert.equal(captured.requestedUrl?.searchParams.has('minPriceUsdc'), false);
+  assert.equal(captured.requestedUrl?.searchParams.has('paidOnly'), false);
+  assert.equal(captured.requestedUrl?.searchParams.has('sortBy'), false);
   assert.deepEqual(output.appliedConstraints, {
     maxPriceUsdc: 0.01,
     minPriceUsdc: null,
+    paidOnly: true,
   });
+  assert.deepEqual(output.appliedOrdering, { sortBy: 'price_asc' });
 });
 
-test('capability search rejects invalid price constraints before fetching', async (t) => {
+test('an explicit paidOnly false value is forwarded', async (t) => {
+  const previousFetch = globalThis.fetch;
+  let requestedUrl: URL | undefined;
+  t.after(() => {
+    globalThis.fetch = previousFetch;
+  });
+
+  globalThis.fetch = async (input) => {
+    requestedUrl = new URL(String(input));
+    return new Response(JSON.stringify(capabilityPayload({})), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  };
+
+  await capabilitySearch({
+    query: 'weather data',
+    paidOnly: false,
+    endpoint: 'https://api.example.test/search',
+  });
+
+  assert.equal(requestedUrl?.searchParams.get('paidOnly'), 'false');
+});
+
+test('capability search rejects invalid typed controls before fetching', async (t) => {
   const previousFetch = globalThis.fetch;
   let fetchCount = 0;
   globalThis.fetch = async () => {
@@ -129,15 +176,26 @@ test('capability search rejects invalid price constraints before fetching', asyn
       query: 'weather data',
       maxPriceUsdc: '0.01' as unknown as number,
     },
+    {
+      query: 'weather data',
+      paidOnly: 'true' as unknown as boolean,
+    },
+    {
+      query: 'weather data',
+      sortBy: 'cheapest' as unknown as CapabilitySearchOptions['sortBy'],
+    },
   ];
 
   for (const options of invalidOptions) {
-    await assert.rejects(() => capabilitySearch(options), /PriceUsdc|finite nonnegative/);
+    await assert.rejects(
+      () => capabilitySearch(options),
+      /PriceUsdc|finite nonnegative|paidOnly|sortBy/,
+    );
   }
   assert.equal(fetchCount, 0);
 });
 
-test('explicit price bounds reject missing or looser API confirmation', async (t) => {
+test('typed controls reject missing, weaker, or different API confirmation', async (t) => {
   const previousFetch = globalThis.fetch;
   t.after(() => {
     globalThis.fetch = previousFetch;
@@ -180,6 +238,22 @@ test('explicit price bounds reject missing or looser API confirmation', async (t
       appliedConstraints: { maxPriceUsdc: null },
       expected: /did not confirm the requested minPriceUsdc constraint/,
     },
+    {
+      name: 'missing paid-only field',
+      options: { paidOnly: true },
+      appliedConstraints: { maxPriceUsdc: null, minPriceUsdc: null },
+      expected: /did not confirm the requested paidOnly constraint/,
+    },
+    {
+      name: 'weaker paid-only field',
+      options: { paidOnly: true },
+      appliedConstraints: {
+        maxPriceUsdc: null,
+        minPriceUsdc: null,
+        paidOnly: false,
+      },
+      expected: /did not confirm the requested paidOnly constraint/,
+    },
   ] as const;
 
   for (const testCase of cases) {
@@ -208,6 +282,35 @@ test('explicit price bounds reject missing or looser API confirmation', async (t
       testCase.name,
     );
   }
+
+  for (const testCase of [
+    { name: 'missing sort', appliedOrdering: undefined },
+    { name: 'different sort', appliedOrdering: { sortBy: 'relevance' } },
+  ] as const) {
+    globalThis.fetch = async () => {
+      const payload = capabilityPayload({});
+      if (testCase.appliedOrdering === undefined) {
+        delete (payload as { appliedOrdering?: unknown }).appliedOrdering;
+      } else {
+        (payload as { appliedOrdering?: unknown }).appliedOrdering =
+          testCase.appliedOrdering;
+      }
+      return new Response(JSON.stringify(payload), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    };
+
+    await assert.rejects(
+      () => capabilitySearch({
+        query: 'weather data',
+        sortBy: 'price_asc',
+        endpoint: 'https://api.example.test/search',
+      }),
+      /did not confirm the requested sortBy ordering/,
+      testCase.name,
+    );
+  }
 });
 
 test('legacy response builders default missing appliedConstraints from intent', async (t) => {
@@ -229,10 +332,73 @@ test('legacy response builders default missing appliedConstraints from intent', 
   });
   delete legacyResult.appliedConstraints;
 
-  assert.deepEqual(buildSearchResponse(legacyResult).appliedConstraints, {
+  delete legacyResult.appliedOrdering;
+
+  const legacyOutput = buildSearchResponse(legacyResult);
+  assert.deepEqual(legacyOutput.appliedConstraints, {
     maxPriceUsdc: 0.01,
     minPriceUsdc: null,
+    paidOnly: false,
   });
+  assert.deepEqual(legacyOutput.appliedOrdering, { sortBy: 'relevance' });
+});
+
+test('legacy API responses default new confirmations without breaking natural search', async (t) => {
+  const previousFetch = globalThis.fetch;
+  t.after(() => {
+    globalThis.fetch = previousFetch;
+  });
+
+  globalThis.fetch = async () => {
+    const payload = capabilityPayload({ maxPriceUsdc: null, minPriceUsdc: null });
+    delete (payload.appliedConstraints as { paidOnly?: boolean }).paidOnly;
+    delete (payload as { appliedOrdering?: unknown }).appliedOrdering;
+    return new Response(JSON.stringify(payload), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  };
+
+  const result = await capabilitySearch({
+    query: 'weather data',
+    endpoint: 'https://api.example.test/search',
+  });
+  const output = buildSearchResponse(result);
+
+  assert.deepEqual(output.appliedConstraints, {
+    maxPriceUsdc: null,
+    minPriceUsdc: null,
+    paidOnly: false,
+  });
+  assert.deepEqual(output.appliedOrdering, { sortBy: 'relevance' });
+});
+
+test('no_results_with_price_controls remains distinct in the MCP response', async (t) => {
+  const previousFetch = globalThis.fetch;
+  t.after(() => {
+    globalThis.fetch = previousFetch;
+  });
+
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    ...capabilityPayload({}, { paidOnly: true, sortBy: 'price_asc' }),
+    noMatchReason: 'no_results_with_price_controls',
+  }), {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  });
+
+  const result = await capabilitySearch({
+    query: 'paid weather data',
+    endpoint: 'https://api.example.test/search',
+  });
+  const output = buildSearchResponse(result);
+
+  assert.equal(output.noMatchReason, 'no_results_with_price_controls');
+  assert.equal(
+    output.searchMeta.note,
+    'No results meet the requested invocation-price controls',
+  );
+  assert.match(output.tip, /Adjust the controls/);
 });
 
 test('unknown future ranking modes become explicit degraded output', async (t) => {

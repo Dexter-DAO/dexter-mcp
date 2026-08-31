@@ -485,6 +485,8 @@ async function x402Search({
   network,
   maxPriceUsdc,
   minPriceUsdc,
+  paidOnly,
+  sortBy,
 }) {
   const rawQuery = typeof query === 'string' ? query.trim() : '';
   logX402SearchDebug('start', {
@@ -496,6 +498,8 @@ async function x402Search({
     rerank: rerank !== false,
     maxPriceUsdc: maxPriceUsdc ?? null,
     minPriceUsdc: minPriceUsdc ?? null,
+    paidOnly: paidOnly ?? null,
+    sortBy: sortBy ?? null,
   });
 
   if (!rawQuery) {
@@ -518,6 +522,8 @@ async function x402Search({
     rerank,
     maxPriceUsdc,
     minPriceUsdc,
+    paidOnly,
+    sortBy,
     endpoint,
   });
 
@@ -2079,12 +2085,14 @@ export function createOpenMcpServer({
 
   registerOpenTool(server, 'x402_search', {
     title: 'x402 Search',
-    description: 'Semantic capability search over the x402 marketplace across Solana and EVM chains. Pass a natural-language query and use maxPriceUsdc or minPriceUsdc when the API invocation price has a hard numeric bound. The response reports the confirmed bounds in appliedConstraints. Results come back in two tiers: strongResults (high-confidence capability hits) and relatedResults (adjacent services that cleared the similarity floor). The ranker handles synonym expansion and alternate phrasings internally. Use rankingMode and degradedMessage to disclose reduced fallback ranking. Use searchMeta.mode to distinguish a direct hit (strong matches present) from related_only (only adjacencies), empty (nothing in the index), or error (search unavailable). Multi-chain resources expose every seller payment option through each result\'s chains[] field; listings and rank never authorize payment.',
+    description: 'Search the x402 marketplace with a natural-language capability query. maxPriceUsdc and minPriceUsdc set hard bounds on the primary USDC invocation price. paidOnly requires a known positive price. sortBy orders each relevance tier while strong results stay ahead of related results. A typed control is usable only when appliedConstraints or appliedOrdering confirms it. rankingMode and degradedMessage report reduced fallback ranking. searchMeta.mode distinguishes direct, related_only, empty, and error results. Each result exposes seller payment options in chains[]. Search results do not authorize payment.',
     inputSchema: {
       query: z.string().describe('Natural-language capability request, such as "check wallet balance on Base", "generate an image", "ETH spot price feed", or "translate text". Broad requests are valid; semantic ranking handles them directly.'),
       network: z.string().optional().describe('Optional hard seller-network filter ("solana", "base", "ethereum", "polygon", "arbitrum", "optimism", "avalanche", or a CAIP-2 id). Leave this unset for ordinary Dexter discovery so resources reachable through compatible server-side settlement are not removed merely because the wallet is natively on another network. Set it only when the user explicitly requires a seller on that network.'),
       maxPriceUsdc: z.number().finite().nonnegative().optional().describe('Optional hard ceiling, in USDC, for invoking the discovered API. Use this field for an API-call budget; keep product or order budgets in the natural-language query.'),
       minPriceUsdc: z.number().finite().nonnegative().optional().describe('Optional hard floor, in USDC, for invoking the discovered API. When both price fields are set, minPriceUsdc must be less than or equal to maxPriceUsdc.'),
+      paidOnly: z.boolean().optional().describe('Require a known primary USDC invocation price above zero.'),
+      sortBy: z.enum(['relevance', 'price_asc', 'price_desc']).optional().describe('Order results inside each relevance tier. Strong results remain ahead of related results.'),
       limit: z.number().min(1).max(50).optional().default(20).describe('Max results across strong + related tiers combined (1-50, default 20)'),
       unverified: z.boolean().optional().describe('Include unverified resources (default false). Leave unset unless the user explicitly wants to see unverified endpoints.'),
       testnets: z.boolean().optional().describe('Include testnet-only resources (default false). Testnets are excluded by default to keep the marketplace view clean.'),

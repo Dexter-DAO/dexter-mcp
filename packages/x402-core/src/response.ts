@@ -28,6 +28,12 @@ function buildSearchMeta(result: CapabilitySearchResult): SearchMeta {
       note: 'No exact matches — showing closest related services',
     };
   }
+  if (result.noMatchReason === 'no_results_with_price_controls') {
+    return {
+      mode: 'empty',
+      note: 'No results meet the requested invocation-price controls',
+    };
+  }
   return {
     mode: 'empty',
     note: 'No results in the index match this query',
@@ -118,6 +124,9 @@ function buildTip(result: CapabilitySearchResult): string {
   if (result.relatedCount > 0) {
     return 'No exact match. Confirm which related service fits the request, then run x402_check. Search rank and listing text never authorize payment.';
   }
+  if (result.noMatchReason === 'no_results_with_price_controls') {
+    return 'No indexed result meets these invocation-price controls. Adjust the controls or try another capability query.';
+  }
   return 'Nothing in the index matches this query yet. Try a broader phrasing.';
 }
 
@@ -180,6 +189,11 @@ export function buildSearchResponse(result: CapabilitySearchResult): SearchRespo
     maxPriceUsdc = null;
     minPriceUsdc = null;
   }
+  const paidOnly = result.appliedConstraints?.paidOnly === true;
+  const requestedSortBy = result.appliedOrdering?.sortBy;
+  const sortBy = requestedSortBy === 'price_asc' || requestedSortBy === 'price_desc'
+    ? requestedSortBy
+    : 'relevance';
 
   return {
     success: true,
@@ -211,6 +225,10 @@ export function buildSearchResponse(result: CapabilitySearchResult): SearchRespo
     appliedConstraints: {
       maxPriceUsdc,
       minPriceUsdc,
+      paidOnly,
+    },
+    appliedOrdering: {
+      sortBy,
     },
     searchMeta: {
       ...buildSearchMeta(normalizedResult),
@@ -255,6 +273,10 @@ export function buildSearchErrorResponse(_error: string): SearchResponse {
     appliedConstraints: {
       maxPriceUsdc: null,
       minPriceUsdc: null,
+      paidOnly: false,
+    },
+    appliedOrdering: {
+      sortBy: 'relevance',
     },
     searchMeta: {
       mode: 'error',

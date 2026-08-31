@@ -31,6 +31,7 @@ export type {
   FormattedResource,
   CapabilitySearchOptions,
   CapabilitySearchResult,
+  CapabilitySearchSortBy,
   NoMatchReason,
 
   // MCP response shapes

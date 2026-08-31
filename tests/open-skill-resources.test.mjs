@@ -84,6 +84,8 @@ test('served guidance requires native OAuth and bounded nonretryable spending', 
   assert.match(WORKFLOW, /Leave its network filter unset[\s\S]*compatible[\s\S]*server-side settlement/);
   assert.match(WORKFLOW, /rankingMode[\s\S]*degradedMessage/);
   assert.match(WORKFLOW, /maxPriceUsdc[\s\S]*appliedConstraints/);
+  assert.match(WORKFLOW, /paidOnly[\s\S]*appliedOrdering/);
+  assert.match(WORKFLOW, /price order applies inside each relevance tier/i);
   assert.match(WORKFLOW, /Zero cash alone is not proof that a deposit is required/);
   assert.match(WORKFLOW, /Reported credit[\s\S]*not a promise/);
   assert.match(WORKFLOW, /If\s+it already does, do not ask for another approval/);

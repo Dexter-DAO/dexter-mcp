@@ -11,6 +11,7 @@
 import type {
   CapabilitySearchOptions,
   CapabilitySearchResult,
+  CapabilitySearchSortBy,
   RawCapabilityResponse,
 } from './types.js';
 import { formatResource } from './format.js';
@@ -18,6 +19,11 @@ import { normalizeRankingState } from './ranking.js';
 
 const DEFAULT_ENDPOINT = 'https://x402.dexter.cash/api/x402gle/capability';
 const DEFAULT_TIMEOUT = 20_000;
+const SEARCH_SORTS = new Set<CapabilitySearchSortBy>([
+  'relevance',
+  'price_asc',
+  'price_desc',
+]);
 
 function assertUsdcPriceConstraint(
   field: 'maxPriceUsdc' | 'minPriceUsdc',
@@ -38,6 +44,40 @@ function returnedUsdcPriceConstraint(
   if (value === undefined || value === null) return value;
   assertUsdcPriceConstraint(field, value);
   return value;
+}
+
+function assertPaidOnly(value: unknown): asserts value is boolean | undefined {
+  if (value === undefined) return;
+  if (typeof value !== 'boolean') {
+    throw new TypeError('capabilitySearch: paidOnly must be a boolean');
+  }
+}
+
+function assertSortBy(
+  value: unknown,
+): asserts value is CapabilitySearchSortBy | undefined {
+  if (value === undefined) return;
+  if (typeof value !== 'string' || !SEARCH_SORTS.has(value as CapabilitySearchSortBy)) {
+    throw new TypeError(
+      'capabilitySearch: sortBy must be relevance, price_asc, or price_desc',
+    );
+  }
+}
+
+function returnedPaidOnly(value: unknown): boolean | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'boolean') {
+    throw new TypeError('Capability search returned an invalid paidOnly confirmation');
+  }
+  return value;
+}
+
+function returnedSortBy(value: unknown): CapabilitySearchSortBy | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string' || !SEARCH_SORTS.has(value as CapabilitySearchSortBy)) {
+    throw new TypeError('Capability search returned an invalid sortBy confirmation');
+  }
+  return value as CapabilitySearchSortBy;
 }
 
 /**
@@ -73,12 +113,16 @@ export async function capabilitySearch(
     rerank,
     maxPriceUsdc,
     minPriceUsdc,
+    paidOnly,
+    sortBy,
     debug,
     endpoint = DEFAULT_ENDPOINT,
   } = options;
 
   assertUsdcPriceConstraint('maxPriceUsdc', maxPriceUsdc);
   assertUsdcPriceConstraint('minPriceUsdc', minPriceUsdc);
+  assertPaidOnly(paidOnly);
+  assertSortBy(sortBy);
   if (
     maxPriceUsdc !== undefined
     && minPriceUsdc !== undefined
@@ -100,6 +144,12 @@ export async function capabilitySearch(
   }
   if (minPriceUsdc !== undefined) {
     params.set('minPriceUsdc', String(minPriceUsdc));
+  }
+  if (paidOnly !== undefined) {
+    params.set('paidOnly', String(paidOnly));
+  }
+  if (sortBy !== undefined) {
+    params.set('sortBy', sortBy);
   }
   if (debug) params.set('debug', 'true');
 
@@ -155,6 +205,10 @@ export async function capabilitySearch(
     'minPriceUsdc',
     data.appliedConstraints?.minPriceUsdc,
   );
+  const confirmedPaidOnly = returnedPaidOnly(
+    data.appliedConstraints?.paidOnly,
+  );
+  const confirmedSortBy = returnedSortBy(data.appliedOrdering?.sortBy);
   const appliedMaxPriceUsdc = confirmedMaxPriceUsdc !== undefined
     ? confirmedMaxPriceUsdc
     : returnedMaxPriceUsdc ?? null;
@@ -194,6 +248,16 @@ export async function capabilitySearch(
       'Capability search did not confirm the requested minPriceUsdc constraint',
     );
   }
+  if (paidOnly === true && confirmedPaidOnly !== true) {
+    throw new Error(
+      'Capability search did not confirm the requested paidOnly constraint',
+    );
+  }
+  if (sortBy !== undefined && confirmedSortBy !== sortBy) {
+    throw new Error(
+      'Capability search did not confirm the requested sortBy ordering',
+    );
+  }
   const ranking = normalizeRankingState(
     data.rankingMode,
     data.degradedMessage,
@@ -229,6 +293,10 @@ export async function capabilitySearch(
     appliedConstraints: {
       maxPriceUsdc: appliedMaxPriceUsdc,
       minPriceUsdc: appliedMinPriceUsdc,
+      paidOnly: confirmedPaidOnly ?? false,
+    },
+    appliedOrdering: {
+      sortBy: confirmedSortBy ?? 'relevance',
     },
     // Forward honesty diagnostics verbatim. Older dexter-api builds may not
     // ship these; conditional spread keeps the property absent rather than

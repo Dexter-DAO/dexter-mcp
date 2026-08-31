@@ -164,7 +164,10 @@ test('search and wallet contracts expose current truth without route claims', ()
 
   assert.match(search.description, /rankingMode=degraded/);
   assert.match(search.description, /maxPriceUsdc/);
+  assert.match(search.description, /paidOnly/);
+  assert.match(search.description, /sortBy/);
   assert.match(search.description, /appliedConstraints/);
+  assert.match(search.description, /appliedOrdering/);
   assert.match(search.description, /do not ask twice/);
   assert.equal(Object.hasOwn(search.outputSchema.shape, 'rankingMode'), true);
   assert.equal(Object.hasOwn(search.outputSchema.shape, 'degradedMessage'), true);
@@ -188,7 +191,9 @@ test('search and wallet contracts expose current truth without route claims', ()
     appliedConstraints: {
       maxPriceUsdc: 0.01,
       minPriceUsdc: null,
+      paidOnly: true,
     },
+    appliedOrdering: { sortBy: 'price_asc' },
     searchMeta: {
       mode: 'empty',
       note: 'No matching result.',
@@ -209,8 +214,17 @@ test('search and wallet contracts expose current truth without route claims', ()
     appliedConstraints: {
       maxPriceUsdc: 0.01,
       minPriceUsdc: 0.02,
+      paidOnly: true,
     },
   }).success, false);
+  assert.equal(search.outputSchema.safeParse({
+    ...validSearchOutput,
+    appliedOrdering: { sortBy: 'cheapest' },
+  }).success, false);
+  assert.equal(search.outputSchema.safeParse({
+    ...validSearchOutput,
+    noMatchReason: 'no_results_with_price_controls',
+  }).success, true);
 
   assert.match(wallet.description, /Cash, credit capacity, and exact-intent execution eligibility are distinct/);
   assert.match(wallet.description, /zero cash alone is not proof/i);
@@ -1075,6 +1089,10 @@ test('real SDK tools/list exposes executable schemas, OAuth, annotations, and me
         Object.hasOwn(listed.outputSchema.properties ?? {}, 'appliedConstraints'),
         true,
       );
+      assert.equal(
+        Object.hasOwn(listed.outputSchema.properties ?? {}, 'appliedOrdering'),
+        true,
+      );
     }
     if (listed.name === 'x402_check') {
       assert.equal(
@@ -1192,6 +1210,16 @@ test('vault-bound hosted discovery retains the exact protected roster', async ()
           `${phase}:${field}`,
         );
       }
+      assert.equal(
+        search?.inputSchema?.properties?.paidOnly?.type,
+        'boolean',
+        `${phase}:paidOnly`,
+      );
+      assert.deepEqual(
+        search?.inputSchema?.properties?.sortBy?.enum,
+        ['relevance', 'price_asc', 'price_desc'],
+        `${phase}:sortBy`,
+      );
       const prepare = listed.find(
         ({ name }) => name === 'dexter_prepare_asset_action',
       );

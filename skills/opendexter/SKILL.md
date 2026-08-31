@@ -55,7 +55,14 @@ product tools. Do not select them for a new request.
    server-side settlement may make a seller on another network reachable from
    the Dexter account. Put a hard API invocation-price ceiling or floor in
    `maxPriceUsdc` or `minPriceUsdc`, then confirm the returned
-   `appliedConstraints`. Keep product and order budgets in the query. If
+   `appliedConstraints`. Set `paidOnly: true` when the result must have a known
+   primary USDC invocation price above zero. Use `sortBy: price_asc` or
+   `sortBy: price_desc` when price order matters, then confirm
+   `appliedOrdering`. Price order applies inside each relevance tier, so a
+   related result cannot move ahead of a strong result. Keep product and order
+   budgets in the query. The search controls use the listing's primary USDC
+   invocation price; alternate entries in `chains[]` can quote a different
+   amount. `x402_check` confirms the selected option before purchase. If
    `rankingMode` is `degraded`, surface the accompanying `degradedMessage`;
    reduced ranking is not the same as no result.
 2. Call `x402_check` on the selected exact HTTPS endpoint and request shape.
