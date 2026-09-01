@@ -9,13 +9,12 @@ purchase. Dexter, not the caller, owns the request, seller terms, route, and
 execution state. The caller receives one opaque `intentId` and never carries a
 prepared purchase object between tools.
 
-## Authorized roster
+## Mixed-auth roster
 
-The canonical `https://open.dexter.cash/mcp` resource requires OAuth
-`scope=vault` before MCP initialization, tool discovery, or invocation. One
-successful authorization covers discovery and search, exact request checks,
-wallet and portfolio reads, identity-gated access, payment, and governed
-actions. The authorized roster has twelve tools:
+The canonical `https://open.dexter.cash/mcp` resource initializes and exposes
+its roster without sign-in. `x402_search` is public. Exact request checks,
+wallet and portfolio reads, identity-gated access, payment, status, and
+governed actions require OAuth `scope=vault`. The roster has twelve tools:
 
 - `x402_search`
 - `x402_check`
@@ -30,9 +29,10 @@ actions. The authorized roster has twelve tools:
 - `dexter_reconcile_asset_action`
 - `dexter_wallet_history`
 
-Each tool carries the OAuth security scheme and requires the current vault
-Bearer on every invocation. The authenticated MCP session supplies the durable
-wallet binding used by wallet, portfolio, payment, and governed-action tools.
+`x402_search` carries `noauth`; the other eleven tools carry OAuth and require
+the current vault Bearer on each invocation. The authenticated MCP session
+supplies the durable wallet binding used by checks, wallet, portfolio, access,
+payment, status, and governed-action tools.
 
 There are no public aliases, tab tools, purchase-mode selectors,
 `PreparedPurchase` inputs, card tools, model-callable owner-decision tools, or

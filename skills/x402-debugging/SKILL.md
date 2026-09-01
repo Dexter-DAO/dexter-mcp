@@ -9,8 +9,9 @@ Identify the failed layer before retrying:
 
 1. **Connector registration**: the host cannot reach the canonical OpenDexter
    endpoint or discover its OAuth metadata.
-2. **OAuth connection**: authorization fails before tools appear, or an
-   established connection later returns `authentication_required`.
+2. **OAuth connection**: a protected tool cannot start or complete native
+   authorization, or an established connection later returns
+   `authentication_required`.
 3. **Wallet binding**: OAuth succeeded, but no ready Dexter Wallet is bound.
 4. **Quote or intent custody**: an authorized `x402_check` cannot obtain
    requirements or create an executable `intentId`.
@@ -23,13 +24,15 @@ Identify the failed layer before retrying:
 
 These layers are independent. Connector installation, OAuth, wallet binding,
 passkey enrollment, payment construction, and merchant settlement do not prove
-one another. One completed OAuth connection supplies discovery and search,
-wallet, portfolio, access, payment, and governed-action tools.
+one another. The tool roster and public search load before OAuth. One completed
+OAuth connection supplies checks, wallet, portfolio, access, payment, status,
+and governed-action tools.
 
 ## Safe response
 
-- For an initial OAuth failure, use the host's native authorization action on
-  `https://open.dexter.cash/mcp`, finish OAuth, and reload the tool list once.
+- For an initial OAuth failure, invoke the intended protected tool, use the
+  host's native authorization action on `https://open.dexter.cash/mcp`, finish
+  OAuth, and retry that same tool once.
 - If an established connection later returns `authentication_required`, let
   the host resume OAuth and retry the same tool once.
 - For wallet-not-ready, call `x402_wallet` and use its returned binding state.

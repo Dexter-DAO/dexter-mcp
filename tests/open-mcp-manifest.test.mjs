@@ -16,12 +16,12 @@ import {
   buildOpenMcpAuthorizationServerMetadata,
 } from '../lib/open-tool-auth.mjs';
 
-test('well-known manifest advertises the required twelve-tool OAuth contract', () => {
+test('well-known manifest advertises the mixed-auth twelve-tool contract', () => {
   const manifest = buildOpenMcpManifest();
   assert.equal(manifest.name, 'OpenDexter');
   assert.equal(manifest.namespace, 'opendexter');
   assert.equal(manifest.url, OPEN_MCP_VAULT_AUDIENCE);
-  assert.equal(manifest.auth.mode, 'required');
+  assert.equal(manifest.auth.mode, 'mixed');
   assert.equal(manifest.auth.protectedResourceMetadata, OPEN_MCP_PRM_URL);
   assert.equal(manifest.auth.authorizationServer, OPEN_MCP_AUTHORIZATION_SERVER);
   assert.deepEqual(OPEN_MCP_PRM.scopes_supported, ['vault']);
@@ -31,13 +31,13 @@ test('well-known manifest advertises the required twelve-tool OAuth contract', (
     ).scopes_supported,
     ['vault'],
   );
-  assert.deepEqual(manifest.auth.protectedTools, OPEN_TOOL_NAMES);
+  assert.deepEqual(manifest.auth.protectedTools, OPEN_OAUTH_PROMOTED_TOOL_NAMES);
   assert.deepEqual(manifest.auth.conditionallyProtectedTools, []);
   assert.deepEqual(manifest.rosters.anonymous, OPEN_ANONYMOUS_TOOL_NAMES);
   assert.deepEqual(manifest.rosters.oauthPromotes, OPEN_OAUTH_PROMOTED_TOOL_NAMES);
   assert.deepEqual(manifest.rosters.connected, OPEN_TOOL_NAMES);
-  assert.equal(manifest.rosters.anonymous.length, 0);
-  assert.deepEqual(manifest.rosters.oauthPromotes, OPEN_TOOL_NAMES);
+  assert.deepEqual(manifest.rosters.anonymous, ['x402_search']);
+  assert.equal(manifest.rosters.oauthPromotes.length, 11);
   assert.deepEqual(manifest.tools.map((tool) => tool.name), OPEN_TOOL_NAMES);
   assert.equal(manifest.tools.length, 12);
   assert.match(manifest.description, /autonomous governed Buy and Sell/);
@@ -137,7 +137,16 @@ test('hosted source documentation states the current opaque-intent product contr
   ]) {
     assert.ok(readme.includes(`\`${name}\``), name);
   }
-  assert.match(readme, /authenticated twelve-tool roster/i);
+  assert.match(
+    readme,
+    /initializes without sign-in\s+and exposes the complete tool roster/i,
+  );
+  assert.match(readme, /Marketplace search is public/i);
+  assert.match(readme, /`x402_search` carries `noauth`/i);
+  assert.match(readme, /The other eleven tools carry OAuth/i);
+  assert.match(currentContract, /## Mixed-auth roster/i);
+  assert.match(currentContract, /`x402_search` is public/i);
+  assert.match(currentContract, /the other eleven tools carry OAuth/i);
   assert.match(readme, /replaces only\s+`dexter-open-mcp`/i);
   assert.match(readme, /legacy `dexter-mcp` PID, path,\s+configuration, and restart counters remain unchanged/i);
   assert.doesNotMatch(readme, /deletes both named PM2\s+processes/i);

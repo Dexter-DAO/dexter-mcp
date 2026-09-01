@@ -67,14 +67,21 @@ test('master skill preserves shared product truth without pretending every surfa
   assert.match(WORKFLOW, /Do not copy another\s+surface byte-for-byte/i);
 });
 
-test('served guidance requires native OAuth and bounded nonretryable spending', () => {
+test('served guidance keeps search public and spending behind native OAuth', () => {
   for (const content of [WORKFLOW, PROTOCOL, DEBUGGING]) {
     assert.doesNotMatch(
       content,
       /\bvpair\b|pairing_url|surface (?:the|a) pairing URL|\/mcp\/dlt_/i,
     );
   }
-  assert.match(WORKFLOW, /requires host-native OAuth before tool discovery or use/);
+  assert.match(WORKFLOW, /canonical connection exposes all twelve tools/);
+  assert.match(WORKFLOW, /`x402_search` works before\s+sign-in/);
+  assert.match(WORKFLOW, /Invoking any other tool starts host-native OAuth/);
+  assert.match(DEBUGGING, /tool roster and public search load before OAuth/);
+  assert.match(
+    PROTOCOL,
+    /Marketplace search is public[\s\S]*governed actions require OpenDexter OAuth/,
+  );
   assert.match(WORKFLOW, /maxAmountAtomic/);
   assert.match(
     WORKFLOW,
@@ -196,11 +203,18 @@ test('generated runtime instructions preserve exact consequence and recovery bou
 test('generated runtime instructions preserve current wallet and authority truth', () => {
   const runtime = buildOpenServerInstructions();
 
-  assert.match(runtime, /requires OpenDexter OAuth before initialization or tool discovery/);
+  assert.match(
+    runtime,
+    /canonical MCP connection initializes and exposes its tool roster without sign-in/,
+  );
+  assert.match(runtime, /x402_search can run immediately/);
+  assert.match(
+    runtime,
+    /another tool is invoked without authorization[\s\S]*native OpenDexter Connect action/,
+  );
   assert.match(runtime, /native OpenDexter Connect action/);
-  assert.match(runtime, /complete twelve-tool roster/);
-  assert.match(runtime, /Connected label[\s\S]*successful authenticated tool discovery or a successful tool call proves wallet authorization/);
-  assert.match(runtime, /Connected appears without authorization[\s\S]*plugin or integration settings/);
+  assert.match(runtime, /Connected label[\s\S]*successful protected tool call proves wallet authorization/);
+  assert.match(runtime, /Connected appears without wallet authorization[\s\S]*plugin or integration settings/);
   assert.match(runtime, /plugin or integration settings[\s\S]*Authorize or Authenticate/);
   assert.match(runtime, /never claim that a confirmation card appeared/);
   assert.match(runtime, /Authentication proves the connected wallet session; it does not by itself authorize/);

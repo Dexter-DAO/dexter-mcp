@@ -46,7 +46,7 @@ const TOOL_ROSTER = [
   'dexter_wallet_history',
 ];
 
-test('required auth policy covers the exact hosted roster', () => {
+test('mixed auth policy covers the exact hosted roster', () => {
   assert.doesNotThrow(() => assertOpenToolAuthPolicyCoverage(TOOL_ROSTER));
   assert.throws(
     () => assertOpenToolAuthPolicyCoverage(TOOL_ROSTER.slice(1)),
@@ -54,8 +54,12 @@ test('required auth policy covers the exact hosted roster', () => {
   );
 });
 
-test('every hosted tool requires the exact vault OAuth scheme', () => {
-  for (const name of TOOL_ROSTER) {
+test('search is public and every other hosted tool requires vault OAuth', () => {
+  assert.deepEqual(
+    OPEN_TOOL_SECURITY_SCHEMES.x402_search,
+    [{ type: 'noauth' }],
+  );
+  for (const name of TOOL_ROSTER.slice(1)) {
     assert.deepEqual(
       OPEN_TOOL_SECURITY_SCHEMES[name],
       [{ type: 'oauth2', scopes: ['vault'] }],
@@ -86,7 +90,7 @@ test('protected-call classification follows the per-tool auth declaration', () =
   assert.deepEqual(findVaultProtectedToolCall([
     call('x402_search'),
     { ...call('x402_fetch'), id: 2 },
-  ]), { name: 'x402_search', id: 1 });
+  ]), { name: 'x402_fetch', id: 2 });
   assert.deepEqual(findVaultProtectedToolCall(call('x402_status')), {
     name: 'x402_status',
     id: 1,
@@ -107,10 +111,7 @@ test('protected-call classification follows the per-tool auth declaration', () =
     name: 'x402_access',
     id: 1,
   });
-  assert.deepEqual(findVaultProtectedToolCall(call('x402_search')), {
-    name: 'x402_search',
-    id: 1,
-  });
+  assert.equal(findVaultProtectedToolCall(call('x402_search')), null);
   assert.equal(findVaultProtectedToolCall(call('x402_pay')), null);
   assert.equal(findVaultProtectedToolCall(call('x402_compose_skill')), null);
 });
@@ -161,7 +162,7 @@ test('real SDK tools/list carries canonical and mirrored auth schemes', async ()
     }
     assert.deepEqual(
       wireList.result.tools.find((tool) => tool.name === 'x402_search').securitySchemes,
-      [{ type: 'oauth2', scopes: ['vault'] }],
+      [{ type: 'noauth' }],
     );
     assert.deepEqual(
       wireList.result.tools.find((tool) => tool.name === 'x402_wallet').securitySchemes,

@@ -47,8 +47,8 @@ const CONNECTED = [
   'dexter_wallet_history',
 ];
 
-const ANONYMOUS = [];
-const PROMOTED = CONNECTED;
+const ANONYMOUS = ['x402_search'];
+const PROMOTED = CONNECTED.slice(1);
 
 function descriptorSourceFixture(packageManager = 'npm@10.9.3') {
   const directory = mkdtempSync(join(tmpdir(), 'opendexter-source-fixture-'));
@@ -92,7 +92,7 @@ function descriptorFinalizationFixture() {
     kind: 'opendexter-hosted-tool-descriptors/v2',
     sourceContracts: { kind: 'opendexter-source-contracts/v3' },
     oauth: {
-      mode: 'required',
+      mode: 'mixed',
       resource: 'https://open.dexter.cash/mcp',
       authorizationServer: 'https://mcp.dexter.cash/mcp',
       authorizationServerMetadata:
@@ -474,7 +474,7 @@ test('source materializer emits one deterministic full hosted descriptor', async
     descriptor.sourceContracts.mcp.tree,
   );
   assert.deepEqual(descriptor.oauth, {
-    mode: 'required',
+    mode: 'mixed',
     resource: 'https://open.dexter.cash/mcp',
     protectedResourceMetadata:
       'https://open.dexter.cash/.well-known/oauth-protected-resource/mcp',
@@ -506,6 +506,13 @@ test('source materializer emits one deterministic full hosted descriptor', async
     assert.equal(tool.inputSchema.type, 'object', `${tool.name} input schema`);
     assert.equal(tool.outputSchema.type, 'object', `${tool.name} output schema`);
     assert.ok(tool.securitySchemes.length > 0, `${tool.name} security`);
+    assert.deepEqual(
+      tool.securitySchemes,
+      tool.name === 'x402_search'
+        ? [{ type: 'noauth' }]
+        : [{ type: 'oauth2', scopes: ['vault'] }],
+      `${tool.name} security`,
+    );
     assert.ok(tool._meta.ui.visibility.length > 0, `${tool.name} visibility`);
     assert.equal(
       typeof tool._meta['openai/widgetAccessible'],
@@ -625,7 +632,7 @@ test('descriptor check is byte-exact and refuses schema or OAuth drift', async (
   );
 
   const oauthDrift = JSON.parse(expected);
-  oauthDrift.oauth.mode = 'mixed';
+  oauthDrift.oauth.mode = 'required';
   writeFileSync(descriptorPath, `${JSON.stringify(oauthDrift, null, 2)}\n`);
   await assert.rejects(
     verifyOpenToolDescriptor({ descriptorPath, descriptor }),
@@ -769,5 +776,8 @@ test('direct server execution still binds and serves health', async (t) => {
   assert.equal(response.status, 200);
   const body = await response.json();
   assert.equal(body.name, 'OpenDexter');
+  assert.equal(body.auth, 'mixed');
+  assert.equal(body.toolAuth, 'per-tool');
+  assert.deepEqual(body.publicTools, ANONYMOUS);
   assert.deepEqual(body.tools, CONNECTED);
 });
