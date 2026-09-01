@@ -12,14 +12,12 @@ import {
   exportJWK,
   generateKeyPair,
 } from 'jose';
-import {
-  OPEN_OAUTH_PROMOTED_TOOL_NAMES,
-  OPEN_TOOL_NAMES,
-} from '../lib/open-tool-contracts.mjs';
+import { OPEN_TOOL_NAMES } from '../lib/open-tool-contracts.mjs';
 import {
   OPEN_MCP_PRM,
   OPEN_MCP_VAULT_AUDIENCE,
   VAULT_WWW_AUTHENTICATE,
+  buildVaultWwwAuthenticate,
 } from '../lib/open-tool-auth.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
@@ -220,280 +218,7 @@ function sessionRequest(url, {
   });
 }
 
-function toolCallBody(name, id, args = {}) {
-  return {
-    jsonrpc: '2.0',
-    id,
-    method: 'tools/call',
-    params: { name, arguments: args },
-  };
-}
-
-test('canonical /mcp keeps search public and promotes the same session for protected tools', async () => {
-  const { privateKey, publicKey } = await generateKeyPair('ES256');
-  const publicJwk = await exportJWK(publicKey);
-  Object.assign(publicJwk, { alg: 'ES256', kid: 'mixed-auth-runtime', use: 'sig' });
-
-  const token = await signVaultToken(privateKey, publicJwk.kid, {
-    subject: 'mixed-runtime-user',
-    surface: '7'.repeat(64),
-    jwtId: 'mixed-access-token',
-  });
-  const refreshedToken = await signVaultToken(privateKey, publicJwk.kid, {
-    subject: 'mixed-runtime-user',
-    surface: '7'.repeat(64),
-    jwtId: 'mixed-refreshed-token',
-  });
-  const foreignToken = await signVaultToken(privateKey, publicJwk.kid, {
-    subject: 'foreign-mixed-runtime-user',
-    surface: '8'.repeat(64),
-  });
-  const failedPromotionToken = await signVaultToken(privateKey, publicJwk.kid, {
-    subject: 'failed-promotion-user',
-    surface: '9'.repeat(64),
-  });
-
-  const seedBodies = [];
-  let jwksAvailable = true;
-  let seedUnavailable = false;
-  const fixture = await startRuntimeFixture({
-    publicJwk,
-    isJwksAvailable: () => jwksAvailable,
-    runtimeEnv: { OPEN_MCP_TEST_VAULT_JWKS_CACHE_MS: '0' },
-    handleDependency: async (request, response, url) => {
-      if (request.method === 'GET' && url.pathname === '/api/x402gle/capability') {
-        const query = url.searchParams.get('q') || '';
-        response.writeHead(200, { 'content-type': 'application/json' });
-        response.end(JSON.stringify({
-          ok: true,
-          strongResults: [],
-          relatedResults: [],
-          strongCount: 0,
-          relatedCount: 0,
-          topSimilarity: null,
-          noMatchReason: 'below_similarity_threshold',
-          rerank: { enabled: true, applied: false },
-          intent: { capabilityText: query },
-          appliedConstraints: {
-            maxPriceUsdc: null,
-            minPriceUsdc: null,
-            paidOnly: false,
-          },
-          appliedOrdering: { sortBy: 'relevance' },
-        }));
-        return true;
-      }
-      if (
-        request.method === 'POST'
-        && url.pathname === '/api/passkey-vault/pair/oauth-seed'
-      ) {
-        const body = await readJsonBody(request);
-        seedBodies.push(body);
-        if (body.access_token === failedPromotionToken || seedUnavailable) {
-          response.writeHead(503, { 'content-type': 'application/json' });
-          response.end(JSON.stringify({ ok: false, error: 'service_disabled' }));
-          return true;
-        }
-        response.writeHead(200, { 'content-type': 'application/json' });
-        response.end(JSON.stringify({ ok: true, user_handle: 'mixed-runtime-user' }));
-        return true;
-      }
-      return false;
-    },
-  });
-
-  let client = null;
-  let activeBearer = '';
-  try {
-    const transport = new StreamableHTTPClientTransport(fixture.mcpUrl, {
-      fetch: (input, init = {}) => {
-        const headers = new Headers(init.headers);
-        if (activeBearer) headers.set('Authorization', `Bearer ${activeBearer}`);
-        return fetch(input, { ...init, headers });
-      },
-    });
-    client = new Client({ name: 'mixed-auth-runtime-client', version: '1.0.0' });
-    await client.connect(transport);
-    assert.ok(transport.sessionId);
-    assert.equal(seedBodies.length, 0, 'anonymous initialize attempted to bind a wallet');
-
-    const tools = (await client.listTools()).tools;
-    assert.deepEqual(tools.map(({ name }) => name), OPEN_TOOL_NAMES);
-    assert.deepEqual(
-      tools.find(({ name }) => name === 'x402_search')?._meta?.securitySchemes,
-      [{ type: 'noauth' }],
-    );
-    for (const name of OPEN_OAUTH_PROMOTED_TOOL_NAMES) {
-      assert.deepEqual(
-        tools.find((tool) => tool.name === name)?._meta?.securitySchemes,
-        [{ type: 'oauth2', scopes: ['vault'] }],
-        name,
-      );
-    }
-
-    const anonymousSearch = await client.callTool({
-      name: 'x402_search',
-      arguments: { query: 'weather data' },
-    });
-    assert.notEqual(anonymousSearch.isError, true);
-    assert.equal(seedBodies.length, 0, 'public search attempted to bind a wallet');
-
-    jwksAvailable = false;
-    const initializeDuringJwksOutage = await initializeRequest(fixture.mcpUrl, {
-      bearer: token,
-    });
-    assert.equal(initializeDuringJwksOutage.status, 200);
-    const outageSessionId = initializeDuringJwksOutage.headers.get('mcp-session-id');
-    assert.ok(outageSessionId);
-    assert.equal((await sessionRequest(fixture.mcpUrl, {
-      sessionId: outageSessionId,
-      bearer: token,
-      method: 'DELETE',
-    })).status, 200);
-    const listDuringJwksOutage = await sessionRequest(fixture.mcpUrl, {
-      sessionId: transport.sessionId,
-      bearer: token,
-    });
-    assert.equal(listDuringJwksOutage.status, 200);
-    const publicDuringJwksOutage = await sessionRequest(fixture.mcpUrl, {
-      sessionId: transport.sessionId,
-      bearer: token,
-      body: toolCallBody('x402_search', 97, { query: 'weather data' }),
-    });
-    assert.equal(publicDuringJwksOutage.status, 200);
-    const protectedDuringJwksOutage = await sessionRequest(fixture.mcpUrl, {
-      sessionId: transport.sessionId,
-      bearer: token,
-      body: toolCallBody('x402_wallet', 98),
-    });
-    assert.equal(protectedDuringJwksOutage.status, 503);
-    assert.equal(seedBodies.length, 0);
-    jwksAvailable = true;
-
-    const publicWithInvalidBearer = await sessionRequest(fixture.mcpUrl, {
-      sessionId: transport.sessionId,
-      bearer: 'invalid-token',
-      body: toolCallBody('x402_search', 99, { query: 'weather data' }),
-    });
-    assert.equal(publicWithInvalidBearer.status, 200);
-    const protectedWithInvalidBearer = await sessionRequest(fixture.mcpUrl, {
-      sessionId: transport.sessionId,
-      bearer: 'invalid-token',
-      body: toolCallBody('x402_wallet', 100),
-    });
-    assert.equal(protectedWithInvalidBearer.status, 401);
-    assert.match(
-      protectedWithInvalidBearer.headers.get('www-authenticate') || '',
-      /error="invalid_token"/,
-    );
-
-    let requestId = 100;
-    for (const name of OPEN_OAUTH_PROMOTED_TOOL_NAMES) {
-      const challenged = await sessionRequest(fixture.mcpUrl, {
-        sessionId: transport.sessionId,
-        body: toolCallBody(name, requestId += 1),
-      });
-      assert.equal(challenged.status, 401, name);
-      assert.equal(challenged.headers.get('www-authenticate'), VAULT_WWW_AUTHENTICATE, name);
-    }
-    const batchChallenge = await sessionRequest(fixture.mcpUrl, {
-      sessionId: transport.sessionId,
-      body: [
-        toolCallBody('x402_search', requestId += 1, { query: 'weather data' }),
-        toolCallBody('x402_wallet', requestId += 1),
-      ],
-    });
-    assert.equal(batchChallenge.status, 401);
-    assert.equal((await batchChallenge.json()).id, requestId);
-    assert.equal(seedBodies.length, 0, 'challenge-only calls attempted to bind a wallet');
-
-    const failedPromotion = await sessionRequest(fixture.mcpUrl, {
-      sessionId: transport.sessionId,
-      bearer: failedPromotionToken,
-      body: toolCallBody('x402_wallet', requestId += 1),
-    });
-    assert.equal(failedPromotion.status, 503);
-    assert.equal(seedBodies.length, 1);
-
-    const promoted = await sessionRequest(fixture.mcpUrl, {
-      sessionId: transport.sessionId,
-      bearer: token,
-      body: toolCallBody('x402_wallet', requestId += 1),
-    });
-    assert.equal(promoted.status, 200);
-    assert.equal(seedBodies.length, 2);
-    assert.equal(seedBodies[1].mcp_session_id, transport.sessionId);
-
-    const publicAfterPromotion = await sessionRequest(fixture.mcpUrl, {
-      sessionId: transport.sessionId,
-      body: toolCallBody('x402_search', requestId += 1, { query: 'weather data' }),
-    });
-    assert.equal(publicAfterPromotion.status, 200);
-    const publicWithForeignBearer = await sessionRequest(fixture.mcpUrl, {
-      sessionId: transport.sessionId,
-      bearer: foreignToken,
-      body: toolCallBody('x402_search', requestId += 1, { query: 'weather data' }),
-    });
-    assert.equal(publicWithForeignBearer.status, 200);
-    assert.equal(seedBodies.length, 2, 'public search re-bound the promoted session');
-
-    seedUnavailable = true;
-    const listDuringSeedOutage = await sessionRequest(fixture.mcpUrl, {
-      sessionId: transport.sessionId,
-      bearer: refreshedToken,
-    });
-    assert.equal(listDuringSeedOutage.status, 200);
-    const publicDuringSeedOutage = await sessionRequest(fixture.mcpUrl, {
-      sessionId: transport.sessionId,
-      bearer: refreshedToken,
-      body: toolCallBody('x402_search', requestId += 1, { query: 'weather data' }),
-    });
-    assert.equal(publicDuringSeedOutage.status, 200);
-    assert.equal(seedBodies.length, 2, 'public search touched the OAuth seed API');
-    const protectedDuringSeedOutage = await sessionRequest(fixture.mcpUrl, {
-      sessionId: transport.sessionId,
-      bearer: refreshedToken,
-      body: toolCallBody('x402_wallet', requestId += 1),
-    });
-    assert.equal(protectedDuringSeedOutage.status, 503);
-    assert.equal(seedBodies.length, 3);
-    seedUnavailable = false;
-
-    const protectedWithoutBearer = await sessionRequest(fixture.mcpUrl, {
-      sessionId: transport.sessionId,
-      body: toolCallBody('x402_wallet', requestId += 1),
-    });
-    assert.equal(protectedWithoutBearer.status, 401);
-    assert.equal(
-      protectedWithoutBearer.headers.get('www-authenticate'),
-      VAULT_WWW_AUTHENTICATE,
-    );
-
-    const foreign = await sessionRequest(fixture.mcpUrl, {
-      sessionId: transport.sessionId,
-      bearer: foreignToken,
-      body: toolCallBody('x402_wallet', requestId += 1),
-    });
-    assert.equal(foreign.status, 401);
-    assert.match(foreign.headers.get('www-authenticate') || '', /error="invalid_token"/);
-
-    const refreshed = await sessionRequest(fixture.mcpUrl, {
-      sessionId: transport.sessionId,
-      bearer: refreshedToken,
-      body: toolCallBody('x402_wallet', requestId += 1),
-    });
-    assert.equal(refreshed.status, 200);
-    assert.equal(seedBodies.length, 4);
-
-    activeBearer = refreshedToken;
-  } finally {
-    await closeClient(client);
-    await stopChild(fixture.child);
-    await closeServer(fixture.dependencyServer);
-  }
-});
-
-test('canonical /mcp authenticates and seeds protected sessions, then pins one OAuth identity', async () => {
+test('canonical /mcp authenticates and seeds before initialize, then pins one OAuth identity', async () => {
   const { privateKey, publicKey } = await generateKeyPair('ES256');
   const publicJwk = await exportJWK(publicKey);
   Object.assign(publicJwk, { alg: 'ES256', kid: 'auth-first-runtime', use: 'sig' });
@@ -622,10 +347,7 @@ test('canonical /mcp authenticates and seeds protected sessions, then pins one O
   try {
     const health = await fetch(`${fixture.origin}/health`);
     assert.equal(health.status, 200);
-    const healthBody = await health.json();
-    assert.equal(healthBody.auth, 'mixed');
-    assert.equal(healthBody.toolAuth, 'per-tool');
-    assert.deepEqual(healthBody.publicTools, ['x402_search']);
+    assert.equal((await health.json()).auth, 'required');
 
     const preflight = await fetch(fixture.mcpUrl, { method: 'OPTIONS' });
     assert.equal(preflight.status, 204);
@@ -653,20 +375,25 @@ test('canonical /mcp authenticates and seeds protected sessions, then pins one O
     );
 
     const missing = await initializeRequest(fixture.mcpUrl);
-    assert.equal(missing.status, 200);
-    assert.equal(missing.headers.get('www-authenticate'), null);
-    assert.ok(missing.headers.get('mcp-session-id'));
+    assert.equal(missing.status, 401);
+    assert.equal(missing.headers.get('www-authenticate'), VAULT_WWW_AUTHENTICATE);
     assert.equal(seedBodies.length, 0);
 
     const invalid = await initializeRequest(fixture.mcpUrl, { bearer: 'invalid-token' });
-    assert.equal(invalid.status, 200);
-    assert.equal(invalid.headers.get('www-authenticate'), null);
+    assert.equal(invalid.status, 401);
+    assert.equal(
+      invalid.headers.get('www-authenticate'),
+      buildVaultWwwAuthenticate({
+        error: 'invalid_token',
+        errorDescription: 'Connect OpenDexter with a valid vault authorization to continue',
+      }),
+    );
     assert.equal((await initializeRequest(fixture.mcpUrl, {
       bearer: wrongAudienceToken,
-    })).status, 200);
+    })).status, 401);
     assert.equal((await initializeRequest(fixture.mcpUrl, {
       bearer: insufficientScopeToken,
-    })).status, 200);
+    })).status, 403);
     assert.equal(seedBodies.length, 0);
 
     const badAccept = await initializeRequest(fixture.mcpUrl, {
@@ -687,54 +414,37 @@ test('canonical /mcp authenticates and seeds protected sessions, then pins one O
     assert.equal(malformed.status, 400);
     assert.equal(seedBodies.length, 0);
 
-    const promotionSessionId = missing.headers.get('mcp-session-id');
-    assert.ok(promotionSessionId);
-    let promotionRequestId = 200;
-    const seedRevoked = await sessionRequest(fixture.mcpUrl, {
-      sessionId: promotionSessionId,
+    const seedRevoked = await initializeRequest(fixture.mcpUrl, {
       bearer: seedRevokedToken,
-      body: toolCallBody('x402_wallet', promotionRequestId += 1),
     });
     assert.equal(seedRevoked.status, 401);
     assert.match(seedRevoked.headers.get('www-authenticate') || '', /error="invalid_token"/);
+    assert.equal(seedRevoked.headers.get('mcp-session-id'), null);
     assert.equal(seedBodies.length, 1);
 
-    const seedFailure = await sessionRequest(fixture.mcpUrl, {
-      sessionId: promotionSessionId,
+    const seedFailure = await initializeRequest(fixture.mcpUrl, {
       bearer: seedFailureToken,
-      body: toolCallBody('x402_wallet', promotionRequestId += 1),
     });
     assert.equal(seedFailure.status, 503);
     assert.equal(seedFailure.headers.get('retry-after'), '1');
+    assert.equal(seedFailure.headers.get('mcp-session-id'), null);
     assert.equal(seedBodies.length, 2);
 
-    const malformedSeed = await sessionRequest(fixture.mcpUrl, {
-      sessionId: promotionSessionId,
+    const malformedSeed = await initializeRequest(fixture.mcpUrl, {
       bearer: seedMalformedToken,
-      body: toolCallBody('x402_wallet', promotionRequestId += 1),
     });
     assert.equal(malformedSeed.status, 503);
     assert.equal(malformedSeed.headers.get('retry-after'), '1');
+    assert.equal(malformedSeed.headers.get('mcp-session-id'), null);
     assert.equal(seedBodies.length, 3);
 
-    const mismatchedSeed = await sessionRequest(fixture.mcpUrl, {
-      sessionId: promotionSessionId,
+    const mismatchedSeed = await initializeRequest(fixture.mcpUrl, {
       bearer: seedIdentityMismatchToken,
-      body: toolCallBody('x402_wallet', promotionRequestId += 1),
     });
     assert.equal(mismatchedSeed.status, 401);
     assert.match(mismatchedSeed.headers.get('www-authenticate') || '', /error="invalid_token"/);
+    assert.equal(mismatchedSeed.headers.get('mcp-session-id'), null);
     assert.equal(seedBodies.length, 4);
-    const anonymousGet = await sessionRequest(fixture.mcpUrl, {
-      sessionId: promotionSessionId,
-      method: 'GET',
-    });
-    assert.equal(anonymousGet.status, 200);
-    await anonymousGet.body?.cancel();
-    assert.equal((await sessionRequest(fixture.mcpUrl, {
-      sessionId: promotionSessionId,
-      method: 'DELETE',
-    })).status, 200, 'failed promotion left the anonymous session pinned');
 
     let activeBearer = token;
     const transport = new StreamableHTTPClientTransport(fixture.mcpUrl, {
@@ -746,23 +456,17 @@ test('canonical /mcp authenticates and seeds protected sessions, then pins one O
     });
     client = new Client({ name: 'auth-first-runtime-client', version: '1.0.0' });
     await client.connect(transport);
-    assert.equal(successfulSeedFinished, false, 'public initialize touched oauth-seed');
+    assert.equal(successfulSeedFinished, true, 'initialize returned before oauth-seed completed');
     assert.ok(transport.sessionId);
     let seedCountBeforeRequest = seedBodies.length;
     assert.deepEqual(
       (await client.listTools()).tools.map(({ name }) => name),
       OPEN_TOOL_NAMES,
     );
-    assert.equal(seedBodies.length, seedCountBeforeRequest, 'tools/list touched oauth-seed');
-
-    const initialProtected = await sessionRequest(fixture.mcpUrl, {
-      sessionId: transport.sessionId,
-      bearer: token,
-      body: toolCallBody('x402_wallet', promotionRequestId += 1),
-    });
-    assert.equal(initialProtected.status, 200);
-    assert.equal(successfulSeedFinished, true, 'protected request returned before oauth-seed completed');
-    assert.equal(seedBodies.length, seedCountBeforeRequest + 1);
+    assert.ok(
+      seedBodies.length >= seedCountBeforeRequest + 1,
+      'initial established requests skipped OAuth provenance validation',
+    );
     assert.deepEqual(oauthBindingProvenance, {
       sessionId: transport.sessionId,
       userHandle: 'runtime-user',
@@ -775,13 +479,6 @@ test('canonical /mcp authenticates and seeds protected sessions, then pins one O
       (await client.listTools()).tools.map(({ name }) => name),
       OPEN_TOOL_NAMES,
     );
-    assert.equal(seedBodies.length, seedCountBeforeRequest, 'tools/list re-seeded OAuth');
-    const refreshedProtected = await sessionRequest(fixture.mcpUrl, {
-      sessionId: transport.sessionId,
-      bearer: refreshedToken,
-      body: toolCallBody('x402_wallet', promotionRequestId += 1),
-    });
-    assert.equal(refreshedProtected.status, 200);
     assert.equal(
       seedBodies.length,
       seedCountBeforeRequest + 1,
@@ -793,19 +490,17 @@ test('canonical /mcp authenticates and seeds protected sessions, then pins one O
     const verifierOutage = await sessionRequest(fixture.mcpUrl, {
       sessionId: transport.sessionId,
       bearer: refreshedToken,
-      body: toolCallBody('x402_wallet', promotionRequestId += 1),
     });
     assert.equal(verifierOutage.status, 503);
     assert.equal(verifierOutage.headers.get('retry-after'), '1');
     assert.equal(seedBodies.length, seedCountBeforeRequest);
     jwksAvailable = true;
     seedCountBeforeRequest = seedBodies.length;
-    const afterVerifierOutage = await sessionRequest(fixture.mcpUrl, {
-      sessionId: transport.sessionId,
-      bearer: refreshedToken,
-      body: toolCallBody('x402_wallet', promotionRequestId += 1),
-    });
-    assert.equal(afterVerifierOutage.status, 200, 'JWKS outage damaged the original session');
+    assert.deepEqual(
+      (await client.listTools()).tools.map(({ name }) => name),
+      OPEN_TOOL_NAMES,
+      'JWKS outage damaged the original session',
+    );
     assert.equal(seedBodies.length, seedCountBeforeRequest + 1);
 
     oauthBindingProvenance = {
@@ -814,12 +509,11 @@ test('canonical /mcp authenticates and seeds protected sessions, then pins one O
       tokenScoped: false,
     };
     seedCountBeforeRequest = seedBodies.length;
-    const repairedProvenance = await sessionRequest(fixture.mcpUrl, {
-      sessionId: transport.sessionId,
-      bearer: refreshedToken,
-      body: toolCallBody('x402_wallet', promotionRequestId += 1),
-    });
-    assert.equal(repairedProvenance.status, 200, 'null-provenance overwrite was not repaired');
+    assert.deepEqual(
+      (await client.listTools()).tools.map(({ name }) => name),
+      OPEN_TOOL_NAMES,
+      'null-provenance overwrite was not repaired',
+    );
     assert.equal(seedBodies.length, seedCountBeforeRequest + 1);
     assert.equal(oauthBindingProvenance.userHandle, 'runtime-user');
     assert.equal(oauthBindingProvenance.tokenScoped, true);
@@ -829,7 +523,6 @@ test('canonical /mcp authenticates and seeds protected sessions, then pins one O
     const transientReseedFailure = await sessionRequest(fixture.mcpUrl, {
       sessionId: transport.sessionId,
       bearer: refreshedToken,
-      body: toolCallBody('x402_wallet', promotionRequestId += 1),
     });
     assert.equal(transientReseedFailure.status, 503);
     assert.equal(transientReseedFailure.headers.get('retry-after'), '1');
@@ -840,7 +533,6 @@ test('canonical /mcp authenticates and seeds protected sessions, then pins one O
     const networkSeedFailure = await sessionRequest(fixture.mcpUrl, {
       sessionId: transport.sessionId,
       bearer: refreshedToken,
-      body: toolCallBody('x402_wallet', promotionRequestId += 1),
     });
     assert.equal(networkSeedFailure.status, 503);
     assert.equal(networkSeedFailure.headers.get('retry-after'), '1');
@@ -851,7 +543,6 @@ test('canonical /mcp authenticates and seeds protected sessions, then pins one O
     const malformedEstablished = await sessionRequest(fixture.mcpUrl, {
       sessionId: transport.sessionId,
       bearer: refreshedToken,
-      body: toolCallBody('x402_wallet', promotionRequestId += 1),
     });
     assert.equal(malformedEstablished.status, 503);
     assert.equal(malformedEstablished.headers.get('retry-after'), '1');
@@ -862,7 +553,6 @@ test('canonical /mcp authenticates and seeds protected sessions, then pins one O
     const returnedIdentityMismatch = await sessionRequest(fixture.mcpUrl, {
       sessionId: transport.sessionId,
       bearer: refreshedToken,
-      body: toolCallBody('x402_wallet', promotionRequestId += 1),
     });
     assert.equal(returnedIdentityMismatch.status, 401);
     assert.match(
@@ -879,9 +569,6 @@ test('canonical /mcp authenticates and seeds protected sessions, then pins one O
         sessionId: transport.sessionId,
         bearer: refreshedToken,
         method,
-        ...(method === 'POST'
-          ? { body: toolCallBody('x402_wallet', promotionRequestId += 1) }
-          : {}),
       });
       assert.equal(revokedEstablished.status, 401, method);
       assert.match(
@@ -893,12 +580,11 @@ test('canonical /mcp authenticates and seeds protected sessions, then pins one O
 
     establishedSeedMode = 'normal';
     seedCountBeforeRequest = seedBodies.length;
-    const afterReseedFailures = await sessionRequest(fixture.mcpUrl, {
-      sessionId: transport.sessionId,
-      bearer: refreshedToken,
-      body: toolCallBody('x402_wallet', promotionRequestId += 1),
-    });
-    assert.equal(afterReseedFailures.status, 200, 'reseed failures damaged the original session');
+    assert.deepEqual(
+      (await client.listTools()).tools.map(({ name }) => name),
+      OPEN_TOOL_NAMES,
+      'reseed failures damaged the original session',
+    );
     assert.equal(seedBodies.length, seedCountBeforeRequest + 1);
     assert.equal(oauthBindingProvenance.tokenScoped, true);
 
@@ -906,18 +592,16 @@ test('canonical /mcp authenticates and seeds protected sessions, then pins one O
     const identitySwitch = await sessionRequest(fixture.mcpUrl, {
       sessionId: transport.sessionId,
       bearer: foreignToken,
-      body: toolCallBody('x402_wallet', promotionRequestId += 1),
     });
     assert.equal(identitySwitch.status, 401);
     assert.match(identitySwitch.headers.get('www-authenticate') || '', /error="invalid_token"/);
     assert.equal(seedBodies.length, seedCountBeforeRequest);
     seedCountBeforeRequest = seedBodies.length;
-    const afterIdentitySwitch = await sessionRequest(fixture.mcpUrl, {
-      sessionId: transport.sessionId,
-      bearer: refreshedToken,
-      body: toolCallBody('x402_wallet', promotionRequestId += 1),
-    });
-    assert.equal(afterIdentitySwitch.status, 200, 'foreign identity damaged the original session');
+    assert.deepEqual(
+      (await client.listTools()).tools.map(({ name }) => name),
+      OPEN_TOOL_NAMES,
+      'foreign identity damaged the original session',
+    );
     assert.equal(seedBodies.length, seedCountBeforeRequest + 1);
 
     const linkOnOAuthSession = await sessionRequest(
@@ -927,32 +611,12 @@ test('canonical /mcp authenticates and seeds protected sessions, then pins one O
     assert.equal(linkOnOAuthSession.status, 401);
     assert.equal(linkBindCalls, 0, 'link mode-switch attempt created a durable binding');
 
-    const publicListWithoutBearer = await sessionRequest(fixture.mcpUrl, {
-      sessionId: transport.sessionId,
-    });
-    assert.equal(publicListWithoutBearer.status, 200);
-    for (const method of ['GET', 'DELETE']) {
+    for (const method of ['POST', 'GET', 'DELETE']) {
       const noBearer = await sessionRequest(fixture.mcpUrl, {
         sessionId: transport.sessionId,
         method,
       });
       assert.equal(noBearer.status, 401, method);
-      const invalidBearer = await sessionRequest(fixture.mcpUrl, {
-        sessionId: transport.sessionId,
-        bearer: 'invalid-token',
-        method,
-      });
-      assert.equal(invalidBearer.status, 401, `invalid ${method}`);
-      assert.match(
-        invalidBearer.headers.get('www-authenticate') || '',
-        /error="invalid_token"/,
-      );
-      const foreignBearer = await sessionRequest(fixture.mcpUrl, {
-        sessionId: transport.sessionId,
-        bearer: foreignToken,
-        method,
-      });
-      assert.equal(foreignBearer.status, 401, `foreign ${method}`);
     }
     assert.deepEqual(
       (await client.listTools()).tools.map(({ name }) => name),
@@ -963,7 +627,7 @@ test('canonical /mcp authenticates and seeds protected sessions, then pins one O
     const unknownSession = '00000000-0000-4000-8000-000000000000';
     assert.equal((await sessionRequest(fixture.mcpUrl, {
       sessionId: unknownSession,
-    })).status, 404);
+    })).status, 401, 'session existence leaked before OAuth verification');
     assert.equal((await sessionRequest(fixture.mcpUrl, {
       sessionId: unknownSession,
       bearer: refreshedToken,

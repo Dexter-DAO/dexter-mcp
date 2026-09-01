@@ -16,15 +16,15 @@
     },
     "integratedApiRelease": {
       "repository": "https://github.com/Dexter-DAO/dexter-api",
-      "commit": "bf88ee8fb802ca92bf573db4ebedbab864cc20f0",
-      "tree": "d92caf4f7640d18bfc7a06f8daa9b047ecd51d21",
+      "commit": "ea449556536253eaeb1fa1d21dd57c91d39d7ad9",
+      "tree": "bf5c33ff67632d1377d884a578dddd46bac9deba",
       "governedContractCommit": "fa0701b67625911b8ec97a5399f62ec97a69f976",
       "governedContractTree": "dcee95df1d92018b8fcd8b43645fe63211383274"
     },
     "portfolioProjection": {
       "repository": "https://github.com/Dexter-DAO/dexter-api",
-      "commit": "bf88ee8fb802ca92bf573db4ebedbab864cc20f0",
-      "tree": "d92caf4f7640d18bfc7a06f8daa9b047ecd51d21",
+      "commit": "ea449556536253eaeb1fa1d21dd57c91d39d7ad9",
+      "tree": "bf5c33ff67632d1377d884a578dddd46bac9deba",
       "sourcePaths": [
         "src/portfolio/approvedActionTargets.ts",
         "src/routes/passkeyMcpBinding.ts",
@@ -39,8 +39,8 @@
     },
     "facilitator": {
       "repository": "https://github.com/Dexter-DAO/dexter-facilitator",
-      "commit": "c4cfe89d5e258611ae643b864437d7a1baf3dc68",
-      "tree": "399c2a1e885ee1d8e827eb7262661a25d1d2b0c0",
+      "commit": "fa9cc28c5989d743ef3cdef4bdc86a442b51f4f1",
+      "tree": "b787d12375014f132acad5f2a56fb669e7ad6b0a",
       "bindingFixture": {
         "consumerPath": "tests/fixtures/governed-agent-trade-api-facilitator-binding-v1.json",
         "apiPath": "tests/fixtures/governed-agent-trade-api-facilitator-binding-v1.json",
@@ -57,7 +57,7 @@
     }
   },
   "oauth": {
-    "mode": "mixed",
+    "mode": "required",
     "resource": "https://open.dexter.cash/mcp",
     "protectedResourceMetadata": "https://open.dexter.cash/.well-known/oauth-protected-resource/mcp",
     "protectedResourcePaths": [
@@ -75,10 +75,9 @@
       "scope"
     ]
   },
-  "anonymousToolNames": [
-    "x402_search"
-  ],
+  "anonymousToolNames": [],
   "oauthPromotedToolNames": [
+    "x402_search",
     "x402_check",
     "x402_fetch",
     "x402_status",
@@ -481,7 +480,10 @@
       },
       "securitySchemes": [
         {
-          "type": "noauth"
+          "type": "oauth2",
+          "scopes": [
+            "vault"
+          ]
         }
       ],
       "_meta": {
@@ -531,7 +533,10 @@
         "openai/widgetDescription": "Shows paid API search results as interactive cards with quality rings, prices, and fetch buttons.",
         "securitySchemes": [
           {
-            "type": "noauth"
+            "type": "oauth2",
+            "scopes": [
+              "vault"
+            ]
           }
         ]
       }

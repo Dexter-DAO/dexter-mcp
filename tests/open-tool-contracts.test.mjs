@@ -1004,7 +1004,7 @@ test('real SDK clients receive governed refusal, auth, and local failures as tex
   }
 });
 
-test('real SDK tools/list exposes executable schemas, per-tool auth, annotations, and metadata', async (t) => {
+test('real SDK tools/list exposes executable schemas, OAuth, annotations, and metadata', async (t) => {
   const server = new McpServer({ name: 'contract-test', version: '0.2.0' });
   installOpenToolContracts(server);
   for (const name of EXPECTED_TOOLS) {
@@ -1182,7 +1182,7 @@ for (const clientName of ['Generic MCP', 'ChatGPT', 'Claude']) {
   });
 }
 
-test('mixed-auth hosted discovery retains the full roster and per-tool schemes', async () => {
+test('vault-bound hosted discovery retains the exact protected roster', async () => {
   const { createOpenMcpServer } = await import('../open-mcp-server.mjs');
   for (const phase of ['fresh', 'refreshed']) {
     const server = createOpenMcpServer({
@@ -1260,14 +1260,12 @@ test('mixed-auth hosted discovery retains the full roster and per-tool schemes',
         false,
         `${phase}:no caller-derived quantity atoms`,
       );
-      for (const name of OPEN_TOOL_NAMES) {
-        const tool = listed.find((candidate) => candidate.name === name);
+      for (const protectedName of ['x402_fetch', 'x402_status']) {
+        const tool = listed.find(({ name }) => name === protectedName);
         assert.deepEqual(
           tool?._meta?.securitySchemes,
-          name === 'x402_search'
-            ? [{ type: 'noauth' }]
-            : [{ type: 'oauth2', scopes: ['vault'] }],
-          `${phase}:${name}`,
+          [{ type: 'oauth2', scopes: ['vault'] }],
+          `${phase}:${protectedName}`,
         );
       }
     } finally {
@@ -1275,19 +1273,17 @@ test('mixed-auth hosted discovery retains the full roster and per-tool schemes',
       await server.close();
     }
   }
-  assert.deepEqual(OPEN_ANONYMOUS_TOOL_NAMES, ['x402_search']);
-  assert.deepEqual(OPEN_OAUTH_PROMOTED_TOOL_NAMES, OPEN_TOOL_NAMES.slice(1));
+  assert.deepEqual(OPEN_ANONYMOUS_TOOL_NAMES, []);
+  assert.deepEqual(OPEN_OAUTH_PROMOTED_TOOL_NAMES, OPEN_TOOL_NAMES);
 });
 
-test('the contract exposes public search and protects the other eleven tools', () => {
-  assert.deepEqual(OPEN_ANONYMOUS_TOOL_NAMES, ['x402_search']);
-  assert.deepEqual(OPEN_OAUTH_PROMOTED_TOOL_NAMES, OPEN_TOOL_NAMES.slice(1));
+test('the contract exposes zero tools anonymously and all twelve after OAuth', () => {
+  assert.deepEqual(OPEN_ANONYMOUS_TOOL_NAMES, []);
+  assert.deepEqual(OPEN_OAUTH_PROMOTED_TOOL_NAMES, OPEN_TOOL_NAMES);
   for (const name of OPEN_TOOL_NAMES) {
     assert.deepEqual(
       OPEN_TOOL_CONTRACTS[name].securitySchemes,
-      name === 'x402_search'
-        ? [{ type: 'noauth' }]
-        : [{ type: 'oauth2', scopes: ['vault'] }],
+      [{ type: 'oauth2', scopes: ['vault'] }],
       name,
     );
   }

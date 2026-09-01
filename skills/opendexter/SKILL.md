@@ -1,6 +1,6 @@
 ---
 name: opendexter
-description: "Use hosted OpenDexter to discover services publicly, then create and inspect opaque purchase intents, call approved paid or wallet-gated resources, and read the session-bound Dexter Wallet and governed portfolio after native authorization."
+description: "Use hosted OpenDexter through one authorized connection to discover services, create and inspect opaque purchase intents, call approved paid or wallet-gated resources, and read the session-bound Dexter Wallet and governed portfolio."
 ---
 
 # OpenDexter
@@ -23,24 +23,25 @@ actually ship.
 
 ## Product tools
 
-The canonical connection exposes all twelve tools. `x402_search` works before
-sign-in. Invoking any other tool starts host-native OAuth when the connection
-does not yet have a wallet authorization.
+OpenDexter requires host-native OAuth before tool discovery or use. One
+successful authorization exposes all twelve tools on the same canonical
+connection and covers discovery, search, wallet, portfolio, identity-gated
+access, payment, and governed actions.
 
-| Intent | Tool | Authorization |
-| --- | --- | --- |
-| Discover a service or resource | `x402_search` | Public |
-| Custody an exact endpoint request and current quote | `x402_check` | Wallet session |
-| Call one approved, API-custodied intent | `x402_fetch` | Wallet session |
-| Inspect one intent without redispatch | `x402_status` | Wallet session |
-| Use wallet-proof or Sign-In-With-X access | `x402_access` | Wallet session |
-| Read wallet readiness, cash, reported credit capacity, deposit address, and activity | `x402_wallet` | Wallet session |
-| Read governed assets and currently allowed actions | `dexter_portfolio` | Wallet session |
-| Prepare an exact governed Send, Buy, or Sell | `dexter_prepare_asset_action` | Wallet session |
-| Execute one prepared governed intent | `dexter_execute_asset_action` | Wallet session |
-| Read durable governed intent status | `dexter_asset_action_status` | Wallet session |
-| Request same-intent reconciliation | `dexter_reconcile_asset_action` | Wallet session |
-| Read governed Send, Buy, and Sell history | `dexter_wallet_history` | Wallet session |
+| Intent | Tool |
+| --- | --- |
+| Discover a service or resource | `x402_search` |
+| Custody an exact endpoint request and current quote | `x402_check` |
+| Call one approved, API-custodied intent | `x402_fetch` |
+| Inspect one intent without redispatch | `x402_status` |
+| Use wallet-proof or Sign-In-With-X access | `x402_access` |
+| Read wallet readiness, cash, reported credit capacity, deposit address, and activity | `x402_wallet` |
+| Read governed assets and currently allowed actions | `dexter_portfolio` |
+| Prepare an exact governed Send, Buy, or Sell | `dexter_prepare_asset_action` |
+| Execute one prepared governed intent | `dexter_execute_asset_action` |
+| Read durable governed intent status | `dexter_asset_action_status` |
+| Request same-intent reconciliation | `dexter_reconcile_asset_action` |
+| Read governed Send, Buy, and Sell history | `dexter_wallet_history` |
 
 Deprecated compatibility and internal diagnostic endpoints are not user-facing
 product tools. Do not select them for a new request.

@@ -4,11 +4,10 @@ import './instrument.open-mcp.mjs';
 /**
  * Dexter Open MCP Server — x402 Gateway
  *
- * Public x402 gateway (see ALL_TOOLS for the full roster). Marketplace search
- * works before sign-in. Exact checks, access, wallet, portfolio, payment,
- * status, and governed actions challenge into Dexter vault OAuth only when
- * invoked (RFC 9728 PRM at /.well-known/oauth-protected-resource[/mcp]).
- * Already-issued durable-link connectors retain their labeled credential.
+ * Hosted x402 gateway (see ALL_TOOLS for the full roster). The advertised
+ * canonical MCP resource requires Dexter vault OAuth before initialization
+ * (RFC 9728 PRM at /.well-known/oauth-protected-resource[/mcp]). Already-issued
+ * durable-link connectors retain their explicitly labeled legacy credential.
  *
  * Deployed independently from the private MCP server (http-server-oauth.mjs).
  * The processes share no in-memory state or sessions.
@@ -116,7 +115,6 @@ import {
   assertOpenToolAuthPolicyCoverage,
   buildVaultAuthenticationRequired,
   buildVaultWwwAuthenticate,
-  findVaultProtectedToolCall,
   installCanonicalSecuritySchemeProjection,
   isOpenMcpProtectedResourceMetadataPath,
   isVaultAuthenticationRequired,
@@ -126,7 +124,6 @@ import {
   vaultAuthenticationResult,
 } from './lib/open-tool-auth.mjs';
 import {
-  OPEN_ANONYMOUS_TOOL_NAMES,
   OPEN_TOOL_NAMES,
   finalizeOpenToolContracts,
   installOpenToolContracts,
@@ -2559,18 +2556,13 @@ async function seedOAuthVaultBinding(token, payload, identity, sessionId) {
         return { ok: false, transient: true, reason: 'malformed_success' };
       }
       // The seed response may only make the already-pinned OAuth identity
-      // routable. It must never replace the session's identity. Anonymous
-      // sessions are pinned only after this response is fully validated so a
-      // failed first promotion cannot strand them on an unusable identity.
-      const identityStatus = oauthVaultIdentityStatus(
-        sessionMeta.get(sessionId),
-        identity,
-      );
-      if (identityStatus === 'mismatch' || userHandle !== identity.subject) {
+      // routable. It must never replace the session's identity.
+      if (
+        oauthVaultIdentityStatus(sessionMeta.get(sessionId), identity)
+        !== 'match'
+        || userHandle !== identity.subject
+      ) {
         return { ok: false, transient: false, reason: 'identity_mismatch' };
-      }
-      if (identityStatus === 'unpinned') {
-        pinSessionOAuthIdentity(sessionId, identity);
       }
       markSessionVaultBound(sessionId, VAULT_AUTH_MODE_OAUTH);
       console.log(
@@ -2868,9 +2860,9 @@ const httpServer = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
 
   // Already-issued personal connectors retain their explicit legacy
-  // credential rail. Protected calls on the advertised canonical endpoint use
-  // vault OAuth. A link token is validated and bound synchronously before
-  // initialization; it is never treated as a Bearer or allowed to change modes.
+  // credential rail. The advertised canonical endpoint uses vault OAuth.
+  // A link token is validated and bound synchronously before initialization;
+  // it is never treated as an OAuth Bearer or allowed to change auth modes.
   let pathname = url.pathname;
   let linkToken = null;
   const pathTokenMatch = pathname.match(/^\/mcp\/(dlt_[0-9a-f]{48})\/?$/);
@@ -2893,9 +2885,8 @@ const httpServer = http.createServer(async (req, res) => {
       service: 'dexter-open-mcp',
       port: PORT,
       tools: ALL_TOOLS,
-      auth: 'mixed',
-      toolAuth: 'per-tool',
-      publicTools: OPEN_ANONYMOUS_TOOL_NAMES,
+      auth: 'required',
+      toolAuth: 'oauth2',
       walletAndPaymentScope: 'vault',
       sessions: transports.size,
       boundSessions: [...sessionMeta.values()].filter(isAnyIdentityBound).length,
@@ -3097,7 +3088,7 @@ const httpServer = http.createServer(async (req, res) => {
   }
 
   // A normal browser visit stays public. MCP traffic has one canonical
-  // endpoint; its protected calls authenticate after request classification.
+  // endpoint and authenticates below before any session lookup.
   const acceptsHtml = String(req.headers.accept || '').includes('text/html');
   const requestSessionId = typeof req.headers['mcp-session-id'] === 'string'
     ? req.headers['mcp-session-id'].trim()
@@ -3121,67 +3112,13 @@ const httpServer = http.createServer(async (req, res) => {
 
   const requestedMcpResource = OPEN_MCP_VAULT_AUDIENCE;
 
-  // The OAuth decision is per tool, so inspect established canonical POSTs
-  // before touching JWKS or the vault-binding API. A client may attach an
-  // expired Bearer to every request; that credential must not make initialize,
-  // tools/list, or public x402_search depend on authorization infrastructure.
-  let hasPreparedEstablishedPost = false;
-  let preparedEstablishedPostBody = null;
-  let preparedProtectedCall = null;
-  if (
-    !linkToken
-    && req.method === 'POST'
-    && requestSessionId
-    && transports.has(requestSessionId)
-  ) {
-    let rawBody;
-    try {
-      rawBody = await readRequestBody(req);
-    } catch (err) {
-      writeParseError(res, err);
-      return;
-    }
-    try {
-      preparedEstablishedPostBody = JSON.parse(rawBody);
-    } catch (err) {
-      writeParseError(res, err);
-      return;
-    }
-    const bridged = legacyIntentBridge.rewriteLegacy(preparedEstablishedPostBody, {
-      identity: oauthVaultIdentityOf(sessionMeta.get(requestSessionId)),
-      sessionId: requestSessionId,
-    });
-    preparedEstablishedPostBody = bridged.body;
-    preparedProtectedCall = findVaultProtectedToolCall(preparedEstablishedPostBody);
-    hasPreparedEstablishedPost = true;
-    if (bridged.rewritten) {
-      console.log(
-        `[open-mcp] translated retired x402_fetch schema `
-        + `sessionRef=${logRef(requestSessionId)} intentRef=${logRef(bridged.intentId)}`,
-      );
-    }
-  }
-
-  const establishedMeta = requestSessionId && transports.has(requestSessionId)
-    ? sessionMeta.get(requestSessionId)
-    : null;
-  const oauthVerificationRequired = Boolean(
-    establishedMeta
-    && (
-      (req.method === 'POST' && preparedProtectedCall)
-      || (req.method !== 'POST' && establishedMeta.vaultAuthMode === VAULT_AUTH_MODE_OAUTH)
-    )
-  );
-
-  // Canonical requests can initialize anonymously for public marketplace
-  // search. Dexter ES256 vault OAuth and already-issued legacy link tokens are
-  // verified before they can promote that connection into protected tools. A
-  // link token needs an MCP session id for its fail-closed bind endpoint, so a
-  // fresh link initialization validates it against a preallocated id below.
+  // Canonical requests use one of two explicit authorization rails:
+  // Dexter ES256 vault OAuth, or an already-issued legacy link token. OAuth
+  // verification happens before session existence checks. A link token needs
+  // an MCP session id for its existing fail-closed bind endpoint, so fresh
+  // initialization validates it against a preallocated id below.
   let oauthAuthorization = null;
-  let oauthVerificationFailure = null;
   let linkAuthorization = null;
-  const bearer = linkToken ? '' : extractBearer(req);
   if (linkToken) {
     const presentedLinkRef = linkSessionCredentialRef(linkToken);
     let linkSessionId = null;
@@ -3258,20 +3195,21 @@ const httpServer = http.createServer(async (req, res) => {
       provisionalSessionId: linkSessionId,
       presentedLinkRef,
     };
-  } else if (bearer && oauthVerificationRequired) {
+  } else {
+    const bearer = extractBearer(req);
     const verification = await verifyOpenVaultBearer(bearer, {
       verificationKey: DEXTER_JWKS,
       audience: OPEN_MCP_VAULT_AUDIENCE,
     });
     if (!verification.ok) {
       if (verification.reason === 'verification_unavailable') {
-        writeAuthorizationUnavailable(res, preparedProtectedCall?.id ?? null);
+        writeAuthorizationUnavailable(res);
         return;
       }
-      oauthVerificationFailure = verification;
-    } else {
-      oauthAuthorization = { bearer, verification };
+      writeVaultChallenge(res, oauthChallengeForVerification(verification));
+      return;
     }
+    oauthAuthorization = { bearer, verification };
   }
 
   // A session belongs permanently to the exact MCP resource that initialized
@@ -3306,7 +3244,7 @@ const httpServer = http.createServer(async (req, res) => {
         });
         return;
       }
-    } else if (oauthAuthorization) {
+    } else {
       if (meta?.vaultAuthMode && meta.vaultAuthMode !== VAULT_AUTH_MODE_OAUTH) {
         writeVaultChallenge(res, {
           error: 'invalid_token',
@@ -3324,6 +3262,9 @@ const httpServer = http.createServer(async (req, res) => {
         });
         return;
       }
+      if (identityStatus === 'unpinned') {
+        pinSessionOAuthIdentity(requestSessionId, verification.identity);
+      }
       const seedResult = await seedOAuthVaultBinding(
         bearer,
         verification.payload,
@@ -3331,26 +3272,9 @@ const httpServer = http.createServer(async (req, res) => {
         requestSessionId,
       );
       if (!seedResult.ok) {
-        writeOAuthSeedFailure(res, seedResult, preparedProtectedCall?.id ?? null);
+        writeOAuthSeedFailure(res, seedResult);
         return;
       }
-    } else if (meta?.vaultAuthMode === VAULT_AUTH_MODE_LINK_TOKEN) {
-      writeVaultChallenge(res, {
-        error: 'invalid_token',
-        errorDescription: 'This OpenDexter session requires its original authorization; connect again',
-      });
-      return;
-    } else if (
-      meta?.vaultAuthMode === VAULT_AUTH_MODE_OAUTH
-      && req.method !== 'POST'
-    ) {
-      writeVaultChallenge(
-        res,
-        oauthVerificationFailure
-          ? oauthChallengeForVerification(oauthVerificationFailure)
-          : {},
-      );
-      return;
     }
   }
 
@@ -3395,63 +3319,33 @@ const httpServer = http.createServer(async (req, res) => {
           );
         }
       }
-      // Reuse the body inspected above for canonical per-tool auth. Link-token
-      // sessions retain their earlier authenticate-before-parse ordering.
-      let parsedBody = preparedEstablishedPostBody;
-      if (!hasPreparedEstablishedPost) {
-        let rawBody;
-        try {
-          rawBody = await readRequestBody(req);
-        } catch (err) {
-          writeParseError(res, err);
-          return;
-        }
-        try {
-          parsedBody = JSON.parse(rawBody);
-        } catch (err) {
-          writeParseError(res, err);
-          return;
-        }
-
-        const bridged = legacyIntentBridge.rewriteLegacy(parsedBody, {
-          identity: oauthVaultIdentityOf(sessionMeta.get(sessionId)),
-          sessionId,
-        });
-        parsedBody = bridged.body;
-        if (bridged.rewritten) {
-          console.log(
-            `[open-mcp] translated retired x402_fetch schema `
-            + `sessionRef=${logRef(sessionId)} intentRef=${logRef(bridged.intentId)}`,
-          );
-        }
+      // Read once before SDK dispatch so the legacy intent bridge can inspect
+      // the request without leaving a drained stream for the transport.
+      let rawBody;
+      try {
+        rawBody = await readRequestBody(req);
+      } catch (err) {
+        writeParseError(res, err);
+        return;
+      }
+      let parsedBody;
+      try {
+        parsedBody = JSON.parse(rawBody);
+      } catch (err) {
+        writeParseError(res, err);
+        return;
       }
 
-      // Per-tool OAuth lives at the HTTP resource boundary. Public search is
-      // dispatched without credentials. Every other hosted tool requires the
-      // session to have been promoted by the current verified OAuth Bearer or
-      // by the explicitly revalidated legacy link-token rail above.
-      const protectedCall = hasPreparedEstablishedPost
-        ? preparedProtectedCall
-        : findVaultProtectedToolCall(parsedBody);
-      if (protectedCall) {
-        const meta = sessionMeta.get(sessionId);
-        const linkAuthorized = linkToken
-          && meta?.vaultAuthMode === VAULT_AUTH_MODE_LINK_TOKEN
-          && isVaultBound(meta);
-        const oauthAuthorized = oauthAuthorization
-          && meta?.vaultAuthMode === VAULT_AUTH_MODE_OAUTH
-          && isVaultBound(meta);
-        if (!linkAuthorized && !oauthAuthorized) {
-          const challenge = oauthVerificationFailure
-            ? oauthChallengeForVerification(oauthVerificationFailure)
-            : {};
-          console.log(
-            `[open-mcp] protected-tool challenge tool=${protectedCall.name} `
-            + `sessionRef=${logRef(sessionId)}`,
-          );
-          writeVaultChallenge(res, challenge, protectedCall.id);
-          return;
-        }
+      const bridged = legacyIntentBridge.rewriteLegacy(parsedBody, {
+        identity: oauthVaultIdentityOf(sessionMeta.get(sessionId)),
+        sessionId,
+      });
+      parsedBody = bridged.body;
+      if (bridged.rewritten) {
+        console.log(
+          `[open-mcp] translated retired x402_fetch schema `
+          + `sessionRef=${logRef(sessionId)} intentRef=${logRef(bridged.intentId)}`,
+        );
       }
 
       const transport = transports.get(sessionId);
@@ -3555,6 +3449,21 @@ const httpServer = http.createServer(async (req, res) => {
     } else {
       touchSession(provisionalSessionId);
       pinSessionResource(provisionalSessionId, requestedMcpResource);
+      pinSessionOAuthIdentity(
+        provisionalSessionId,
+        oauthAuthorization.verification.identity,
+      );
+      const seedResult = await seedOAuthVaultBinding(
+        oauthAuthorization.bearer,
+        oauthAuthorization.verification.payload,
+        oauthAuthorization.verification.identity,
+        provisionalSessionId,
+      );
+      if (!seedResult.ok) {
+        clearProvisionalSession();
+        writeOAuthSeedFailure(res, seedResult, initialParsedBody.id ?? null);
+        return;
+      }
     }
 
     // The diagnostic is opt-in and records only the allowlisted request shape.
@@ -3625,7 +3534,7 @@ const httpServer = http.createServer(async (req, res) => {
       }
       clearProvisionalSession();
       console.warn(
-        `[open-mcp] initialization failed (${safeErrorLabel(error)})`,
+        `[open-mcp] authenticated initialization failed (${safeErrorLabel(error)})`,
       );
       if (!res.headersSent) {
         writeAuthorizationUnavailable(res, initialParsedBody.id ?? null);
@@ -3711,7 +3620,7 @@ export function startOpenMcpServer() {
   httpServer.listen(PORT, () => {
     console.log(`[open-mcp] ${SERVER_NAME} listening on :${PORT}`);
     console.log(`[open-mcp] Tools: ${ALL_TOOLS.join(', ')}`);
-    console.log('[open-mcp] Auth: public search with vault OAuth on protected tools');
+    console.log('[open-mcp] Auth: vault OAuth required on the canonical MCP resource');
     console.log(`[open-mcp] Capability search origin: ${safeUrlOrigin(DEXTER_API)}`);
     process.send?.('ready');
   });

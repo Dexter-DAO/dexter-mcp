@@ -15,18 +15,16 @@ const portfolioSource = await readFile(
   'utf8',
 );
 
-test('canonical OAuth verifies protected calls and pins identity only after seed validation', () => {
+test('canonical OAuth verifies before session lookup and preserves identity on mismatch', () => {
   const requestBoundary = serverSource.slice(
-    serverSource.indexOf('let hasPreparedEstablishedPost = false;'),
+    serverSource.indexOf('let oauthAuthorization = null;'),
     serverSource.indexOf('// ─── GET: SSE / session resume'),
   );
-  assert.match(requestBoundary, /findVaultProtectedToolCall\(preparedEstablishedPostBody\)/);
-  assert.match(requestBoundary, /const oauthVerificationRequired = Boolean/);
   assert.match(requestBoundary, /verifyOpenVaultBearer\(bearer,/);
   assert.match(requestBoundary, /requestSessionId && transports\.has\(requestSessionId\)/);
   assert.ok(
-    requestBoundary.indexOf('findVaultProtectedToolCall')
-      < requestBoundary.indexOf('verifyOpenVaultBearer'),
+    requestBoundary.indexOf('verifyOpenVaultBearer')
+      < requestBoundary.indexOf('requestSessionId && transports.has'),
   );
   assert.match(requestBoundary, /identityStatus === 'mismatch'/);
   assert.match(
@@ -35,14 +33,18 @@ test('canonical OAuth verifies protected calls and pins identity only after seed
   );
   assert.doesNotMatch(requestBoundary, /identityStatus === 'mismatch'[\s\S]{0,300}clearSessionVaultBinding/);
   assert.match(requestBoundary, /writeVaultChallenge\(res,/);
-  assert.doesNotMatch(requestBoundary, /pinSessionOAuthIdentity/);
+  assert.match(
+    requestBoundary,
+    /pinSessionOAuthIdentity\(requestSessionId, verification\.identity\)/,
+  );
   assert.match(
     requestBoundary,
     /seedOAuthVaultBinding\([\s\S]*?verification\.identity,[\s\S]*?requestSessionId/,
   );
-  assert.match(
-    requestBoundary,
-    /writeOAuthSeedFailure\(res, seedResult, preparedProtectedCall\?\.id \?\? null\)/,
+  assert.match(requestBoundary, /writeOAuthSeedFailure\(res, seedResult\)/);
+  assert.ok(
+    requestBoundary.indexOf('pinSessionOAuthIdentity')
+      < requestBoundary.indexOf('seedOAuthVaultBinding'),
   );
   const seedFunction = serverSource.slice(
     serverSource.indexOf('async function seedOAuthVaultBinding'),
@@ -50,18 +52,7 @@ test('canonical OAuth verifies protected calls and pins identity only after seed
   );
   assert.match(seedFunction, /const seedBody = await res\.json\(\)/);
   assert.match(seedFunction, /userHandle !== identity\.subject/);
-  assert.match(seedFunction, /identityStatus === 'mismatch'/);
-  assert.match(seedFunction, /identityStatus === 'unpinned'/);
-  assert.match(seedFunction, /pinSessionOAuthIdentity\(sessionId, identity\)/);
   assert.match(seedFunction, /return \{ ok: false, transient: true, reason: 'malformed_success' \}/);
-  assert.ok(
-    seedFunction.indexOf("identityStatus === 'mismatch'")
-      < seedFunction.indexOf('pinSessionOAuthIdentity'),
-  );
-  assert.ok(
-    seedFunction.indexOf('pinSessionOAuthIdentity')
-      < seedFunction.indexOf('markSessionVaultBound'),
-  );
 });
 
 test('legacy link sessions pin digest and handle, then rebind the same session per request', () => {

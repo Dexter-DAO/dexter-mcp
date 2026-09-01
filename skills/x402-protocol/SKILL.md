@@ -22,8 +22,7 @@ settled. A provider HTTP `2xx` response alone does not prove settlement.
 
 ## Hosted OpenDexter constraints
 
-- Marketplace search is public. Exact checks, access, wallet, portfolio,
-  payment, status, and governed actions require OpenDexter OAuth.
+- All tools require OpenDexter OAuth before discovery or use.
 - The passkey wallet pays on Solana.
 - Use the CAIP-2 Solana mainnet identifier
   `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp`.

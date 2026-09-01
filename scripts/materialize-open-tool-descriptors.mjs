@@ -1209,7 +1209,7 @@ async function parseDescriptor(stdout) {
     descriptor?.schemaVersion !== 2
     || descriptor?.kind !== DESCRIPTOR_KIND
     || descriptor?.sourceContracts?.kind !== SOURCE_CONTRACTS_KIND
-    || descriptor?.oauth?.mode !== 'mixed'
+    || descriptor?.oauth?.mode !== 'required'
     || descriptor?.oauth?.resource !== 'https://open.dexter.cash/mcp'
     || typeof descriptor?.oauth?.authorizationServer !== 'string'
     || typeof descriptor?.oauth?.authorizationServerMetadata !== 'string'
@@ -1661,7 +1661,7 @@ export async function materializeOpenToolDescriptorsFromRegistrations({
     kind: DESCRIPTOR_KIND,
     sourceContracts,
     oauth: {
-      mode: 'mixed',
+      mode: 'required',
       resource: OPEN_MCP_PRM.resource,
       protectedResourceMetadata: OPEN_MCP_PRM_URL,
       protectedResourcePaths: [...OPEN_MCP_PROTECTED_RESOURCE_PATHS],
