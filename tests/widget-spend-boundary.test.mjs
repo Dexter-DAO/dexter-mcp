@@ -120,6 +120,8 @@ test('funding widget requests a fresh approval in chat instead of retrying payme
   const funding = await source('apps-sdk/ui/src/components/receipt/SessionFunding.tsx');
   assert.doesNotMatch(funding, /callTool\(\s*['"]x402_(?:fetch|pay)['"]/);
   assert.doesNotMatch(funding, /useCallToolFn/);
+  assert.doesNotMatch(funding, /api\.qrserver\.com/);
+  assert.match(funding, /createLocalQrGraphic/);
   assert.match(funding, /useAdaptiveSendFollowUp/);
   assert.match(funding, /ask for fresh approval before any payment/);
   assert.match(funding, /continue in chat/);

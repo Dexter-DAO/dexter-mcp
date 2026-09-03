@@ -1,27 +1,44 @@
 /**
- * SessionFunding — the "your session needs USDC" panel.
+ * SessionFunding: the "your session needs USDC" panel.
  *
- * The "no wallet at all" sub-state was real garbage — the previous
- * implementation rendered eyebrow + paragraph and called it a day.
- * Now the open-mcp side auto-bootstraps a session whenever a paid
- * call hits without one, so this widget always receives a populated
- * `funding` object. The "needs funding" state is the only state.
- *
- * Layout:
- *   - Eyebrow + headline
- *   - Deposit chip: address + copy button + chain pill
- *   - QR (when Solana Pay URL available)
- *   - Funding action buttons (open page / Solana Pay)
- *   - Expiry countdown
- *   - "I've funded — continue in chat" sends a follow-up that asks the model
- *     to re-check pricing and obtain fresh approval. The widget cannot invoke a
- *     money tool directly.
+ * The panel receives funding details from its parent. It never invokes a
+ * payment tool. Its continue action asks the model to re-check pricing and
+ * obtain fresh approval.
  */
 
-import { useEffect, useState } from 'react';
+import QRCode from 'qrcode';
+import { useEffect, useMemo, useState } from 'react';
 import { CopyButton } from '@openai/apps-sdk-ui/components/Button';
 import { useAdaptiveSendFollowUp } from '../../sdk';
 import { logWidgetEvent } from './widgetLog';
+
+type LocalQrGraphic = {
+  path: string;
+  size: number;
+};
+
+function createLocalQrGraphic(value: string): LocalQrGraphic | null {
+  try {
+    const modules = QRCode.create(value, { errorCorrectionLevel: 'M' }).modules;
+    const quietZone = 4;
+    const path: string[] = [];
+
+    for (let row = 0; row < modules.size; row += 1) {
+      for (let column = 0; column < modules.size; column += 1) {
+        if (modules.get(row, column)) {
+          path.push(`M${column + quietZone} ${row + quietZone}h1v1h-1z`);
+        }
+      }
+    }
+
+    return {
+      path: path.join(''),
+      size: modules.size + quietZone * 2,
+    };
+  } catch {
+    return null;
+  }
+}
 
 interface SessionFundingShape {
   amountAtomic?: string;
@@ -79,9 +96,10 @@ export function SessionFunding({
 }: Props) {
   const sendFollowUp = useAdaptiveSendFollowUp();
   const walletAddress = funding?.walletAddress || funding?.payTo;
-  const qrUrl = funding?.solanaPayUrl
-    ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(funding.solanaPayUrl)}`
-    : null;
+  const qr = useMemo(
+    () => (funding?.solanaPayUrl ? createLocalQrGraphic(funding.solanaPayUrl) : null),
+    [funding?.solanaPayUrl],
+  );
 
   // Snapshot what the panel was handed on first render. Lets us see in
   // the debug panel whether the widget got a real funding object, the
@@ -152,7 +170,6 @@ export function SessionFunding({
   return (
     <section className="dx-receipt-funding" aria-label="Session needs funding">
       <div className="dx-receipt-funding__head">
-        <span className="dx-receipt-funding__eyebrow">Wallet · Needs funding</span>
         <h2 className="dx-receipt-funding__headline">
           {amountStr ? <>Send <strong>{amountStr}</strong> to continue.</> : 'Fund your wallet to continue.'}
         </h2>
@@ -171,9 +188,20 @@ export function SessionFunding({
         </div>
       )}
 
-      {qrUrl && (
+      {qr && (
         <div className="dx-receipt-funding__qr">
-          <img src={qrUrl} alt="Solana Pay QR" width={196} height={196} />
+          <svg
+            aria-label="Solana Pay QR code"
+            focusable="false"
+            role="img"
+            shapeRendering="crispEdges"
+            viewBox={`0 0 ${qr.size} ${qr.size}`}
+            width={196}
+            height={196}
+          >
+            <rect width={qr.size} height={qr.size} fill="#fff" />
+            <path d={qr.path} fill="#111" />
+          </svg>
         </div>
       )}
 
@@ -207,7 +235,7 @@ export function SessionFunding({
             disabled={continuing}
             aria-busy={continuing}
           >
-            {continuing ? 'Opening chat…' : "I've funded it — continue in chat"}
+            {continuing ? 'Opening chat…' : "I've funded it. Continue in chat"}
           </button>
           {continueError && (
             <p className="dx-receipt-funding__retry-error" role="alert">{continueError}</p>
