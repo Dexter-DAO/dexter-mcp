@@ -8,6 +8,7 @@ import { useIntrinsicHeight } from '../components/x402/useIntrinsicHeight';
 import {
   useAdaptiveDisplayMode,
   useAdaptiveHostCapabilities,
+  useAdaptiveHostContext,
   useAdaptiveRequestDisplayMode,
   useAdaptiveTheme,
 } from '../sdk';
@@ -377,6 +378,7 @@ function PasskeyProbe() {
   const theme = useAdaptiveTheme();
   const displayMode = useAdaptiveDisplayMode();
   const hostCapabilities = useAdaptiveHostCapabilities();
+  const hostContext = useAdaptiveHostContext();
   const requestDisplayMode = useAdaptiveRequestDisplayMode();
   const rootRef = useIntrinsicHeight<HTMLElement>();
   const canChangeDisplayMode = Boolean(
@@ -456,6 +458,12 @@ function PasskeyProbe() {
       className={`passkey-probe-container${compact ? ' passkey-probe-container--compact' : ''}`}
       data-display-mode={displayMode}
       ref={rootRef}
+      style={displayMode === 'fullscreen' ? {
+        paddingTop: `max(clamp(var(--dx-space-6), 6vw, var(--dx-space-9)), ${hostContext.safeAreaInsets.top}px)`,
+        paddingRight: `max(clamp(var(--dx-space-6), 6vw, var(--dx-space-9)), ${hostContext.safeAreaInsets.right}px)`,
+        paddingBottom: `max(clamp(var(--dx-space-6), 6vw, var(--dx-space-9)), ${hostContext.safeAreaInsets.bottom}px)`,
+        paddingLeft: `max(clamp(var(--dx-space-6), 6vw, var(--dx-space-9)), ${hostContext.safeAreaInsets.left}px)`,
+      } : undefined}
     >
       <header className="passkey-probe-header">
         <h1>Passkey capability probe</h1>

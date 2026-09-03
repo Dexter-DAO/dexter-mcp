@@ -29,6 +29,10 @@ test('pricing widget continues in chat instead of invoking a money tool', async 
   assert.match(continuation, /retryWithSameIntentOnly true/);
   assert.match(pricing, /returned no executable purchase intent/);
   assert.match(pricing, /Do not call x402_fetch or ask the user to connect again/);
+  assert.match(pricing, /state\.classification === 'free'/);
+  assert.match(pricing, /Object\.prototype\.hasOwnProperty\.call\(toolOutput, 'data'\)/);
+  assert.match(pricing, /data=\{returnedResult\}/);
+  assert.doesNotMatch(pricing, /dangerouslySetInnerHTML/);
   assert.doesNotMatch(
     `${pricing}\n${continuation}`,
     /call x402_fetch once with (?:url|method|body)/i,
@@ -74,10 +78,14 @@ test('fetch result reports one intent lifecycle and never interprets rail modes'
     /const STATUS_META = readOnlyResultWidgetMeta\(\s*X402_WIDGET_URIS\.fetch/,
   );
   assert.ok(
-    fetchResult.indexOf('<ReturnedResult data={result}')
-      < fetchResult.indexOf('<LifecycleSummary'),
-    'returned payload must render before lifecycle proof',
+    fetchResult.indexOf('<LifecycleSummary')
+      < fetchResult.indexOf('<ReturnedResult'),
+    'verified lifecycle evidence must render before the provider response',
   );
+  assert.match(fetchResult, /Provider response/);
+  assert.match(fetchResult, /data-image-density=\{compactImage \? 'compact' : 'regular'\}/);
+  assert.match(styles, /data-image-density='compact'[\s\S]*max-height:\s*220px/);
+  assert.match(styles, /dx-fetch-result-frame--fullscreen[\s\S]*max-height:\s*1200px/);
   assert.doesNotMatch(fetchResult, /ReceiptHeader|DebugPanel|__eyebrow/);
   assert.doesNotMatch(styles, /gradient|dashed|box-shadow|border-left|border-inline-start/i);
   assert.doesNotMatch(
@@ -87,12 +95,22 @@ test('fetch result reports one intent lifecycle and never interprets rail modes'
 });
 
 test('x402 protocol renderers leave framing and height to the host', async () => {
-  const [pricing, pricingStyles, paymentRoutes, fetchResult, fetchStyles] = await Promise.all([
+  const [
+    pricing,
+    pricingStyles,
+    paymentRoutes,
+    fetchResult,
+    fetchStyles,
+    returnedResult,
+    returnedResultStyles,
+  ] = await Promise.all([
     source('apps-sdk/ui/src/entries/x402-pricing.tsx'),
     source('apps-sdk/ui/src/styles/widgets/x402-pricing.css'),
     source('apps-sdk/ui/src/components/pricing/PaymentRoutes.tsx'),
     source('apps-sdk/ui/src/entries/x402-fetch-result.tsx'),
     source('apps-sdk/ui/src/styles/widgets/x402-fetch-result.css'),
+    source('apps-sdk/ui/src/components/x402/ReturnedResult.tsx'),
+    source('apps-sdk/ui/src/styles/widgets/returned-result.css'),
   ]);
   const pricingRoot = cssRule(pricingStyles, '.dx-pricing');
   const resultFrame = cssRule(fetchStyles, '.dx-fetch-result-frame');
@@ -102,6 +120,12 @@ test('x402 protocol renderers leave framing and height to the host', async () =>
     assert.match(entry, /useIntrinsicHeight/);
     assert.match(entry, /data-host-max-height/);
     assert.doesNotMatch(entry, /style=\{\{[^}]*maxHeight/);
+    assert.match(
+      entry,
+      /maxLines=\{(?:isFullscreen \? null : inlinePreviewLines|resultPreviewLines)\}/,
+    );
+    assert.match(entry, /Ask in chat for the full result/);
+    assert.doesNotMatch(entry, /isFullscreen \|\| !canToggleFullscreen \? null/);
   }
   for (const rootRule of [pricingRoot, resultFrame, resultRoot]) {
     assert.match(rootRule, /background:\s*transparent/);
@@ -110,11 +134,48 @@ test('x402 protocol renderers leave framing and height to the host', async () =>
     assert.doesNotMatch(rootRule, /\bborder-radius\s*:|\bbox-shadow\s*:/);
   }
   assert.match(resultFrame, /overflow:\s*visible/);
+  assert.doesNotMatch(returnedResultStyles, /overflow(?:-y)?\s*:\s*(?:auto|scroll)/);
+  assert.match(
+    cssRule(returnedResultStyles, '.dx-result-payload--image img'),
+    /max-height:\s*480px/,
+  );
+  assert.doesNotMatch(
+    cssRule(returnedResultStyles, '.dx-result-payload--json'),
+    /max-height\s*:/,
+  );
+  assert.ok(returnedResult.includes("value.split('\\n').length > maxLines"));
   assert.doesNotMatch(paymentRoutes, /shortRecipient/);
   assert.match(paymentRoutes, /dx-pricing__route-payto-label">Recipient/);
   assert.match(paymentRoutes, /dx-pricing__route-payto-addr">\{route\.payTo\}/);
   assert.doesNotMatch(fetchResult, /displayIntent/);
   assert.match(fetchResult, /<dd>\{lifecycle\.intentId\}<\/dd>/);
+});
+
+test('presentation metadata helpers do not grant renderer tool authority', async () => {
+  const server = await source('open-mcp-server.mjs');
+  const start = server.indexOf('function widgetMeta(');
+  const end = server.indexOf('const SEARCH_META =');
+  assert.ok(start >= 0 && end > start);
+  const presentationHelpers = server.slice(start, end);
+  assert.doesNotMatch(presentationHelpers, /\bvisibility\s*:/);
+  assert.doesNotMatch(presentationHelpers, /openai\/widgetAccessible/);
+});
+
+test('Indexter opens x402_check through chat instead of direct widget authority', async () => {
+  const [entry, contracts, continuation] = await Promise.all([
+    source('apps-sdk/ui/src/entries/indexter-search.tsx'),
+    source('lib/open-tool-contracts.mjs'),
+    source('apps-sdk/ui/src/components/indexter/search/indexter-continuation.ts'),
+  ]);
+  assert.doesNotMatch(entry, /callTool\(/);
+  assert.match(entry, /sendFollowUp\(indexterCheckContinuationPrompt\(reference\)\)/);
+  assert.match(continuation, /Call x402_check once/);
+  assert.match(continuation, /do not make a payment/);
+  assert.doesNotMatch(
+    contracts,
+    /visibility:\s*\['model',\s*'app'\]/,
+  );
+  assert.doesNotMatch(contracts, /widgetAccessible:\s*true/);
 });
 
 test('funding widget requests a fresh approval in chat instead of retrying payment', async () => {

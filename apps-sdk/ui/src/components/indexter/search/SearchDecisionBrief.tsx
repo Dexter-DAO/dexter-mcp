@@ -111,7 +111,7 @@ export function SearchDecisionBrief({
       : isChecking
         ? resourceAction.kind === 'provide_details'
           ? 'Opening chat…'
-          : 'Checking…'
+          : 'Opening terms…'
         : detailsSent
           ? 'Opened in chat'
           : relevantCheckState.status === 'error'
@@ -128,11 +128,11 @@ export function SearchDecisionBrief({
     : unavailableInHost
       ? resourceAction.kind === 'provide_details'
         ? "This host can't continue the request in chat."
-        : "This host can't check current terms from the widget."
+        : "This host can't open the current-terms check in chat."
       : relevantCheckState.status === 'error'
         ? relevantCheckState.message
         : relevantCheckState.status === 'checking'
-          ? relevantCheckState.message || 'Checking the current terms…'
+          ? relevantCheckState.message || 'Opening the terms check in chat…'
           : relevantCheckState.status === 'details_sent'
             ? relevantCheckState.message || 'Continue in chat to provide the missing request details.'
             : resourceAction.helperText;

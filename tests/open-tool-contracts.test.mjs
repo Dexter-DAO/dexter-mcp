@@ -104,7 +104,7 @@ test('contract is exactly the canonical hosted twelve', () => {
   }
 });
 
-test('every governed result remains model-visible and has a read-only renderer', () => {
+test('every governed result remains model-visible without granting the renderer tool access', () => {
   for (const name of [
     'dexter_prepare_asset_action',
     'dexter_execute_asset_action',
@@ -112,17 +112,22 @@ test('every governed result remains model-visible and has a read-only renderer',
     'dexter_reconcile_asset_action',
     'dexter_wallet_history',
   ]) {
-    assert.deepEqual(OPEN_TOOL_CONTRACTS[name].visibility, ['model', 'app'], name);
+    assert.deepEqual(OPEN_TOOL_CONTRACTS[name].visibility, ['model'], name);
     assert.equal(OPEN_TOOL_CONTRACTS[name].widgetAccessible, false, name);
   }
 });
 
-test('only Indexter discovery and its nested access check can call tools from a widget', () => {
+test('renderers cannot call server tools directly', () => {
   for (const name of Object.keys(OPEN_TOOL_CONTRACTS)) {
+    assert.deepEqual(
+      OPEN_TOOL_CONTRACTS[name].visibility,
+      ['model'],
+      `${name} native MCP Apps visibility`,
+    );
     assert.equal(
       OPEN_TOOL_CONTRACTS[name].widgetAccessible,
-      name === 'indexter_search' || name === 'x402_check',
-      name,
+      false,
+      `${name} ChatGPT compatibility visibility`,
     );
   }
 });
@@ -177,6 +182,7 @@ test('search and wallet contracts expose current truth without route claims', ()
   assert.equal(Object.hasOwn(search.outputSchema.shape, 'rankingMode'), true);
   assert.equal(Object.hasOwn(search.outputSchema.shape, 'degradedMessage'), true);
   const validSearchOutput = {
+    searchResultSetId: '11111111-1111-4111-8111-111111111111',
     success: true,
     rankingMode: 'degraded',
     degradedMessage: 'Reduced ranking is active.',
@@ -210,6 +216,8 @@ test('search and wallet contracts expose current truth without route claims', ()
     providerDataPolicy: PROVIDER_DATA_POLICY,
   };
   assert.equal(search.outputSchema.safeParse(validSearchOutput).success, true);
+  const { searchResultSetId: _missingBinding, ...searchWithoutBinding } = validSearchOutput;
+  assert.equal(search.outputSchema.safeParse(searchWithoutBinding).success, false);
   assert.equal(search.outputSchema.safeParse({
     ...validSearchOutput,
     unexpectedRoute: 'leak',

@@ -275,7 +275,7 @@ export function SearchVerdictDrawer({ resource, onClose, onUseService }: Props) 
             : !onUseService
               ? 'Unavailable in this host'
               : checking
-                ? action.kind === 'provide_details' ? 'Opening chat…' : 'Checking live terms…'
+                ? action.kind === 'provide_details' ? 'Opening chat…' : 'Opening terms in chat…'
                 : action.label}
         </button>
       </div>

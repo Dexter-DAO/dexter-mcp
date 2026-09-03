@@ -904,7 +904,7 @@ test('current OpenDexter renderers use MCP Apps interactions without clipped inn
     await page.close();
   });
 
-  await t.test('Indexter comparison and live terms use the host APIs in order', async () => {
+  await t.test('Indexter comparison and live terms use presentation and chat APIs in order', async () => {
     const { frame, page, pageErrors } = await openRenderer({
       context,
       baseUrl,
@@ -938,43 +938,40 @@ test('current OpenDexter renderers use MCP Apps interactions without clipped inn
       exact: true,
     }).click();
     await waitForRendererMode(frame, '.dxs-root', 'fullscreen');
-    await frame.getByRole('heading', { name: 'Ready to review', exact: true }).waitFor();
+    await frame.getByText(
+      'Continue in chat for the current access terms.',
+      { exact: true },
+    ).waitFor();
     await waitForStableHostSize(page, 'fullscreen');
 
     const actionCalls = await hostRequests(page, [
       'ui/request-display-mode',
       'tools/call',
       'ui/update-model-context',
+      'ui/message',
     ]);
     assert.deepEqual(actionCalls[0], {
       method: 'ui/request-display-mode',
       params: { mode: 'fullscreen' },
     });
-    assert.deepEqual(actionCalls[1], {
-      method: 'tools/call',
-      params: {
-        name: 'x402_check',
-        arguments: {
-          url: 'https://atlas.fixture.example/v1/markets',
-          method: 'GET',
-        },
-      },
-    });
-    assert.equal(actionCalls[2]?.method, 'ui/update-model-context');
-    assert.equal(
-      actionCalls[2]?.params?.structuredContent?.checkedResource?.resultOrdinal,
-      1,
-    );
+    assert.equal(actionCalls[1]?.method, 'ui/message');
+    const prompt = actionCalls[1]?.params?.content?.find(
+      (item) => item.type === 'text',
+    )?.text ?? '';
+    assert.match(prompt, /Call x402_check once/);
+    assert.match(prompt, /"searchResultSetId":"11111111-1111-4111-8111-111111111111"/);
+    assert.match(prompt, /"searchResultOrdinal":1/);
+    assert.doesNotMatch(prompt, /atlas\.fixture\.example|intentId|maxAmountAtomic/);
     assert.equal(
       actionCalls.filter((call) => call.method === 'tools/call').length,
-      1,
-      'Indexter must issue one deliberate server-tool call',
+      0,
+      'Indexter must not receive direct server-tool authority',
     );
     await assertNoInternalClippedViewport(
       frame,
       '.dxs-root',
-      '.dx-search-quote',
-      'Indexter checked terms',
+      '.dx-search-brief__action-note',
+      'Indexter current-terms handoff',
     );
     assert.deepEqual(pageErrors, []);
     await page.close();

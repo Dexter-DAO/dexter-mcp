@@ -135,6 +135,7 @@ export type PricingPayload = {
   } | null;
   message?: string;
   error?: boolean | string;
+  data?: unknown;
   resource?: unknown;
   schema?: unknown;
   inputSchema?: unknown;

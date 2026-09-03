@@ -42,8 +42,8 @@ test('degraded ranking guidance remains visible when fallback search is empty', 
 });
 
 test('search can only open a safe next step before payment', () => {
-  assert.match(entry, /callTool\('x402_check'/);
-  assert.match(entry, /buildDirectSearchCheckInput/);
+  assert.doesNotMatch(entry, /callTool\(/);
+  assert.match(entry, /sendFollowUp\(indexterCheckContinuationPrompt\(reference\)\)/);
   assert.match(entry, /buildDetailsFollowUpPrompt/);
   assert.doesNotMatch(actionSources, /callTool\(\s*['"]x402_fetch['"]/);
   assert.doesNotMatch(actionSources, /\bx402_pay\b/);
@@ -55,15 +55,13 @@ test('search can only open a safe next step before payment', () => {
   assert.doesNotMatch(brief, /Use this service/);
   assert.doesNotMatch(drawer, /Use this service/);
   assert.doesNotMatch(actionSources, /Check fresh price/);
-  assert.match(entry, /normalizeX402CheckResult/);
-  assert.match(entry, /structuredContent/);
-  assert.match(entry, /indexterPurchaseContinuationPrompt/);
-  assert.match(indexterContinuation, /indexter_result_continuation_v1/);
+  assert.match(entry, /indexterCheckContinuationPrompt/);
+  assert.match(indexterContinuation, /indexter_result_continuation_v2/);
+  assert.match(indexterContinuation, /searchResultSetId/);
   assert.match(indexterContinuation, /searchResultOrdinal/);
   assert.match(indexterContinuation, /currentResultCount/);
-  assert.match(entry, /modelContextBound = await Promise\.race/);
-  assert.match(entry, /updateModelContext\(\{/);
-  assert.match(entry, /modelContextBound/);
+  assert.match(indexterContinuation, /Call x402_check once/);
+  assert.match(indexterContinuation, /do not make a payment/);
   assert.match(continuation, /call x402_fetch once/);
   assert.match(continuation, /Never automatically retry x402_fetch/);
   assert.match(continuation, /retryWithSameIntentOnly true/);
@@ -177,7 +175,9 @@ test('active and compatibility surfaces use the canonical Indexter Search title'
 });
 
 test('dual-host adapters and capability-driven fullscreen are wired locally', () => {
-  assert.match(entry, /useAdaptiveCallToolFn/);
+  assert.match(entry, /useAdaptiveSendFollowUp/);
+  assert.match(entry, /indexterCheckContinuationPrompt/);
+  assert.doesNotMatch(entry, /useAdaptiveCallToolFn|callTool\(/);
   assert.match(entry, /useToolInput as useAdaptiveToolInput/);
   assert.match(entry, /useAdaptiveHostCapabilities/);
   assert.match(entry, /useAdaptiveDisplayMode/);
@@ -188,7 +188,7 @@ test('dual-host adapters and capability-driven fullscreen are wired locally', ()
 });
 
 test('current build stamp, result evidence, tokens, and dead-code removals are pinned', () => {
-  assert.match(model, /SEARCH_WIDGET_BUILD = '2026-09-03\.2'/);
+  assert.match(model, /SEARCH_WIDGET_BUILD = '2026-09-03\.3'/);
   assert.doesNotMatch(entry, /2026-04-16\.1/);
   assert.match(briefModel, /resource\.why/);
   assert.match(briefModel, /resource\.qualityScore/);

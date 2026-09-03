@@ -11,6 +11,9 @@ import {
 } from '../../apps-sdk/widget-uris.mjs';
 import { modelSafePortfolioSnapshot } from '../../lib/session-portfolio.mjs';
 import { dynamicStockV2Fixture } from './governed-stock-v2.fixtures.mjs';
+import { buildGovernedRendererStateSurfaces } from './opendexter-governed-renderer-states.mjs';
+import { buildPortfolioRendererStateSurfaces } from './opendexter-portfolio-renderer-states.mjs';
+import { buildOpenDexterX402RendererStateSurfaces } from './opendexter-x402-renderer-states.mjs';
 import {
   completePortfolio,
   walletOutput,
@@ -417,6 +420,7 @@ function searchOutput() {
     score: 0.93,
   });
   return {
+    searchResultSetId: '11111111-1111-4111-8111-111111111111',
     success: true,
     count: 2,
     strongCount: 2,
@@ -463,6 +467,42 @@ function accessTermsOutput() {
         description: 'Current market prices with source timestamps.',
         category: 'Market data',
         hit_count: 2401,
+        icon_url: null,
+      },
+      history: { count: 0, recent: [], summary: null },
+    },
+  };
+}
+
+function freeAccessOutput() {
+  return {
+    ok: true,
+    free: true,
+    requiresPayment: false,
+    statusCode: 200,
+    authMode: 'unprotected',
+    resource: 'https://weather.fixture.example/v1/current',
+    checkedRequest: {
+      url: 'https://weather.fixture.example/v1/current',
+      method: 'GET',
+      body: null,
+      requestBound: true,
+    },
+    data: {
+      location: 'Brooklyn, NY',
+      conditions: 'Clear',
+      temperature: { value: 72, unit: 'F' },
+      observedAt: FIXED_NOW,
+    },
+    enrichment: {
+      resource: {
+        resource_url: 'https://weather.fixture.example/v1/current',
+        host: 'weather.fixture.example',
+        method: 'GET',
+        display_name: 'Current Weather',
+        description: 'Current conditions with an observation timestamp.',
+        category: 'Weather',
+        hit_count: 913,
         icon_url: null,
       },
       history: { count: 0, recent: [], summary: null },
@@ -552,6 +592,18 @@ export async function buildRendererGallerySurfaces() {
       outerSelector: '.dx-pricing',
     },
     {
+      id: 'access-free-result',
+      title: 'Access Terms',
+      file: 'x402-pricing.html',
+      resourceUri: X402_WIDGET_URIS.pricing,
+      tools: [],
+      input: { url: 'https://weather.fixture.example/v1/current', method: 'GET' },
+      output: freeAccessOutput(),
+      metadata: {},
+      readySelector: '.dx-pricing__result .dx-result-payload',
+      outerSelector: '.dx-pricing',
+    },
+    {
       id: 'purchase-result',
       title: 'OpenDexter Result',
       file: 'x402-fetch-result.html',
@@ -576,6 +628,34 @@ export async function buildRendererGallerySurfaces() {
       outerSelector: '.dx-fetch-result-frame',
     },
     {
+      id: 'purchase-loading',
+      title: 'OpenDexter Result',
+      file: 'x402-fetch-result.html',
+      resourceUri: X402_WIDGET_URIS.fetch,
+      tools: [],
+      input: { intentId: INTENT_ID, maxAmountAtomic: '8000' },
+      output: {},
+      metadata: {},
+      omitToolResult: true,
+      readySelector: '.dx-result--loading',
+      outerSelector: '.dx-fetch-result-frame',
+    },
+    {
+      id: 'purchase-missing-result',
+      title: 'OpenDexter Result',
+      file: 'x402-fetch-result.html',
+      resourceUri: X402_WIDGET_URIS.fetch,
+      tools: [],
+      input: { intentId: INTENT_ID, maxAmountAtomic: '8000' },
+      output: {},
+      metadata: {},
+      omitToolResult: true,
+      accelerateMissingResultTimeout: true,
+      readySelector: '.dx-result--missing',
+      outerSelector: '.dx-fetch-result-frame',
+    },
+    ...buildOpenDexterX402RendererStateSurfaces(),
+    {
       id: 'dexter-wallet',
       title: 'Dexter Wallet',
       file: 'dexter-wallet.html',
@@ -599,6 +679,7 @@ export async function buildRendererGallerySurfaces() {
       readySelector: '.dxp-inline, .dxp-ledger',
       outerSelector: '.dxp-root',
     },
+    ...buildPortfolioRendererStateSurfaces(),
     {
       id: 'governed-action',
       title: 'Governed Action',
@@ -628,6 +709,7 @@ export async function buildRendererGallerySurfaces() {
       readySelector: '.dx-history',
       outerSelector: '.dx-widget',
     },
+    ...buildGovernedRendererStateSurfaces(),
     {
       id: 'passkey-onboard',
       title: 'Dexter Wallet Connection',

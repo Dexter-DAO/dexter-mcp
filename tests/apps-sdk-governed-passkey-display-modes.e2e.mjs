@@ -15,11 +15,12 @@ const REPO_ROOT = path.resolve(TEST_DIR, '..');
 const UI_ROOT = path.join(REPO_ROOT, 'apps-sdk', 'ui');
 const INLINE_VIEWPORT = Object.freeze({ width: 980, height: 900 });
 const OPERATION_ID = '019f981c-9215-7141-84f2-d89ffe9cbece';
+const FULLSCREEN_SAFE_AREA = Object.freeze({ top: 11, right: 13, bottom: 17, left: 19 });
 
 // The dimensions below describe this fixture host. The renderers must read the
 // host's current mode and report their intrinsic height; they must not copy the
 // fixture maxHeight into an internal scrolling viewport.
-function installChatGptAppsHost({ input, output, theme }) {
+function installChatGptAppsHost({ input, output, theme, safeArea }) {
   window.__appsHostCalls = [];
 
   const record = (kind, detail = {}) => {
@@ -31,7 +32,7 @@ function installChatGptAppsHost({ input, output, theme }) {
     locale: 'en-US',
     displayMode: 'inline',
     maxHeight: 720,
-    safeArea: { insets: { top: 0, right: 0, bottom: 0, left: 0 } },
+    safeArea: { insets: safeArea },
     userAgent: {
       device: { type: 'desktop' },
       capabilities: { hover: true, touch: false },
@@ -90,6 +91,7 @@ async function openSurface({ browser, baseUrl, surface, output = surface.output,
     input: surface.input,
     output,
     theme,
+    safeArea: FULLSCREEN_SAFE_AREA,
   });
   await page.goto(`${baseUrl}/${surface.file}`);
   return { page, pageErrors };
@@ -216,6 +218,25 @@ async function assertSingleModeRequest(page, mode, label) {
   );
 }
 
+async function assertFullscreenSafeArea(page, selector, label) {
+  const padding = await page.locator(selector).evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      top: Number.parseFloat(style.paddingTop),
+      right: Number.parseFloat(style.paddingRight),
+      bottom: Number.parseFloat(style.paddingBottom),
+      left: Number.parseFloat(style.paddingLeft),
+    };
+  });
+  assert.deepEqual(Object.keys(padding), ['top', 'right', 'bottom', 'left']);
+  for (const side of Object.keys(padding)) {
+    assert.ok(
+      padding[side] >= Math.max(24, FULLSCREEN_SAFE_AREA[side]),
+      `${label}: ${side} padding discarded the normal gutter or host safe area`,
+    );
+  }
+}
+
 test('governed receipts and passkey checks use Apps SDK display modes without inner clipping', async (t) => {
   const surfaces = await buildRendererGallerySurfaces();
   const byId = new Map(surfaces.map((surface) => [surface.id, surface]));
@@ -270,6 +291,7 @@ test('governed receipts and passkey checks use Apps SDK display modes without in
     await resetHostCalls(page);
     await expand.click();
     await waitForMode(page, '.dx-widget', 'fullscreen');
+    await assertFullscreenSafeArea(page, '.dx-widget', 'governed action');
     await page.getByRole('heading', { name: 'Authority', exact: true }).waitFor();
     await page.getByRole('heading', { name: 'Execution', exact: true }).waitFor();
     await page.getByRole('heading', { name: 'Asset', exact: true }).waitFor();
@@ -302,6 +324,7 @@ test('governed receipts and passkey checks use Apps SDK display modes without in
     await resetHostCalls(page);
     await row.press('Enter');
     await waitForMode(page, '.dx-widget', 'fullscreen');
+    await assertFullscreenSafeArea(page, '.dx-widget', 'governed history');
     await page.getByRole('heading', { name: '1.25 shares of Tesla, Inc. bought', exact: true }).waitFor();
     await page.getByRole('heading', { name: 'Authority', exact: true }).waitFor();
     await page.getByRole('heading', { name: 'Execution', exact: true }).waitFor();
@@ -351,6 +374,7 @@ test('governed receipts and passkey checks use Apps SDK display modes without in
     await resetHostCalls(page);
     await openAll.click();
     await waitForMode(page, '.passkey-probe-container', 'fullscreen');
+    await assertFullscreenSafeArea(page, '.passkey-probe-container', 'passkey probe');
     await page.getByRole('heading', { name: 'Scripted popup', exact: true }).waitFor();
     await page.getByRole('heading', { name: 'Direct anchor', exact: true }).waitFor();
     await page.getByRole('heading', { name: 'Host-mediated link', exact: true }).waitFor();

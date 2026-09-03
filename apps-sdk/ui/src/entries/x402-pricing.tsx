@@ -1,15 +1,20 @@
 import '../styles/sdk.css';
+import '../styles/widgets/returned-result.css';
 import '../styles/widgets/x402-pricing.css';
 
 import { createRoot } from 'react-dom/client';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import type { ReactNode, Ref } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { CSSProperties, ReactNode, Ref } from 'react';
 import {
   useToolOutput,
+  useAdaptiveDisplayMode,
+  useAdaptiveHostContext,
   useAdaptiveMaxHeight,
+  useAdaptiveRequestDisplayMode,
   useAdaptiveTheme,
   useAdaptiveSendFollowUp,
 } from '../sdk';
+import { captureWidgetException } from '../sdk/init-sentry';
 import { useToolInput as useAdaptiveToolInput } from '../sdk/adapter';
 import { useIntrinsicHeight } from '../components/x402';
 import {
@@ -32,6 +37,10 @@ import {
   purchaseReviewData,
 } from '../components/x402/purchase-review-continuation';
 import type { PurchaseReviewData } from '../components/x402/purchase-review-continuation';
+import {
+  ReturnedResult,
+  returnedResultNeedsPreview,
+} from '../components/x402/ReturnedResult';
 
 const POSITIVE_ATOMIC_AMOUNT = /^[1-9]\d{0,19}$/;
 
@@ -128,19 +137,29 @@ function StateFrame({
   children,
   containerRef,
   loading = false,
+  displayMode,
+  fullscreen = false,
+  condensed = false,
+  style,
 }: {
   theme: string;
   hostMaxHeight: number | null;
   children: ReactNode;
   containerRef?: Ref<HTMLDivElement>;
   loading?: boolean;
+  displayMode?: string;
+  fullscreen?: boolean;
+  condensed?: boolean;
+  style?: CSSProperties;
 }) {
   return (
     <main
       data-theme={theme}
       data-host-max-height={hostMaxHeight ?? undefined}
+      data-display-mode={displayMode}
       ref={containerRef}
-      className={`dx-pricing${loading ? ' dx-pricing--loading' : ''}`}
+      style={style}
+      className={`dx-pricing${loading ? ' dx-pricing--loading' : ''}${fullscreen ? ' dx-pricing--fullscreen' : ''}${condensed ? ' dx-pricing--condensed' : ''}`}
       aria-busy={loading || undefined}
     >
       {children}
@@ -232,6 +251,9 @@ function PricingCheck() {
   const sendFollowUp = useAdaptiveSendFollowUp();
   const theme = useAdaptiveTheme();
   const maxHeight = useAdaptiveMaxHeight();
+  const displayMode = useAdaptiveDisplayMode();
+  const hostContext = useAdaptiveHostContext();
+  const requestDisplayMode = useAdaptiveRequestDisplayMode();
   const containerRef = useIntrinsicHeight();
   const loadingElapsed = useElapsedSeconds(!toolOutput);
   const [continueState, setContinueState] = useState<{
@@ -252,6 +274,43 @@ function PricingCheck() {
     () => toolOutput ? checkedPaymentRequest(toolOutput, toolInput) : null,
     [toolInput, toolOutput],
   );
+  const isFullscreen = displayMode === 'fullscreen';
+  const condensed = !isFullscreen && maxHeight !== null && maxHeight <= 720;
+  const canToggleFullscreen = Boolean(
+    requestDisplayMode
+    && hostContext.availableDisplayModes.includes(isFullscreen ? 'inline' : 'fullscreen'),
+  );
+  const rootStyle = isFullscreen ? {
+    paddingTop: `max(var(--dx-space-7), ${hostContext.safeAreaInsets.top}px)`,
+    paddingRight: `max(var(--dx-space-7), ${hostContext.safeAreaInsets.right}px)`,
+    paddingBottom: `max(var(--dx-space-7), ${hostContext.safeAreaInsets.bottom}px)`,
+    paddingLeft: `max(var(--dx-space-7), ${hostContext.safeAreaInsets.left}px)`,
+  } : undefined;
+  const hasReturnedResult = Boolean(
+    toolOutput
+    && state.classification === 'free'
+    && Object.prototype.hasOwnProperty.call(toolOutput, 'data'),
+  );
+  const returnedResult = hasReturnedResult ? toolOutput?.data : undefined;
+  const inlinePreviewLimit = maxHeight !== null && maxHeight <= 720 ? 280 : 900;
+  const inlinePreviewLines = maxHeight !== null && maxHeight <= 720 ? 12 : 28;
+  const resultNeedsPreview = useMemo(
+    () => returnedResult !== undefined && returnedResultNeedsPreview(
+      returnedResult,
+      inlinePreviewLimit,
+      inlinePreviewLines,
+    ),
+    [inlinePreviewLimit, inlinePreviewLines, returnedResult],
+  );
+
+  const toggleFullscreen = useCallback(async () => {
+    if (!requestDisplayMode) return;
+    try {
+      await requestDisplayMode({ mode: isFullscreen ? 'inline' : 'fullscreen' });
+    } catch (error) {
+      captureWidgetException(error, { phase: 'request_display_mode' });
+    }
+  }, [isFullscreen, requestDisplayMode]);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -268,6 +327,9 @@ function PricingCheck() {
         theme={theme}
         hostMaxHeight={maxHeight}
         containerRef={containerRef}
+        displayMode={displayMode}
+        condensed={condensed}
+        style={rootStyle}
         loading
       >
         <span className="dx-pricing__loading-mark" aria-hidden />
@@ -341,6 +403,10 @@ function PricingCheck() {
       theme={theme}
       hostMaxHeight={maxHeight}
       containerRef={containerRef}
+      displayMode={displayMode}
+      fullscreen={isFullscreen}
+      condensed={condensed}
+      style={rootStyle}
     >
       <ResourceIdentity
         resource={enrichment?.resource ?? null}
@@ -364,6 +430,30 @@ function PricingCheck() {
           errorMessage={state.errorMessage}
         />
       )}
+
+      {hasReturnedResult ? (
+        <section className="dx-pricing__result" aria-labelledby="dx-pricing-result-title">
+          <div className="dx-pricing__result-header">
+            <h3 id="dx-pricing-result-title">Provider response</h3>
+            {resultNeedsPreview && canToggleFullscreen ? (
+              <button
+                type="button"
+                onClick={() => { void toggleFullscreen(); }}
+              >
+                {isFullscreen ? 'Return to chat size' : 'View full result'}
+              </button>
+            ) : null}
+          </div>
+          <ReturnedResult
+            data={returnedResult}
+            maxCharacters={isFullscreen ? null : inlinePreviewLimit}
+            maxLines={isFullscreen ? null : inlinePreviewLines}
+            previewMessage={canToggleFullscreen
+              ? 'Showing a preview. Open the full result to see the rest.'
+              : 'Showing a preview. Ask in chat for the full result.'}
+          />
+        </section>
+      ) : null}
 
       {checkedRequest ? <RequestDetails request={checkedRequest} /> : null}
 
