@@ -584,7 +584,7 @@ test('wallet Money overview renders honest states in ChatGPT and MCP Apps deskto
   const address = vite.httpServer.address();
   const port = typeof address === 'object' && address ? address.port : null;
   assert.ok(port);
-  const widgetUrl = `http://127.0.0.1:${port}/x402-wallet.html`;
+  const widgetUrl = `http://127.0.0.1:${port}/dexter-wallet.html`;
 
   const browser = await chromium.launch({
     headless: true,

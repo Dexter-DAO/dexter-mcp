@@ -29,6 +29,7 @@ import {
   OPEN_RELEASE_INSTALL_ARGS,
 } from '../lib/open-release-finalization.mjs';
 import {
+  DEXTER_WALLET_WIDGET_URIS,
   GOVERNED_ASSET_WIDGET_URIS,
   INDEXTER_WIDGET_URIS,
 } from '../apps-sdk/widget-uris.mjs';
@@ -208,6 +209,14 @@ test('--emit-json emits exactly one descriptor document and exits', () => {
   const accessCheck = descriptor.tools.find((candidate) =>
     candidate.name === 'x402_check');
   assert.equal(accessCheck._meta['openai/widgetAccessible'], true);
+
+  const wallet = descriptor.tools.find((candidate) =>
+    candidate.name === 'x402_wallet');
+  assert.equal(wallet._meta.ui.resourceUri, DEXTER_WALLET_WIDGET_URIS.wallet);
+  assert.match(
+    wallet._meta.ui.resourceUri,
+    /^ui:\/\/dexter\/dexter-wallet(?:-[a-f0-9]{8})?$/,
+  );
 
   for (const name of [
     'x402_fetch',

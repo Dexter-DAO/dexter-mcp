@@ -33,6 +33,7 @@ if (process.env.NODE_ENV !== 'production') {
 }
 import { extractMcpSessionId } from './lib/mcp-session-id.mjs';
 import {
+  DEXTER_WALLET_WIDGET_URIS,
   INDEXTER_WIDGET_URIS,
   X402_WIDGET_URIS,
   DIAGNOSTIC_WIDGET_URIS,
@@ -199,7 +200,7 @@ const legacyIntentBridge = createLegacyIntentBridge();
  * server-side, so the local fuzzy-broad fallback + tokenize + levenshtein
  * scoring we used to need is gone.
  */
-const CAPABILITY_PATH = '/api/x402gle/capability';
+const INDEXTER_DISCOVERY_PATH = '/api/x402gle/capability';
 const WIDGET_DOMAIN = 'https://dexter.cash';
 // Tool and resource metadata share the same per-widget CSP builder. Cache by
 // exact template URI; one broad global allowlist would grant every widget the
@@ -275,7 +276,7 @@ const SEARCH_META = widgetMeta(INDEXTER_WIDGET_URIS.search, 'Searching Indexter�
 const FETCH_META = readOnlyResultWidgetMeta(X402_WIDGET_URIS.fetch, 'Waiting for OpenDexter…', 'OpenDexter result received', 'Shows returned dispatch, delivery, payment, and reconciliation evidence without inferring finality.');
 const ACCESS_META = readOnlyResultWidgetMeta(X402_WIDGET_URIS.pricing, 'Checking access…', 'Access checked', 'Shows the exact request classification, current seller terms when present, or wallet sign-in availability. It never reports that a payment occurred.');
 const CHECK_META = readOnlyResultWidgetMeta(X402_WIDGET_URIS.pricing, 'Checking access terms…', 'Access terms ready', 'Shows current access requirements and exact seller terms for the checked request without making a payment.');
-const WALLET_META = readOnlyResultWidgetMeta(X402_WIDGET_URIS.wallet, 'Loading wallet…', 'Wallet loaded', 'Shows Dexter Wallet cash, reported credit, assets, Solana receive address, and recent activity.');
+const WALLET_META = readOnlyResultWidgetMeta(DEXTER_WALLET_WIDGET_URIS.wallet, 'Loading wallet…', 'Wallet loaded', 'Shows Dexter Wallet cash, reported credit, assets, Solana receive address, and recent activity.');
 const PORTFOLIO_META = readOnlyResultWidgetMeta(
   PORTFOLIO_WIDGET_URIS.overview,
   'Loading portfolio…',
@@ -524,7 +525,7 @@ async function x402Search({
     return empty;
   }
 
-  const endpoint = `${DEXTER_API}${CAPABILITY_PATH}`;
+  const endpoint = `${DEXTER_API}${INDEXTER_DISCOVERY_PATH}`;
   const searchResult = await coreCapabilitySearch({
     query: rawQuery,
     limit,
@@ -2073,7 +2074,7 @@ export function createOpenMcpServer({
   // ─── Self-contained hosted skill-file resources ────────────────────────────
 
   const SKILL_RESOURCES = [
-    { name: 'workflow', uri: 'docs://opendexter/workflow', file: 'opendexter/SKILL.md', description: 'OpenDexter tool reference — search → check → fetch workflow, parameter tables, quality scores, tips' },
+    { name: 'workflow', uri: 'docs://opendexter/workflow', file: 'opendexter/SKILL.md', description: 'OpenDexter guide for Indexter discovery, access checks, approved fetches, Dexter Wallet, portfolio, and governed actions' },
     { name: 'protocol', uri: 'docs://opendexter/protocol', file: 'x402-protocol/SKILL.md', description: 'x402 v2 protocol specification — payment flow, core types, CAIP-2 networks, error codes, transport layers' },
     { name: 'debugging', uri: 'docs://opendexter/debugging', file: 'x402-debugging/SKILL.md', description: 'x402 payment debugging — facilitator health, error code reference, common issues and fixes' },
   ];
@@ -2386,7 +2387,7 @@ export function createOpenMcpServer({
           INDEXTER_WIDGET_URIS.search,
           X402_WIDGET_URIS.fetch,
           X402_WIDGET_URIS.pricing,
-          X402_WIDGET_URIS.wallet,
+          DEXTER_WALLET_WIDGET_URIS.wallet,
           PORTFOLIO_WIDGET_URIS.overview,
           GOVERNED_ASSET_WIDGET_URIS.action,
           GOVERNED_ASSET_WIDGET_URIS.history,

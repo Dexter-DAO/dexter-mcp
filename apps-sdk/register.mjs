@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import { promises as fsp } from 'node:fs';
 import { buildWidgetBootstrapScript } from './bootstrap.js';
 import {
+  DEXTER_WALLET_WIDGET_URIS,
   INDEXTER_WIDGET_URIS,
   X402_WIDGET_URIS,
   CARD_WIDGET_URIS,
@@ -140,7 +141,10 @@ export function buildWidgetCsp(
     redirectDomains.push('https://dexter.cash', ...EXPLORER_ORIGINS);
   } else if (templateUri === X402_WIDGET_URIS.pricing) {
     resourceDomains.push('https://api.dexter.cash');
-  } else if (templateUri === X402_WIDGET_URIS.wallet) {
+  } else if (
+    templateUri === DEXTER_WALLET_WIDGET_URIS.wallet
+    || templateUri === X402_WIDGET_URIS.wallet
+  ) {
     // The visible wallet uses short-lived _meta capabilities for refresh and
     // the same-origin card-summary frame rail. No card tool is exposed.
     connectDomains.push('https://open.dexter.cash');
@@ -191,6 +195,7 @@ export function buildWidgetPermissions(templateUri) {
   if (
     templateUri === INDEXTER_WIDGET_URIS.search
     || templateUri === X402_WIDGET_URIS.search
+    || templateUri === DEXTER_WALLET_WIDGET_URIS.wallet
     || templateUri === X402_WIDGET_URIS.wallet
   ) {
     return { clipboardWrite: {} };
@@ -646,11 +651,21 @@ export function registerAppsSdkResources(server, options = {}) {
       invoked: 'Access terms ready',
     },
     {
-      name: 'dexter_x402_wallet',
+      name: 'dexter_wallet',
+      templateUri: DEXTER_WALLET_WIDGET_URIS.wallet,
+      file: 'dexter-wallet.html',
+      title: 'Dexter Wallet',
+      description: 'Displays the connected Dexter Wallet, its receive address, assets, credit, and activity.',
+      widgetDescription: 'Shows Dexter Wallet cash, reported credit, assets, Solana receive address, and recent activity.',
+      invoking: 'Loading wallet…',
+      invoked: 'Wallet loaded',
+    },
+    {
+      name: 'dexter_x402_wallet_compatibility',
       templateUri: X402_WIDGET_URIS.wallet,
       file: 'x402-wallet.html',
       title: 'Dexter Wallet',
-      description: 'Displays the connected Dexter Wallet, its receive address, assets, credit, and activity.',
+      description: 'Dexter Wallet retained at the prior resource URI for cached hosts.',
       widgetDescription: 'Shows Dexter Wallet cash, reported credit, assets, Solana receive address, and recent activity.',
       invoking: 'Loading wallet…',
       invoked: 'Wallet loaded',

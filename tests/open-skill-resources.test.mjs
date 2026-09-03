@@ -67,6 +67,14 @@ test('master skill preserves shared product truth without pretending every surfa
   assert.match(WORKFLOW, /Do not copy another\s+surface byte-for-byte/i);
 });
 
+test('hosted workflow names Indexter as the discovery product', () => {
+  assert.match(WORKFLOW, /discover services with Indexter/i);
+  assert.match(WORKFLOW, /Discover a service or resource with Indexter/);
+  assert.match(WORKFLOW, /Indexter discovery and purchase/);
+  assert.match(WORKFLOW, /compatibility-named `x402_search`[\s\S]*searches Indexter/);
+  assert.match(SERVER, /OpenDexter guide for Indexter discovery/);
+});
+
 test('served guidance requires native OAuth and bounded nonretryable spending', () => {
   for (const content of [WORKFLOW, PROTOCOL, DEBUGGING]) {
     assert.doesNotMatch(
@@ -150,7 +158,7 @@ test('generated runtime instructions route the complete twelve-tool product', ()
   assert.match(runtime, /Wallet presence, balance, cash, readiness, deposit address,[\s\S]*x402_wallet/);
   assert.match(runtime, /What's in my wallet\?[\s\S]*x402_wallet, then dexter_portfolio/);
   assert.match(runtime, /Compose cash\/readiness with governed assets/);
-  assert.match(runtime, /Find an API or service[\s\S]*x402_search/);
+  assert.match(runtime, /Find an API or service[\s\S]*Indexter[\s\S]*x402_search/);
   assert.match(runtime, /known endpoint, current price,[\s\S]*x402_check/);
   assert.match(runtime, /Pay for or call a paid API[\s\S]*x402_fetch once/);
   assert.match(runtime, /x402_status for the same purchase intent/);

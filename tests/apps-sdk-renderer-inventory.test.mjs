@@ -165,7 +165,7 @@ test('the hosted resource allowlist contains only current renderers and retained
   const allowlist = selectedResourceBlock(server);
   const actualTokens = unique(
     [...allowlist.matchAll(
-      /\b(?:INDEXTER|X402|PORTFOLIO|GOVERNED_ASSET|DIAGNOSTIC|PASSKEY)_WIDGET_URIS\.[A-Za-z]+/g,
+      /\b(?:DEXTER_WALLET|INDEXTER|X402|PORTFOLIO|GOVERNED_ASSET|DIAGNOSTIC|PASSKEY)_WIDGET_URIS\.[A-Za-z]+/g,
     )].map(([token]) => token),
   ).sort();
 
@@ -178,6 +178,11 @@ test('the hosted resource allowlist contains only current renderers and retained
     allowlist,
     /\bX402_WIDGET_URIS\.search\b/,
     'The hosted server must not publish the retired x402 search resource',
+  );
+  assert.doesNotMatch(
+    allowlist,
+    /\bX402_WIDGET_URIS\.wallet\b/,
+    'The hosted server must not publish the retired x402 wallet resource',
   );
 
   for (const resource of resources) {
@@ -232,6 +237,29 @@ test('current product lockups are the exact canonical masters', async () => {
   assert.match(walletLockup, /dexter-wallet-lockup-light\.svg\?url/);
   assert.match(walletLockup, /dexter-wallet-lockup-dark\.svg\?url/);
   assert.doesNotMatch(walletLockup, /<svg/i);
+});
+
+test('current Indexter and Dexter Wallet entrypoints expose no legacy product identity', async () => {
+  const [
+    indexterHtml,
+    walletHtml,
+    indexterEntry,
+    walletEntry,
+  ] = await Promise.all([
+    source('public/apps-sdk/indexter-search.html'),
+    source('public/apps-sdk/dexter-wallet.html'),
+    source('apps-sdk/ui/src/entries/indexter-search.tsx'),
+    source('apps-sdk/ui/src/entries/dexter-wallet.tsx'),
+  ]);
+
+  assert.match(indexterHtml, /indexter-search/);
+  assert.doesNotMatch(indexterHtml, /x402-marketplace-search/i);
+  assert.match(walletHtml, /dexter-wallet/);
+  assert.doesNotMatch(walletHtml, /x402-wallet/i);
+  assert.match(indexterEntry, /components\/indexter\/search/);
+  assert.doesNotMatch(indexterEntry, /components\/x402\/search/);
+  assert.match(walletEntry, /dexter-wallet-root/);
+  assert.doesNotMatch(walletEntry, /x402-wallet-root/);
 });
 
 test('gallery host palettes use only exact MCP Apps style variable names', () => {

@@ -69,7 +69,7 @@ test('hosted x402_wallet remains read-only with no caller identity input', async
 test('hosted x402_wallet keeps verified portfolio display data in widget metadata', async () => {
   const [server, entry, payload] = await Promise.all([
     source('open-mcp-server.mjs'),
-    source('apps-sdk/ui/src/entries/x402-wallet.tsx'),
+    source('apps-sdk/ui/src/entries/dexter-wallet.tsx'),
     source('apps-sdk/ui/src/components/x402/walletPayload.ts'),
   ]);
   const walletImplementation = server.slice(

@@ -7,7 +7,7 @@ import {
 } from '../apps-sdk/ui/src/components/x402/check-result-model.ts';
 import {
   isSearchCheckRequestBound,
-} from '../apps-sdk/ui/src/components/x402/search/utils.ts';
+} from '../apps-sdk/ui/src/components/indexter/search/utils.ts';
 
 const baseRoute = {
   price: 0.01,

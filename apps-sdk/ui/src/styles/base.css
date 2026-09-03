@@ -221,7 +221,7 @@ textarea {
 button:focus-visible,
 a:focus-visible,
 [role="button"]:focus-visible {
-  outline: 2px solid var(--dx-orange);
+  outline: 2px solid var(--dx-orange-deep);
   outline-offset: 3px;
 }
 
