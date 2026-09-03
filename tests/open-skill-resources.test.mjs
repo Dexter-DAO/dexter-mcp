@@ -240,7 +240,7 @@ test('generated runtime instructions contain one coherent hosted contract withou
   for (const heading of [
     '# Route the user\'s request',
     '# Connect and identity',
-    '# Discover and use x402 services',
+    '# Discover with Indexter and use x402 services',
     '# Wallet and governed assets',
     '# Finality and global safety',
   ]) {
