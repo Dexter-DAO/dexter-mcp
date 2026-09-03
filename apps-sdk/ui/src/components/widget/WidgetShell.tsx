@@ -1,4 +1,4 @@
-import type { CSSProperties, PropsWithChildren } from 'react';
+import type { CSSProperties, PropsWithChildren, Ref } from 'react';
 
 /**
  * Outermost frame for a widget. Sets the type/color baseline from the
@@ -11,10 +11,12 @@ import type { CSSProperties, PropsWithChildren } from 'react';
 export function WidgetShell({
   children,
   style,
+  rootRef,
   density = 'comfortable',
   width = 'auto',
 }: PropsWithChildren<{
   style?: CSSProperties;
+  rootRef?: Ref<HTMLDivElement>;
   density?: 'comfortable' | 'compact';
   /**
    * `auto` lets content size dictate width (good in narrow side panels).
@@ -25,6 +27,7 @@ export function WidgetShell({
 }>) {
   return (
     <div
+      ref={rootRef}
       className="dx-widget"
       data-density={density}
       data-width={width}

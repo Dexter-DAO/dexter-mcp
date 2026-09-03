@@ -50,11 +50,15 @@ processes, such as Cursor, Codex, or Claude Code.
 
 ## First-use proof
 
-Run this flow on each connector that exposes the named tool:
+Use the flow for the connector being tested. The managed Dexter connector has
+its own roster; confirm its discovered tool names instead of substituting either
+sequence below.
+
+### Hosted OpenDexter
 
 1. Finish connector authorization and confirm the tool list loads.
-2. Search the marketplace for `"nansen"` with `x402_search`.
-3. Call `x402_wallet` and confirm its wallet and funding context.
+2. Search the Indexter marketplace for `"nansen"` with `indexter_search`.
+3. Call `dexter_wallet` and confirm its wallet and funding context.
 4. Call `x402_check` on a selected low-cost x402 endpoint. A purchasable result
    carries `quoteOnly=false`; keep its opaque `intentId`. Stop if
    `quoteOnly=true`, because that result has no executable intent.
@@ -64,20 +68,35 @@ Run this flow on each connector that exposes the named tool:
 6. If dispatch or settlement is uncertain, call `x402_status` with the same
    `intentId`. Never submit a second fetch for that intent.
 
-For OpenDexter, the same authorized connection handles discovery, the wallet
-and portfolio, identity-gated access, paid requests, and governed actions.
-Payment still follows the checked intent and exact spending ceiling.
+The same authorized OpenDexter connection handles discovery, the wallet and
+portfolio, identity-gated access, paid requests, and governed actions. Payment
+still follows the checked intent and exact spending ceiling.
 
-The local connector uses its own wallet and signer. Confirm that its wallet has
-the asset and network required by the selected quote before fetching.
+### Local dexter-x402
+
+1. Start the local command and confirm `x402_search`, `x402_wallet`,
+   `x402_check`, and `x402_fetch` load.
+2. Search the Indexter marketplace for the Nansen capability with
+   `x402_search`.
+3. Call the local wallet tool, `x402_wallet`, and confirm that its wallet has
+   the asset and network needed by the selected quote.
+4. Call `x402_check` with the selected endpoint's URL and method.
+5. After the user or bounded policy authorizes that exact request, call
+   `x402_fetch` once with the checked URL, method, parameters, and headers.
+
+The local connector uses its own wallet and signer. It does not accept an
+OpenDexter `intentId` or expose `x402_status`. If a paid call has an uncertain
+outcome, do not assume that retrying it is safe.
 
 ## Short setup script
 
 "Add Dexter at `https://mcp.dexter.cash/mcp`, OpenDexter at
 `https://open.dexter.cash/mcp`, and the local
 `npx -y @dexterai/x402-discovery@latest` connector. Authorize the hosted
-connectors, search for `nansen`, inspect the wallet, check a cheap endpoint,
-and fetch it once with the approved ceiling."
+connectors. For OpenDexter, search with `indexter_search`, inspect
+`dexter_wallet`, and use the checked `intentId` for one `x402_fetch`. For the
+local connector, use `x402_search` and `x402_wallet`, then pass the checked
+request directly to `x402_fetch`."
 
 ## Troubleshooting
 
@@ -86,9 +105,9 @@ and fetch it once with the approved ceiling."
   add the same canonical endpoint again, and finish the host-native flow.
 - If OpenDexter authorizes but its tools remain unavailable, treat setup as
   incomplete. Capture the authorization and tool-list errors before retrying.
-- If `x402_wallet` reports missing binding or funding, use its returned state
-  and `receiveAddress`; do not infer a deposit address from another wallet
-  field.
+- If OpenDexter's `dexter_wallet` reports missing binding or funding, use its
+  returned state and `receiveAddress`; do not infer a deposit address from
+  another wallet field.
 - If payment returns an ambiguous or post-dispatch state, inspect the same
   intent with `x402_status`. Preserve its identity and avoid another fetch.
 - The three connectors use different account and signer models, so compare

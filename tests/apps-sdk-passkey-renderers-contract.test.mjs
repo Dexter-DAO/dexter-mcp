@@ -26,13 +26,16 @@ test('passkey onboarding uses the Wallet identity and preserves wallet truth', a
   assert.match(entry, /openLink\('https:\/\/dexter\.cash\/wallet'\)/);
   assert.match(entry, /https:\/\/solscan\.io\/account\/\$\{receiveAddress\}/);
   assert.match(entry, /Use the host's Connect control/);
-  assert.match(entry, /useAdaptiveTheme|useAdaptiveMaxHeight|useIntrinsicHeight/);
+  assert.match(entry, /useAdaptiveTheme/);
+  assert.match(entry, /useIntrinsicHeight/);
+  assert.doesNotMatch(entry, /style=\{maxHeight|overflowY:\s*'auto'/);
 
   assert.doesNotMatch(
     entry,
     /WORDMARK_URL|<img|DexterLoading|Confetti|LinkGlyph|CheckGlyph|ErrorGlyph|eyebrow|status-dot|dx-passkey__disc/,
   );
-  assert.match(css, /\.dx-passkey\s*\{[^}]*background:\s*var\(--dx-canvas\)/s);
+  assert.match(css, /\.dx-passkey\s*\{[^}]*background:\s*transparent/s);
+  assert.doesNotMatch(css.match(/\.dx-passkey\s*\{[^}]*\}/s)?.[0] ?? '', /overflow(?:-[xy])?:\s*auto/);
   assert.match(css, /min-height:\s*44px/);
   assert.match(css, /:focus-visible/);
   assert.match(css, /@media \(max-width: 480px\)/);
@@ -57,12 +60,17 @@ test('passkey probe keeps all four diagnostics without the nested-card treatment
   assert.match(entry, /Scripted popup/);
   assert.match(entry, /Direct anchor/);
   assert.match(entry, /Host-mediated link/);
-  assert.match(entry, /useAdaptiveTheme|useAdaptiveMaxHeight|useIntrinsicHeight/);
+  assert.match(entry, /useAdaptiveTheme/);
+  assert.match(entry, /useIntrinsicHeight/);
+  assert.match(entry, /useAdaptiveRequestDisplayMode/);
+  assert.match(entry, /Open all checks/);
+  assert.doesNotMatch(entry, /style=\{maxHeight|overflowY:\s*'auto'/);
   assert.match(entry, /aria-busy=\{running\}/);
   assert.doesNotMatch(entry, /passkey-probe-card|passkey-probe-eyebrow/);
   assert.doesNotMatch(entry, /style=\{\{\s*marginTop/);
 
-  assert.match(css, /\.passkey-probe-container\s*\{[^}]*background:\s*var\(--dx-canvas\)/s);
+  assert.match(css, /\.passkey-probe-container\s*\{[^}]*background:\s*transparent/s);
+  assert.doesNotMatch(css.match(/\.passkey-probe-container\s*\{[^}]*\}/s)?.[0] ?? '', /overflow(?:-[xy])?:\s*auto/);
   assert.match(css, /min-height:\s*44px/);
   assert.match(css, /\.passkey-probe-button\s*\{[^}]*box-sizing:\s*border-box/s);
   assert.match(css, /:focus-visible/);

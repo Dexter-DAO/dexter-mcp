@@ -49,7 +49,7 @@ function sealedFixture({
   extraFiles = {},
   symlinks = {},
   unmanifestedFiles = {},
-  openRoster = ['x402_search', 'dexter_prepare_asset_action'],
+  openRoster = ['indexter_search', 'dexter_prepare_asset_action'],
   privateRoster,
 } = {}) {
   const parent = realpathSync(
@@ -293,7 +293,7 @@ function legacyFixture({ privateAlias = false } = {}) {
     canonicalRemote: 'https://example.test/dexter-mcp.git',
     canonicalRef: 'refs/heads/release',
     healthKeys: [],
-    roster: ['x402_search'],
+    roster: ['indexter_search'],
     provenance,
   };
   return {
@@ -333,7 +333,7 @@ test('sealed release binds complete files, descriptor, roster, and source identi
     fixture.provenance.rosters['dexter-open-mcp'],
   );
   assert.equal(
-    readFileSync(release.descriptorPath, 'utf8').includes('x402_search'),
+    readFileSync(release.descriptorPath, 'utf8').includes('indexter_search'),
     true,
   );
 });

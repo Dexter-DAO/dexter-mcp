@@ -188,7 +188,7 @@ export const MCP_APPS_HOST_TOKENS = Object.freeze({
 });
 
 export const TOOL_RENDERER_BEHAVIORS = Object.freeze({
-  x402_search: Object.freeze({
+  indexter_search: Object.freeze({
     family: 'indexter-search',
     resourceToken: 'INDEXTER_WIDGET_URIS.search',
     resourceUri: INDEXTER_WIDGET_URIS.search,
@@ -218,13 +218,13 @@ export const TOOL_RENDERER_BEHAVIORS = Object.freeze({
     resourceUri: X402_WIDGET_URIS.pricing,
     metadataName: 'ACCESS_META',
   }),
-  x402_wallet: Object.freeze({
+  dexter_wallet: Object.freeze({
     family: 'dexter-wallet',
     resourceToken: 'DEXTER_WALLET_WIDGET_URIS.wallet',
     resourceUri: DEXTER_WALLET_WIDGET_URIS.wallet,
     metadataName: 'WALLET_META',
   }),
-  dexter_portfolio: Object.freeze({
+  dexter_wallet_portfolio: Object.freeze({
     family: 'portfolio',
     resourceToken: 'PORTFOLIO_WIDGET_URIS.overview',
     resourceUri: PORTFOLIO_WIDGET_URIS.overview,
@@ -529,14 +529,14 @@ export async function buildRendererGallerySurfaces() {
   return [
     {
       id: 'indexter-search',
-      title: 'Indexter Discovery',
+      title: 'Indexter Search',
       file: 'indexter-search.html',
       resourceUri: INDEXTER_WIDGET_URIS.search,
-      tools: ['x402_search'],
+      tools: ['indexter_search'],
       input: { query: 'fresh market data' },
       output: searchOutput(),
       metadata: {},
-      readySelector: '.dx-search-brief__recommendation',
+      readySelector: '.dx-search-brief__title',
       outerSelector: '.dxs-root',
     },
     {
@@ -580,7 +580,7 @@ export async function buildRendererGallerySurfaces() {
       title: 'Dexter Wallet',
       file: 'dexter-wallet.html',
       resourceUri: DEXTER_WALLET_WIDGET_URIS.wallet,
-      tools: ['x402_wallet'],
+      tools: ['dexter_wallet'],
       input: {},
       output: walletOutput(),
       metadata: { dexterPortfolio: completePortfolio() },
@@ -592,11 +592,11 @@ export async function buildRendererGallerySurfaces() {
       title: 'Dexter Wallet Portfolio',
       file: 'dexter-portfolio.html',
       resourceUri: PORTFOLIO_WIDGET_URIS.overview,
-      tools: ['dexter_portfolio'],
+      tools: ['dexter_wallet_portfolio'],
       input: {},
       output: await portfolioOutput(),
       metadata: {},
-      readySelector: '.dxp-ledger',
+      readySelector: '.dxp-inline, .dxp-ledger',
       outerSelector: '.dxp-root',
     },
     {

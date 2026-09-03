@@ -1,13 +1,16 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type Ref } from 'react';
 
 import {
-  useAdaptiveMaxHeight,
+  useAdaptiveDisplayMode,
+  useAdaptiveHostCapabilities,
   useAdaptiveOpenExternal,
+  useAdaptiveRequestDisplayMode,
   useAdaptiveTheme,
   useToolOutput,
   useToolResponseMetadata,
 } from '../../sdk';
 import { WidgetEmpty, WidgetError, WidgetShell } from '../widget';
+import { useIntrinsicHeight } from '../x402/useIntrinsicHeight';
 import { GovernedActionDetail } from './GovernedActionView';
 import {
   normalizeGovernedHistory,
@@ -27,12 +30,9 @@ function formatActivityTime(model: GovernedActionViewModel): string | null {
   }).format(date);
 }
 
-function HistoryLoading({ maxHeight }: { maxHeight: number | null }) {
+function HistoryLoading({ rootRef }: { rootRef: Ref<HTMLDivElement> }) {
   return (
-    <WidgetShell
-      width="full"
-      style={maxHeight ? { maxHeight, overflowY: 'auto' } : undefined}
-    >
+    <WidgetShell width="full" rootRef={rootRef}>
       <div className="dx-history dx-history--loading" role="status" aria-live="polite" aria-label="Loading wallet history">
         <span className="dx-action__skeleton dx-history__skeleton-title" />
         <span className="dx-action__skeleton dx-history__skeleton-copy" />
@@ -53,8 +53,11 @@ export function GovernedHistoryView() {
     ?? responseMetadata?.['dexter/governedWidgetResult']
     ?? null;
   const theme = useAdaptiveTheme();
-  const maxHeight = useAdaptiveMaxHeight();
+  const displayMode = useAdaptiveDisplayMode();
+  const hostCapabilities = useAdaptiveHostCapabilities();
+  const requestDisplayMode = useAdaptiveRequestDisplayMode();
   const openExternal = useAdaptiveOpenExternal();
+  const rootRef = useIntrinsicHeight<HTMLDivElement>();
   const model = useMemo(() => normalizeGovernedHistory(renderOutput), [renderOutput]);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const returnFocusIndex = useRef<number | null>(null);
@@ -76,22 +79,31 @@ export function GovernedHistoryView() {
     returnFocusIndex.current = null;
   }, [selectedIndex]);
 
-  if (renderOutput === null) return <HistoryLoading maxHeight={maxHeight} />;
+  const canExpand = Boolean(requestDisplayMode && hostCapabilities.requestDisplayMode);
+  const isFullscreen = displayMode === 'fullscreen';
+  const requestMode = (mode: 'inline' | 'fullscreen') => {
+    if (!requestDisplayMode) return;
+    void requestDisplayMode({ mode }).catch(() => {});
+  };
+
+  if (renderOutput === null) return <HistoryLoading rootRef={rootRef} />;
 
   const selected = model && selectedIndex !== null
     ? model.items[selectedIndex] ?? null
     : null;
 
   return (
-    <WidgetShell
-      width="full"
-      style={maxHeight ? { maxHeight, overflowY: 'auto' } : undefined}
-    >
+    <WidgetShell width="full" rootRef={rootRef}>
       {selected ? (
         <GovernedActionDetail
           model={selected}
           openExternal={openExternal}
-          onBack={() => setSelectedIndex(null)}
+          compact={!isFullscreen && canExpand}
+          onExpand={canExpand ? () => requestMode('fullscreen') : undefined}
+          onBack={() => {
+            setSelectedIndex(null);
+            if (isFullscreen) requestMode('inline');
+          }}
         />
       ) : !model ? (
         <WidgetError
@@ -127,6 +139,7 @@ export function GovernedHistoryView() {
                     onClick={() => {
                       returnFocusIndex.current = index;
                       setSelectedIndex(index);
+                      if (!isFullscreen && canExpand) requestMode('fullscreen');
                     }}
                     aria-label={`Open details for ${item.headline}`}
                   >

@@ -32,7 +32,7 @@ wallet, portfolio, access, payment, and governed-action tools.
   `https://open.dexter.cash/mcp`, finish OAuth, and reload the tool list once.
 - If an established connection later returns `authentication_required`, let
   the host resume OAuth and retry the same tool once.
-- For wallet-not-ready, call `x402_wallet` and use its returned binding state.
+- For wallet-not-ready, call `dexter_wallet` and use its returned binding state.
 - For a returned `funding_required` result, use the returned `receiveAddress`.
   Never infer insufficient funds from zero cash alone: reported credit may
   exist, or its read may be unavailable, and exact-intent eligibility is a

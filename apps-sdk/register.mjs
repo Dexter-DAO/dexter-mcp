@@ -151,7 +151,6 @@ export function buildWidgetCsp(
     resourceDomains.push(
       'https://open.dexter.cash',
       'https://api.dexter.cash',
-      'https://api.qrserver.com',
     );
     redirectDomains.push('https://dexter.cash', 'https://solscan.io');
   } else if (templateUri === DIAGNOSTIC_WIDGET_URIS.passkeyProbe) {
@@ -614,7 +613,7 @@ export function registerAppsSdkResources(server, options = {}) {
       name: 'dexter_indexter_search',
       templateUri: INDEXTER_WIDGET_URIS.search,
       file: 'indexter-search.html',
-      title: 'Indexter Discovery',
+      title: 'Indexter Search',
       description: 'Displays Indexter discovery results with current access terms and provider evidence.',
       widgetDescription: 'Shows Indexter resources and capabilities without authorizing a purchase.',
       invoking: 'Searching Indexter…',
@@ -624,7 +623,7 @@ export function registerAppsSdkResources(server, options = {}) {
       name: 'dexter_x402_marketplace_search',
       templateUri: X402_WIDGET_URIS.search,
       file: 'x402-marketplace-search.html',
-      title: 'Indexter Discovery',
+      title: 'Indexter Search',
       description: 'Indexter discovery retained at the prior resource URI for cached hosts.',
       widgetDescription: 'Shows Indexter resources and capabilities without authorizing a purchase.',
       invoking: 'Searching Indexter…',
@@ -671,7 +670,7 @@ export function registerAppsSdkResources(server, options = {}) {
       invoked: 'Wallet loaded',
     },
     {
-      name: 'dexter_portfolio',
+      name: 'dexter_wallet_portfolio',
       templateUri: PORTFOLIO_WIDGET_URIS.overview,
       file: 'dexter-portfolio.html',
       title: 'Dexter Wallet Portfolio',

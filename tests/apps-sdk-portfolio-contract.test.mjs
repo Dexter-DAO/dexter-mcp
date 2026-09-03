@@ -38,9 +38,14 @@ test('portfolio visual is flat and leaves the outer container to the host', asyn
   const holdingRule = css.match(/\.dxp-holding\s*\{([^}]+)\}/)?.[1] ?? '';
   const targetRule = css.match(/\.dxp-target\s*\{([^}]+)\}/)?.[1] ?? '';
 
-  assert.match(rootRule, /background:\s*var\(--dx-canvas\)/);
+  assert.match(rootRule, /background:\s*transparent/);
+  assert.doesNotMatch(rootRule, /overflow(?:-[xy])?:\s*auto/);
   assert.match(ledgerRule, /background:\s*transparent/);
-  assert.doesNotMatch(css, /\bborder(?:-[a-z]+)?\s*:|box-shadow\s*:/);
+  const visibleBorders = [...css.matchAll(/\bborder(?:-(?!radius\b)[a-z]+)?\s*:\s*([^;]+);/g)]
+    .map((match) => match[1].trim())
+    .filter((value) => value !== '0' && value !== 'none');
+  assert.deepEqual(visibleBorders, []);
+  assert.doesNotMatch(css, /box-shadow\s*:/);
   assert.doesNotMatch(holdingRule, /background\s*:/);
   assert.doesNotMatch(targetRule, /background\s*:/);
   assert.doesNotMatch(css, /linear-gradient|radial-gradient|repeating-linear-gradient/);

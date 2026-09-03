@@ -355,6 +355,8 @@ function installChatGptHost({
   initialModelContextOrdinal = null,
   allowDisplayMode = true,
   rejectDisplayMode = false,
+  displayModeDelayMs = 0,
+  initialDisplayMode = 'inline',
 }) {
   window.__hostCalls = [];
   window.__modelContextOrdinal = initialModelContextOrdinal;
@@ -369,7 +371,7 @@ function installChatGptHost({
     },
     locale: 'en-US',
     maxHeight,
-    displayMode: 'inline',
+    displayMode: initialDisplayMode,
     safeArea: {
       insets: {
         top: 0,
@@ -447,6 +449,9 @@ function installChatGptHost({
         kind: 'requestDisplayMode',
         mode,
       });
+      if (mode === 'fullscreen' && displayModeDelayMs > 0) {
+        await new Promise((resolve) => window.setTimeout(resolve, displayModeDelayMs));
+      }
       if (rejectDisplayMode) {
         throw new Error('Host denied display mode change');
       }
@@ -651,16 +656,13 @@ async function assertInitialPresentation(surface, hostName) {
     name: 'Check live terms for Atlas Price Feed',
   }).waitFor();
   await surface.getByRole('heading', { name: 'Atlas Price Feed' }).waitFor();
-  await surface.getByText('Recommended', { exact: true }).waitFor();
-  await surface.getByText('97/100', { exact: true }).waitFor();
+  await surface.getByText(/Recommended · fixture\.example/).waitFor();
+  await surface.getByRole('button', { name: /Beacon Price Feed/ }).waitFor();
   await surface.getByText(
     'Best fit for fresh market prices with a predictable response shape.',
     { exact: true },
   ).waitFor();
-  await surface
-    .locator('.dx-search-brief__facts dd')
-    .filter({ hasText: '$0.008' })
-    .waitFor();
+  await surface.getByText('$0.008', { exact: true }).waitFor();
 
   const primary = surface.getByRole('button', {
     name: 'Check live terms for Atlas Price Feed',
@@ -672,12 +674,12 @@ async function assertInitialPresentation(surface, hostName) {
   ]);
 
   assert.ok(
-    primaryStyle.height >= 42,
-    `${hostName}: primary action must be at least 42px tall`,
+    primaryStyle.height >= 44,
+    `${hostName}: primary action must be at least 44px tall`,
   );
   assert.ok(
-    expandStyle.height >= 40,
-    `${hostName}: comparison control must be at least 40px tall`,
+    expandStyle.height >= 44,
+    `${hostName}: comparison control must be at least 44px tall`,
   );
   assert.ok(
     Number.parseFloat(primaryStyle.borderRadius) > 0,
@@ -712,9 +714,14 @@ async function assertInitialPresentation(surface, hostName) {
     .evaluate((element) => {
       const foreground = getComputedStyle(element).color;
       const root = element.closest('.dxs-root');
+      const backdropProbe = document.createElement('span');
+      backdropProbe.style.backgroundColor = 'var(--dxs-paper)';
+      root?.appendChild(backdropProbe);
+      const background = getComputedStyle(backdropProbe).backgroundColor;
+      backdropProbe.remove();
       return {
         foreground,
-        background: root ? getComputedStyle(root).backgroundColor : '',
+        background,
       };
     });
   const supportingRatio = await contrastRatio(
@@ -740,8 +747,7 @@ async function assertInitialPresentation(surface, hostName) {
 async function selectAlternative(surface) {
   await surface.getByRole('button', { name: /Beacon Price Feed/ }).click();
   await surface.getByRole('heading', { name: 'Beacon Price Feed' }).waitFor();
-  await surface.getByText('Selected', { exact: true }).waitFor();
-  await surface.getByText('93/100', { exact: true }).waitFor();
+  await surface.getByText(/Selected · fixture\.example/).waitFor();
   await surface.getByText(
     'Strong fallback with two asset routes on the same network.',
     { exact: true },
@@ -843,58 +849,37 @@ async function exerciseSearchFlow({
     const detailOpener = beaconCard.getByRole('button', {
       name: 'View details for Beacon Price Feed',
     });
+    const detailsId = await detailOpener.getAttribute('aria-controls');
+    assert.ok(detailsId, `${hostName}: detail disclosure must name its region`);
+    assert.equal(await detailOpener.getAttribute('aria-expanded'), 'false');
     await detailOpener.focus();
     await detailOpener.click();
-    let dialog = surface.getByRole('dialog', { name: 'Beacon Price Feed details' });
-    await dialog.waitFor();
-    const dismiss = surface.locator('.dx-search-mobile-dismiss');
+    let detailRegion = surface.locator(`[id="${detailsId}"]`);
+    await detailRegion.waitFor();
     assert.equal(
-      await dismiss.evaluate((element) => element.tagName),
-      'BUTTON',
-      `${hostName}: the click-away surface must use native button semantics`,
-    );
-    assert.equal(
-      await dismiss.getAttribute('aria-hidden'),
-      null,
-      `${hostName}: the click-away control must not be hidden from accessibility APIs`,
-    );
-    assert.equal(
-      await dismiss.getAttribute('aria-label'),
-      'Close Beacon Price Feed details',
-    );
-    assert.equal(await dismiss.getAttribute('tabindex'), '-1');
-    let drawer = dialog.locator('.dx-search-drawer');
-    const closeDetail = drawer.getByRole('button', { name: 'Close detail' });
-    await closeDetail.waitFor();
-    assert.equal(
-      await closeDetail.evaluate((element) => document.activeElement === element),
+      await detailRegion.evaluate((element) => document.activeElement === element),
       true,
-      `${hostName}: mobile detail must move focus into the dialog`,
+      `${hostName}: detail disclosure must move focus into its region`,
     );
     assert.equal(
-      await surface.locator('.dx-search-shell__header').getAttribute('inert'),
-      '',
-      `${hostName}: content behind the mobile detail must be inert`,
+      await surface.locator('.dx-search-mobile-dismiss').count(),
+      0,
+      `${hostName}: in-flow detail must not add a modal click-away layer`,
     );
-    await closeDetail.press('Shift+Tab');
-    assert.equal(
-      await dialog.evaluate((element) => element.contains(document.activeElement)),
-      true,
-      `${hostName}: reverse tab must stay inside the mobile detail`,
-    );
-    await dialog.press('Escape');
-    await dialog.waitFor({ state: 'detached' });
+    assert.equal(await detailOpener.getAttribute('aria-expanded'), 'true');
+    await detailRegion.press('Escape');
+    await detailRegion.waitFor({ state: 'detached' });
     await surface.locator('body').evaluate(() => new Promise(requestAnimationFrame));
     assert.equal(
       await detailOpener.evaluate((element) => document.activeElement === element),
       true,
-      `${hostName}: closing mobile detail must restore its trigger`,
+      `${hostName}: closing detail must restore its trigger`,
     );
 
     await detailOpener.click();
-    dialog = surface.getByRole('dialog', { name: 'Beacon Price Feed details' });
-    await dialog.waitFor();
-    drawer = dialog.locator('.dx-search-drawer');
+    detailRegion = surface.locator(`[id="${detailsId}"]`);
+    await detailRegion.waitFor();
+    const drawer = detailRegion.locator('.dx-search-drawer');
     await drawer.getByRole('button', { name: 'Copy URL' }).click();
     await drawer.getByRole('button', { name: 'Copied' }).waitFor();
     const drawerAction = drawer.getByRole('button', {
@@ -905,9 +890,7 @@ async function exerciseSearchFlow({
       `${hostName}: drawer action must be at least 44px tall`,
     );
     await drawerAction.click();
-    await surface.getByRole('button', { name: 'Close detail' }).waitFor({
-      state: 'detached',
-    });
+    await detailRegion.waitFor({ state: 'detached' });
     const detailsSent = surface.getByRole('button', {
       name: 'Provide details in chat for Beacon Price Feed',
     });
@@ -1384,6 +1367,98 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
       await page.close();
     });
 
+    await t.test('ChatGPT clamps long inline loading, empty, and ready headings', async () => {
+      const longQuery = [
+        'current weather, wildfire, flood, and air-quality data',
+        'for every county in California with source timestamps,',
+        'confidence notes, and machine-readable alerts',
+      ].join(' ');
+      const page = await context.newPage();
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.addInitScript(installChatGptHost, {
+        searchOutput: null,
+        checkToolResult: CHECK_TOOL_RESULT,
+        toolInput: { query: longQuery },
+        allowToolCalls: false,
+        allowFollowUp: false,
+        allowDisplayMode: false,
+        maxHeight: 340,
+      });
+      await page.goto(widgetUrl);
+
+      const assertBoundedHeading = async (heading, expectedTitle) => {
+        await heading.waitFor();
+        const metrics = await heading.evaluate((element) => {
+          const style = getComputedStyle(element);
+          return {
+            title: element.getAttribute('title'),
+            lineClamp: style.webkitLineClamp,
+            lineHeight: Number.parseFloat(style.lineHeight),
+            clientHeight: element.clientHeight,
+          };
+        });
+        assert.equal(metrics.title, expectedTitle);
+        assert.equal(metrics.lineClamp, '2');
+        assert.ok(
+          metrics.clientHeight <= (metrics.lineHeight * 2) + 2,
+          `inline heading must stay within two visible lines: ${expectedTitle}`,
+        );
+      };
+      const setSearchOutput = async (toolOutput) => {
+        await page.evaluate((nextOutput) => {
+          window.openai.toolOutput = nextOutput;
+          window.dispatchEvent(new CustomEvent('openai:set_globals', {
+            detail: { globals: { toolOutput: nextOutput } },
+          }));
+        }, toolOutput);
+      };
+
+      const loadingTitle = `Finding ${longQuery}`;
+      await assertBoundedHeading(
+        page.getByRole('heading', { name: loadingTitle, exact: true }),
+        loadingTitle,
+      );
+      assert.equal(
+        await page.locator('.dx-search-state p').evaluate(
+          (element) => getComputedStyle(element).webkitLineClamp,
+        ),
+        '3',
+      );
+
+      const emptyOutput = {
+        success: true,
+        count: 0,
+        strongResults: [],
+        relatedResults: [],
+        noMatchReason: 'below_similarity_threshold',
+        searchMeta: { mode: 'empty' },
+      };
+      await setSearchOutput(emptyOutput);
+      const emptyTitle = `No strong matches for "${longQuery}"`;
+      await assertBoundedHeading(
+        page.getByRole('heading', { name: emptyTitle, exact: true }),
+        emptyTitle,
+      );
+
+      await setSearchOutput(SEARCH_OUTPUT);
+      await assertBoundedHeading(
+        page.getByRole('heading', { name: longQuery, exact: true }),
+        longQuery,
+      );
+      const rootMetrics = await page.locator('.dxs-root').evaluate((element) => ({
+        clientWidth: element.clientWidth,
+        scrollWidth: element.scrollWidth,
+      }));
+      assert.ok(rootMetrics.scrollWidth <= rootMetrics.clientWidth + 1);
+      if (process.env.DEXTER_SEARCH_SCREENSHOTS === '1') {
+        await mkdir(SCREENSHOT_DIR, { recursive: true });
+        await page.locator('.dxs-root').screenshot({
+          path: path.join(SCREENSHOT_DIR, 'chatgpt-long-inline-heading.png'),
+        });
+      }
+      await page.close();
+    });
+
     await t.test('ChatGPT Apps SDK shim', async () => {
       const page = await context.newPage();
       const pageErrors = [];
@@ -1688,7 +1763,7 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
       await page.close();
     });
 
-    await t.test('ChatGPT constrained inline surface remains scrollable', async () => {
+    await t.test('ChatGPT constrained inline surface reports intrinsic height without self-scrolling', async () => {
       const page = await context.newPage();
       await page.addInitScript(installChatGptHost, {
         searchOutput: SEARCH_OUTPUT,
@@ -1707,8 +1782,8 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
         scrollHeight: element.scrollHeight,
         overflowY: getComputedStyle(element).overflowY,
       }));
-      assert.ok(metrics.scrollHeight > metrics.clientHeight);
-      assert.equal(metrics.overflowY, 'auto');
+      assert.equal(metrics.scrollHeight, metrics.clientHeight);
+      assert.equal(metrics.overflowY, 'visible');
       await page.getByRole('button', {
         name: 'Check live terms for Atlas Price Feed',
       })
@@ -1785,7 +1860,7 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
       await page.close();
     });
 
-    await t.test('ChatGPT without fullscreen can progressively reveal every result', async () => {
+    await t.test('ChatGPT inline-only comparison stays bounded and preserves result ordinals', async () => {
       const expandedOutput = structuredClone(SEARCH_OUTPUT);
       expandedOutput.relatedResults = Array.from({ length: 3 }, (_, index) => ({
         ...SEARCH_OUTPUT.strongResults[1],
@@ -1807,15 +1882,288 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
       });
       await page.goto(widgetUrl);
 
+      const headerCompare = page.getByRole('button', { name: 'Compare', exact: true });
+      const compareAll = page.getByRole('button', { name: 'Compare all 5 results' });
+      await headerCompare.waitFor();
+      await compareAll.waitFor();
+      assert.ok((await buttonPresentation(compareAll)).height >= 44);
+      const comparisonId = await headerCompare.getAttribute('aria-controls');
+      assert.ok(comparisonId);
+      assert.equal(await headerCompare.getAttribute('aria-expanded'), 'false');
+      assert.equal(await compareAll.getAttribute('aria-controls'), comparisonId);
+      assert.equal(await compareAll.getAttribute('aria-expanded'), 'false');
+
+      await compareAll.click();
+      let comparison = page.locator(`[id="${comparisonId}"]`);
+      await comparison.getByRole('heading', { name: 'Compare services' }).waitFor();
       assert.equal(
-        await page.getByRole('button', { name: 'Compare', exact: true }).count(),
+        await page.getByRole('heading', { name: 'fresh market data', exact: true }).count(),
+        0,
+        'inline comparison must replace the query and decision surface',
+      );
+      assert.equal(await page.locator('.dx-search-experience__decision').count(), 0);
+      assert.equal(await comparison.locator('.dx-search-compare__card').count(), 2);
+      await comparison.getByText('1–2 of 5', { exact: true }).waitFor();
+      const previous = comparison.getByRole('button', { name: 'Previous', exact: true });
+      const next = comparison.getByRole('button', { name: 'Next', exact: true });
+      assert.equal(await previous.isDisabled(), true);
+      assert.equal(await next.isDisabled(), false);
+      assert.equal(
+        await page.getByRole('button', { name: 'Close comparison', exact: true })
+          .getAttribute('aria-expanded'),
+        'true',
+      );
+
+      await next.click();
+      assert.equal(await comparison.locator('.dx-search-compare__card').count(), 2);
+      await comparison.getByText('3–4 of 5', { exact: true }).waitFor();
+      await next.click();
+      assert.equal(await comparison.locator('.dx-search-compare__card').count(), 1);
+      await comparison.getByText('5–5 of 5', { exact: true }).waitFor();
+      await page.getByText('Related Service 3', { exact: true }).waitFor();
+      assert.equal(await next.isDisabled(), true);
+      assert.equal(await previous.isDisabled(), false);
+
+      const fifthResult = comparison
+        .locator('.dx-search-compare__card')
+        .filter({ hasText: 'Related Service 3' });
+      await fifthResult.getByText('Result 5 of 5', { exact: true }).waitFor();
+      const details = fifthResult.getByRole('button', {
+        name: 'View details for Related Service 3',
+      });
+      const detailsId = await details.getAttribute('aria-controls');
+      assert.ok(detailsId);
+      assert.equal(await details.getAttribute('aria-expanded'), 'false');
+      await details.click();
+      const inlineDetail = page.locator(`[id="${detailsId}"]`);
+      await inlineDetail.waitFor();
+      await page.locator('body').evaluate(() => new Promise(requestAnimationFrame));
+      assert.equal(
+        await inlineDetail.evaluate((element) => document.activeElement === element),
+        true,
+        'inline detail must receive focus',
+      );
+      assert.equal(
+        await comparison.locator('.dx-search-compare__card').count(),
+        0,
+        'inline detail must replace the comparison cards',
+      );
+      assert.equal(await page.locator('.dx-search-drawer').count(), 0);
+      await inlineDetail.getByRole('heading', { name: 'Related Service 3' }).waitFor();
+      await inlineDetail.getByText('Result 5 of 5', { exact: true }).waitFor();
+      if (process.env.DEXTER_SEARCH_SCREENSHOTS === '1') {
+        await mkdir(SCREENSHOT_DIR, { recursive: true });
+        await page.locator('.dxs-root').screenshot({
+          path: path.join(SCREENSHOT_DIR, 'chatgpt-inline-detail.png'),
+        });
+      }
+      await inlineDetail.getByRole('button', { name: 'Back to comparison' }).click();
+
+      comparison = page.locator(`[id="${comparisonId}"]`);
+      await comparison.waitFor();
+      await comparison.getByText('5–5 of 5', { exact: true }).waitFor();
+      const restoredFifthResult = comparison
+        .locator('.dx-search-compare__card')
+        .filter({ hasText: 'Related Service 3' });
+      await restoredFifthResult.getByText('Current choice', { exact: true }).waitFor();
+      const restoredDetails = restoredFifthResult.getByRole('button', {
+        name: 'View details for Related Service 3',
+      });
+      assert.equal(await restoredDetails.getAttribute('aria-expanded'), 'false');
+      await page.locator('body').evaluate(() => new Promise(requestAnimationFrame));
+      assert.equal(
+        await restoredDetails.evaluate((element) => document.activeElement === element),
+        true,
+        'returning from inline detail must restore its exact trigger',
+      );
+
+      const comparisonMetrics = await comparison.evaluate((element) => ({
+        overflowY: getComputedStyle(element).overflowY,
+        cardCount: element.querySelectorAll('.dx-search-compare__card').length,
+      }));
+      assert.equal(comparisonMetrics.overflowY, 'visible');
+      assert.ok(comparisonMetrics.cardCount <= 2);
+      if (process.env.DEXTER_SEARCH_SCREENSHOTS === '1') {
+        await mkdir(SCREENSHOT_DIR, { recursive: true });
+        await page.locator('.dxs-root').screenshot({
+          path: path.join(SCREENSHOT_DIR, 'chatgpt-inline-comparison.png'),
+        });
+      }
+      assert.equal(
+        (await page.evaluate(() => window.__hostCalls))
+          .filter((call) => call.kind === 'requestDisplayMode').length,
         0,
       );
-      const reveal = page.getByRole('button', { name: 'Show 2 more' });
-      await reveal.waitFor();
-      assert.ok((await buttonPresentation(reveal)).height >= 44);
-      await reveal.click();
-      await page.getByText('Related Service 3', { exact: true }).waitFor();
+      await page.close();
+    });
+
+    await t.test('ChatGPT condensed comparison pages one result at a time', async () => {
+      const expandedOutput = structuredClone(SEARCH_OUTPUT);
+      expandedOutput.relatedResults = Array.from({ length: 3 }, (_, index) => ({
+        ...SEARCH_OUTPUT.strongResults[1],
+        resourceId: `condensed-related-${index + 1}`,
+        name: `Condensed Service ${index + 1}`,
+        url: `https://condensed-${index + 1}.example/data`,
+        tier: 'related',
+        qualityScore: 80 - index,
+        why: `Condensed capability ${index + 1}.`,
+      }));
+      expandedOutput.count = 5;
+      expandedOutput.relatedCount = 3;
+
+      const page = await context.newPage();
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.addInitScript(installChatGptHost, {
+        searchOutput: expandedOutput,
+        checkToolResult: CHECK_TOOL_RESULT,
+        allowDisplayMode: false,
+        maxHeight: 300,
+      });
+      await page.goto(widgetUrl);
+
+      const assertWithinHostHeight = async (state) => {
+        const metrics = await page.locator('.dxs-root').evaluate((element) => {
+          const nestedScrollers = Array.from(element.querySelectorAll('*')).filter((node) => {
+            const style = getComputedStyle(node);
+            return /(auto|scroll)/.test(style.overflowY)
+              && node.scrollHeight > node.clientHeight + 1;
+          });
+          const heightOf = (selector) => (
+            element.querySelector(selector)?.getBoundingClientRect().height ?? 0
+          );
+          return {
+            height: element.getBoundingClientRect().height,
+            clientWidth: element.clientWidth,
+            scrollWidth: element.scrollWidth,
+            nestedScrollers: nestedScrollers.length,
+            sections: {
+              shellHeader: heightOf('.dx-search-shell__header'),
+              experience: heightOf('.dx-search-experience'),
+              compareHeader: heightOf('.dx-search-compare__header'),
+              card: heightOf('.dx-search-compare__card'),
+              pagination: heightOf('.dx-search-compare__pagination'),
+            },
+          };
+        });
+        assert.ok(
+          metrics.height <= 301,
+          `${state} must fit the host's 300px boundary; rendered ${metrics.height}px `
+            + JSON.stringify(metrics.sections),
+        );
+        assert.ok(metrics.scrollWidth <= metrics.clientWidth + 1);
+        assert.equal(metrics.nestedScrollers, 0, `${state} must not add inner scrolling`);
+      };
+
+      await page.getByRole('button', { name: 'Compare', exact: true }).click();
+      const comparison = page.getByRole('region', { name: 'Compare services' });
+      await comparison.waitFor();
+      assert.equal(await comparison.locator('.dx-search-compare__card').count(), 1);
+      await comparison.getByText('1–1 of 5', { exact: true }).waitFor();
+      await assertWithinHostHeight('condensed comparison page 1');
+      await comparison.getByRole('button', { name: 'Next', exact: true }).click();
+      assert.equal(await comparison.locator('.dx-search-compare__card').count(), 1);
+      await comparison.getByText('2–2 of 5', { exact: true }).waitFor();
+      await assertWithinHostHeight('condensed comparison page 2');
+      if (process.env.DEXTER_SEARCH_SCREENSHOTS === '1') {
+        await mkdir(SCREENSHOT_DIR, { recursive: true });
+        await page.locator('.dxs-root').screenshot({
+          path: path.join(SCREENSHOT_DIR, 'chatgpt-condensed-comparison.png'),
+        });
+      }
+      await comparison.getByRole('button', {
+        name: 'View details for Beacon Price Feed',
+      }).click();
+      const detail = page.getByRole('region', { name: 'Beacon Price Feed details' });
+      await detail.waitFor();
+      assert.equal(await page.locator('.dx-search-drawer').count(), 0);
+      await assertWithinHostHeight('condensed inline detail');
+      if (process.env.DEXTER_SEARCH_SCREENSHOTS === '1') {
+        await mkdir(SCREENSHOT_DIR, { recursive: true });
+        await page.locator('.dxs-root').screenshot({
+          path: path.join(SCREENSHOT_DIR, 'chatgpt-condensed-detail.png'),
+        });
+      }
+      await detail.getByRole('button', { name: 'Back to comparison' }).click();
+      await comparison.getByText('2–2 of 5', { exact: true }).waitFor();
+      await page.close();
+    });
+
+    await t.test('ChatGPT treats an exact 360px host boundary as condensed', async () => {
+      const expandedOutput = structuredClone(SEARCH_OUTPUT);
+      expandedOutput.relatedResults = Array.from({ length: 3 }, (_, index) => ({
+        ...SEARCH_OUTPUT.strongResults[1],
+        resourceId: `boundary-related-${index + 1}`,
+        name: `Boundary Service ${index + 1}`,
+        url: `https://boundary-${index + 1}.example/data`,
+        tier: 'related',
+        qualityScore: 80 - index,
+        why: `Boundary capability ${index + 1}.`,
+      }));
+      expandedOutput.count = 5;
+      expandedOutput.relatedCount = 3;
+
+      const page = await context.newPage();
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.addInitScript(installChatGptHost, {
+        searchOutput: expandedOutput,
+        checkToolResult: CHECK_TOOL_RESULT,
+        allowDisplayMode: false,
+        maxHeight: 360,
+      });
+      await page.goto(widgetUrl);
+
+      const root = page.locator('.dxs-root');
+      await root.waitFor();
+      assert.match(await root.getAttribute('class'), /dx-search-shell--condensed/);
+      await page.getByRole('button', { name: 'Compare', exact: true }).click();
+      const comparison = page.getByRole('region', { name: 'Compare services' });
+      await comparison.waitFor();
+      assert.equal(await comparison.locator('.dx-search-compare__card').count(), 1);
+      assert.ok(
+        await root.evaluate((element) => element.getBoundingClientRect().height <= 361),
+        'the exact 360px boundary must not fall through to the full inline layout',
+      );
+      await page.close();
+    });
+
+    await t.test('ChatGPT fullscreen comparison can show the broader result set', async () => {
+      const expandedOutput = structuredClone(SEARCH_OUTPUT);
+      expandedOutput.relatedResults = Array.from({ length: 3 }, (_, index) => ({
+        ...SEARCH_OUTPUT.strongResults[1],
+        resourceId: `fullscreen-related-${index + 1}`,
+        name: `Fullscreen Service ${index + 1}`,
+        url: `https://fullscreen-${index + 1}.example/data`,
+        tier: 'related',
+        qualityScore: 80 - index,
+        why: `Fullscreen capability ${index + 1}.`,
+      }));
+      expandedOutput.count = 5;
+      expandedOutput.relatedCount = 3;
+
+      const page = await context.newPage();
+      await page.addInitScript(installChatGptHost, {
+        searchOutput: expandedOutput,
+        checkToolResult: CHECK_TOOL_RESULT,
+      });
+      await page.goto(widgetUrl);
+
+      const compare = page.getByRole('button', { name: 'Compare', exact: true });
+      const comparisonId = await compare.getAttribute('aria-controls');
+      assert.ok(comparisonId);
+      await compare.click();
+      await page.locator('.dxs-root[data-display-mode="fullscreen"]').waitFor();
+      const comparison = page.locator(`[id="${comparisonId}"]`);
+      await comparison.waitFor();
+      assert.equal(await comparison.locator('.dx-search-compare__card').count(), 5);
+      assert.equal(await comparison.getByRole('button', { name: 'Next', exact: true }).count(), 0);
+      assert.equal(await comparison.getByRole('button', { name: 'Previous', exact: true }).count(), 0);
+      await comparison.getByText('Fullscreen Service 3', { exact: true }).waitFor();
+      if (process.env.DEXTER_SEARCH_SCREENSHOTS === '1') {
+        await mkdir(SCREENSHOT_DIR, { recursive: true });
+        await page.locator('.dxs-root').screenshot({
+          path: path.join(SCREENSHOT_DIR, 'chatgpt-fullscreen-comparison.png'),
+        });
+      }
       await page.close();
     });
 
@@ -1841,6 +2189,64 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
         .filter((call) => call.kind === 'requestDisplayMode');
       assert.equal(displayCalls.length, 1);
       assert.equal(displayCalls[0].mode, 'fullscreen');
+      await page.close();
+    });
+
+    await t.test('ChatGPT comparison close wins a late fullscreen response', async () => {
+      const page = await context.newPage();
+      await page.addInitScript(installChatGptHost, {
+        searchOutput: SEARCH_OUTPUT,
+        checkToolResult: CHECK_TOOL_RESULT,
+        displayModeDelayMs: 80,
+      });
+      await page.goto(widgetUrl);
+
+      await page.getByRole('button', { name: 'Compare', exact: true }).click();
+      const comparison = page.getByRole('region', { name: 'Compare services' });
+      await comparison.waitFor();
+      await page.getByRole('button', { name: 'Close comparison', exact: true }).click();
+      await comparison.waitFor({ state: 'detached' });
+      await page.waitForTimeout(180);
+
+      assert.equal(
+        await page.locator('.dxs-root').getAttribute('data-display-mode'),
+        'inline',
+      );
+      const displayModes = (await page.evaluate(() => window.__hostCalls))
+        .filter((call) => call.kind === 'requestDisplayMode')
+        .map((call) => call.mode);
+      assert.equal(displayModes[0], 'fullscreen');
+      assert.equal(displayModes.at(-1), 'inline');
+      assert.ok(displayModes.filter((mode) => mode === 'inline').length >= 1);
+      await page.close();
+    });
+
+    await t.test('ChatGPT comparison preserves a pre-existing fullscreen mode', async () => {
+      const page = await context.newPage();
+      await page.addInitScript(installChatGptHost, {
+        searchOutput: SEARCH_OUTPUT,
+        checkToolResult: CHECK_TOOL_RESULT,
+        initialDisplayMode: 'fullscreen',
+      });
+      await page.goto(widgetUrl);
+
+      await page.locator('.dxs-root[data-display-mode="fullscreen"]').waitFor();
+      await page.getByRole('button', { name: 'Compare', exact: true }).click();
+      const comparison = page.getByRole('region', { name: 'Compare services' });
+      await comparison.waitFor();
+      await page.getByRole('button', { name: 'Close comparison', exact: true }).click();
+      await comparison.waitFor({ state: 'detached' });
+
+      assert.equal(
+        await page.locator('.dxs-root').getAttribute('data-display-mode'),
+        'fullscreen',
+      );
+      assert.equal(
+        (await page.evaluate(() => window.__hostCalls))
+          .filter((call) => call.kind === 'requestDisplayMode').length,
+        0,
+        'comparison must not change a fullscreen mode it did not request',
+      );
       await page.close();
     });
 
@@ -1930,11 +2336,15 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
             .getPropertyValue('--color-text-primary'),
         };
       });
-      assert.equal(rootStyle.backgroundColor, 'rgb(255, 253, 249)');
+      assert.equal(rootStyle.backgroundColor, 'rgba(0, 0, 0, 0)');
       assert.equal(rootStyle.hostTextToken, '#1d1710');
       assert.ok(!isTransparent(rootStyle.color));
       assert.match(rootStyle.fontFamily, /^Arial/);
-      assert.equal(rootStyle.paddingBottom, '12px');
+      assert.equal(
+        rootStyle.paddingBottom,
+        '12px',
+        'MCP Apps: fullscreen search must honor the host safe-area inset',
+      );
 
       const calls = await page.evaluate(() => window.__hostCalls);
       const initializeCall = calls.find(
@@ -1996,7 +2406,7 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
       await page.close();
     });
 
-    await t.test('MCP Apps Access Terms honors containerDimensions', async () => {
+    await t.test('MCP Apps Access Terms reports its height without self-clipping', async () => {
       const page = await context.newPage();
       const constrainedInit = structuredClone(MCP_INIT_RESULT);
       constrainedInit.hostContext.containerDimensions.maxHeight = 300;
@@ -2020,13 +2430,26 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
       const metrics = await root.evaluate((element) => ({
         maxHeight: getComputedStyle(element).maxHeight,
         overflowY: getComputedStyle(element).overflowY,
+        background: getComputedStyle(element).backgroundColor,
+        borderRadius: getComputedStyle(element).borderRadius,
+        boxShadow: getComputedStyle(element).boxShadow,
         clientHeight: element.clientHeight,
         scrollHeight: element.scrollHeight,
       }));
-      assert.equal(metrics.maxHeight, '300px');
-      assert.equal(metrics.overflowY, 'auto');
-      assert.ok(metrics.clientHeight <= 300);
-      assert.ok(metrics.scrollHeight > metrics.clientHeight);
+      assert.equal(metrics.maxHeight, 'none');
+      assert.equal(metrics.overflowY, 'visible');
+      assert.equal(metrics.background, 'rgba(0, 0, 0, 0)');
+      assert.equal(metrics.borderRadius, '0px');
+      assert.equal(metrics.boxShadow, 'none');
+      assert.ok(metrics.clientHeight > 300);
+      assert.equal(metrics.scrollHeight, metrics.clientHeight);
+
+      await page.waitForFunction(() => (
+        window.__hostCalls.some(
+          (call) => call.method === 'ui/notifications/size-changed'
+            && Number(call.params?.height) > 300,
+        )
+      ));
 
       const requestBackground = await frame
         .locator('.dx-pricing__request')

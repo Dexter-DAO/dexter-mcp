@@ -2,12 +2,6 @@ import { ChainIcon, getChain } from '../x402';
 import type { X402PaymentRoute } from '../x402/check-result-model';
 import { formatAssetLabel } from '../indexter/search/utils';
 
-function shortRecipient(value: string): string {
-  return value.length <= 12
-    ? value
-    : `${value.slice(0, 6)}…${value.slice(-4)}`;
-}
-
 function priceLabel(route: X402PaymentRoute): string {
   return route.priceFormatted || `${route.amountAtomic ?? 'Unknown'} atomic`;
 }
@@ -39,7 +33,7 @@ function PaymentTermRow({ route }: { route: X402PaymentRoute }) {
       {route.payTo ? (
         <div className="dx-pricing__route-payto">
           <span className="dx-pricing__route-payto-addr">
-            to {shortRecipient(route.payTo)}
+            to {route.payTo}
           </span>
         </div>
       ) : null}

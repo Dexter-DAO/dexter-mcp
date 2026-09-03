@@ -1,14 +1,17 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, type Ref } from 'react';
 
 import {
-  useAdaptiveMaxHeight,
+  useAdaptiveDisplayMode,
+  useAdaptiveHostCapabilities,
   useAdaptiveOpenExternal,
+  useAdaptiveRequestDisplayMode,
   useAdaptiveTheme,
   useToolInput,
   useToolOutput,
   useToolResponseMetadata,
 } from '../../sdk';
 import { WidgetEmpty, WidgetShell } from '../widget';
+import { useIntrinsicHeight } from '../x402/useIntrinsicHeight';
 import {
   displayShareQuantity,
   formatAtomicDecimal,
@@ -451,12 +454,9 @@ function QuoteDetails({ model }: { model: GovernedActionViewModel }) {
   );
 }
 
-function GovernedLoading({ maxHeight }: { maxHeight: number | null }) {
+function GovernedLoading({ rootRef }: { rootRef: Ref<HTMLDivElement> }) {
   return (
-    <WidgetShell
-      width="full"
-      style={maxHeight ? { maxHeight, overflowY: 'auto' } : undefined}
-    >
+    <WidgetShell width="full" rootRef={rootRef}>
       <div className="dx-action dx-action--loading" role="status" aria-live="polite" aria-label="Loading governed action">
         <span className="dx-action__skeleton dx-action__skeleton--state" />
         <span className="dx-action__skeleton dx-action__skeleton--title" />
@@ -474,14 +474,18 @@ export function GovernedActionDetail({
   model,
   openExternal,
   onBack,
+  compact = false,
+  onExpand,
 }: {
   model: GovernedActionViewModel;
   openExternal: (href: string) => void;
   onBack?: () => void;
+  compact?: boolean;
+  onExpand?: () => void;
 }) {
   const updated = formatDateTime(model.lastActivityAt ?? model.createdAt);
   return (
-    <article className="dx-action" data-stage={model.stage} aria-live="polite">
+    <article className={`dx-action${compact ? ' dx-action--compact' : ''}`} data-stage={model.stage} aria-live="polite">
       {onBack ? (
         <button type="button" className="dx-action__back" onClick={onBack}>
           <BackIcon />
@@ -500,36 +504,69 @@ export function GovernedActionDetail({
       </header>
 
       <Economics model={model} />
-      <Authority model={model} />
-      <Execution model={model} />
-      <AssetIdentity model={model} />
 
-      {model.explanation && model.explanation !== model.supporting ? (
-        <p className="dx-action__explanation" role={model.stage === 'failure' ? 'alert' : undefined}>
-          {model.explanation}
-        </p>
-      ) : null}
+      {compact ? (
+        <section className="dx-action__compact-evidence" aria-label="Authority and execution summary">
+          <dl className="dx-action__facts">
+            <div>
+              <dt>Owner approval</dt>
+              <dd>{approvalLabel(model)}</dd>
+            </div>
+            <div data-evidence="execution" data-result={model.executionSucceeded === true ? 'succeeded' : model.executionSucceeded === false ? 'failed' : 'unknown'}>
+              <dt>Execution</dt>
+              <dd>{executionSentence(model)}</dd>
+            </div>
+          </dl>
+          {model.approvalRequired && model.ownerDecision !== 'approved' ? (
+            <p className="dx-action__approval-note">
+              Approval belongs in Dexter Wallet. This view cannot grant it or execute the action.
+            </p>
+          ) : null}
+          {model.recovery.sentence ? (
+            <p className="dx-action__recovery" data-kind={model.recovery.kind} role="status">
+              {model.recovery.sentence}
+            </p>
+          ) : null}
+          {onExpand ? (
+            <button type="button" className="dx-action__expand" onClick={onExpand}>
+              View full receipt
+            </button>
+          ) : null}
+        </section>
+      ) : (
+        <>
+          <Authority model={model} />
+          <Execution model={model} />
+          <AssetIdentity model={model} />
 
-      {model.recovery.sentence ? (
-        <p className="dx-action__recovery" data-kind={model.recovery.kind} role="status">
-          {model.recovery.sentence}
-        </p>
-      ) : null}
+          {model.explanation && model.explanation !== model.supporting ? (
+            <p className="dx-action__explanation" role={model.stage === 'failure' ? 'alert' : undefined}>
+              {model.explanation}
+            </p>
+          ) : null}
 
-      <QuoteDetails model={model} />
-      <ReceiptDetails model={model} />
+          {model.recovery.sentence ? (
+            <p className="dx-action__recovery" data-kind={model.recovery.kind} role="status">
+              {model.recovery.sentence}
+            </p>
+          ) : null}
 
-      {model.solscanUrl ? (
-        <button
-          type="button"
-          className="dx-action__external"
-          onClick={() => openExternal(model.solscanUrl!)}
-          aria-label="View this transaction on Solscan"
-        >
-          View on Solscan
-          <ExternalIcon />
-        </button>
-      ) : null}
+          <QuoteDetails model={model} />
+          <ReceiptDetails model={model} />
+
+          {model.solscanUrl ? (
+            <button
+              type="button"
+              className="dx-action__external"
+              onClick={() => openExternal(model.solscanUrl!)}
+              aria-label="View this transaction on Solscan"
+            >
+              View on Solscan
+              <ExternalIcon />
+            </button>
+          ) : null}
+        </>
+      )}
     </article>
   );
 }
@@ -542,8 +579,11 @@ export function GovernedActionView() {
     ?? null;
   const input = useToolInput<unknown>();
   const theme = useAdaptiveTheme();
-  const maxHeight = useAdaptiveMaxHeight();
+  const displayMode = useAdaptiveDisplayMode();
+  const hostCapabilities = useAdaptiveHostCapabilities();
+  const requestDisplayMode = useAdaptiveRequestDisplayMode();
   const openExternal = useAdaptiveOpenExternal();
+  const rootRef = useIntrinsicHeight<HTMLDivElement>();
   const model = useMemo(
     () => normalizeGovernedAction(renderOutput, input),
     [renderOutput, input],
@@ -553,15 +593,24 @@ export function GovernedActionView() {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
-  if (renderOutput === null) return <GovernedLoading maxHeight={maxHeight} />;
+  const canExpand = Boolean(requestDisplayMode && hostCapabilities.requestDisplayMode);
+  const isFullscreen = displayMode === 'fullscreen';
+  const requestMode = (mode: 'inline' | 'fullscreen') => {
+    if (!requestDisplayMode) return;
+    void requestDisplayMode({ mode }).catch(() => {});
+  };
+
+  if (renderOutput === null) return <GovernedLoading rootRef={rootRef} />;
 
   return (
-    <WidgetShell
-      width="full"
-      style={maxHeight ? { maxHeight, overflowY: 'auto' } : undefined}
-    >
+    <WidgetShell width="full" rootRef={rootRef}>
       {model ? (
-        <GovernedActionDetail model={model} openExternal={openExternal} />
+        <GovernedActionDetail
+          model={model}
+          openExternal={openExternal}
+          compact={!isFullscreen && canExpand}
+          onExpand={canExpand ? () => requestMode('fullscreen') : undefined}
+        />
       ) : (
         <WidgetEmpty
           title="No governed-action details available"

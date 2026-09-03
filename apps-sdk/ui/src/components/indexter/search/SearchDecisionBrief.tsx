@@ -21,12 +21,15 @@ export type SearchDecisionBriefProps = {
   onSelect: (resource: SearchResource) => void;
   onUseService: (resource: SearchResource) => void;
   onCompareAll: () => void;
+  comparisonOpen: boolean;
+  comparisonId: string;
   canCheckCurrentTerms?: boolean;
   canProvideDetailsInChat?: boolean;
   canCompare?: boolean;
   interactionLocked?: boolean;
   heading?: string;
   alternativeLimit?: number;
+  compact?: boolean;
 };
 
 function listedPrice(resource: SearchResource): string {
@@ -44,11 +47,15 @@ export function SearchDecisionBrief({
   checkState = { status: 'idle' },
   onSelect,
   onUseService,
+  onCompareAll,
+  comparisonOpen,
+  comparisonId,
   canCheckCurrentTerms = true,
   canProvideDetailsInChat = true,
   canCompare = true,
   interactionLocked = false,
   alternativeLimit = 3,
+  compact = false,
 }: SearchDecisionBriefProps) {
   const headingId = useId();
   const [showAllAlternatives, setShowAllAlternatives] = useState(false);
@@ -96,6 +103,123 @@ export function SearchDecisionBrief({
   const selectionLabel = isRecommended && !selectedOrdinal
     ? (recommendationKind === 'related' ? 'Closest match' : 'Recommended')
     : 'Selected';
+
+  const actionLabel = resourceAction.disabled
+    ? resourceAction.label
+    : unavailableInHost
+      ? 'Unavailable in this host'
+      : isChecking
+        ? resourceAction.kind === 'provide_details'
+          ? 'Opening chat…'
+          : 'Checking…'
+        : detailsSent
+          ? 'Opened in chat'
+          : relevantCheckState.status === 'error'
+            ? 'Try again'
+            : resourceAction.label;
+  const actionDisabled =
+    isChecking
+    || interactionLocked
+    || detailsSent
+    || resourceAction.disabled
+    || !canPerformAction;
+  const actionNote = resourceAction.disabled
+    ? resourceAction.helperText
+    : unavailableInHost
+      ? resourceAction.kind === 'provide_details'
+        ? "This host can't continue the request in chat."
+        : "This host can't check current terms from the widget."
+      : relevantCheckState.status === 'error'
+        ? relevantCheckState.message
+        : relevantCheckState.status === 'checking'
+          ? relevantCheckState.message || 'Checking the current terms…'
+          : relevantCheckState.status === 'details_sent'
+            ? relevantCheckState.message || 'Continue in chat to provide the missing request details.'
+            : resourceAction.helperText;
+
+  if (compact) {
+    return (
+      <section className="dx-search-brief dx-search-brief--compact" aria-labelledby={headingId}>
+        <div className="dx-search-brief__identity">
+          <SearchIdentityIcon resource={actionTarget} size={36} />
+          <div className="dx-search-brief__identity-copy">
+            <h2 id={headingId} className="dx-search-brief__title">{actionTarget.name}</h2>
+            <p className="dx-search-brief__host">
+              {selectionLabel} · {hostLabel(actionTarget.url)}
+            </p>
+          </div>
+          <strong className="dx-search-brief__compact-price">{price}</strong>
+        </div>
+
+        {!hasCurrentTerms ? (
+          <>
+            <p className="dx-search-brief__why">{summary.why}</p>
+
+            {summary.safetyWarning ? (
+              <p className="dx-search-safety-note" role="note">
+                {summary.safetyWarning}
+              </p>
+            ) : null}
+
+            <div className="dx-search-brief__compact-footer">
+              <span>{summary.networkLabel} · {summary.evidenceBadgeLabel}</span>
+              <button
+                type="button"
+                className="dx-search-primary-action"
+                onClick={() => onUseService(actionTarget)}
+                aria-busy={isChecking}
+                aria-label={`${resourceAction.label} for ${actionTarget.name}`}
+                disabled={actionDisabled}
+              >
+                {actionLabel}
+              </button>
+            </div>
+
+            <p
+              className={`dx-search-brief__action-note${relevantCheckState.status === 'error' ? ' dx-search-brief__action-note--error' : ''}`}
+              aria-live="polite"
+            >
+              {actionNote}
+            </p>
+
+            {alternatives.length > 0 ? (
+              <ul className="dx-search-brief__compact-alternatives" aria-label="Other ranked results">
+                {alternatives.map((resource) => (
+                  <li key={`${resource.resourceId || resource.url}:${resources.indexOf(resource)}`}>
+                    <button
+                      type="button"
+                      onClick={() => onSelect(resource)}
+                      disabled={interactionLocked}
+                    >
+                      <SearchIdentityIcon resource={resource} size={28} />
+                      <span>
+                        <strong>{resource.name}</strong>
+                        <small>{hostLabel(resource.url)}</small>
+                      </span>
+                      <b>{listedPrice(resource)}</b>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+
+            {alternativeLimit > 0 && decision.hiddenAlternativeCount > 0 ? (
+              <button
+                type="button"
+                className="dx-search-brief__compact-compare"
+                onClick={onCompareAll}
+                aria-controls={comparisonId}
+                aria-expanded={comparisonOpen}
+                disabled={interactionLocked}
+              >
+                Compare all {resources.length} results
+              </button>
+            ) : null}
+          </>
+        ) : null}
+      </section>
+    );
+  }
 
   return (
     <section
@@ -153,27 +277,9 @@ export function SearchDecisionBrief({
                 onClick={() => onUseService(actionTarget)}
                 aria-busy={isChecking}
                 aria-label={`${resourceAction.label} for ${actionTarget.name}`}
-                disabled={
-                  isChecking
-                  || interactionLocked
-                  || detailsSent
-                  || resourceAction.disabled
-                  || !canPerformAction
-                }
+                disabled={actionDisabled}
               >
-                {resourceAction.disabled
-                  ? resourceAction.label
-                  : unavailableInHost
-                    ? 'Unavailable in this host'
-                    : isChecking
-                      ? resourceAction.kind === 'provide_details'
-                        ? 'Opening chat…'
-                        : 'Checking live terms…'
-                      : detailsSent
-                        ? 'Opened in chat'
-                        : relevantCheckState.status === 'error'
-                          ? 'Try again'
-                          : resourceAction.label}
+                {actionLabel}
                 <span aria-hidden>{price}</span>
               </button>
             </div>
@@ -182,19 +288,7 @@ export function SearchDecisionBrief({
               className={`dx-search-brief__action-note${relevantCheckState.status === 'error' ? ' dx-search-brief__action-note--error' : ''}`}
               aria-live="polite"
             >
-              {resourceAction.disabled
-                ? resourceAction.helperText
-                : unavailableInHost
-                  ? resourceAction.kind === 'provide_details'
-                    ? "This host can't continue the request in chat."
-                    : "This host can't check current terms from the widget."
-                  : relevantCheckState.status === 'error'
-                    ? relevantCheckState.message
-                    : relevantCheckState.status === 'checking'
-                      ? relevantCheckState.message || 'Checking the current terms…'
-                      : relevantCheckState.status === 'details_sent'
-                        ? relevantCheckState.message || 'Continue in chat to provide the missing request details.'
-                        : resourceAction.helperText}
+              {actionNote}
             </p>
           </>
         ) : null}

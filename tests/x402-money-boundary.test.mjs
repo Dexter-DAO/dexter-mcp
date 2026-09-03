@@ -59,9 +59,9 @@ test('authenticated check accepts an exact raw body string and no prepared purch
 });
 
 test('access uses the canonical check and never creates a legacy session wallet', () => {
-  const access = registration('x402_access', 'x402_wallet');
+  const access = registration('x402_access', 'dexter_wallet');
   const canonicalStart = serverSource.indexOf('async function runCanonicalX402Check');
-  const canonicalEnd = serverSource.indexOf('// ─── Tool: x402_wallet', canonicalStart);
+  const canonicalEnd = serverSource.indexOf('// ─── Tool: dexter_wallet', canonicalStart);
   const canonical = serverSource.slice(canonicalStart, canonicalEnd);
 
   assert.match(access, /runCanonicalX402Check\(args, session\)/);

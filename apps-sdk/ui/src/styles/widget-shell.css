@@ -6,7 +6,7 @@
   gap: var(--dx-space-7);
   padding: var(--dx-space-6);
   color: var(--dx-ink);
-  background: var(--dx-canvas);
+  background: transparent;
   font-size: var(--dx-text-md);
   line-height: var(--dx-leading-normal);
 }

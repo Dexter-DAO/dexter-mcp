@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-labelledby="title desc" shape-rendering="geometricPrecision">
+  <title id="title">Indexter X reversed</title>
+  <desc id="desc">The Indexter X mark for dark backgrounds.</desc>
+  <path fill="#FFFFFF" d="M23.825,136.18v-8.27l40.1-47.91-40.1-47.91v-8.27h25.12l31.21,36.99,30.9-36.99h25.12v8.27l-40.26,47.91,40.26,47.75v8.43h-25.12l-31.21-36.83-30.9,36.83h-25.12Z"/>
+  <path fill="#F2671A" d="M26.825 133.180L47.545 133.180L80.002 94.450L83.853 99.053L95.999 84.558L92.148 79.955L133.175 30.999L133.175 26.820L112.455 26.820L80.022 65.522L76.171 60.919L64.037 75.399L67.888 80.002L26.825 129.001Z"/>
+</svg>

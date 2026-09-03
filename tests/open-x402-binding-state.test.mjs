@@ -72,7 +72,7 @@ test('x402_check and x402_access refuse to downgrade a failed binding lookup', a
   );
   for (const [name, nextName] of [
     ['x402_check', 'x402_access'],
-    ['x402_access', 'x402_wallet'],
+    ['x402_access', 'dexter_wallet'],
   ]) {
     const handler = source.slice(
       source.indexOf(`registerOpenTool(server, '${name}'`),

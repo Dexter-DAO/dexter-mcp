@@ -58,6 +58,12 @@ export type SearchErrorCopy = {
   description: string;
 };
 
+function boundedMessage(value: string, maxLength = 320): string {
+  const normalized = value.replace(/\s+/g, ' ').trim();
+  if (normalized.length <= maxLength) return normalized;
+  return `${normalized.slice(0, maxLength - 1).trimEnd()}\u2026`;
+}
+
 function normalizeSearchResource(
   resource: SearchResource,
   fallbackTier?: SearchResource['tier'],
@@ -137,11 +143,12 @@ export function getSearchErrorCopy(payload: SearchPayload): SearchErrorCopy | nu
 
   if (!isBackendError) return null;
 
-  const description =
+  const description = boundedMessage(
     payload.searchMeta?.note?.trim()
     || payload.tip?.trim()
     || payload.error?.trim()
-    || 'Indexter could not complete this search. Retry the same request in a moment.';
+    || 'Indexter could not complete this search. Retry the same request in a moment.',
+  );
 
   return {
     title: 'Indexter is unavailable',

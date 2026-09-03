@@ -49,7 +49,7 @@ settled. A provider HTTP `2xx` response alone does not prove settlement.
   redispatching it.
 - `x402_access` handles wallet-proof/Sign-In-With-X requests and must not be used
   to bypass a paid requirement.
-- `x402_wallet` reports the currently bound Dexter Wallet; it does not prove an
+- `dexter_wallet` reports the currently bound Dexter Wallet; it does not prove an
   external provider's settlement.
 
 ## Settlement states

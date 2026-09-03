@@ -12,13 +12,13 @@ const PROTOCOL = readFileSync(join(ROOT, 'skills/x402-protocol/SKILL.md'), 'utf8
 const DEBUGGING = readFileSync(join(ROOT, 'skills/x402-debugging/SKILL.md'), 'utf8');
 
 const EXPECTED_TOOLS = [
-  'x402_search',
+  'indexter_search',
   'x402_fetch',
   'x402_status',
   'x402_check',
   'x402_access',
-  'x402_wallet',
-  'dexter_portfolio',
+  'dexter_wallet',
+  'dexter_wallet_portfolio',
   'dexter_prepare_asset_action',
   'dexter_execute_asset_action',
   'dexter_asset_action_status',
@@ -31,7 +31,7 @@ function countOccurrences(text, value) {
 }
 
 function mentionedOpenDexterTools(text) {
-  return [...new Set(text.match(/\b(?:x402|dexter)_[a-z0-9_]+\b/g) ?? [])].sort();
+  return [...new Set(text.match(/\b(?:indexter|x402|dexter)_[a-z0-9_]+\b/g) ?? [])].sort();
 }
 
 test('hosted skill resources are loaded from this release checkout', () => {
@@ -47,7 +47,7 @@ test('hosted workflow names only the twelve connected product tools', () => {
     assert.match(WORKFLOW, new RegExp(`\\\`${name}\\\``));
   }
 
-  const toolNames = new Set(WORKFLOW.match(/\`(?:x402|dexter|promote)_[a-z0-9_]+\`/g));
+  const toolNames = new Set(WORKFLOW.match(/\`(?:indexter|x402|dexter|promote)_[a-z0-9_]+\`/g));
   assert.deepEqual(
     [...toolNames].sort(),
     EXPECTED_TOOLS.map((name) => `\`${name}\``).sort(),
@@ -71,7 +71,7 @@ test('hosted workflow names Indexter as the discovery product', () => {
   assert.match(WORKFLOW, /discover services with Indexter/i);
   assert.match(WORKFLOW, /Discover a service or resource with Indexter/);
   assert.match(WORKFLOW, /Indexter discovery and purchase/);
-  assert.match(WORKFLOW, /compatibility-named `x402_search`[\s\S]*searches Indexter/);
+  assert.match(WORKFLOW, /Call `indexter_search` with the user's actual job/);
   assert.match(SERVER, /OpenDexter guide for Indexter discovery/);
 });
 
@@ -154,11 +154,11 @@ test('generated runtime instructions route the complete twelve-tool product', ()
   const runtime = buildOpenServerInstructions();
 
   assert.deepEqual(mentionedOpenDexterTools(runtime), [...EXPECTED_TOOLS].sort());
-  assert.match(runtime, /Set up, connect, sign in to, authenticate, authorize,[\s\S]*native OpenDexter authorization[\s\S]*x402_wallet/);
-  assert.match(runtime, /Wallet presence, balance, cash, readiness, deposit address,[\s\S]*x402_wallet/);
-  assert.match(runtime, /What's in my wallet\?[\s\S]*x402_wallet, then dexter_portfolio/);
+  assert.match(runtime, /Set up, connect, sign in to, authenticate, authorize,[\s\S]*native OpenDexter authorization[\s\S]*dexter_wallet/);
+  assert.match(runtime, /Wallet presence, balance, cash, readiness, deposit address,[\s\S]*dexter_wallet/);
+  assert.match(runtime, /What's in my wallet\?[\s\S]*dexter_wallet, then dexter_wallet_portfolio/);
   assert.match(runtime, /Compose cash\/readiness with governed assets/);
-  assert.match(runtime, /Find an API or service[\s\S]*Indexter[\s\S]*x402_search/);
+  assert.match(runtime, /Find an API or service[\s\S]*Indexter[\s\S]*indexter_search/);
   assert.match(runtime, /known endpoint, current price,[\s\S]*x402_check/);
   assert.match(runtime, /Pay for or call a paid API[\s\S]*x402_fetch once/);
   assert.match(runtime, /x402_status for the same purchase intent/);
@@ -218,7 +218,7 @@ test('generated runtime instructions preserve current wallet and authority truth
   assert.match(runtime, /triangulate[\s\S]*alternate result's actual HTTPS endpoint/);
   assert.match(runtime, /Never pass a resource ID as though it were a URL or tool argument/);
   assert.match(runtime, /hosted wallet is Solana-based/);
-  assert.match(runtime, /only x402_wallet\.receiveAddress is a deposit address/);
+  assert.match(runtime, /only dexter_wallet\.receiveAddress is a deposit address/);
   assert.match(runtime, /non-null canonical assetId/);
   assert.match(runtime, /natural-language stock Buy\/Sell[\s\S]*companyQuery instead of assetId/);
   assert.match(runtime, /Never derive or remember a static stock assetId/);

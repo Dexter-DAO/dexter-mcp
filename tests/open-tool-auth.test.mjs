@@ -32,13 +32,13 @@ import {
 } from '../lib/open-tool-auth.mjs';
 
 const TOOL_ROSTER = [
-  'x402_search',
+  'indexter_search',
   'x402_check',
   'x402_fetch',
   'x402_status',
   'x402_access',
-  'x402_wallet',
-  'dexter_portfolio',
+  'dexter_wallet',
+  'dexter_wallet_portfolio',
   'dexter_prepare_asset_action',
   'dexter_execute_asset_action',
   'dexter_asset_action_status',
@@ -75,18 +75,18 @@ test('protected-call classification follows the per-tool auth declaration', () =
     method: 'tools/call',
     params: { name, arguments: args },
   });
-  assert.deepEqual(findVaultProtectedToolCall(call('x402_wallet')), {
-    name: 'x402_wallet',
+  assert.deepEqual(findVaultProtectedToolCall(call('dexter_wallet')), {
+    name: 'dexter_wallet',
     id: 1,
   });
-  assert.deepEqual(findVaultProtectedToolCall(call('dexter_portfolio')), {
-    name: 'dexter_portfolio',
+  assert.deepEqual(findVaultProtectedToolCall(call('dexter_wallet_portfolio')), {
+    name: 'dexter_wallet_portfolio',
     id: 1,
   });
   assert.deepEqual(findVaultProtectedToolCall([
-    call('x402_search'),
+    call('indexter_search'),
     { ...call('x402_fetch'), id: 2 },
-  ]), { name: 'x402_search', id: 1 });
+  ]), { name: 'indexter_search', id: 1 });
   assert.deepEqual(findVaultProtectedToolCall(call('x402_status')), {
     name: 'x402_status',
     id: 1,
@@ -107,8 +107,8 @@ test('protected-call classification follows the per-tool auth declaration', () =
     name: 'x402_access',
     id: 1,
   });
-  assert.deepEqual(findVaultProtectedToolCall(call('x402_search')), {
-    name: 'x402_search',
+  assert.deepEqual(findVaultProtectedToolCall(call('indexter_search')), {
+    name: 'indexter_search',
     id: 1,
   });
   assert.equal(findVaultProtectedToolCall(call('x402_pay')), null);
@@ -116,7 +116,7 @@ test('protected-call classification follows the per-tool auth declaration', () =
 });
 
 test('registration config carries canonical and mirrored schemes', () => {
-  const config = withOpenToolAuth('x402_wallet', {
+  const config = withOpenToolAuth('dexter_wallet', {
     title: 'Wallet',
     inputSchema: {},
     _meta: { ui: { resourceUri: 'ui://wallet' } },
@@ -129,10 +129,10 @@ test('registration config carries canonical and mirrored schemes', () => {
 
 test('real SDK tools/list carries canonical and mirrored auth schemes', async () => {
   const server = new McpServer({ name: 'auth-test', version: '1.0.0' });
-  registerOpenTool(server, 'x402_search', { inputSchema: {} }, async () => ({
+  registerOpenTool(server, 'indexter_search', { inputSchema: {} }, async () => ({
     content: [{ type: 'text', text: 'ok' }],
   }));
-  registerOpenTool(server, 'x402_wallet', {
+  registerOpenTool(server, 'dexter_wallet', {
     inputSchema: {},
     _meta: { ui: { resourceUri: 'ui://wallet' } },
   }, async () => ({ content: [{ type: 'text', text: 'ok' }] }));
@@ -160,17 +160,17 @@ test('real SDK tools/list carries canonical and mirrored auth schemes', async ()
       assert.deepEqual(tool.securitySchemes, tool._meta.securitySchemes);
     }
     assert.deepEqual(
-      wireList.result.tools.find((tool) => tool.name === 'x402_search').securitySchemes,
+      wireList.result.tools.find((tool) => tool.name === 'indexter_search').securitySchemes,
       [{ type: 'oauth2', scopes: ['vault'] }],
     );
     assert.deepEqual(
-      wireList.result.tools.find((tool) => tool.name === 'x402_wallet').securitySchemes,
+      wireList.result.tools.find((tool) => tool.name === 'dexter_wallet').securitySchemes,
       [{ type: 'oauth2', scopes: ['vault'] }],
     );
     // MCP SDK 1.x's Client response schema strips the canonical extension but
     // preserves the documented compatibility mirror.
     assert.deepEqual(
-      listed.tools.find((tool) => tool.name === 'x402_wallet')._meta.securitySchemes,
+      listed.tools.find((tool) => tool.name === 'dexter_wallet')._meta.securitySchemes,
       [{ type: 'oauth2', scopes: ['vault'] }],
     );
   } finally {
@@ -278,7 +278,7 @@ test('both protected-resource metadata routes serve the same corrected issuer', 
 
 test('runtime challenge is host-native and contains no legacy pairing path', () => {
   const data = buildVaultAuthenticationRequired({
-    tool: 'x402_wallet',
+    tool: 'dexter_wallet',
   });
   assert.equal(isVaultAuthenticationRequired(data), true);
   assert.equal(data.next_action, 'connect_opendexter');
@@ -317,7 +317,7 @@ test('unbound state cannot turn a synthetic not_enrolled lookup into wallet trut
 
 test('wallet and portfolio emit the same raw SDK OAuth challenge without enrollment claims', async () => {
   const server = new McpServer({ name: 'auth-result-test', version: '1.0.0' });
-  for (const tool of ['x402_wallet', 'dexter_portfolio']) {
+  for (const tool of ['dexter_wallet', 'dexter_wallet_portfolio']) {
     registerOpenTool(server, tool, { inputSchema: {} }, async () => {
       const reason = vaultAuthenticationReason({
         bindingConfirmed: false,
@@ -337,7 +337,7 @@ test('wallet and portfolio emit the same raw SDK OAuth challenge without enrollm
   ]);
 
   try {
-    for (const tool of ['x402_wallet', 'dexter_portfolio']) {
+    for (const tool of ['dexter_wallet', 'dexter_wallet_portfolio']) {
       const result = await client.callTool({ name: tool, arguments: {} });
       assert.equal(result.isError, true, tool);
       assert.equal(result.structuredContent.mode, 'authentication_required', tool);
@@ -373,8 +373,8 @@ test('wallet and portfolio handlers require durable binding evidence before pres
   );
 
   for (const [tool, implementation] of [
-    ['x402_wallet', wallet],
-    ['dexter_portfolio', portfolio],
+    ['dexter_wallet', wallet],
+    ['dexter_wallet_portfolio', portfolio],
   ]) {
     assert.match(implementation, /checkSessionVaultBinding\(sessionId\)/, tool);
     assert.match(implementation, /vaultAuthenticationReason\(\{/, tool);
@@ -412,7 +412,7 @@ test('runtime challenges preserve precise OAuth errors and escape header input',
   assert.equal(challenge.includes('\r'), false);
   assert.equal(challenge.includes('\n'), false);
 
-  const data = buildVaultAuthenticationRequired({ tool: 'x402_wallet' });
+  const data = buildVaultAuthenticationRequired({ tool: 'dexter_wallet' });
   assert.match(data.instructions, /host only says Connected/);
   assert.match(data.instructions, /plugin or integration settings/);
   assert.match(data.instructions, /Authorize or Authenticate/);

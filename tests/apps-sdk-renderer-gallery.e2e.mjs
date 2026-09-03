@@ -410,6 +410,10 @@ async function renderVariant({ browser, baseUrl, surface, device, theme }) {
       ],
       borderRadius: style.borderRadius,
       boxShadow: style.boxShadow,
+      backgroundColor: style.backgroundColor,
+      inlineMaxHeight: element.style.maxHeight,
+      maxHeight: style.maxHeight,
+      overflowY: style.overflowY,
       documentClientWidth: document.documentElement.clientWidth,
       documentScrollWidth: document.documentElement.scrollWidth,
       hostBackgroundToken: rootStyle.getPropertyValue('--color-background-primary').trim(),
@@ -425,6 +429,19 @@ async function renderVariant({ browser, baseUrl, surface, device, theme }) {
   );
   assert.equal(metrics.borderRadius, '0px', `${surface.id} added an outer rounded container`);
   assert.equal(metrics.boxShadow, 'none', `${surface.id} added an outer container shadow`);
+  assert.equal(
+    metrics.backgroundColor,
+    'rgba(0, 0, 0, 0)',
+    `${surface.id} painted a second content plane inside the host frame`,
+  );
+  assert.equal(
+    metrics.inlineMaxHeight,
+    '',
+    `${surface.id} copied the host height onto its renderer root`,
+  );
+  assert.equal(metrics.maxHeight, 'none', `${surface.id} hard-capped its renderer root`);
+  assert.notEqual(metrics.overflowY, 'auto', `${surface.id} trapped content in an inner scroller`);
+  assert.notEqual(metrics.overflowY, 'scroll', `${surface.id} trapped content in an inner scroller`);
   assert.ok(
     metrics.documentScrollWidth <= metrics.documentClientWidth + 1,
     `${surface.id} overflowed the ${device} host horizontally`,

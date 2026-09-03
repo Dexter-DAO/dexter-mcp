@@ -7,7 +7,7 @@ import { DepositSheet } from './DepositSheet';
 import { ActivitySheet } from './ActivitySheet';
 import { CreditSheet } from './CreditSheet';
 import { AssetsSheet } from './AssetsSheet';
-import { fmtSignedUsd, relativeTime } from './format';
+import { fmtExactSignedUsd, fmtSignedUsd, relativeTime } from './format';
 import { ActivityIcon, AssetsIcon, Chevron, CreditMark, DepositIcon, WorldMark } from './icons';
 // Widget-frame-only refresh rail (auth = _meta.dexterWalletToken).
 const WALLET_RAIL = 'https://open.dexter.cash/widget/wallet';
@@ -30,11 +30,23 @@ type HomeFocusTarget = Exclude<OpenSheet, null> | 'composition' | 'latest';
  * rather than a snapshot (Branch ruling, Jul 24). The model's prose stays historical;
  * the renderer is the live instrument.
  */
-export function WalletHome({ payload, walletToken, onOpenExternal }: {
+export function WalletHome({
+  payload,
+  walletToken,
+  onOpenExternal,
+  isFullscreen,
+  condensed,
+  onRequestDisplayMode,
+}: {
   payload: CanonicalWalletPayload;
   /** Widget-only refresh credential from _meta; null = live balance off. */
   walletToken: string | null;
   onOpenExternal: (url: string) => void;
+  isFullscreen: boolean;
+  condensed: boolean;
+  onRequestDisplayMode: ((mode: 'inline' | 'fullscreen') => Promise<{
+    mode: 'pip' | 'inline' | 'fullscreen';
+  }>) | null;
 }) {
   const [sheet, setSheet] = useState<OpenSheet>(null);
   const [receiveAsset, setReceiveAsset] = useState<string | null>(null);
@@ -45,6 +57,11 @@ export function WalletHome({ payload, walletToken, onOpenExternal }: {
     usd: number;
   } | null>(null);
   const startedAt = useRef<number>(Date.now());
+  const desiredDisplayMode = useRef<'inline' | 'fullscreen'>(
+    isFullscreen ? 'fullscreen' : 'inline',
+  );
+  const displayModeRequestId = useRef(0);
+  const sheetRequestedFullscreen = useRef(false);
   const returnFocusTarget = useRef<HomeFocusTarget | null>(null);
   const homeControls = useRef<Record<HomeFocusTarget, HTMLButtonElement | null>>({
     deposit: null,
@@ -75,11 +92,57 @@ export function WalletHome({ payload, walletToken, onOpenExternal }: {
   const latest = activity[0];
   const verified = payload.personhood?.verified === true;
 
-  const openSheet = (nextSheet: Exclude<OpenSheet, null>, target: HomeFocusTarget) => {
-    if (sheet === null) returnFocusTarget.current = target;
-    setSheet(nextSheet);
+  const requestSheetDisplayMode = (mode: 'inline' | 'fullscreen') => {
+    desiredDisplayMode.current = mode;
+    if (!onRequestDisplayMode) return;
+    const requestId = ++displayModeRequestId.current;
+
+    const issueRequest = async (
+      requestedMode: 'inline' | 'fullscreen',
+      activeRequestId: number,
+    ): Promise<void> => {
+      try {
+        await onRequestDisplayMode(requestedMode);
+      } catch {
+        // The bounded local sheet remains usable when the host declines.
+        return;
+      }
+
+      const desiredMode = desiredDisplayMode.current;
+      if (
+        activeRequestId !== displayModeRequestId.current
+        && desiredMode !== requestedMode
+      ) {
+        const correctionId = ++displayModeRequestId.current;
+        await issueRequest(desiredMode, correctionId);
+      }
+    };
+
+    void issueRequest(mode, requestId);
   };
-  const closeSheet = () => setSheet(null);
+
+  const openSheet = (nextSheet: Exclude<OpenSheet, null>, target: HomeFocusTarget) => {
+    if (sheet === null) {
+      returnFocusTarget.current = target;
+      sheetRequestedFullscreen.current = Boolean(
+        onRequestDisplayMode
+        && (!isFullscreen || desiredDisplayMode.current === 'inline'),
+      );
+    }
+    setSheet(nextSheet);
+    if (sheetRequestedFullscreen.current) {
+      requestSheetDisplayMode('fullscreen');
+    }
+  };
+  const closeSheet = () => {
+    setSheet(null);
+    if (sheetRequestedFullscreen.current) {
+      sheetRequestedFullscreen.current = false;
+      requestSheetDisplayMode('inline');
+    } else {
+      desiredDisplayMode.current = isFullscreen ? 'fullscreen' : 'inline';
+    }
+  };
 
   useLayoutEffect(() => {
     if (sheet !== null || returnFocusTarget.current === null) return;
@@ -123,7 +186,7 @@ export function WalletHome({ payload, walletToken, onOpenExternal }: {
 
   if (sheet === 'deposit') {
     return (
-      <div className="dxw-widget dxw-widget--sheet">
+      <div className={`dxw-widget dxw-widget--sheet${isFullscreen ? ' dxw-widget--fullscreen' : ''}${condensed ? ' dxw-widget--condensed-sheet' : ''}`}>
         <DepositSheet
           address={address}
           assetSymbol={receiveAsset ?? undefined}
@@ -135,7 +198,7 @@ export function WalletHome({ payload, walletToken, onOpenExternal }: {
 
   if (sheet === 'assets') {
     return (
-      <div className="dxw-widget dxw-widget--sheet">
+      <div className={`dxw-widget dxw-widget--sheet${isFullscreen ? ' dxw-widget--fullscreen' : ''}${condensed ? ' dxw-widget--condensed-sheet' : ''}`}>
         <AssetsSheet
           portfolio={payload.portfolio}
           receiveAvailable={Boolean(address)}
@@ -144,6 +207,8 @@ export function WalletHome({ payload, walletToken, onOpenExternal }: {
             setSheet('deposit');
           }}
           onClose={closeSheet}
+          isFullscreen={isFullscreen}
+          condensed={condensed}
         />
       </div>
     );
@@ -151,15 +216,20 @@ export function WalletHome({ payload, walletToken, onOpenExternal }: {
 
   if (sheet === 'activity') {
     return (
-      <div className="dxw-widget dxw-widget--sheet">
-        <ActivitySheet items={activity} onClose={closeSheet} />
+      <div className={`dxw-widget dxw-widget--sheet${isFullscreen ? ' dxw-widget--fullscreen' : ''}${condensed ? ' dxw-widget--condensed-sheet' : ''}`}>
+        <ActivitySheet
+          items={activity}
+          onClose={closeSheet}
+          isFullscreen={isFullscreen}
+          condensed={condensed}
+        />
       </div>
     );
   }
 
   if (sheet === 'credit' && money) {
     return (
-      <div className="dxw-widget dxw-widget--sheet">
+      <div className={`dxw-widget dxw-widget--sheet${isFullscreen ? ' dxw-widget--fullscreen' : ''}${condensed ? ' dxw-widget--condensed-sheet' : ''}`}>
         <CreditSheet
           lineUsd={money.creditCapUsd}
           drawnUsd={money.creditDrawnUsd}
@@ -171,7 +241,7 @@ export function WalletHome({ payload, walletToken, onOpenExternal }: {
   }
 
   return (
-    <div className="dxw-widget">
+    <div className={`dxw-widget${isFullscreen ? ' dxw-widget--fullscreen' : ''}${condensed ? ' dxw-widget--condensed' : ''}`}>
       <div className="dxw-head">
         <Lockup />
         <span className="dxw-custody">
@@ -190,7 +260,7 @@ export function WalletHome({ payload, walletToken, onOpenExternal }: {
         credit={credit}
         atWork={atWork}
         earnPct={money?.earnRatePct ?? null}
-        onOpen={money?.hasCreditLine ? () => openSheet('credit', 'composition') : undefined}
+        onOpen={money?.hasCreditLine ? () => { void openSheet('credit', 'composition'); } : undefined}
         triggerRef={(element) => { homeControls.current.composition = element; }}
       />
       <div className="dxw-actions">
@@ -199,7 +269,7 @@ export function WalletHome({ payload, walletToken, onOpenExternal }: {
           ref={(element) => { homeControls.current.deposit = element; }}
           onClick={() => {
             setReceiveAsset(null);
-            openSheet('deposit', 'deposit');
+            void openSheet('deposit', 'deposit');
           }}
           type="button"
         >
@@ -208,7 +278,7 @@ export function WalletHome({ payload, walletToken, onOpenExternal }: {
         <button
           className="dxw-action"
           ref={(element) => { homeControls.current.assets = element; }}
-          onClick={() => openSheet('assets', 'assets')}
+          onClick={() => { void openSheet('assets', 'assets'); }}
           type="button"
         >
           <AssetsIcon /> Assets
@@ -216,7 +286,7 @@ export function WalletHome({ payload, walletToken, onOpenExternal }: {
         <button
           className="dxw-action"
           ref={(element) => { homeControls.current.credit = element; }}
-          onClick={money?.hasCreditLine ? () => openSheet('credit', 'credit') : undefined}
+          onClick={money?.hasCreditLine ? () => { void openSheet('credit', 'credit'); } : undefined}
           disabled={!money?.hasCreditLine}
           type="button"
         >
@@ -228,25 +298,31 @@ export function WalletHome({ payload, walletToken, onOpenExternal }: {
         <button
           className="dxw-action"
           ref={(element) => { homeControls.current.activity = element; }}
-          onClick={() => openSheet('activity', 'activity')}
+          onClick={() => { void openSheet('activity', 'activity'); }}
           type="button"
         >
           <ActivityIcon /> Activity
         </button>
       </div>
 
-      {latest ? (
+      {latest && !condensed ? (
         <button
           className="dxw-last-tx"
           ref={(element) => { homeControls.current.latest = element; }}
-          onClick={() => openSheet('activity', 'latest')}
+          onClick={() => { void openSheet('activity', 'latest'); }}
           type="button"
         >
           <span className="dxw-tx-copy">
             <span className="dxw-tx-main">{latest.label}</span>
             <span className="dxw-tx-sub">{relativeTime(latest.at)}{latest.kind === 'payment' ? ' · paid API call' : ''}</span>
           </span>
-          <span className="dxw-tx-amt dxw-mono">{fmtSignedUsd(latest.amountUsd)}</span>
+          <span
+            className="dxw-tx-amt dxw-mono"
+            title={`Exact amount: ${fmtExactSignedUsd(latest.amountUsd)}`}
+          >
+            <span aria-hidden="true">{fmtSignedUsd(latest.amountUsd)}</span>
+            <span className="sr-only">Exact amount: {fmtExactSignedUsd(latest.amountUsd)}</span>
+          </span>
           <Chevron />
         </button>
       ) : null}

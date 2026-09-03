@@ -4,7 +4,11 @@ import '../styles/widgets/wallet.css';
 import { createRoot } from 'react-dom/client';
 import { useEffect, useMemo } from 'react';
 import {
+  useAdaptiveDisplayMode,
+  useAdaptiveHostContext,
+  useAdaptiveHostCapabilities,
   useAdaptiveOpenExternal,
+  useAdaptiveRequestDisplayMode,
   useAdaptiveTheme,
   useAdaptiveMaxHeight,
   useToolOutput,
@@ -41,6 +45,10 @@ function WalletApp() {
   );
   const containerRef = useIntrinsicHeight<HTMLDivElement>();
   const maxHeight = useAdaptiveMaxHeight();
+  const displayMode = useAdaptiveDisplayMode();
+  const hostContext = useAdaptiveHostContext();
+  const hostCapabilities = useAdaptiveHostCapabilities();
+  const requestDisplayMode = useAdaptiveRequestDisplayMode();
   const theme = useAdaptiveTheme();
   const openExternal = useAdaptiveOpenExternal();
 
@@ -119,6 +127,14 @@ function WalletApp() {
         payload={payload}
         walletToken={walletToken}
         onOpenExternal={openExternal}
+        isFullscreen={displayMode === 'fullscreen'}
+        condensed={displayMode !== 'fullscreen' && maxHeight !== null && maxHeight <= 520}
+        onRequestDisplayMode={
+          requestDisplayMode && hostCapabilities.requestDisplayMode
+            && hostContext.availableDisplayModes.includes('fullscreen')
+            ? (mode) => requestDisplayMode({ mode })
+            : null
+        }
       />
     );
   }
@@ -127,8 +143,15 @@ function WalletApp() {
     <div
       className="dxw-root"
       data-theme={theme}
+      data-display-mode={displayMode}
+      data-host-max-height={maxHeight ?? undefined}
       ref={containerRef}
-      style={{ maxHeight: maxHeight ?? undefined, overflowY: maxHeight ? 'auto' : undefined }}
+      style={displayMode === 'fullscreen' ? {
+        paddingTop: hostContext.safeAreaInsets.top || undefined,
+        paddingRight: hostContext.safeAreaInsets.right || undefined,
+        paddingBottom: hostContext.safeAreaInsets.bottom || undefined,
+        paddingLeft: hostContext.safeAreaInsets.left || undefined,
+      } : undefined}
     >
       {view}
     </div>

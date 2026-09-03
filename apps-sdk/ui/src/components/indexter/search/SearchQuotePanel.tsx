@@ -19,6 +19,7 @@ type Props = {
   requiresChatRecheck?: boolean;
   continueStatus?: 'idle' | 'sending' | 'sent' | 'error';
   continueError?: string | null;
+  compact?: boolean;
 };
 
 const COPY: Record<
@@ -62,6 +63,7 @@ export function SearchQuotePanel({
   requiresChatRecheck = false,
   continueStatus = 'idle',
   continueError = null,
+  compact = false,
 }: Props) {
   const panelRef = useRef<HTMLElement>(null);
   const requestBound =
@@ -113,7 +115,7 @@ export function SearchQuotePanel({
     <section
       ref={panelRef}
       tabIndex={-1}
-      className={`dx-search-quote dx-search-quote--${quote.classification}`}
+      className={`dx-search-quote dx-search-quote--${quote.classification}${compact ? ' dx-search-quote--compact' : ''}`}
       aria-live="polite"
       aria-labelledby="dx-search-quote-title"
     >
@@ -142,7 +144,7 @@ export function SearchQuotePanel({
             : copy.body}
         </p>
 
-        {routes.length > 1 ? (
+        {!compact && routes.length > 1 ? (
           <details className="dx-search-quote__routes">
             <summary>
               {routes.length} current seller terms

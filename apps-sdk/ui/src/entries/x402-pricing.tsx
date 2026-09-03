@@ -124,13 +124,13 @@ function useElapsedSeconds(pending: boolean): number {
 
 function StateFrame({
   theme,
-  maxHeight,
+  hostMaxHeight,
   children,
   containerRef,
   loading = false,
 }: {
   theme: string;
-  maxHeight: number | null;
+  hostMaxHeight: number | null;
   children: ReactNode;
   containerRef?: Ref<HTMLDivElement>;
   loading?: boolean;
@@ -138,13 +138,10 @@ function StateFrame({
   return (
     <main
       data-theme={theme}
+      data-host-max-height={hostMaxHeight ?? undefined}
       ref={containerRef}
       className={`dx-pricing${loading ? ' dx-pricing--loading' : ''}`}
       aria-busy={loading || undefined}
-      style={{
-        maxHeight: maxHeight ?? undefined,
-        overflowY: maxHeight ? 'auto' : undefined,
-      }}
     >
       {children}
     </main>
@@ -267,7 +264,12 @@ function PricingCheck() {
 
   if (!toolOutput) {
     return (
-      <StateFrame theme={theme} maxHeight={maxHeight} loading>
+      <StateFrame
+        theme={theme}
+        hostMaxHeight={maxHeight}
+        containerRef={containerRef}
+        loading
+      >
         <span className="dx-pricing__loading-mark" aria-hidden />
         <p
           className="dx-pricing__loading-copy"
@@ -337,7 +339,7 @@ function PricingCheck() {
   return (
     <StateFrame
       theme={theme}
-      maxHeight={maxHeight}
+      hostMaxHeight={maxHeight}
       containerRef={containerRef}
     >
       <ResourceIdentity
@@ -405,7 +407,7 @@ function PricingCheck() {
 
 const root = document.getElementById('x402-pricing-root');
 if (root) {
-  root.setAttribute('data-widget-build', '2026-09-03.1');
+  root.setAttribute('data-widget-build', '2026-09-03.intrinsic');
   createRoot(root).render(<PricingCheck />);
 }
 

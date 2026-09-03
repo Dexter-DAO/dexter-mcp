@@ -33,11 +33,6 @@ const ARTWORK_FILE_BY_SOURCE = new Map([
   [ASSET_IMAGE_SOURCES.spcx, path.join(ARTWORK_DIR, 'spcx.svg')],
 ]);
 
-const TRANSPARENT_PNG = Buffer.from(
-  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAF/gL+XJ9WAAAAAElFTkSuQmCC',
-  'base64',
-);
-
 function installChatGptHost({ output, metadata, mobile }) {
   window.__hostCalls = [];
   window.openai = {
@@ -233,19 +228,85 @@ async function openAssets(surface) {
   await surface.getByRole('dialog', { name: 'Assets' }).waitFor();
 }
 
+async function nextAssetPage(surface) {
+  const pager = surface.getByRole('navigation', { name: 'Asset pages' });
+  await pager.getByRole('button', { name: 'Next', exact: true }).click();
+}
+
+async function nextAssetDetailPage(surface) {
+  const pager = surface.getByRole('navigation', { name: 'Asset detail pages' });
+  await pager.getByRole('button', { name: 'Next', exact: true }).click();
+}
+
+async function previousAssetDetailPage(surface) {
+  const pager = surface.getByRole('navigation', { name: 'Asset detail pages' });
+  await pager.getByRole('button', { name: 'Previous', exact: true }).click();
+}
+
+function unavailableAssetAction(surface, label) {
+  return surface.getByRole('button', { name: new RegExp(`^${label} unavailable:`) });
+}
+
+async function waitForAttribute(locator, name, expected) {
+  await locator.evaluate((element, args) => {
+    if (element.getAttribute(args.name) === args.expected) return;
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        observer.disconnect();
+        reject(new Error(`Timed out waiting for ${args.name}=${args.expected}`));
+      }, 4_000);
+      const observer = new MutationObserver(() => {
+        if (element.getAttribute(args.name) !== args.expected) return;
+        clearTimeout(timeout);
+        observer.disconnect();
+        resolve(undefined);
+      });
+      observer.observe(element, { attributes: true, attributeFilter: [args.name] });
+    });
+  }, { name, expected });
+}
+
+async function assertLocalReceiveQr(surface, hostName) {
+  await surface.getByRole('button', { name: 'Receive', exact: true }).first().click();
+  await surface.getByRole('dialog', { name: 'Receive', exact: true }).waitFor();
+
+  const qr = surface.getByRole('img', { name: 'Deposit address QR code' });
+  await qr.waitFor();
+  const qrMetrics = await qr.evaluate((element) => ({
+    viewBox: element.getAttribute('viewBox'),
+    pathLength: element.querySelector('path')?.getAttribute('d')?.length ?? 0,
+  }));
+  assert.match(qrMetrics.viewBox ?? '', /^0 0 \d+ \d+$/);
+  assert.ok(qrMetrics.pathLength > 100, `${hostName}: the local QR must contain encoded modules`);
+  assert.equal(
+    await surface.locator('.dxw-qr-tile img').count(),
+    0,
+    `${hostName}: the deposit QR must not use a remote image`,
+  );
+  await maybeScreenshot(
+    surface,
+    `receive-${hostName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.png`,
+  );
+
+  await surface.getByRole('button', { name: 'Close Receive' }).click();
+  await surface.getByRole('dialog', { name: 'Receive', exact: true }).waitFor({
+    state: 'detached',
+  });
+}
+
 async function assertCompleteAssets(surface, hostName) {
   await openAssets(surface);
   await surface.getByText('Portfolio value', { exact: true }).waitFor();
   await surface.getByText('$265.33', { exact: true }).waitFor();
   const exact = await surface.locator('.dxw-assets-summary-value').getAttribute('data-exact-value');
   assert.equal(exact, '265.33325', `${hostName}: exact total must stay on the string boundary`);
-  for (const symbol of ['SOL', 'USDC', 'syrupUSDC', 'DEXTER', 'SPCX']) {
+  for (const symbol of ['SOL', 'USDC', 'syrupUSDC']) {
     await surface.locator('.dxw-asset-name').getByText(symbol, { exact: true }).waitFor();
   }
   assert.equal(
     await surface.locator('.dxw-asset-mark img').count(),
-    5,
-    `${hostName}: every approved fixture holding must render provenance-backed artwork`,
+    3,
+    `${hostName}: the first asset page must render provenance-backed artwork`,
   );
   const expectedArtwork = new Map([
     ['SOL', ASSET_IMAGE_SOURCES.sol],
@@ -254,7 +315,7 @@ async function assertCompleteAssets(surface, hostName) {
     ['DEXTER', ASSET_IMAGE_SOURCES.dexter],
     ['SPCX', ASSET_IMAGE_SOURCES.spcx],
   ]);
-  for (const [symbol, expectedSource] of expectedArtwork) {
+  for (const [symbol, expectedSource] of [...expectedArtwork].slice(0, 3)) {
     const image = surface
       .locator('.dxw-asset-row')
       .filter({ hasText: new RegExp(`^\\s*${symbol}`) })
@@ -280,6 +341,23 @@ async function assertCompleteAssets(surface, hostName) {
       `${hostName}: ${symbol} artwork must not be cropped`,
     );
   }
+  await nextAssetPage(surface);
+  for (const symbol of ['DEXTER', 'SPCX']) {
+    await surface.locator('.dxw-asset-name').getByText(symbol, { exact: true }).waitFor();
+  }
+  assert.equal(
+    await surface.locator('.dxw-asset-mark img').count(),
+    2,
+    `${hostName}: the second asset page must render provenance-backed artwork`,
+  );
+  for (const [symbol, expectedSource] of [...expectedArtwork].slice(3)) {
+    const image = surface
+      .locator('.dxw-asset-row')
+      .filter({ hasText: new RegExp(`^\\s*${symbol}`) })
+      .locator('.dxw-asset-mark img');
+    await image.waitFor();
+    assert.equal(await image.getAttribute('data-source-url'), expectedSource);
+  }
   await surface.getByRole('button', { name: /SPCX SpaceX/ }).click();
   await surface.getByText('Scaled × 1.25', { exact: true }).waitFor();
   assert.equal(
@@ -289,12 +367,13 @@ async function assertCompleteAssets(surface, hostName) {
   );
   assert.equal(
     await surface
-      .locator('.dxw-asset-row')
-      .filter({ hasText: 'SPCX' })
+      .locator('.dxw-asset-detail-identity')
       .locator('.dxw-asset-amount')
       .getAttribute('data-exact-value'),
     '0.0055325',
   );
+  await nextAssetDetailPage(surface);
+  await nextAssetDetailPage(surface);
   const receive = surface.getByRole('button', { name: 'Receive', exact: true }).last();
   assert.equal(await receive.isEnabled(), true, `${hostName}: reviewed initialized SPCX can receive`);
   const receiveMetrics = await receive.evaluate((button) => ({
@@ -305,14 +384,14 @@ async function assertCompleteAssets(surface, hostName) {
     receiveMetrics.width >= 40 && receiveMetrics.height >= 40,
     `${hostName}: the live Receive action must meet the 40px target floor`,
   );
-  for (const action of ['Send', 'Buy', 'Sell', 'Earn', 'Lend', 'Borrow', 'Pay']) {
+  for (const action of ['Send', 'Buy', 'Sell']) {
     assert.equal(
-      await surface.getByRole('button', { name: action, exact: true }).isDisabled(),
+      await unavailableAssetAction(surface, action).isDisabled(),
       true,
       `${hostName}: ${action} must remain disabled`,
     );
   }
-  const disabledChrome = await surface
+  let disabledChrome = await surface
     .locator('.dxw-asset-actions button:disabled')
     .evaluateAll((buttons) =>
       buttons.map((button) => ({
@@ -328,7 +407,34 @@ async function assertCompleteAssets(surface, hostName) {
     ),
     `${hostName}: unavailable controls must remain quiet instead of becoming button boxes`,
   );
+  await nextAssetDetailPage(surface);
+  for (const action of ['Earn', 'Lend', 'Borrow', 'Pay']) {
+    assert.equal(
+      await unavailableAssetAction(surface, action).isDisabled(),
+      true,
+      `${hostName}: ${action} must remain disabled`,
+    );
+  }
+  disabledChrome = await surface
+    .locator('.dxw-asset-actions button:disabled')
+    .evaluateAll((buttons) =>
+      buttons.map((button) => ({
+        backgroundColor: getComputedStyle(button).backgroundColor,
+        borderColor: getComputedStyle(button).borderColor,
+      })),
+    );
+  assert.ok(
+    disabledChrome.every(
+      ({ backgroundColor, borderColor }) =>
+        backgroundColor === 'rgba(0, 0, 0, 0)' &&
+        borderColor === 'rgba(0, 0, 0, 0)',
+    ),
+    `${hostName}: every unavailable action page must remain quiet`,
+  );
+  await nextAssetDetailPage(surface);
   await surface.getByText('Not available yet', { exact: true }).waitFor();
+  await previousAssetDetailPage(surface);
+  await previousAssetDetailPage(surface);
   await receive.click();
   await surface.getByRole('dialog', { name: 'Receive SPCX' }).waitFor();
   await surface.getByText('Receive SPCX', { exact: true }).last().waitFor();
@@ -356,12 +462,14 @@ async function assertArtworkFallback(surface, hostName, artworkRequests) {
     .filter({ hasText: /^\s*SOL/ })
     .locator('.dxw-asset-mark img');
   await solImage.waitFor();
+  await waitForAttribute(solImage, 'data-source-url', ASSET_IMAGE_SOURCES.sol);
   assert.equal(
     await solImage.getAttribute('data-source-url'),
     ASSET_IMAGE_SOURCES.sol,
     `${hostName}: a failed canonical image must advance to the next contract source`,
   );
 
+  await nextAssetPage(surface);
   const dexterMark = surface
     .locator('.dxw-asset-row')
     .filter({ hasText: 'DEXTER' })
@@ -399,6 +507,7 @@ async function assertPartialAssets(surface, hostName) {
   await surface.getByText('$264.78', { exact: true }).waitFor();
   await surface.getByText(/No portfolio total/).waitFor();
   await surface.getByText(/1 unpriced holding/).waitFor();
+  await nextAssetPage(surface);
   await surface.getByText('Unpriced', { exact: true }).waitFor();
   assert.equal(
     await surface.getByText('Portfolio value', { exact: true }).count(),
@@ -415,16 +524,24 @@ async function assertGovernanceAssets(surface, hostName) {
   await surface.getByText('Frozen', { exact: false }).first().waitFor();
 
   await surface.getByRole('button', { name: /USDC USD Coin/ }).click();
-  await surface.getByText(/account is frozen/i).waitFor();
   const frozenDetails = surface.locator('.dxw-asset-details').first();
+  await nextAssetDetailPage(surface);
   await frozenDetails.getByText('Reviewed', { exact: true }).waitFor();
   await frozenDetails.getByText('Frozen', { exact: true }).waitFor();
+  await nextAssetDetailPage(surface);
   assert.equal(
-    await surface.getByRole('button', { name: 'Receive', exact: true }).last().isDisabled(),
+    await unavailableAssetAction(surface, 'Receive').isDisabled(),
     true,
     `${hostName}: frozen account cannot receive`,
   );
+  await nextAssetDetailPage(surface);
+  await nextAssetDetailPage(surface);
   await surface.getByText('This token account is frozen', { exact: true }).waitFor();
+  await previousAssetDetailPage(surface);
+  await previousAssetDetailPage(surface);
+  await previousAssetDetailPage(surface);
+  await previousAssetDetailPage(surface);
+  await surface.getByRole('button', { name: 'Assets', exact: true }).click();
   const mysteryMark = surface
     .locator('.dxw-asset-row')
     .filter({ hasText: /^\s*\?MYSTERY|^\s*MYSTERY/ })
@@ -450,6 +567,8 @@ async function assertGovernanceAssets(surface, hostName) {
     `${hostName}: wrong-program metadata must not receive trusted artwork`,
   );
   assert.equal((await blockedMark.textContent())?.trim(), '×');
+
+  await surface.getByRole('button', { name: /USDC USD Coin/ }).click();
 
   const consequential = await surface.locator([
     '.dxw-asset-sub',
@@ -670,8 +789,10 @@ test('wallet Money overview renders honest states in ChatGPT and MCP Apps deskto
       const page = await context.newPage();
       await installFixedClock(page);
       const artworkRequests = [];
+      const externalQrRequests = [];
       await page.route('https://api.qrserver.com/**', async (route) => {
-        await route.fulfill({ status: 200, contentType: 'image/png', body: TRANSPARENT_PNG });
+        externalQrRequests.push(route.request().url());
+        await route.abort();
       });
       const walletRefreshTokens = [];
       await page.route('https://open.dexter.cash/widget/wallet/refresh', async (route) => {
@@ -733,20 +854,21 @@ test('wallet Money overview renders honest states in ChatGPT and MCP Apps deskto
       }
 
       await assertMoneyHome(surface, scenario.name);
+      await assertLocalReceiveQr(surface, scenario.name);
       if (scenario.host === 'mcp-apps') {
-        const constrained = await surface.locator('.dxw-root').evaluate((element) => ({
+        const hosted = await surface.locator('.dxw-root').evaluate((element) => ({
+          inlineMaxHeight: element.style.maxHeight,
           maxHeight: getComputedStyle(element).maxHeight,
           overflowY: getComputedStyle(element).overflowY,
-          clientHeight: element.clientHeight,
         }));
-        const expectedMaxHeight = scenario.mobile ? 780 : 940;
         assert.equal(
-          constrained.maxHeight,
-          `${expectedMaxHeight}px`,
-          `${scenario.name}: wallet must honor MCP containerDimensions`,
+          hosted.inlineMaxHeight,
+          '',
+          `${scenario.name}: the renderer must not copy the host height onto itself`,
         );
-        assert.equal(constrained.overflowY, 'auto');
-        assert.ok(constrained.clientHeight <= expectedMaxHeight);
+        assert.equal(hosted.maxHeight, 'none');
+        assert.notEqual(hosted.overflowY, 'auto');
+        assert.notEqual(hosted.overflowY, 'scroll');
       }
       await scenario.assertAssets(surface, scenario.name, artworkRequests);
 
@@ -757,12 +879,16 @@ test('wallet Money overview renders honest states in ChatGPT and MCP Apps deskto
           listOverflowY: list ? getComputedStyle(list).overflowY : null,
         };
       });
-      assert.equal(scrolling.sheetOverflowY, 'auto');
+      assert.equal(
+        scrolling.sheetOverflowY,
+        'visible',
+        `${scenario.name}: the renderer must leave vertical scrolling to the host`,
+      );
       if (scrolling.listOverflowY !== null) {
         assert.equal(
           scrolling.listOverflowY,
           'visible',
-          `${scenario.name}: the sheet, not a nested asset list, must own vertical scrolling`,
+          `${scenario.name}: the asset list must not create a nested scroll region`,
         );
       }
 
@@ -781,9 +907,13 @@ test('wallet Money overview renders honest states in ChatGPT and MCP Apps deskto
           const luminance = (channels) =>
             0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
           const foreground = luminance(parse(getComputedStyle(element).color));
-          const background = luminance(
-            parse(getComputedStyle(element.closest('.dxw-sheet')).backgroundColor),
-          );
+          const root = element.closest('.dxw-root');
+          const backdropProbe = document.createElement('span');
+          backdropProbe.style.backgroundColor = 'var(--paper)';
+          root?.appendChild(backdropProbe);
+          const backgroundColor = getComputedStyle(backdropProbe).backgroundColor;
+          backdropProbe.remove();
+          const background = luminance(parse(backgroundColor));
           return (Math.max(foreground, background) + 0.05)
             / (Math.min(foreground, background) + 0.05);
         });
@@ -852,7 +982,10 @@ test('wallet Money overview renders honest states in ChatGPT and MCP Apps deskto
         );
 
         await openAssets(surface);
+        await nextAssetPage(surface);
         await surface.getByRole('button', { name: /SPCX SpaceX/ }).click();
+        await nextAssetDetailPage(surface);
+        await nextAssetDetailPage(surface);
         await surface.getByRole('button', { name: 'Receive', exact: true }).last().click();
         await surface.getByRole('dialog', { name: 'Receive SPCX' }).waitFor();
         await page.evaluate(({ nextOutput, nextMetadata }) => {
@@ -893,6 +1026,11 @@ test('wallet Money overview renders honest states in ChatGPT and MCP Apps deskto
         forbidden,
         [],
         `${scenario.name}: read-only fixture must make no tool, movement, or external handoff`,
+      );
+      assert.deepEqual(
+        externalQrRequests,
+        [],
+        `${scenario.name}: opening Receive must not disclose the address to an external QR service`,
       );
       await context.close();
     });

@@ -134,7 +134,7 @@ function createReleaseCandidate(parent, { privateService = false } = {}) {
   const lock = Buffer.from("{}\n");
   const rosters = {
     ...(privateService ? { "dexter-mcp": ["resolve_wallet", "auth_info"] } : {}),
-    "dexter-open-mcp": ["x402_search", "dexter_prepare_asset_action"],
+    "dexter-open-mcp": ["indexter_search", "dexter_prepare_asset_action"],
   };
   const descriptor = Buffer.from(`${JSON.stringify({
     connectedToolNames: rosters["dexter-open-mcp"],
@@ -792,7 +792,7 @@ test("direct autorestart preflight binds sealed identity and roster to PM2 envir
       {
         env: {
           ...baseEnv,
-          DEXTER_MCP_EXPECTED_ROSTER_JSON: JSON.stringify(["x402_search"]),
+          DEXTER_MCP_EXPECTED_ROSTER_JSON: JSON.stringify(["indexter_search"]),
         },
         error: /opendexter_release_roster_mismatch/,
       },

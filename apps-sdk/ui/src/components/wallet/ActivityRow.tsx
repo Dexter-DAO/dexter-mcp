@@ -1,5 +1,5 @@
 import type { WalletActivityItem } from '../x402';
-import { fmtSignedUsd, relativeTime } from './format';
+import { fmtExactSignedUsd, fmtSignedUsd, relativeTime } from './format';
 
 /** One recorded money event. Payment amounts are negative (money left). */
 export function ActivityRow({ item }: { item: WalletActivityItem }) {
@@ -12,7 +12,13 @@ export function ActivityRow({ item }: { item: WalletActivityItem }) {
         <div className="dxw-act-main">{item.label}</div>
         <div className="dxw-act-sub">{sub}</div>
       </div>
-      <span className="dxw-act-amt dxw-mono">{fmtSignedUsd(item.amountUsd)}</span>
+      <span
+        className="dxw-act-amt dxw-mono"
+        title={`Exact amount: ${fmtExactSignedUsd(item.amountUsd)}`}
+      >
+        <span aria-hidden="true">{fmtSignedUsd(item.amountUsd)}</span>
+        <span className="sr-only">Exact amount: {fmtExactSignedUsd(item.amountUsd)}</span>
+      </span>
     </div>
   );
 }

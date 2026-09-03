@@ -1,7 +1,36 @@
-import { useState } from 'react';
+import QRCode from 'qrcode';
+import { useMemo, useState } from 'react';
 import { Sheet } from './Sheet';
 import { shortAddr } from './format';
 import { CopyIcon } from './icons';
+
+type LocalQrGraphic = {
+  path: string;
+  size: number;
+};
+
+function createLocalQrGraphic(value: string): LocalQrGraphic | null {
+  try {
+    const modules = QRCode.create(value, { errorCorrectionLevel: 'M' }).modules;
+    const quietZone = 4;
+    const path: string[] = [];
+
+    for (let row = 0; row < modules.size; row += 1) {
+      for (let column = 0; column < modules.size; column += 1) {
+        if (modules.get(row, column)) {
+          path.push(`M${column + quietZone} ${row + quietZone}h1v1h-1z`);
+        }
+      }
+    }
+
+    return {
+      path: path.join(''),
+      size: modules.size + quietZone * 2,
+    };
+  } catch {
+    return null;
+  }
+}
 
 /*
  * Read-only receive sheet. This slice exposes the real Solana receive address
@@ -34,16 +63,28 @@ export function DepositSheet({ address, assetSymbol, onClose }: {
       setCopyState('failed');
     }
   };
-  const qrSrc = address
-    ? `https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=0&data=${encodeURIComponent(`solana:${address}`)}`
-    : null;
+  const qr = useMemo(
+    () => (address ? createLocalQrGraphic(`solana:${address}`) : null),
+    [address],
+  );
 
   return (
     <Sheet title={assetSymbol ? `Receive ${assetSymbol}` : 'Receive'} onClose={onClose}>
       <div className="dxw-receive">
-        <div className="dxw-qr-tile">
-          {qrSrc ? <img src={qrSrc} alt="Deposit address QR" width={88} height={88} style={{ width: '100%', height: '100%' }} /> : null}
-        </div>
+        {qr ? (
+          <div className="dxw-qr-tile">
+            <svg
+              aria-label="Deposit address QR code"
+              focusable="false"
+              role="img"
+              shapeRendering="crispEdges"
+              viewBox={`0 0 ${qr.size} ${qr.size}`}
+            >
+              <rect width={qr.size} height={qr.size} fill="#fff" />
+              <path d={qr.path} fill="#111" />
+            </svg>
+          </div>
+        ) : null}
         <div>
           <div className="dxw-r-title">
             {assetSymbol ? `Receive ${assetSymbol}` : 'Receive on Solana'}

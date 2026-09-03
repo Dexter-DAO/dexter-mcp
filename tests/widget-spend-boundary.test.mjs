@@ -8,6 +8,11 @@ async function source(path) {
   return readFile(new URL(path, ROOT), 'utf8');
 }
 
+function cssRule(sourceText, selector) {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return sourceText.match(new RegExp(`${escaped}\\s*\\{([^}]*)\\}`))?.[1] ?? '';
+}
+
 test('pricing widget continues in chat instead of invoking a money tool', async () => {
   const [pricing, continuation, action, pricingTypes] = await Promise.all([
     source('apps-sdk/ui/src/entries/x402-pricing.tsx'),
@@ -79,6 +84,36 @@ test('fetch result reports one intent lifecycle and never interprets rail modes'
     lifecycleSources,
     /purchaseReceipt|normalizePurchaseReceipt|toolOutput\.mode|direct_exact|native_tab/,
   );
+});
+
+test('x402 protocol renderers leave framing and height to the host', async () => {
+  const [pricing, pricingStyles, paymentRoutes, fetchResult, fetchStyles] = await Promise.all([
+    source('apps-sdk/ui/src/entries/x402-pricing.tsx'),
+    source('apps-sdk/ui/src/styles/widgets/x402-pricing.css'),
+    source('apps-sdk/ui/src/components/pricing/PaymentRoutes.tsx'),
+    source('apps-sdk/ui/src/entries/x402-fetch-result.tsx'),
+    source('apps-sdk/ui/src/styles/widgets/x402-fetch-result.css'),
+  ]);
+  const pricingRoot = cssRule(pricingStyles, '.dx-pricing');
+  const resultFrame = cssRule(fetchStyles, '.dx-fetch-result-frame');
+  const resultRoot = cssRule(fetchStyles, '.dx-result');
+
+  for (const entry of [pricing, fetchResult]) {
+    assert.match(entry, /useIntrinsicHeight/);
+    assert.match(entry, /data-host-max-height/);
+    assert.doesNotMatch(entry, /style=\{\{[^}]*maxHeight/);
+  }
+  for (const rootRule of [pricingRoot, resultFrame, resultRoot]) {
+    assert.match(rootRule, /background:\s*transparent/);
+    assert.doesNotMatch(rootRule, /\bmax-height\s*:/);
+    assert.doesNotMatch(rootRule, /\boverflow(?:-y)?\s*:\s*auto/);
+    assert.doesNotMatch(rootRule, /\bborder-radius\s*:|\bbox-shadow\s*:/);
+  }
+  assert.match(resultFrame, /overflow:\s*visible/);
+  assert.doesNotMatch(paymentRoutes, /shortRecipient/);
+  assert.match(paymentRoutes, /to \{route\.payTo\}/);
+  assert.doesNotMatch(fetchResult, /displayIntent/);
+  assert.match(fetchResult, /<dd>\{lifecycle\.intentId\}<\/dd>/);
 });
 
 test('funding widget requests a fresh approval in chat instead of retrying payment', async () => {

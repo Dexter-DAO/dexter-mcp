@@ -225,8 +225,8 @@ function widgetMeta(templateUri, invoking, invoked, description) {
       visibility: ['model', 'app'],
       csp: standardCsp,
       domain: WIDGET_DOMAIN,
-      // The renderer owns its content plane; the host must not wrap it in a
-      // second rounded card. This keeps ChatGPT and MCP Apps visually aligned.
+      // The host owns the only content plane. The renderer stays transparent,
+      // so another rounded wrapper would create the double-container failure.
       prefersBorder: false,
     },
     // Deprecated flat key alongside the nested `ui.resourceUri` — the official
@@ -414,15 +414,15 @@ function buildMerchantSettlement(requirements) {
 
 function logX402SearchDebug(stage, details = {}) {
   try {
-    console.log(`[x402_search] ${stage} ${JSON.stringify(details)}`);
+    console.log(`[indexter_search] ${stage} ${JSON.stringify(details)}`);
   } catch {
-    console.log(`[x402_search] ${stage}`);
+    console.log(`[indexter_search] ${stage}`);
   }
 }
 
 // fetchCapabilitySearch + x402Search now use @dexterai/x402-core
 
-// ─── Tool: x402_search ──────────────────────────────────────────────────────
+// ─── Tool: indexter_search ──────────────────────────────────────────────────
 
 // Payability filter (2026-07-20): a chain-bound wallet (phone, anon vault —
 // Solana-only) must never be handed results it cannot pay. Discovery keeps
@@ -1354,12 +1354,12 @@ async function runCanonicalX402Check(args, session) {
   return modelResult;
 }
 
-// ─── Tool: x402_wallet ───────────────────────────────────────────────────────
+// ─── Tool: dexter_wallet ─────────────────────────────────────────────────────
 
 const SOLANA_MAINNET_CAIP2 = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
 
 /**
- * x402_wallet — the non-custodial vault dashboard.
+ * dexter_wallet is the non-custodial vault dashboard.
  *
  * This used to mint a Dexter-held server-side keypair on call (the "OpenDexter
  * session" model) and return its address as a "send USDC here" target. That was
@@ -1415,7 +1415,7 @@ async function fetchWalletActivity(sessionId) {
       return { at: it.at, kind: it.kind, amountAtomic: it.amountAtomic, host, sig: it.sig };
     });
   } catch (err) {
-    console.warn(`[x402_wallet] activity read failed (${safeErrorLabel(err)})`);
+    console.warn(`[dexter_wallet] activity read failed (${safeErrorLabel(err)})`);
     return [];
   }
 }
@@ -1578,7 +1578,7 @@ async function x402Wallet(_args, extra) {
       // clean "not enrolled" — that comes back 200 with a status. Remember it
       // so a transient read failure never gets mistaken for a missing wallet.
       stateReadFailed = true;
-      console.warn(`[x402_wallet] /state read failed (${safeErrorLabel(err)})`);
+      console.warn(`[dexter_wallet] /state read failed (${safeErrorLabel(err)})`);
     }
   }
   if (state?.status === 'ready' && state.vault && sessionId) {
@@ -1588,7 +1588,7 @@ async function x402Wallet(_args, extra) {
   // No identity at all — no session id to resolve a binding from.
   if (!state && !sessionId) {
     return buildVaultAuthenticationRequired({
-      tool: 'x402_wallet',
+      tool: 'dexter_wallet',
       reason: 'no_mcp_session',
     });
   }
@@ -1624,7 +1624,7 @@ async function x402Wallet(_args, extra) {
       else clearSessionVaultBinding(sessionId);
     }
     return buildVaultAuthenticationRequired({
-      tool: 'x402_wallet',
+      tool: 'dexter_wallet',
       reason: vaultAuthenticationReason({
         bindingConfirmed: binding?.bound === true,
         vaultStatus: state?.status,
@@ -1672,7 +1672,7 @@ async function x402Wallet(_args, extra) {
       // threw a ReferenceError that swallowed this whole payload and cost
       // every not-activated user the Activate CTA; found in the Jul 23
       // renderer autopsy, board #94/#95).
-      retry: { tool: 'x402_wallet' },
+      retry: { tool: 'dexter_wallet' },
       // Ground truth (census-verified Jul 24, board #97): deposits to an
       // undeployed wallet WORK — the sender's transfer creates the USDC
       // token account at the receive address, which is valid from birth.
@@ -1945,7 +1945,7 @@ async function dexterPortfolio(_args, extra) {
   const sessionId = extra ? extractMcpSessionId(extra) : null;
   if (!sessionId) {
     return buildVaultAuthenticationRequired({
-      tool: 'dexter_portfolio',
+      tool: 'dexter_wallet_portfolio',
       reason: 'no_mcp_session',
     });
   }
@@ -1955,7 +1955,7 @@ async function dexterPortfolio(_args, extra) {
     state = await fetchVaultStateBySession(sessionId);
   } catch (err) {
     console.warn(
-      `[dexter_portfolio] /state read failed (${safeErrorLabel(err)})`,
+      `[dexter_wallet_portfolio] /state read failed (${safeErrorLabel(err)})`,
     );
     const binding = await checkSessionVaultBinding(sessionId);
     if (binding.bound) {
@@ -1965,7 +1965,7 @@ async function dexterPortfolio(_args, extra) {
     if (!binding.ok) return buildPortfolioReadError({ userBound: null });
     clearSessionVaultBinding(sessionId);
     return buildVaultAuthenticationRequired({
-      tool: 'dexter_portfolio',
+      tool: 'dexter_wallet_portfolio',
       reason: vaultAuthenticationReason(),
     });
   }
@@ -1976,7 +1976,7 @@ async function dexterPortfolio(_args, extra) {
     if (binding.bound) markSessionVaultBound(sessionId);
     else clearSessionVaultBinding(sessionId);
     return buildVaultAuthenticationRequired({
-      tool: 'dexter_portfolio',
+      tool: 'dexter_wallet_portfolio',
       reason: vaultAuthenticationReason({
         bindingConfirmed: binding.bound,
         vaultStatus: state?.status,
@@ -2095,7 +2095,7 @@ export function createOpenMcpServer({
     }
   }
 
-  registerOpenTool(server, 'x402_search', {
+  registerOpenTool(server, 'indexter_search', {
     title: 'Indexter Search',
     description: 'Search Indexter with a natural-language capability query. Results may describe resources, providers, and other available capabilities. maxPriceUsdc and minPriceUsdc set hard bounds on the primary USDC invocation price. paidOnly requires a known positive price. sortBy orders each relevance tier while strong results stay ahead of related results. A typed control is usable only when appliedConstraints or appliedOrdering confirms it. rankingMode and degradedMessage report reduced fallback ranking. searchMeta.mode distinguishes direct, related_only, empty, and error results. Each priced result exposes seller payment options in chains[]. Search results do not authorize payment.',
     inputSchema: {
@@ -2117,7 +2117,7 @@ export function createOpenMcpServer({
       const data = await x402Search(args);
       return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }], structuredContent: data, _meta: SEARCH_META };
     } catch (err) {
-      console.warn(`[x402_search] search failed (${safeErrorLabel(err)})`);
+      console.warn(`[indexter_search] search failed (${safeErrorLabel(err)})`);
       const data = buildSearchErrorResponse(err?.message || String(err));
       return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }], structuredContent: data, isError: true, _meta: SEARCH_META };
     }
@@ -2303,7 +2303,7 @@ export function createOpenMcpServer({
     }
   });
 
-  registerOpenTool(server, 'x402_wallet', {
+  registerOpenTool(server, 'dexter_wallet', {
     title: 'Dexter Wallet',
     description: "Read-only view of the user's Dexter wallet, the non-custodial passkey vault bound to this session. Returns its receive address, cash, reported credit capacity and read status, payment-readiness guidance, and recent activity after native OpenDexter authorization. Cash, reported credit, and exact-intent execution eligibility are distinct: never infer that a deposit is required from zero cash alone, and never promise that credit can fund an endpoint until its exact intent is checked. A missing or stale authorization triggers the host's Connect flow; it never creates a separate connector URL. Dexter holds no keys and runs no server-side session wallet.",
     inputSchema: {},
@@ -2321,7 +2321,7 @@ export function createOpenMcpServer({
       }
       return buildAnonVaultToolResult(publicResult, meta);
     } catch (err) {
-      console.warn(`[x402_wallet] wallet read failed (${safeErrorLabel(err)})`);
+      console.warn(`[dexter_wallet] wallet read failed (${safeErrorLabel(err)})`);
       const data = {
         error: 'wallet_read_unavailable',
         message: 'Dexter could not read the wallet just now. Retry in a moment.',
@@ -2331,7 +2331,7 @@ export function createOpenMcpServer({
     }
   });
 
-  registerOpenTool(server, 'dexter_portfolio', {
+  registerOpenTool(server, 'dexter_wallet_portfolio', {
     title: 'Dexter Wallet Portfolio',
     description:
       'Read the governed asset portfolio bound to this authenticated MCP session. It accepts no identity or authority arguments. Approved holdings expose the canonical assetId accepted by governed Send, Buy, and Sell; unreviewed or blocked holdings expose null.',
@@ -2373,7 +2373,7 @@ export function createOpenMcpServer({
 
   // ─── Dextercard tools: REMOVED (owner ruling Jul 23; card-removal runbook,
   // opendexter-ide/docs/CARD-REMOVAL-RUNBOOK-2026-07-23.md). The card is a
-  // wallet-widget concern now: x402_wallet carries the read-only card summary
+  // wallet-widget concern now: dexter_wallet carries the read-only card summary
   // and the /widget/card/* frame-only path handles reveal/freeze. The hosted
   // instructions and canonical tool contracts intentionally name no card
   // tool; reintroducing one requires updating all three surfaces together.
@@ -2967,7 +2967,7 @@ const httpServer = http.createServer(async (req, res) => {
   }
 
   // ─── /widget/card/* — widget-frame-only Dextercard rail (board #94/#95) ──
-  // Auth = the short-TTL token x402_wallet minted into _meta.dexterCardToken
+  // Auth = the short-TTL token dexter_wallet minted into _meta.dexterCardToken
   // (widget-visible, never model-visible). PAN/CVV never transit tool results:
   // /reveal returns a single-use SAME-ORIGIN image URL; /reveal-image streams
   // the carrier's PCI-safe render exactly once, no-store. Freeze/unfreeze ride

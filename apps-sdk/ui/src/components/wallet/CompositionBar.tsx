@@ -1,4 +1,4 @@
-import { fmtUsd } from './format';
+import { fmtExactUsd, fmtUsd } from './format';
 import type { Ref } from 'react';
 
 /**
@@ -19,28 +19,44 @@ export function CompositionBar({ own, credit, atWork, earnPct, onOpen, triggerRe
   triggerRef?: Ref<HTMLButtonElement>;
 }) {
   const Root: any = onOpen ? 'button' : 'div';
+  const hasOwn = own > 0;
+  const hasCredit = credit > 0;
+  const hasAtWork = atWork > 0;
+  const isEmpty = !hasOwn && !hasCredit && !hasAtWork;
+  const exactComposition = `Yours ${fmtExactUsd(own)}, credit ${fmtExactUsd(credit)}, at work ${fmtExactUsd(atWork)}.`;
   return (
     <Root
       className={`dxw-comp${onOpen ? ' dxw-comp-tap' : ''}`}
-      {...(onOpen ? { onClick: onOpen, ref: triggerRef, type: 'button' } : {})}
+      role={onOpen ? undefined : 'group'}
+      aria-label={onOpen
+        ? `Review balance composition and credit details. ${exactComposition}`
+        : `Balance composition. ${exactComposition}`}
+      {...(onOpen ? {
+        onClick: onOpen,
+        ref: triggerRef,
+        type: 'button',
+      } : {})}
     >
-      <div className="dxw-comp-bar">
-        <div className="dxw-seg dxw-seg-own" style={{ flex: `${Math.max(own, 0.001)} 1 0` }} />
-        {credit > 0 ? <div className="dxw-seg dxw-seg-credit" style={{ flex: `${credit} 1 0` }} /> : null}
-        {atWork > 0 ? <div className="dxw-seg dxw-seg-work" style={{ flex: `${atWork} 1 0` }} /> : null}
+      <div
+        className={`dxw-comp-bar${isEmpty ? ' dxw-comp-bar--empty' : ''}`}
+        aria-label={isEmpty ? 'No money in this composition yet' : undefined}
+      >
+        {hasOwn ? <div className="dxw-seg dxw-seg-own" style={{ flex: `${own} 1 0` }} /> : null}
+        {hasCredit ? <div className="dxw-seg dxw-seg-credit" style={{ flex: `${credit} 1 0` }} /> : null}
+        {hasAtWork ? <div className="dxw-seg dxw-seg-work" style={{ flex: `${atWork} 1 0` }} /> : null}
       </div>
       <div className="dxw-legend">
         <div className="dxw-row">
           <span className="dxw-cluster">
             <span className="dxw-dot dxw-dot-own" />Yours&nbsp;<span className="dxw-amt">{fmtUsd(own)}</span>
           </span>
-          {credit > 0 ? (
+          {hasCredit ? (
             <span className="dxw-cluster">
               <span className="dxw-dot dxw-dot-credit" />Credit&nbsp;<span className="dxw-amt">{fmtUsd(credit)}</span>
             </span>
           ) : null}
         </div>
-        {atWork > 0 ? (
+        {hasAtWork ? (
           <div className="dxw-row">
             <span className="dxw-cluster"><span className="dxw-dot dxw-dot-work" />{earnPct != null ? `At work, earning ${earnPct}%` : 'At work, earning'}</span>
             <span className="dxw-amt">{fmtUsd(atWork)}</span>

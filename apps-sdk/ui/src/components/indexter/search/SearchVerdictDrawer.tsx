@@ -65,6 +65,9 @@ export function SearchVerdictDrawer({ resource, onClose, onUseService }: Props) 
         addWidgetBreadcrumb('drawer_fetch_start', { url: resource.url });
         const url = `${API_ORIGIN}/api/x402/resource?url=${encodeURIComponent(resource.url)}&history=3&full_previews=1`;
         const response = await fetch(url, { cache: 'no-store' });
+        if (!response.ok) {
+          throw new Error(`Detail request failed with HTTP ${response.status}`);
+        }
         const json = (await response.json()) as ResourcePayload;
         if (cancelled) return;
         setPayload(json);

@@ -469,6 +469,23 @@ export function formatExactUsd(value: string): string {
   return `$${formatExactDecimal(value)}`;
 }
 
+/**
+ * Human-facing USD display without converting the source decimal to Number.
+ * Portfolio evidence remains exact in the model; the resting UI rounds money
+ * to cents so a high-precision quote can never become a page-sized headline.
+ */
+export function formatDisplayUsd(value: string): string {
+  const [whole, fraction = ''] = value.split('.');
+  const cents = fraction.padEnd(2, '0').slice(0, 2);
+  const roundDigit = fraction[2] ?? '0';
+  let atomicCents = (BigInt(whole) * 100n) + BigInt(cents);
+  if (roundDigit >= '5') atomicCents += 1n;
+
+  const roundedWhole = (atomicCents / 100n).toString();
+  const roundedCents = (atomicCents % 100n).toString().padStart(2, '0');
+  return `$${formatExactDecimal(roundedWhole)}.${roundedCents}`;
+}
+
 export function summarizePortfolio(snapshot: PortfolioSnapshot): PortfolioSummary {
   if (snapshot.portfolioValueUsd !== null) {
     return {

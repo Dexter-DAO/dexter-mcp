@@ -12,17 +12,17 @@ import {
 
 const ROOT = new URL('../', import.meta.url);
 
-test('dexter_portfolio remains in the canonical twelve and is strict OAuth read-only', () => {
+test('dexter_wallet_portfolio remains in the canonical twelve and is strict OAuth read-only', () => {
   assert.equal(OPEN_TOOL_NAMES.length, 12);
-  assert.equal(OPEN_TOOL_NAMES.includes('dexter_portfolio'), true);
-  assert.deepEqual(OPEN_TOOL_SECURITY_SCHEMES.dexter_portfolio, [
+  assert.equal(OPEN_TOOL_NAMES.includes('dexter_wallet_portfolio'), true);
+  assert.deepEqual(OPEN_TOOL_SECURITY_SCHEMES.dexter_wallet_portfolio, [
     { type: 'oauth2', scopes: ['vault'] },
   ]);
   assert.deepEqual(
-    OPEN_TOOL_CONTRACTS.dexter_portfolio.securitySchemes,
-    OPEN_TOOL_SECURITY_SCHEMES.dexter_portfolio,
+    OPEN_TOOL_CONTRACTS.dexter_wallet_portfolio.securitySchemes,
+    OPEN_TOOL_SECURITY_SCHEMES.dexter_wallet_portfolio,
   );
-  assert.deepEqual(OPEN_TOOL_CONTRACTS.dexter_portfolio.annotations, {
+  assert.deepEqual(OPEN_TOOL_CONTRACTS.dexter_wallet_portfolio.annotations, {
     readOnlyHint: true,
     destructiveHint: false,
     idempotentHint: true,
@@ -32,14 +32,14 @@ test('dexter_portfolio remains in the canonical twelve and is strict OAuth read-
     jsonrpc: '2.0',
     id: 7,
     method: 'tools/call',
-    params: { name: 'dexter_portfolio', arguments: {} },
-  }), { name: 'dexter_portfolio', id: 7 });
+    params: { name: 'dexter_wallet_portfolio', arguments: {} },
+  }), { name: 'dexter_wallet_portfolio', id: 7 });
   assert.match(
-    OPEN_TOOL_CONTRACTS.dexter_portfolio.description,
+    OPEN_TOOL_CONTRACTS.dexter_wallet_portfolio.description,
     /approvedActionTargets separately list server-approved governed assets even when the wallet holds none/,
   );
   assert.match(
-    OPEN_TOOL_CONTRACTS.dexter_portfolio.description,
+    OPEN_TOOL_CONTRACTS.dexter_wallet_portfolio.description,
     /never count as holdings or value/,
   );
 });
@@ -62,7 +62,7 @@ test('registered portfolio accepts no identity input and attaches no legacy widg
     new URL('../open-mcp-server.mjs', import.meta.url),
     'utf8',
   );
-  const start = server.indexOf("registerOpenTool(server, 'dexter_portfolio'");
+  const start = server.indexOf("registerOpenTool(server, 'dexter_wallet_portfolio'");
   assert.notEqual(start, -1);
   const registration = server.slice(
     start,

@@ -111,7 +111,7 @@ async function connectedOpenClient(t, name) {
   return client;
 }
 
-test('hosted x402_search sends and returns typed price, paid, and ordering controls', async (t) => {
+test('hosted indexter_search sends and returns typed price, paid, and ordering controls', async (t) => {
   const previousFetch = globalThis.fetch;
   const captured = { requestedUrl: null };
   globalThis.fetch = async (input) => {
@@ -135,7 +135,7 @@ test('hosted x402_search sends and returns typed price, paid, and ordering contr
   const client = await connectedOpenClient(t, 'price-contract-test');
 
   const result = await client.callTool({
-    name: 'x402_search',
+    name: 'indexter_search',
     arguments: {
       query: 'weather data',
       maxPriceUsdc: 0.01,
@@ -206,7 +206,7 @@ test('network filtering preserves API order and confirmed search metadata', asyn
 
   const client = await connectedOpenClient(t, 'network-order-contract-test');
   const result = await client.callTool({
-    name: 'x402_search',
+    name: 'indexter_search',
     arguments: {
       query: 'fixture data',
       network: 'solana',
@@ -256,7 +256,7 @@ test('real SDK search keeps its strict output shape after credential scrubbing',
 
   const client = await connectedOpenClient(t, 'search-scrub-contract-test');
   const result = await client.callTool({
-    name: 'x402_search',
+    name: 'indexter_search',
     arguments: {
       query: credentialShapedQuery,
       maxPriceUsdc: 0.01,
@@ -278,7 +278,7 @@ test('real SDK search keeps its strict output shape after credential scrubbing',
     sortBy: 'relevance',
   });
   assert.equal(
-    OPEN_TOOL_CONTRACTS.x402_search.outputSchema.safeParse(
+    OPEN_TOOL_CONTRACTS.indexter_search.outputSchema.safeParse(
       result.structuredContent,
     ).success,
     true,
@@ -331,7 +331,7 @@ test('network filtering rebuilds every visible search fact', async (t) => {
 
   const client = await connectedOpenClient(t, 'network-filter-contract-test');
   const result = await client.callTool({
-    name: 'x402_search',
+    name: 'indexter_search',
     arguments: {
       query: 'fixture data',
       network: 'solana',
@@ -361,7 +361,7 @@ test('network filtering rebuilds every visible search fact', async (t) => {
   assert.equal(output.appliedConstraints.paidOnly, true);
   assert.deepEqual(output.appliedOrdering, { sortBy: 'price_desc' });
   assert.equal(
-    OPEN_TOOL_CONTRACTS.x402_search.outputSchema.safeParse(output).success,
+    OPEN_TOOL_CONTRACTS.indexter_search.outputSchema.safeParse(output).success,
     true,
   );
 });
@@ -391,7 +391,7 @@ test('network filtering reports an empty payable set without a false similarity 
 
   const client = await connectedOpenClient(t, 'network-empty-contract-test');
   const result = await client.callTool({
-    name: 'x402_search',
+    name: 'indexter_search',
     arguments: {
       query: 'fixture data',
       network: 'solana',
@@ -412,7 +412,7 @@ test('network filtering reports an empty payable set without a false similarity 
   );
   assert.match(output.tip, /Retry without the network filter/);
   assert.equal(
-    OPEN_TOOL_CONTRACTS.x402_search.outputSchema.safeParse(output).success,
+    OPEN_TOOL_CONTRACTS.indexter_search.outputSchema.safeParse(output).success,
     true,
   );
 });
@@ -431,7 +431,7 @@ test('unknown API ranking modes stay schema-safe through the real SDK', async (t
 
   const client = await connectedOpenClient(t, 'ranking-mode-contract-test');
   const result = await client.callTool({
-    name: 'x402_search',
+    name: 'indexter_search',
     arguments: { query: 'weather data' },
   });
 
@@ -440,14 +440,14 @@ test('unknown API ranking modes stay schema-safe through the real SDK', async (t
   assert.equal(result.structuredContent.searchMeta.rankingMode, 'degraded');
   assert.match(result.structuredContent.degradedMessage, /cannot interpret/);
   assert.equal(
-    OPEN_TOOL_CONTRACTS.x402_search.outputSchema.safeParse(
+    OPEN_TOOL_CONTRACTS.indexter_search.outputSchema.safeParse(
       result.structuredContent,
     ).success,
     true,
   );
 });
 
-test('hosted x402_search fails closed when paidOnly is not confirmed', async (t) => {
+test('hosted indexter_search fails closed when paidOnly is not confirmed', async (t) => {
   const previousFetch = globalThis.fetch;
   globalThis.fetch = async () => new Response(JSON.stringify(capabilityPayload({
     appliedConstraints: {
@@ -464,7 +464,7 @@ test('hosted x402_search fails closed when paidOnly is not confirmed', async (t)
 
   const client = await connectedOpenClient(t, 'paid-only-fail-closed-test');
   const result = await client.callTool({
-    name: 'x402_search',
+    name: 'indexter_search',
     arguments: { query: 'weather data', paidOnly: true },
   });
 
@@ -473,7 +473,7 @@ test('hosted x402_search fails closed when paidOnly is not confirmed', async (t)
   assert.equal(result.structuredContent.searchMeta.mode, 'error');
 });
 
-test('hosted x402_search fails closed when typed sortBy is not echoed', async (t) => {
+test('hosted indexter_search fails closed when typed sortBy is not echoed', async (t) => {
   const previousFetch = globalThis.fetch;
   globalThis.fetch = async () => new Response(JSON.stringify(capabilityPayload({
     appliedOrdering: { sortBy: 'relevance' },
@@ -487,7 +487,7 @@ test('hosted x402_search fails closed when typed sortBy is not echoed', async (t
 
   const client = await connectedOpenClient(t, 'sort-fail-closed-test');
   const result = await client.callTool({
-    name: 'x402_search',
+    name: 'indexter_search',
     arguments: { query: 'weather data', sortBy: 'price_asc' },
   });
 
