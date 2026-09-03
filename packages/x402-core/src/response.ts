@@ -3,7 +3,7 @@
  *
  * Builds the standardized SearchResponse shape that MCP tool handlers return.
  * This replaces the duplicated response-building logic in each consumer's
- * MCP search tool handler.
+ * x402_search tool handler.
  */
 
 import type {
@@ -133,8 +133,8 @@ function buildTip(result: CapabilitySearchResult): string {
 /**
  * Build the standardized MCP search response from a CapabilitySearchResult.
  *
- * Hosted OpenDexter returns this shape from `indexter_search`; the local
- * connector returns it from the compatibility-named `x402_search` tool.
+ * This is the shape that gets returned from x402_search tool handlers across
+ * all MCP surfaces (Open MCP, Auth MCP, OpenDexter npm).
  */
 export function buildSearchResponse(result: CapabilitySearchResult): SearchResponse {
   // No `resources` concat field anymore — it was a duplicate of
