@@ -8,15 +8,21 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 const read = (relativePath) => readFileSync(path.join(repoRoot, relativePath), 'utf8');
 
 const entry = read('apps-sdk/ui/src/entries/indexter-search.tsx');
+const summaryHeader = read('apps-sdk/ui/src/components/indexter/search/IndexterSummaryHeader.tsx');
 const brief = read('apps-sdk/ui/src/components/indexter/search/SearchDecisionBrief.tsx');
 const briefModel = read('apps-sdk/ui/src/components/indexter/search/SearchDecisionBrief.model.ts');
 const quote = read('apps-sdk/ui/src/components/indexter/search/SearchQuotePanel.tsx');
 const comparison = read('apps-sdk/ui/src/components/indexter/search/SearchComparisonPanel.tsx');
+const inlineDetail = read('apps-sdk/ui/src/components/indexter/search/SearchInlineDetail.tsx');
 const drawer = read('apps-sdk/ui/src/components/indexter/search/SearchVerdictDrawer.tsx');
 const model = read('apps-sdk/ui/src/components/indexter/search/search-model.ts');
 const response = read('packages/x402-core/src/response.ts');
 const css = read('apps-sdk/ui/src/styles/widgets/indexter-search.css');
 const baseCss = read('apps-sdk/ui/src/styles/base.css');
+const register = read('apps-sdk/register.mjs');
+const toolContracts = read('lib/open-tool-contracts.mjs');
+const indexterHtml = read('apps-sdk/ui/indexter-search.html');
+const compatibilityHtml = read('apps-sdk/ui/x402-marketplace-search.html');
 const continuation = read('apps-sdk/ui/src/components/x402/purchase-review-continuation.ts');
 const indexterContinuation = read('apps-sdk/ui/src/components/indexter/search/indexter-continuation.ts');
 const actionSources = `${entry}\n${brief}\n${quote}\n${drawer}\n${continuation}\n${indexterContinuation}`;
@@ -31,7 +37,7 @@ test('error rendering precedes the genuine-empty branch', () => {
 test('degraded ranking guidance remains visible when fallback search is empty', () => {
   assert.match(
     entry,
-    /if \(resources\.length === 0\)[\s\S]*?<IndexterLockup \/>[\s\S]*?<p>\{searchGuidance \? `\$\{searchGuidance\} \$\{emptyDescription\}` : emptyDescription\}<\/p>/,
+    /if \(resources\.length === 0\)[\s\S]*?const emptyCopy = searchGuidance[\s\S]*?<IndexterLockup \/>[\s\S]*?<p title=\{emptyCopy\}>\{emptyCopy\}<\/p>/,
   );
 });
 
@@ -86,6 +92,88 @@ test('featured ranking and user selection remain separate states', () => {
   assert.match(entry, /selectedOrdinal/);
   assert.doesNotMatch(entry, /selectedUrl/);
   assert.doesNotMatch(model, /resources\[0\]/);
+});
+
+test('comparison disclosures share one bounded, ordinal-safe region', () => {
+  assert.match(entry, /const comparisonRegionId = useId\(\)/);
+  assert.equal(
+    entry.match(/comparisonId=\{comparisonRegionId\}/g)?.length,
+    3,
+  );
+  assert.match(
+    entry,
+    /\{\(!comparisonOpen \|\| isFullscreen\) && \(/,
+  );
+  assert.match(summaryHeader, /aria-controls=\{comparisonId\}/);
+  assert.match(summaryHeader, /aria-expanded=\{comparisonOpen\}/);
+  assert.match(brief, /aria-controls=\{comparisonId\}/);
+  assert.match(brief, /aria-expanded=\{comparisonOpen\}/);
+  assert.match(comparison, /const CONDENSED_PAGE_SIZE = 1/);
+  assert.match(comparison, /const INLINE_PAGE_SIZE = 2/);
+  assert.match(comparison, /ordinal: index \+ 1/);
+  assert.match(
+    comparison,
+    /const visibleResources = isFullscreen\s*\? indexedResources\s*: indexedResources\.slice\(pageStart, pageStart \+ pageSize\)/,
+  );
+  assert.match(comparison, />\s*Previous\s*</);
+  assert.match(comparison, />\s*Next\s*</);
+  assert.match(comparison, /\{rangeStart\}–\{rangeEnd\} of \{resources\.length\}/);
+  assert.doesNotMatch(comparison, /showAll|setShowAll|Show \{hiddenCount\} more/);
+  assert.match(
+    entry,
+    /comparisonOpen && detailOpen && !isFullscreen[\s\S]*?id=\{comparisonRegionId\}[\s\S]*?id=\{detailRegionId\}/,
+  );
+  assert.match(entry, /comparisonOpen \? \([\s\S]*?<SearchComparisonPanel/);
+  assert.match(entry, /!isMobile && isFullscreen && detailOpen/);
+  assert.match(entry, /isMobile && isFullscreen && detailOpen/);
+  assert.doesNotMatch(inlineDetail, /SearchVerdictDrawer|\bfetch\s*\(/);
+  assert.match(inlineDetail, />Back to comparison</);
+  assert.match(inlineDetail, /Result \{ordinal\} of \{resultCount\}/);
+});
+
+test('inline copy is bounded while full labels remain available', () => {
+  assert.match(entry, /<h1 title=\{loadingTitle\}>\{loadingTitle\}<\/h1>/);
+  assert.match(entry, /<h1 title=\{emptyTitle\}>\{emptyTitle\}<\/h1>/);
+  assert.match(entry, /<h1 title=\{queryHeading\}>\{queryHeading\}<\/h1>/);
+  assert.match(css, /\.dx-search-shell--inline \.dx-search-query h1[\s\S]*?-webkit-line-clamp: 2/);
+  assert.match(css, /\.dx-search-shell--inline \.dx-search-state h1[\s\S]*?-webkit-line-clamp: 2/);
+  assert.match(css, /\.dx-search-shell--inline \.dx-search-state p[\s\S]*?-webkit-line-clamp: 3/);
+  assert.match(css, /\.dx-search-inline-detail__description,[\s\S]*?-webkit-line-clamp: 2/);
+});
+
+test('late fullscreen responses are corrected to the latest requested mode', () => {
+  assert.match(entry, /const desiredDisplayMode = useRef/);
+  assert.match(entry, /const displayModeRequestId = useRef\(0\)/);
+  assert.match(entry, /const comparisonRequestedFullscreen = useRef\(false\)/);
+  assert.match(entry, /activeRequestId !== displayModeRequestId\.current/);
+  assert.match(entry, /desiredMode !== requestedMode/);
+  assert.match(entry, /correct_stale_display_mode/);
+  assert.match(entry, /const shouldRequestFullscreen = !isFullscreen && canToggleFullscreen/);
+  assert.match(entry, /const shouldRestoreInline = comparisonRequestedFullscreen\.current/);
+  assert.match(
+    entry,
+    /if \(requestDisplayMode && shouldRestoreInline\) \{\s*requestHostMode\('inline', 'close_comparison'\)/,
+  );
+});
+
+test('condensed comparison and detail use bounded content, not clipping or scrolling', () => {
+  assert.match(entry, /maxHeight !== null && maxHeight <= 360/);
+  assert.match(css, /\.dx-search-shell--condensed \.dx-search-compare__rationale[\s\S]*?display: none/);
+  assert.match(css, /\.dx-search-shell--condensed \.dx-search-compare__pagination[\s\S]*?minmax\(72px, 1fr\)/);
+  assert.match(css, /\.dx-search-shell--condensed \.dx-search-inline-detail[\s\S]*?gap: 6px/);
+  assert.match(
+    css,
+    /\.dx-search-shell--condensed \.dx-search-inline-detail__description,[\s\S]*?\.dx-search-shell--condensed \.dx-search-inline-detail__why,[\s\S]*?display: none/,
+  );
+  assert.doesNotMatch(css, /\.dx-search-shell--condensed[^}]*overflow-y:\s*(?:auto|scroll)/);
+});
+
+test('active and compatibility surfaces use the canonical Indexter Search title', () => {
+  assert.equal((register.match(/title: 'Indexter Search'/g) ?? []).length, 2);
+  assert.match(toolContracts, /indexter_search:[\s\S]*?title: 'Indexter Search'/);
+  assert.doesNotMatch(toolContracts, /title: 'Search Indexter'/);
+  assert.match(indexterHtml, /<title>Indexter Search<\/title>/);
+  assert.match(compatibilityHtml, /<title>Indexter Search<\/title>/);
 });
 
 test('dual-host adapters and capability-driven fullscreen are wired locally', () => {

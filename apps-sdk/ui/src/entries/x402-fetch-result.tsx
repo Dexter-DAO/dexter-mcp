@@ -68,11 +68,6 @@ function cleanString(value: unknown): string | null {
   return trimmed || null;
 }
 
-function displayIntent(intentId: string): string {
-  if (intentId.length <= 28) return intentId;
-  return `${intentId.slice(0, 16)}...${intentId.slice(-8)}`;
-}
-
 function friendlyError(payload: FetchPayload): string | null {
   const message = cleanString(payload.message);
   if (message) return message;
@@ -275,7 +270,7 @@ function LifecycleSummary({
           {lifecycle.intentId ? (
             <div>
               <dt>Intent</dt>
-              <dd title={lifecycle.intentId}>{displayIntent(lifecycle.intentId)}</dd>
+              <dd>{lifecycle.intentId}</dd>
             </div>
           ) : null}
         </dl>
@@ -409,8 +404,10 @@ function FetchResult() {
     return (
       <div
         data-theme={theme}
+        data-host-max-height={maxHeight ?? undefined}
+        data-display-mode={displayMode}
+        ref={containerRef}
         className="dx-fetch-result-frame"
-        style={{ maxHeight: maxHeight ?? undefined }}
       >
         <LoadingResult />
       </div>
@@ -428,9 +425,10 @@ function FetchResult() {
   return (
     <div
       data-theme={theme}
+      data-host-max-height={maxHeight ?? undefined}
+      data-display-mode={displayMode}
       ref={containerRef}
       className={`dx-fetch-result-frame${isFullscreen ? ' dx-fetch-result-frame--fullscreen' : ''}`}
-      style={{ maxHeight: isFullscreen ? undefined : maxHeight ?? undefined }}
     >
       <article className="dx-result" aria-labelledby="dx-result-lifecycle-title">
         {hasResult ? (
@@ -475,7 +473,7 @@ function FetchResult() {
 
 const root = document.getElementById('x402-fetch-result-root');
 if (root) {
-  root.setAttribute('data-widget-build', '2026-09-03.result-first');
+  root.setAttribute('data-widget-build', '2026-09-03.intrinsic');
   createRoot(root).render(<FetchResult />);
 }
 

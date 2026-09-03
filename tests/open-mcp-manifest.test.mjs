@@ -122,13 +122,13 @@ test('hosted source documentation states the current opaque-intent product contr
   assert.match(currentContract, /twelve(?:-tool| tools)/i);
 
   for (const name of [
-    'x402_search',
+    'indexter_search',
     'x402_fetch',
     'x402_status',
     'x402_check',
     'x402_access',
-    'x402_wallet',
-    'dexter_portfolio',
+    'dexter_wallet',
+    'dexter_wallet_portfolio',
     'dexter_prepare_asset_action',
     'dexter_execute_asset_action',
     'dexter_asset_action_status',

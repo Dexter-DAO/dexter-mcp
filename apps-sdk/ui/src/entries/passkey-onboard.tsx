@@ -6,7 +6,6 @@ import { useEffect, useState } from 'react';
 import { Lockup } from '../components/wallet/Lockup';
 import { useIntrinsicHeight } from '../components/x402/useIntrinsicHeight';
 import {
-  useAdaptiveMaxHeight,
   useAdaptiveTheme,
   useToolOutput,
 } from '../sdk';
@@ -150,7 +149,6 @@ function ReadyState({ payload }: { payload: PasskeyPayload }) {
 function PasskeyOnboard() {
   const toolOutput = useToolOutput<PasskeyPayload>();
   const theme = useAdaptiveTheme();
-  const maxHeight = useAdaptiveMaxHeight();
   const rootRef = useIntrinsicHeight<HTMLElement>();
 
   useEffect(() => {
@@ -173,11 +171,7 @@ function PasskeyOnboard() {
   }
 
   return (
-    <main
-      className="dx-passkey"
-      ref={rootRef}
-      style={maxHeight === null ? undefined : { maxHeight }}
-    >
+    <main className="dx-passkey" ref={rootRef}>
       <Header />
       {content}
     </main>

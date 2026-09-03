@@ -17,13 +17,13 @@ successful authorization covers discovery and search, exact request checks,
 wallet and portfolio reads, identity-gated access, payment, and governed
 actions. The authorized roster has twelve tools:
 
-- `x402_search`
+- `indexter_search`
 - `x402_check`
 - `x402_fetch`
 - `x402_status`
 - `x402_access`
-- `x402_wallet`
-- `dexter_portfolio`
+- `dexter_wallet`
+- `dexter_wallet_portfolio`
 - `dexter_prepare_asset_action`
 - `dexter_execute_asset_action`
 - `dexter_asset_action_status`
@@ -116,7 +116,7 @@ Execute or Reconcile and must not advertise Send as live.
 
 Send and non-stock Buy/Sell use a canonical registry `assetId` matching
 `^[a-z0-9][a-z0-9._:-]{0,127}$`. It must come from an approved holding or an
-`approvedActionTarget` returned by `dexter_portfolio` with the requested action
+`approvedActionTarget` returned by `dexter_wallet_portfolio` with the requested action
 available; it is not a display symbol or mint. `approvedActionTargets` are
 separate from holdings and totals, so a zero-balance asset can be discoverable
 for Buy without becoming a synthetic holding or value.

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { SearchResource } from './types';
 import { SearchIdentityIcon } from './SearchIdentityIcon';
 import { summarizeSearchResource } from './SearchDecisionBrief.model';
@@ -9,53 +9,95 @@ type Props = {
   selectedOrdinal?: number | null;
   onSelect: (resource: SearchResource) => void;
   onInspect: (resource: SearchResource) => void;
+  openDetailOrdinal?: number | null;
+  comparisonId: string;
+  isFullscreen: boolean;
+  condensed: boolean;
+  detailsId: string;
   interactionLocked?: boolean;
 };
 
-const INITIAL_SHORTLIST_SIZE = 4;
+const CONDENSED_PAGE_SIZE = 1;
+const INLINE_PAGE_SIZE = 2;
 
 export function SearchComparisonPanel({
   resources,
   selectedOrdinal,
   onSelect,
   onInspect,
+  openDetailOrdinal = null,
+  comparisonId,
+  isFullscreen,
+  condensed,
+  detailsId,
   interactionLocked = false,
 }: Props) {
-  const [showAll, setShowAll] = useState(false);
-
-  if (resources.length < 2) return null;
-
+  const pageSize = condensed ? CONDENSED_PAGE_SIZE : INLINE_PAGE_SIZE;
   const selectedIndex =
     Number.isSafeInteger(selectedOrdinal)
     && Number(selectedOrdinal) >= 1
     && Number(selectedOrdinal) <= resources.length
       ? Number(selectedOrdinal) - 1
       : -1;
-  const visibleResources = showAll || selectedIndex >= INITIAL_SHORTLIST_SIZE
-    ? resources
-    : resources.slice(0, INITIAL_SHORTLIST_SIZE);
-  const hiddenCount = resources.length - visibleResources.length;
+  const selectedPage = selectedIndex >= 0
+    ? Math.floor(selectedIndex / pageSize)
+    : 0;
+  const [pageIndex, setPageIndex] = useState(selectedPage);
+  const pageCount = Math.max(1, Math.ceil(resources.length / pageSize));
+  const currentPage = Math.min(pageIndex, pageCount - 1);
+
+  useEffect(() => {
+    setPageIndex((previousPage) => Math.min(previousPage, pageCount - 1));
+  }, [pageCount]);
+
+  useEffect(() => {
+    if (isFullscreen || selectedIndex < 0) return;
+    setPageIndex((previousPage) => {
+      const pageStart = previousPage * pageSize;
+      const pageEnd = pageStart + pageSize;
+      return selectedIndex >= pageStart && selectedIndex < pageEnd
+        ? previousPage
+        : selectedPage;
+    });
+  }, [isFullscreen, pageSize, selectedIndex, selectedPage]);
+
+  if (resources.length < 2) return null;
+
+  const indexedResources = resources.map((resource, index) => ({
+    resource,
+    ordinal: index + 1,
+  }));
+  const pageStart = currentPage * pageSize;
+  const visibleResources = isFullscreen
+    ? indexedResources
+    : indexedResources.slice(pageStart, pageStart + pageSize);
+  const rangeStart = pageStart + 1;
+  const rangeEnd = Math.min(pageStart + pageSize, resources.length);
 
   return (
-    <section className="dx-search-compare" aria-labelledby="dx-search-compare-title">
+    <section
+      id={comparisonId}
+      className="dx-search-compare"
+      aria-labelledby={`${comparisonId}-title`}
+    >
       <div className="dx-search-compare__header">
-        <h2 id="dx-search-compare-title">Compare services</h2>
+        <h2 id={`${comparisonId}-title`}>Compare services</h2>
         <p>{resources.length} results for this request</p>
       </div>
 
       <div className="dx-search-compare__grid">
-        {visibleResources.map((resource, index) => {
+        {visibleResources.map(({ resource, ordinal }) => {
           const summary = summarizeSearchResource(resource);
           const price = formatListedPrice(
             summary.priceLabel,
             summary.priceUsdc,
             summary.priceFallback,
           );
-          const selected = selectedIndex === index;
+          const selected = selectedOrdinal === ordinal;
 
           return (
             <article
-              key={`${resource.resourceId || resource.url}:${index}`}
+              key={`${resource.resourceId || resource.url}:${ordinal}`}
               className="dx-search-compare__card"
               data-selected={selected ? 'true' : undefined}
             >
@@ -64,18 +106,20 @@ export function SearchComparisonPanel({
                 <div>
                   <strong>{resource.name}</strong>
                   <small>
-                    {index === 0 ? 'Recommended · ' : ''}{hostLabel(resource.url)}
+                    {ordinal === 1 ? 'Recommended · ' : ''}{hostLabel(resource.url)}
                   </small>
+                  <span className="sr-only">Result {ordinal} of {resources.length}</span>
                 </div>
               </div>
 
-              <p className="dx-search-compare__why">{summary.why}</p>
-
-              {summary.safetyWarning ? (
-                <p className="dx-search-safety-note" role="note">
-                  {summary.safetyWarning}
-                </p>
-              ) : null}
+              <div className="dx-search-compare__rationale">
+                <p className="dx-search-compare__why">{summary.why}</p>
+                {summary.safetyWarning ? (
+                  <p className="dx-search-safety-note" role="note">
+                    {summary.safetyWarning}
+                  </p>
+                ) : null}
+              </div>
 
               <dl className="dx-search-compare__facts">
                 <div>
@@ -111,6 +155,9 @@ export function SearchComparisonPanel({
                   className="dx-search-compare__details"
                   onClick={() => onInspect(resource)}
                   aria-label={`View details for ${resource.name}`}
+                  aria-expanded={openDetailOrdinal === ordinal}
+                  aria-controls={detailsId}
+                  data-indexter-detail-trigger={ordinal}
                   disabled={interactionLocked}
                 >
                   Details
@@ -121,14 +168,30 @@ export function SearchComparisonPanel({
         })}
       </div>
 
-      {hiddenCount > 0 ? (
-        <button
-          type="button"
-          className="dx-search-compare__more"
-          onClick={() => setShowAll(true)}
-        >
-          Show {hiddenCount} more
-        </button>
+      {!isFullscreen && pageCount > 1 ? (
+        <nav className="dx-search-compare__pagination" aria-label="Comparison result pages">
+          <button
+            type="button"
+            className="dx-search-compare__previous"
+            aria-controls={comparisonId}
+            disabled={interactionLocked || currentPage === 0}
+            onClick={() => setPageIndex((page) => Math.max(0, page - 1))}
+          >
+            Previous
+          </button>
+          <span className="dx-search-compare__range" aria-live="polite">
+            {rangeStart}–{rangeEnd} of {resources.length}
+          </span>
+          <button
+            type="button"
+            className="dx-search-compare__next"
+            aria-controls={comparisonId}
+            disabled={interactionLocked || currentPage >= pageCount - 1}
+            onClick={() => setPageIndex((page) => Math.min(pageCount - 1, page + 1))}
+          >
+            Next
+          </button>
+        </nav>
       ) : null}
     </section>
   );

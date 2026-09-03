@@ -113,13 +113,13 @@ or bounded policy authority described below.
 
 The authorized roster is:
 
-1) `x402_search`
+1) `indexter_search`
 2) `x402_check`
 3) `x402_fetch`
 4) `x402_status`
 5) `x402_access`
-6) `x402_wallet`
-7) `dexter_portfolio`
+6) `dexter_wallet`
+7) `dexter_wallet_portfolio`
 8) `dexter_prepare_asset_action`
 9) `dexter_execute_asset_action`
 10) `dexter_asset_action_status`
@@ -154,7 +154,7 @@ API-owned intent through five hosted tools. `dexter_prepare_asset_action`
 accepts one stable `operationId` plus the
 exact action fields and persists/evaluates the request without signing or
 submitting it. Send and non-stock Buy/Sell use the canonical `assetId` returned
-by `dexter_portfolio` from an approved holding or an `approvedActionTarget`
+by `dexter_wallet_portfolio` from an approved holding or an `approvedActionTarget`
 whose matching action is available, never a symbol or mint. Natural-language
 stock Buy/Sell instead use the exact human `companyQuery`; the API normalizes
 that query and selects and pins the current catalog product. A caller must
@@ -218,8 +218,8 @@ the immutable release itself contains no credential file.
 authorized MCP session resolves the durable wallet binding and stored
 passkey-vault identity for every product tool. Wallet and portfolio calls use
 that binding. They do not accept a caller-supplied
-wallet address or user handle. `x402_wallet` reads the bound passkey wallet;
-`dexter_portfolio` reads its governed asset inventory without changing the
+wallet address or user handle. `dexter_wallet` reads the bound passkey wallet;
+`dexter_wallet_portfolio` reads its governed asset inventory without changing the
 spendable balance. Its optional `approvedActionTargets` are a separate,
 complete list of server-approved governed assets, including assets the wallet
 does not hold. They enable first-time Buy discovery but never create a holding,

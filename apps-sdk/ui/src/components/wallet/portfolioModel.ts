@@ -122,6 +122,7 @@ const UNSIGNED_DECIMAL = /^(0|[1-9][0-9]*)(?:\.([0-9]+))?$/;
 const SIGNED_DECIMAL = /^-?(0|[1-9][0-9]*)(?:\.([0-9]+))?$/;
 const BASE58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
 const BASE58_INDEX = new Map([...BASE58].map((character, index) => [character, BigInt(index)]));
+const MAX_CAPABILITY_REASON_LENGTH = 2_048;
 
 type DecimalParts = { units: bigint; scale: number; negative: boolean };
 
@@ -135,6 +136,11 @@ function isNonEmptyString(value: unknown): value is string {
 
 function isNullableString(value: unknown): value is string | null {
   return value === null || isNonEmptyString(value);
+}
+
+function boundedDisplayText(value: string, maxLength: number): string {
+  if (value.length <= maxLength) return value;
+  return `${value.slice(0, maxLength - 1)}\u2026`;
 }
 
 function isNonNegativeInteger(value: unknown): value is number {
@@ -253,7 +259,11 @@ function parseCapability(value: unknown): PortfolioCapability | null {
   if (!isRecord(value)) return null;
   if (!PORTFOLIO_ACTIONS.includes(value.action as PortfolioAction)) return null;
   if (typeof value.available !== 'boolean') return null;
-  if (value.available ? value.reason !== null : !isNonEmptyString(value.reason)) return null;
+  if (
+    value.available
+      ? value.reason !== null
+      : !isNonEmptyString(value.reason) || value.reason.length > MAX_CAPABILITY_REASON_LENGTH
+  ) return null;
   return {
     action: value.action as PortfolioAction,
     available: value.available,
@@ -465,9 +475,9 @@ function parseHolding(value: unknown): PortfolioHolding | null {
     tokenAccount: value.tokenAccount as string | null,
     tokenProgram,
     assetClass,
-    symbol: value.symbol,
-    name: value.name,
-    issuer: value.issuer as string | null,
+    symbol: boundedDisplayText(value.symbol, 24),
+    name: boundedDisplayText(value.name, 96),
+    issuer: value.issuer === null ? null : boundedDisplayText(value.issuer as string, 96),
     amountRaw: value.amountRaw,
     decimals: value.decimals,
     displayAmount: value.displayAmount,
@@ -698,13 +708,40 @@ function groupWholeDigits(value: string): string {
   return value.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
+function compactDecimal(value: string, prefix = ''): string | null {
+  const negative = value.startsWith('-');
+  const absolute = negative ? value.slice(1) : value;
+  const [rawWhole, fraction = ''] = absolute.split('.');
+  const whole = rawWhole.replace(/^0+(?=\d)/, '');
+  if (whole.length <= 6) return null;
+
+  const group = Math.floor((whole.length - 1) / 3);
+  const sign = negative ? '-' : '';
+  const suffixes = ['', 'K', 'M', 'B', 'T', 'Q'];
+  if (group < suffixes.length) {
+    const leadingLength = whole.length - group * 3;
+    const leading = whole.slice(0, leadingLength);
+    const decimals = `${whole.slice(leadingLength)}${fraction}`
+      .slice(0, 2)
+      .replace(/0+$/, '');
+    return `${prefix}${sign}${leading}${decimals ? `.${decimals}` : ''}${suffixes[group]}`;
+  }
+
+  const decimals = `${whole.slice(1)}${fraction}`.slice(0, 2).replace(/0+$/, '');
+  return `${prefix}${sign}${whole[0]}${decimals ? `.${decimals}` : ''}e+${whole.length - 1}`;
+}
+
 export function formatPortfolioUsd(value: string): string {
   const rounded = roundDecimalString(value, 2);
+  const compact = compactDecimal(rounded, '$');
+  if (compact) return compact;
   const [whole, fraction = ''] = rounded.split('.');
   return `$${groupWholeDigits(whole)}.${fraction.padEnd(2, '0')}`;
 }
 
 export function formatPortfolioAmount(value: string, maxFractionDigits = 8): string {
+  const compact = compactDecimal(value);
+  if (compact) return compact;
   const [whole, fraction = ''] = value.split('.');
   if (!fraction) return groupWholeDigits(whole);
   if (fraction.length <= maxFractionDigits) {

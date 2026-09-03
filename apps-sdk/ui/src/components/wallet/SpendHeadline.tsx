@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { splitUsd } from './format';
+import { useEffect, useId, useRef, useState } from 'react';
+import { compactUsdMagnitude, fmtExactUsd, splitUsd } from './format';
 
 /**
  * The account-capacity headline with a count-up on mount.
@@ -7,6 +7,8 @@ import { splitUsd } from './format';
  * requestAnimationFrame stalls.
  */
 export function SpendHeadline({ value, label }: { value: number; label: string }) {
+  const labelId = useId();
+  const valueId = useId();
   const [display, setDisplay] = useState(value);
   const raf = useRef<number | null>(null);
 
@@ -32,12 +34,20 @@ export function SpendHeadline({ value, label }: { value: number; label: string }
     };
   }, [value]);
 
-  const { int, cents } = splitUsd(display);
+  const compact = compactUsdMagnitude(display);
+  const { int, cents } = compact ? { int: compact, cents: '' } : splitUsd(display);
   return (
-    <div className="dxw-hero">
-      <div className="dxw-spend-label">{label}</div>
-      <div className="dxw-spend-amount">
-        <span className="dxw-cur">$</span><span>{int}</span><span className="dxw-cents">{cents}</span>
+    <div
+      className="dxw-hero"
+      role="group"
+      aria-labelledby={labelId}
+      aria-describedby={valueId}
+    >
+      <h1 className="dxw-spend-label" id={labelId}>{label}</h1>
+      <span className="sr-only" id={valueId}>{fmtExactUsd(value)}</span>
+      <div className="dxw-spend-amount" aria-hidden="true">
+        <span className="dxw-cur">$</span><span>{int}</span>
+        {cents ? <span className="dxw-cents">{cents}</span> : null}
       </div>
     </div>
   );

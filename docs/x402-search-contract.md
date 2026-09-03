@@ -1,11 +1,11 @@
 # x402 Search Contract
 
-This document defines the runtime meaning of `x402_search` result metadata so
+This document defines the runtime meaning of `indexter_search` result metadata so
 tool instructions, logs, widgets, and future implementations stay aligned.
 
 ## Default Behavior
 
-- `x402_search` is the first step for API discovery.
+- `indexter_search` is the first step for API discovery.
 - Broad terms like `crypto`, `image`, `trading`, and `analytics` are valid.
 - Unverified-resource inclusion is controlled by the caller-facing search
   option; clients must not silently change the server default.
@@ -52,7 +52,7 @@ Model guidance:
 The marketplace returned related results but no strong results.
 
 Use when:
-- The user’s term is valid, but only adjacent matches cleared the relevance
+- The user's term is valid, but only adjacent matches cleared the relevance
   threshold.
 
 Model guidance:
@@ -72,7 +72,7 @@ Model guidance:
 
 ### `error`
 
-The marketplace request failed. This is not an empty-result state.
+The marketplace request failed. Do not treat this as an empty-result state.
 
 Use when:
 - Search could not produce a valid catalog response.

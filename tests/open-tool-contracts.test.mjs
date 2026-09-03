@@ -29,13 +29,13 @@ import {
 } from '../lib/session-portfolio.mjs';
 
 const EXPECTED_TOOLS = [
-  'x402_search',
+  'indexter_search',
   'x402_check',
   'x402_fetch',
   'x402_status',
   'x402_access',
-  'x402_wallet',
-  'dexter_portfolio',
+  'dexter_wallet',
+  'dexter_wallet_portfolio',
   'dexter_prepare_asset_action',
   'dexter_execute_asset_action',
   'dexter_asset_action_status',
@@ -44,6 +44,9 @@ const EXPECTED_TOOLS = [
 ];
 
 const RETIRED_TOOLS = [
+  'x402_search',
+  'x402_wallet',
+  'dexter_portfolio',
   'x402_pay',
   'x402_compose_skill',
   'promote_skill',
@@ -73,11 +76,11 @@ test('contract is exactly the canonical hosted twelve', () => {
     assert.equal(
       outputUnknownKeys(toolContract.outputSchema),
       [
-        'x402_search',
+        'indexter_search',
         'x402_check',
         'x402_fetch',
         'x402_status',
-        'dexter_portfolio',
+        'dexter_wallet_portfolio',
         'dexter_prepare_asset_action',
         'dexter_execute_asset_action',
         'dexter_asset_action_status',
@@ -118,7 +121,7 @@ test('only Indexter discovery and its nested access check can call tools from a 
   for (const name of Object.keys(OPEN_TOOL_CONTRACTS)) {
     assert.equal(
       OPEN_TOOL_CONTRACTS[name].widgetAccessible,
-      name === 'x402_search' || name === 'x402_check',
+      name === 'indexter_search' || name === 'x402_check',
       name,
     );
   }
@@ -161,8 +164,8 @@ test('fetch and status declare the route-neutral dispatch evidence contract', ()
 });
 
 test('search and wallet contracts expose current truth without route claims', () => {
-  const search = OPEN_TOOL_CONTRACTS.x402_search;
-  const wallet = OPEN_TOOL_CONTRACTS.x402_wallet;
+  const search = OPEN_TOOL_CONTRACTS.indexter_search;
+  const wallet = OPEN_TOOL_CONTRACTS.dexter_wallet;
 
   assert.match(search.description, /rankingMode=degraded/);
   assert.match(search.description, /maxPriceUsdc/);
@@ -284,7 +287,7 @@ test('x402_check strict output contract carries reconciled schema provenance', (
 
 test('portfolio top-level output refuses undeclared fields', () => {
   assert.equal(
-    OPEN_TOOL_CONTRACTS.dexter_portfolio.outputSchema.safeParse({
+    OPEN_TOOL_CONTRACTS.dexter_wallet_portfolio.outputSchema.safeParse({
       portfolio_status: 'read_error',
       mode: 'portfolio_read_error',
       user_bound: true,
@@ -315,7 +318,7 @@ test('portfolio output carries only canonical approved assetIds as action identi
     approvalStatus: 'approved',
     availableActions: ['view', 'send'],
   };
-  const schema = OPEN_TOOL_CONTRACTS.dexter_portfolio.outputSchema;
+  const schema = OPEN_TOOL_CONTRACTS.dexter_wallet_portfolio.outputSchema;
   const ready = {
     portfolio_status: 'ready',
     mode: 'portfolio_ready',
@@ -352,7 +355,7 @@ test('portfolio output carries only canonical approved assetIds as action identi
     },
   };
   assert.equal(schema.safeParse(bearerShapedAsset).success, true);
-  const projected = applyOpenToolResultPolicy('dexter_portfolio', {
+  const projected = applyOpenToolResultPolicy('dexter_wallet_portfolio', {
     content: [{ type: 'text', text: JSON.stringify(bearerShapedAsset) }],
     structuredContent: bearerShapedAsset,
     isError: false,
@@ -365,7 +368,7 @@ test('portfolio output carries only canonical approved assetIds as action identi
 });
 
 test('portfolio output accepts old and new shapes but rejects invented or contradictory targets', () => {
-  const schema = OPEN_TOOL_CONTRACTS.dexter_portfolio.outputSchema;
+  const schema = OPEN_TOOL_CONTRACTS.dexter_wallet_portfolio.outputSchema;
   const oldPortfolio = modelSafePortfolioSnapshot(
     validateAndBoundPortfolioSnapshotV1(zeroHoldingBuyDiscoveryPortfolio()),
   );
@@ -425,7 +428,7 @@ test('portfolio output accepts old and new shapes but rejects invented or contra
 });
 
 test('portfolio policy preserves only validated target display fields that resemble credentials', () => {
-  const schema = OPEN_TOOL_CONTRACTS.dexter_portfolio.outputSchema;
+  const schema = OPEN_TOOL_CONTRACTS.dexter_wallet_portfolio.outputSchema;
   const symbol = 'open_abcdefghijklmnop';
   const name = 'https://dexter.cash/connect?mcp=open_abcdefghijklmnop';
   const portfolio = zeroHoldingBuyDiscoveryPortfolio();
@@ -440,7 +443,7 @@ test('portfolio policy preserves only validated target display fields that resem
   };
   assert.equal(schema.safeParse(ready).success, true);
 
-  const projected = applyOpenToolResultPolicy('dexter_portfolio', {
+  const projected = applyOpenToolResultPolicy('dexter_wallet_portfolio', {
     content: [{ type: 'text', text: JSON.stringify(ready) }],
     structuredContent: ready,
     isError: false,
@@ -459,7 +462,7 @@ test('portfolio policy preserves only validated target display fields that resem
     name,
   );
 
-  const unexpected = applyOpenToolResultPolicy('dexter_portfolio', {
+  const unexpected = applyOpenToolResultPolicy('dexter_wallet_portfolio', {
     content: [{ type: 'text', text: '{}' }],
     structuredContent: {
       ...ready,
@@ -479,7 +482,7 @@ test('portfolio policy preserves only validated target display fields that resem
     'approved_action_targets',
     'approvedActionTargets.',
   ]) {
-    const hostile = applyOpenToolResultPolicy('dexter_portfolio', {
+    const hostile = applyOpenToolResultPolicy('dexter_wallet_portfolio', {
       content: [{ type: 'text', text: '{}' }],
       structuredContent: {
         ...ready,
@@ -516,7 +519,7 @@ test('real SDK call returns credential-shaped approved target display fields wit
   installOpenToolContracts(server);
   for (const toolName of EXPECTED_TOOLS) {
     server.registerTool(toolName, { inputSchema: {} }, async () => (
-      toolName === 'dexter_portfolio'
+      toolName === 'dexter_wallet_portfolio'
         ? {
             content: [{ type: 'text', text: JSON.stringify(ready) }],
             structuredContent: ready,
@@ -538,7 +541,7 @@ test('real SDK call returns credential-shaped approved target display fields wit
   await server.connect(serverTransport);
   await client.connect(clientTransport);
 
-  const result = await client.callTool({ name: 'dexter_portfolio', arguments: {} });
+  const result = await client.callTool({ name: 'dexter_wallet_portfolio', arguments: {} });
   assert.notEqual(result.isError, true);
   assert.equal(
     result.structuredContent.portfolio.approvedActionTargets[0].symbol,
@@ -549,7 +552,7 @@ test('real SDK call returns credential-shaped approved target display fields wit
     name,
   );
   assert.equal(
-    OPEN_TOOL_CONTRACTS.dexter_portfolio.outputSchema.safeParse(
+    OPEN_TOOL_CONTRACTS.dexter_wallet_portfolio.outputSchema.safeParse(
       result.structuredContent,
     ).success,
     true,
@@ -577,7 +580,7 @@ test('real SDK error result cannot use target-path aliases to bypass credential 
   installOpenToolContracts(server);
   for (const toolName of EXPECTED_TOOLS) {
     server.registerTool(toolName, { inputSchema: {} }, async () => (
-      toolName === 'dexter_portfolio'
+      toolName === 'dexter_wallet_portfolio'
         ? {
             content: [{ type: 'text', text: JSON.stringify(hostile) }],
             structuredContent: hostile,
@@ -600,7 +603,7 @@ test('real SDK error result cannot use target-path aliases to bypass credential 
   await server.connect(serverTransport);
   await client.connect(clientTransport);
 
-  const result = await client.callTool({ name: 'dexter_portfolio', arguments: {} });
+  const result = await client.callTool({ name: 'dexter_wallet_portfolio', arguments: {} });
   assert.equal(result.isError, true);
   const visible = JSON.stringify({
     content: result.content,
@@ -685,18 +688,18 @@ test('both supported registration APIs close after finalization', () => {
 });
 
 test('behavior annotations reflect the canonical twelve operations', () => {
-  assert.deepEqual(OPEN_TOOL_CONTRACTS.x402_search.annotations, {
+  assert.deepEqual(OPEN_TOOL_CONTRACTS.indexter_search.annotations, {
     readOnlyHint: true,
     destructiveHint: false,
     idempotentHint: true,
     openWorldHint: false,
   });
-  assert.equal(OPEN_TOOL_CONTRACTS.x402_wallet.annotations.readOnlyHint, false);
-  assert.equal(OPEN_TOOL_CONTRACTS.x402_wallet.annotations.idempotentHint, false);
-  assert.equal(OPEN_TOOL_CONTRACTS.dexter_portfolio.annotations.readOnlyHint, true);
-  assert.equal(OPEN_TOOL_CONTRACTS.dexter_portfolio.annotations.idempotentHint, true);
-  assert.equal(OPEN_TOOL_CONTRACTS.dexter_portfolio.annotations.destructiveHint, false);
-  assert.equal(OPEN_TOOL_CONTRACTS.dexter_portfolio.annotations.openWorldHint, false);
+  assert.equal(OPEN_TOOL_CONTRACTS.dexter_wallet.annotations.readOnlyHint, false);
+  assert.equal(OPEN_TOOL_CONTRACTS.dexter_wallet.annotations.idempotentHint, false);
+  assert.equal(OPEN_TOOL_CONTRACTS.dexter_wallet_portfolio.annotations.readOnlyHint, true);
+  assert.equal(OPEN_TOOL_CONTRACTS.dexter_wallet_portfolio.annotations.idempotentHint, true);
+  assert.equal(OPEN_TOOL_CONTRACTS.dexter_wallet_portfolio.annotations.destructiveHint, false);
+  assert.equal(OPEN_TOOL_CONTRACTS.dexter_wallet_portfolio.annotations.openWorldHint, false);
   assert.equal(OPEN_TOOL_CONTRACTS.x402_check.annotations.readOnlyHint, false);
   assert.equal(OPEN_TOOL_CONTRACTS.x402_check.annotations.destructiveHint, true);
   assert.equal(OPEN_TOOL_CONTRACTS.x402_fetch.annotations.idempotentHint, false);
@@ -743,7 +746,7 @@ test('x402_access exposes no caller credential input or metadata side channel', 
     "registerOpenTool(server, 'x402_access'",
   );
   const registrationEnd = serverSource.indexOf(
-    "registerOpenTool(server, 'x402_wallet'",
+    "registerOpenTool(server, 'dexter_wallet'",
     registrationStart,
   );
   assert.ok(registrationStart >= 0);
@@ -819,7 +822,7 @@ test('recursive scrub drops common provider credential aliases', () => {
 });
 
 test('search policy strips legacy raw errorDetail from model-visible output', () => {
-  const result = applyOpenToolResultPolicy('x402_search', {
+  const result = applyOpenToolResultPolicy('indexter_search', {
     isError: true,
     content: [{
       type: 'text',
@@ -880,7 +883,7 @@ test('recursive scrub still terminates real object and array cycles', () => {
 test('wallet setup credentials are recursively removed from model output', () => {
   const setupUrl =
     'https://dexter.cash/wallet/setup-passkey?mcp=11111111-2222-4333-8444-555555555555';
-  const cleaned = applyOpenToolResultPolicy('x402_wallet', {
+  const cleaned = applyOpenToolResultPolicy('dexter_wallet', {
     content: [{
       type: 'text',
       text: JSON.stringify({
@@ -1067,11 +1070,11 @@ test('real SDK tools/list exposes executable schemas, OAuth, annotations, and me
     assert.equal(
       listed.outputSchema.additionalProperties,
       [
-        'x402_search',
+        'indexter_search',
         'x402_check',
         'x402_fetch',
         'x402_status',
-        'dexter_portfolio',
+        'dexter_wallet_portfolio',
         'dexter_prepare_asset_action',
         'dexter_execute_asset_action',
         'dexter_asset_action_status',
@@ -1093,7 +1096,7 @@ test('real SDK tools/list exposes executable schemas, OAuth, annotations, and me
         );
       }
     }
-    if (listed.name === 'x402_search') {
+    if (listed.name === 'indexter_search') {
       assert.equal(listed.outputSchema.additionalProperties, false);
       assert.equal(
         Object.hasOwn(listed.outputSchema.properties ?? {}, 'appliedConstraints'),
@@ -1130,7 +1133,7 @@ test('real SDK tools/list exposes executable schemas, OAuth, annotations, and me
     assert.deepEqual(listed.securitySchemes, toolContract.securitySchemes);
     assert.deepEqual(listed._meta.securitySchemes, toolContract.securitySchemes);
   }
-  const called = await client.callTool({ name: 'x402_wallet', arguments: {} });
+  const called = await client.callTool({ name: 'dexter_wallet', arguments: {} });
   assert.equal(called._meta.runtimeWidgetSideChannel, true);
   for (const name of RETIRED_TOOLS) {
     const retired = await client.callTool({ name, arguments: {} });
@@ -1207,7 +1210,7 @@ test('vault-bound hosted discovery retains the exact protected roster', async ()
       const listed = (await client.listTools()).tools;
       const names = listed.map((tool) => tool.name);
       assert.deepEqual(names, OPEN_TOOL_NAMES, phase);
-      const search = listed.find(({ name }) => name === 'x402_search');
+      const search = listed.find(({ name }) => name === 'indexter_search');
       for (const field of ['maxPriceUsdc', 'minPriceUsdc']) {
         assert.equal(
           search?.inputSchema?.properties?.[field]?.type,

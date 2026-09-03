@@ -113,6 +113,20 @@ test('fails closed on fabricated sums and malformed capability arrays', () => {
     ],
   };
   assert.equal(normalizePortfolioRead(malformed, WALLET_ADDRESS).status, 'unavailable');
+
+  const unboundedReason = completePortfolio();
+  unboundedReason.holdings[0] = {
+    ...unboundedReason.holdings[0],
+    capabilities: unboundedReason.holdings[0].capabilities.map((capability) => (
+      capability.action === 'send'
+        ? { ...capability, reason: 'x'.repeat(2_049) }
+        : capability
+    )),
+  };
+  assert.equal(
+    normalizePortfolioRead(unboundedReason, WALLET_ADDRESS).status,
+    'unavailable',
+  );
 });
 
 test('fails closed on duplicate holding identities and missing token accounts', () => {
@@ -267,10 +281,10 @@ test('the normalized portfolio contract has no spendable or credit field', () =>
   assert.equal('creditDrawnUsd' in state.snapshot, false);
 });
 
-test('formats portfolio money with string arithmetic and preserves exact source values', () => {
-  assert.equal(formatPortfolioUsd('18446744174.262801615'), '$18,446,744,174.26');
+test('formats portfolio money with string arithmetic and bounds visual width', () => {
+  assert.equal(formatPortfolioUsd('18446744174.262801615'), '$18.44B');
   assert.equal(formatPortfolioUsd('0.005'), '$0.01');
-  assert.equal(formatPortfolioAmount('18446744073.709551615'), '18,446,744,073.70955161…');
+  assert.equal(formatPortfolioAmount('18446744073.709551615'), '18.44B');
   assert.equal(formatPortfolioAmount('0.0055325'), '0.0055325');
 });
 

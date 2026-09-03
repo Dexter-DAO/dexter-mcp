@@ -2,7 +2,7 @@ import '../styles/sdk.css';
 import '../styles/widgets/indexter-search.css';
 
 import { createRoot } from 'react-dom/client';
-import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { useState, useCallback, useEffect, useId, useMemo, useRef } from 'react';
 import {
   useToolOutput,
   useAdaptiveTheme,
@@ -24,6 +24,7 @@ import {
   type SearchDecisionBriefCheckState,
 } from '../components/indexter/search/SearchDecisionBrief';
 import { SearchComparisonPanel } from '../components/indexter/search/SearchComparisonPanel';
+import { SearchInlineDetail } from '../components/indexter/search/SearchInlineDetail';
 import { SearchQuotePanel } from '../components/indexter/search/SearchQuotePanel';
 import type { SearchResource } from '../components/indexter/search/types';
 import {
@@ -56,6 +57,7 @@ import {
 } from '../components/indexter/search/search-model';
 import type { SearchPayload } from '../components/indexter/search/search-model';
 import { addWidgetBreadcrumb, captureWidgetException } from '../sdk/init-sentry';
+import { useIntrinsicHeight } from '../components/x402/useIntrinsicHeight';
 
 type SearchToolInput = {
   query?: string;
@@ -224,7 +226,14 @@ function IndexterSearch() {
     && hostCapabilities.requestDisplayMode
     && hostContext.availableDisplayModes.includes('fullscreen'),
   );
-  const constrainedMaxHeight = maxHeight;
+  const condensed = !isFullscreen && maxHeight !== null && maxHeight <= 360;
+  const rootClassName = `dxs-root dx-search-shell ${isFullscreen ? 'dx-search-shell--fullscreen' : 'dx-search-shell--inline'}${condensed ? ' dx-search-shell--condensed' : ''}`;
+  const rootStyle = isFullscreen ? {
+    paddingTop: hostContext.safeAreaInsets.top || undefined,
+    paddingRight: hostContext.safeAreaInsets.right || undefined,
+    paddingBottom: hostContext.safeAreaInsets.bottom || undefined,
+    paddingLeft: hostContext.safeAreaInsets.left || undefined,
+  } : undefined;
   const activeOutput = useMemo(
     () => normalizeSearchPayload(toolOutput),
     [toolOutput],
@@ -241,9 +250,17 @@ function IndexterSearch() {
   const modelContextReliable = useRef(true);
   const continuationRequestId = useRef(0);
   const continuationInFlight = useRef(false);
-  const searchRootRef = useRef<HTMLDivElement>(null);
-  const mobileDialogRef = useRef<HTMLDivElement>(null);
+  const desiredDisplayMode = useRef<'inline' | 'fullscreen'>(
+    isFullscreen ? 'fullscreen' : 'inline',
+  );
+  const displayModeRequestId = useRef(0);
+  const comparisonRequestedFullscreen = useRef(false);
+  const searchRootRef = useIntrinsicHeight<HTMLDivElement>();
+  const detailRegionRef = useRef<HTMLElement>(null);
+  const comparisonRegionId = useId();
+  const detailRegionId = useId();
   const detailTriggerRef = useRef<HTMLElement | null>(null);
+  const detailTriggerOrdinalRef = useRef<number | null>(null);
 
   useEffect(() => { document.documentElement.setAttribute('data-theme', theme); }, [theme]);
 
@@ -254,6 +271,7 @@ function IndexterSearch() {
     setSelectedOrdinal(undefined);
     setDetailOpen(false);
     setComparisonOpen(false);
+    comparisonRequestedFullscreen.current = false;
     setCheckFlow({ status: 'idle' });
     setQuoteContinuation({ status: 'idle' });
   }, [activeOutput, externalQuery]);
@@ -433,6 +451,15 @@ function IndexterSearch() {
     const resourceAction = getSearchResourceAction(resource);
     if (resourceAction.disabled) return;
     if (resourceAction.kind === 'check_live_terms') {
+      if (!isFullscreen && canToggleFullscreen && requestDisplayMode) {
+        try {
+          void Promise.resolve(requestDisplayMode({ mode: 'fullscreen' })).catch((error) => {
+            captureWidgetException(error, { phase: 'request_check_fullscreen' });
+          });
+        } catch (error) {
+          captureWidgetException(error, { phase: 'request_check_fullscreen' });
+        }
+      }
       await confirmCurrentTerms(resource);
       return;
     }
@@ -474,7 +501,14 @@ function IndexterSearch() {
       });
       throw error;
     }
-  }, [confirmCurrentTerms, resources, sendFollowUp]);
+  }, [
+    canToggleFullscreen,
+    confirmCurrentTerms,
+    isFullscreen,
+    requestDisplayMode,
+    resources,
+    sendFollowUp,
+  ]);
 
   const canUseResourceFromWidget = useCallback((resource: SearchResource) => {
     const action = getSearchResourceAction(resource);
@@ -514,6 +548,7 @@ function IndexterSearch() {
     detailTriggerRef.current = document.activeElement instanceof HTMLElement
       ? document.activeElement
       : null;
+    detailTriggerOrdinalRef.current = resultOrdinal;
     setDetailOpen(true);
   }, [resources]);
 
@@ -523,109 +558,90 @@ function IndexterSearch() {
   }, []);
 
   useEffect(() => {
-    if (!isMobile || !detailOpen) return;
-    const root = searchRootRef.current;
-    const dialog = mobileDialogRef.current;
-    const backdrop = dialog?.parentElement;
-    if (!root || !dialog || !backdrop) return;
-
-    const background = Array.from(root.children).filter(
-      (child): child is HTMLElement => child instanceof HTMLElement && child !== backdrop,
-    );
-    const priorAttributes = background.map((element) => ({
-      element,
-      inert: element.hasAttribute('inert'),
-      ariaHidden: element.getAttribute('aria-hidden'),
-    }));
-    for (const element of background) {
-      element.setAttribute('inert', '');
-      element.setAttribute('aria-hidden', 'true');
-    }
-
-    const focusable = () => Array.from(dialog.querySelectorAll<HTMLElement>(
-      'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), '
-        + 'textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-    )).filter((element) => !element.hasAttribute('hidden'));
+    if (!detailOpen) return;
+    const region = detailRegionRef.current;
+    if (!region) return;
     const focusFrame = window.requestAnimationFrame(() => {
-      (focusable()[0] ?? dialog).focus();
+      region.focus();
     });
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        handleCloseDetail();
-        return;
-      }
-      if (event.key !== 'Tab') return;
-      const controls = focusable();
-      if (controls.length === 0) {
-        event.preventDefault();
-        dialog.focus();
-        return;
-      }
-      const first = controls[0];
-      const last = controls[controls.length - 1];
-      const active = document.activeElement;
-      if (event.shiftKey && (active === first || !dialog.contains(active))) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && (active === last || !dialog.contains(active))) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown, true);
 
     return () => {
       window.cancelAnimationFrame(focusFrame);
-      window.removeEventListener('keydown', handleKeyDown, true);
-      for (const { element, inert, ariaHidden } of priorAttributes) {
-        if (!inert) element.removeAttribute('inert');
-        if (ariaHidden === null) element.removeAttribute('aria-hidden');
-        else element.setAttribute('aria-hidden', ariaHidden);
-      }
       const trigger = detailTriggerRef.current;
+      const triggerOrdinal = detailTriggerOrdinalRef.current;
       window.requestAnimationFrame(() => {
-        if (trigger?.isConnected) trigger.focus();
+        if (trigger?.isConnected) {
+          trigger.focus();
+          return;
+        }
+        if (triggerOrdinal !== null) {
+          document
+            .querySelector<HTMLElement>(`[data-indexter-detail-trigger="${triggerOrdinal}"]`)
+            ?.focus();
+        }
       });
     };
-  }, [detailOpen, handleCloseDetail, isMobile]);
+  }, [detailOpen]);
 
-  const toggleFullscreen = useCallback(() => {
-    if (!canToggleFullscreen || !requestDisplayMode) return;
-    try {
-      void Promise.resolve(
-        requestDisplayMode({ mode: isFullscreen ? 'inline' : 'fullscreen' }),
-      )
-        .then(() => setComparisonOpen(!isFullscreen))
-        .catch((error) => {
-          captureWidgetException(error, { phase: 'request_display_mode' });
-          if (!isFullscreen) setComparisonOpen(true);
-        });
-    } catch (error) {
-      captureWidgetException(error, { phase: 'request_display_mode' });
-      if (!isFullscreen) setComparisonOpen(true);
+  const requestHostMode = useCallback((mode: 'inline' | 'fullscreen', phase: string) => {
+    if (!requestDisplayMode) return;
+    desiredDisplayMode.current = mode;
+    const requestId = ++displayModeRequestId.current;
+
+    const issueRequest = async (
+      requestedMode: 'inline' | 'fullscreen',
+      activeRequestId: number,
+      requestPhase: string,
+    ): Promise<void> => {
+      try {
+        await requestDisplayMode({ mode: requestedMode });
+      } catch (error) {
+        captureWidgetException(error, { phase: requestPhase });
+        return;
+      }
+
+      const desiredMode = desiredDisplayMode.current;
+      if (
+        activeRequestId !== displayModeRequestId.current
+        && desiredMode !== requestedMode
+      ) {
+        const correctionId = ++displayModeRequestId.current;
+        await issueRequest(
+          desiredMode,
+          correctionId,
+          'correct_stale_display_mode',
+        );
+      }
+    };
+
+    void issueRequest(mode, requestId, phase);
+  }, [requestDisplayMode]);
+
+  const openComparison = useCallback(() => {
+    const shouldRequestFullscreen = !isFullscreen && canToggleFullscreen;
+    comparisonRequestedFullscreen.current = shouldRequestFullscreen;
+    setDetailOpen(false);
+    setComparisonOpen(true);
+    if (shouldRequestFullscreen) {
+      requestHostMode('fullscreen', 'request_compare_fullscreen');
     }
-  }, [canToggleFullscreen, isFullscreen, requestDisplayMode]);
+  }, [canToggleFullscreen, isFullscreen, requestHostMode]);
 
-  const handleCompareAll = useCallback(() => {
-    if (isFullscreen) {
-      setComparisonOpen(true);
+  const handleViewControl = useCallback(() => {
+    if (comparisonOpen) {
+      const shouldRestoreInline = comparisonRequestedFullscreen.current;
+      comparisonRequestedFullscreen.current = false;
+      setDetailOpen(false);
+      setComparisonOpen(false);
+      if (requestDisplayMode && shouldRestoreInline) {
+        requestHostMode('inline', 'close_comparison');
+      }
       return;
     }
-    if (!canToggleFullscreen || !requestDisplayMode) return;
-    try {
-      void Promise.resolve(requestDisplayMode({ mode: 'fullscreen' }))
-        .then(() => setComparisonOpen(true))
-        .catch((error) => {
-          captureWidgetException(error, { phase: 'request_compare_fullscreen' });
-          setComparisonOpen(true);
-        });
-    } catch (error) {
-      captureWidgetException(error, { phase: 'request_compare_fullscreen' });
-      setComparisonOpen(true);
-    }
-  }, [canToggleFullscreen, isFullscreen, requestDisplayMode]);
+    openComparison();
+  }, [comparisonOpen, openComparison, requestDisplayMode, requestHostMode]);
+
+  const handleCompareAll = openComparison;
 
   const activeResource = selectedResource ?? resources[0] ?? null;
   const activeResultOrdinal = selectedResource && selectedOrdinal
@@ -725,12 +741,22 @@ function IndexterSearch() {
   }, [useSearchResource]);
 
   if (!activeOutput) {
+    const loadingTitle = externalQuery
+      ? `Finding ${externalQuery}`
+      : 'Finding available capabilities';
     return (
-      <div data-theme={theme} className="dxs-root dx-search-shell" style={{ maxHeight: constrainedMaxHeight ?? undefined }}>
+      <div
+        ref={searchRootRef}
+        data-theme={theme}
+        data-display-mode={displayMode}
+        data-host-max-height={maxHeight ?? undefined}
+        className={rootClassName}
+        style={rootStyle}
+      >
         <header className="dx-search-state__brand"><IndexterLockup /></header>
         <section className="dx-search-state" aria-busy="true">
           <span className="dx-search-state__pulse" aria-hidden />
-          <h1>{externalQuery ? `Finding ${externalQuery}` : 'Finding available capabilities'}</h1>
+          <h1 title={loadingTitle}>{loadingTitle}</h1>
           <p>Indexter is ranking the closest current matches.</p>
         </section>
       </div>
@@ -739,11 +765,18 @@ function IndexterSearch() {
 
   if (searchError) {
     return (
-      <div data-theme={theme} className="dxs-root dx-search-shell" style={{ maxHeight: constrainedMaxHeight ?? undefined }}>
+      <div
+        ref={searchRootRef}
+        data-theme={theme}
+        data-display-mode={displayMode}
+        data-host-max-height={maxHeight ?? undefined}
+        className={rootClassName}
+        style={rootStyle}
+      >
         <header className="dx-search-state__brand"><IndexterLockup /></header>
         <section className="dx-search-state dx-search-state--error" role="alert">
-          <h1>{searchError.title}</h1>
-          <p>{searchError.description}</p>
+          <h1 title={searchError.title}>{searchError.title}</h1>
+          <p title={searchError.description}>{searchError.description}</p>
         </section>
       </div>
     );
@@ -761,34 +794,46 @@ function IndexterSearch() {
         : noMatchReason === 'below_strong_threshold'
           ? 'We found some adjacent services but nothing cleared the strong-match bar. Try a more specific verb for the capability you want.'
           : 'Try a broader query or a different angle.';
+    const emptyCopy = searchGuidance
+      ? `${searchGuidance} ${emptyDescription}`
+      : emptyDescription;
     return (
-      <div data-theme={theme} className="dxs-root dx-search-shell" style={{ maxHeight: constrainedMaxHeight ?? undefined }}>
+      <div
+        ref={searchRootRef}
+        data-theme={theme}
+        data-display-mode={displayMode}
+        data-host-max-height={maxHeight ?? undefined}
+        className={rootClassName}
+        style={rootStyle}
+      >
         <header className="dx-search-state__brand"><IndexterLockup /></header>
         <section className="dx-search-state">
-          <h1>{emptyTitle}</h1>
-          <p>{searchGuidance ? `${searchGuidance} ${emptyDescription}` : emptyDescription}</p>
+          <h1 title={emptyTitle}>{emptyTitle}</h1>
+          <p title={emptyCopy}>{emptyCopy}</p>
         </section>
       </div>
     );
   }
 
+  const queryHeading = externalQuery || 'Available capabilities';
+
   return (
     <div
       ref={searchRootRef}
       data-theme={theme}
-      className={`dxs-root dx-search-shell ${isFullscreen ? 'dx-search-shell--fullscreen' : ''}`}
-      style={{
-        maxHeight: isFullscreen ? undefined : (constrainedMaxHeight ?? undefined),
-        paddingBottom: hostContext.safeAreaInsets.bottom || undefined,
-      }}
+      data-display-mode={displayMode}
+      data-host-max-height={maxHeight ?? undefined}
+      className={rootClassName}
+      style={rootStyle}
     >
       <div className="dx-search-shell__header">
         <IndexterSummaryHeader
           resultCount={activeOutput.count}
           rerankApplied={rerankApplied}
-          isFullscreen={isFullscreen}
-          canToggleFullscreen={canToggleFullscreen}
-          onToggleFullscreen={toggleFullscreen}
+          comparisonOpen={comparisonOpen}
+          comparisonId={comparisonRegionId}
+          showViewControl={resources.length > 1 || (isFullscreen && Boolean(requestDisplayMode))}
+          onViewControl={handleViewControl}
         />
       </div>
 
@@ -797,70 +842,119 @@ function IndexterSearch() {
           isFullscreen ? 'dx-search-experience--fullscreen' : ''
         }`}
       >
-        <header className="dx-search-query">
-          <h1>{externalQuery || 'Available capabilities'}</h1>
-          <p>{activeOutput.count.toLocaleString()} result{activeOutput.count === 1 ? '' : 's'} ranked for this request</p>
-        </header>
-        <div
-          className={`dx-search-experience__decision ${
-            activeQuote ? 'dx-search-experience__decision--confirmed' : ''
-          }`}
-        >
-          <SearchDecisionBrief
-            resources={resources}
-            selectedOrdinal={selectedOrdinal}
-            checkState={decisionCheckState}
-            onSelect={handleSelectResource}
-            onUseService={(resource) => {
-              void useSearchResource(resource).catch(() => {});
-            }}
-            onCompareAll={handleCompareAll}
-            canCheckCurrentTerms={hostCapabilities.callTool}
-            canProvideDetailsInChat={Boolean(sendFollowUp)}
-            canCompare={canToggleFullscreen || isFullscreen}
-            interactionLocked={checkFlow.status === 'checking'}
-            heading={externalQuery ? 'Recommended for this request' : 'Best match'}
-            alternativeLimit={isFullscreen ? 0 : 2}
-          />
+        {(!comparisonOpen || isFullscreen) && (
+          <>
+            <header className="dx-search-query">
+              <h1 title={queryHeading}>{queryHeading}</h1>
+              <p>{activeOutput.count.toLocaleString()} result{activeOutput.count === 1 ? '' : 's'} ranked for this request</p>
+            </header>
+            <div
+              className={`dx-search-experience__decision ${
+                activeQuote ? 'dx-search-experience__decision--confirmed' : ''
+              }`}
+            >
+              <SearchDecisionBrief
+                resources={resources}
+                selectedOrdinal={selectedOrdinal}
+                checkState={decisionCheckState}
+                onSelect={handleSelectResource}
+                onUseService={(resource) => {
+                  void useSearchResource(resource).catch(() => {});
+                }}
+                onCompareAll={handleCompareAll}
+                comparisonOpen={comparisonOpen}
+                comparisonId={comparisonRegionId}
+                canCheckCurrentTerms={hostCapabilities.callTool}
+                canProvideDetailsInChat={Boolean(sendFollowUp)}
+                canCompare={resources.length > 1}
+                interactionLocked={checkFlow.status === 'checking'}
+                heading={externalQuery ? 'Recommended for this request' : 'Best match'}
+                alternativeLimit={condensed ? 0 : isFullscreen ? 3 : 1}
+                compact={!isFullscreen}
+              />
 
-          {activeQuote && activeResource && (
-            <SearchQuotePanel
-              resource={activeResource}
-              quote={activeQuote.quote}
-              checkedAt={activeQuote.checkedAt}
-              locale={hostContext.locale}
-              timeZone={hostContext.timeZone}
-              onRetry={() => {
-                void confirmCurrentTerms(activeResource).catch(() => {});
-              }}
-              onContinue={sendFollowUp
-                ? () => {
-                    void continueFromQuote();
+              {activeQuote && activeResource && (
+                <SearchQuotePanel
+                  resource={activeResource}
+                  quote={activeQuote.quote}
+                  checkedAt={activeQuote.checkedAt}
+                  locale={hostContext.locale}
+                  timeZone={hostContext.timeZone}
+                  onRetry={() => {
+                    void confirmCurrentTerms(activeResource).catch(() => {});
+                  }}
+                  onContinue={sendFollowUp
+                    ? () => {
+                        void continueFromQuote();
+                      }
+                    : undefined}
+                  requiresChatRecheck={!activeQuote.modelContextBound}
+                  continueStatus={quoteContinuation.status}
+                  continueError={
+                    quoteContinuation.status === 'error'
+                      ? quoteContinuation.message
+                      : null
                   }
-                : undefined}
-              requiresChatRecheck={!activeQuote.modelContextBound}
-              continueStatus={quoteContinuation.status}
-              continueError={
-                quoteContinuation.status === 'error'
-                  ? quoteContinuation.message
-                  : null
-              }
-            />
-          )}
-        </div>
+                  compact={!isFullscreen}
+                />
+              )}
+            </div>
+          </>
+        )}
 
-        {(comparisonOpen || isFullscreen) && (
+        {comparisonOpen && detailOpen && !isFullscreen && selectedResource ? (
+          <section
+            id={comparisonRegionId}
+            className="dx-search-comparison-region"
+            aria-label="Compare services"
+          >
+            <div
+              ref={detailRegionRef}
+              id={detailRegionId}
+              className="dx-search-inline-detail-region"
+              role="region"
+              aria-label={`${selectedResource.name} details`}
+              tabIndex={-1}
+            >
+              <SearchInlineDetail
+                resource={selectedResource}
+                ordinal={selectedOrdinal ?? 1}
+                resultCount={resources.length}
+                onBack={handleCloseDetail}
+                onUseService={
+                  canUseResourceFromWidget(selectedResource)
+                    ? (resource) => {
+                        void checkFromDetail(resource).catch(() => {});
+                      }
+                    : undefined
+                }
+                interactionLocked={checkFlow.status === 'checking'}
+              />
+            </div>
+          </section>
+        ) : comparisonOpen ? (
           <SearchComparisonPanel
             resources={resources}
             selectedOrdinal={selectedOrdinal}
             onSelect={handleSelectResource}
             onInspect={handleInspectResource}
+            openDetailOrdinal={detailOpen ? selectedOrdinal : null}
+            comparisonId={comparisonRegionId}
+            isFullscreen={isFullscreen}
+            condensed={condensed}
+            detailsId={detailRegionId}
             interactionLocked={checkFlow.status === 'checking'}
           />
-        )}
+        ) : null}
 
-        {!isMobile && detailOpen && selectedResource && (
-          <aside className="dx-search-experience__detail">
+        {!isMobile && isFullscreen && detailOpen && selectedResource && (
+          <aside
+            ref={detailRegionRef}
+            id={detailRegionId}
+            className="dx-search-experience__detail"
+            aria-label={`${selectedResource.name} details`}
+            tabIndex={-1}
+          >
             <SearchVerdictDrawer
               resource={selectedResource}
               onClose={handleCloseDetail}
@@ -874,37 +968,27 @@ function IndexterSearch() {
         )}
       </main>
 
-      {isMobile && detailOpen && selectedResource && (
-        <div className="dx-search-mobile-backdrop fixed inset-0 z-20 flex items-end px-3 py-3 backdrop-blur-sm">
-          <button
-            className="dx-search-mobile-dismiss absolute inset-0"
-            onClick={handleCloseDetail}
-            aria-label={`Close ${selectedResource.name} details`}
-            tabIndex={-1}
-            type="button"
+      {isMobile && isFullscreen && detailOpen && selectedResource && (
+        <section
+          ref={detailRegionRef}
+          id={detailRegionId}
+          className="dx-search-mobile-detail"
+          aria-label={`${selectedResource.name} details`}
+          tabIndex={-1}
+        >
+          <SearchVerdictDrawer
+            resource={selectedResource}
+            onClose={handleCloseDetail}
+            onUseService={
+              canUseResourceFromWidget(selectedResource)
+                ? checkFromDetail
+                : undefined
+            }
           />
-          <div
-            ref={mobileDialogRef}
-            className="dx-search-mobile-dialog relative z-10 max-h-[92vh] w-full overflow-y-auto animate-[fadein_.18s_ease-out]"
-            role="dialog"
-            aria-modal="true"
-            aria-label={`${selectedResource.name} details`}
-            tabIndex={-1}
-          >
-            <SearchVerdictDrawer
-              resource={selectedResource}
-              onClose={handleCloseDetail}
-              onUseService={
-                canUseResourceFromWidget(selectedResource)
-                  ? checkFromDetail
-                  : undefined
-              }
-            />
-          </div>
-        </div>
+        </section>
       )}
 
-      {searchGuidance && (
+      {searchGuidance && isFullscreen && (
         <p className="dx-search-shell__tip">{searchGuidance}</p>
       )}
     </div>

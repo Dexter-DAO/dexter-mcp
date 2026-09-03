@@ -188,9 +188,15 @@ export function normalizeWalletPayload(
   // Non-custodial money composition. The server emits account capacity as
   // spendingPower for compatibility, while paymentReadiness keeps that number
   // separate from exact-intent execution eligibility.
+  const isSafeUsdNumber = (value: unknown): value is number => (
+    typeof value === 'number'
+    && Number.isFinite(value)
+    && Math.abs(value) <= Number.MAX_SAFE_INTEGER / 100
+  );
   const atomicToUsd = (v: unknown): number => {
     const n = typeof v === 'number' ? v : Number(v ?? 0);
-    return Number.isFinite(n) ? n / 1e6 : 0;
+    const usd = n / 1e6;
+    return isSafeUsdNumber(usd) ? usd : 0;
   };
   const sp = raw.spendingPower && typeof raw.spendingPower === 'object'
     ? (raw.spendingPower as Record<string, unknown>) : null;
@@ -200,7 +206,7 @@ export function normalizeWalletPayload(
     ? (raw.paymentReadiness as Record<string, unknown>) : null;
   const ea = raw.earning && typeof raw.earning === 'object'
     ? (raw.earning as Record<string, unknown>) : null;
-  const cashUsd = sp ? atomicToUsd(sp.cashAtomic) : (typeof explicitUsdc === 'number' ? explicitUsdc : 0);
+  const cashUsd = sp ? atomicToUsd(sp.cashAtomic) : (isSafeUsdNumber(explicitUsdc) ? explicitUsdc : 0);
   const reportedCreditReadStatus = cr?.readStatus === 'available'
     || cr?.readStatus === 'not_open'
     || cr?.readStatus === 'unavailable'
@@ -211,7 +217,7 @@ export function normalizeWalletPayload(
   const creditAvailableUsd = creditReadStatus === 'available'
     ? (cr ? atomicToUsd(cr.availableAtomic) : (sp ? atomicToUsd(sp.creditAvailableAtomic) : 0))
     : 0;
-  const accountCapacityUsd = sp && typeof sp.totalUsd === 'number'
+  const accountCapacityUsd = sp && isSafeUsdNumber(sp.totalUsd)
     ? sp.totalUsd
     : cashUsd + creditAvailableUsd;
   const readinessValue = readiness?.status;
@@ -306,13 +312,13 @@ export function normalizeWalletPayload(
     networkName: typeof raw.networkName === 'string' ? raw.networkName : undefined,
     chainBalances,
     balances: {
-      usdc: Number.isFinite(explicitUsdc) ? explicitUsdc : 0,
+      usdc: isSafeUsdNumber(explicitUsdc) ? explicitUsdc : 0,
       fundedAtomic: typeof balancesRecord.fundedAtomic === 'string' ? balancesRecord.fundedAtomic : undefined,
       spentAtomic: typeof balancesRecord.spentAtomic === 'string' ? balancesRecord.spentAtomic : undefined,
       availableAtomic:
         typeof balancesRecord.availableAtomic === 'string'
           ? balancesRecord.availableAtomic
-          : toAtomicString(Number.isFinite(explicitUsdc) ? explicitUsdc : 0),
+          : toAtomicString(isSafeUsdNumber(explicitUsdc) ? explicitUsdc : 0),
     },
     money,
     card,

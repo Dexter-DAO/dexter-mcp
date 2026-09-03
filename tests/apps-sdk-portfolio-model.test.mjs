@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 import {
+  formatDisplayUsd,
   formatExactDecimal,
   formatExactUsd,
   governedActionReason,
@@ -132,6 +133,12 @@ test('decimal formatting preserves every returned digit without floating point',
     '18,446,744,073,709,551,615.000000000000000001',
   );
   assert.equal(formatExactUsd('9007199254740993.01'), '$9,007,199,254,740,993.01');
+});
+
+test('resting portfolio money rounds safely to cents without Number coercion', () => {
+  assert.equal(formatDisplayUsd('1.11105480665322'), '$1.11');
+  assert.equal(formatDisplayUsd('999999999999999999.995'), '$1,000,000,000,000,000,000.00');
+  assert.equal(formatDisplayUsd('0'), '$0.00');
 });
 
 test('authentication and read failures stay distinct from empty holdings', () => {

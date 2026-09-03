@@ -6,7 +6,9 @@ import { createRoot } from 'react-dom/client';
 import { useCallback, useEffect, useState } from 'react';
 import { useIntrinsicHeight } from '../components/x402/useIntrinsicHeight';
 import {
-  useAdaptiveMaxHeight,
+  useAdaptiveDisplayMode,
+  useAdaptiveHostCapabilities,
+  useAdaptiveRequestDisplayMode,
   useAdaptiveTheme,
 } from '../sdk';
 import { openLinkProbe } from '../sdk/mcp-apps-bridge';
@@ -373,8 +375,14 @@ function PasskeyProbe() {
   const [anchor, setAnchor] = useState<'idle' | 'tapped'>('idle');
   const [openlink, setOpenLink] = useState<OpenLinkOutcome>({ kind: 'idle' });
   const theme = useAdaptiveTheme();
-  const maxHeight = useAdaptiveMaxHeight();
+  const displayMode = useAdaptiveDisplayMode();
+  const hostCapabilities = useAdaptiveHostCapabilities();
+  const requestDisplayMode = useAdaptiveRequestDisplayMode();
   const rootRef = useIntrinsicHeight<HTMLElement>();
+  const canChangeDisplayMode = Boolean(
+    requestDisplayMode && hostCapabilities.requestDisplayMode,
+  );
+  const compact = displayMode !== 'fullscreen' && canChangeDisplayMode;
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -445,9 +453,9 @@ function PasskeyProbe() {
 
   return (
     <main
-      className="passkey-probe-container"
+      className={`passkey-probe-container${compact ? ' passkey-probe-container--compact' : ''}`}
+      data-display-mode={displayMode}
       ref={rootRef}
-      style={maxHeight === null ? undefined : { maxHeight }}
     >
       <header className="passkey-probe-header">
         <h1>Passkey capability probe</h1>
@@ -455,6 +463,18 @@ function PasskeyProbe() {
           Runs four browser and host capability checks inside this widget.
           Each result is reported independently.
         </p>
+        {canChangeDisplayMode ? (
+          <button
+            type="button"
+            className="passkey-probe-mode"
+            onClick={() => {
+              const mode = displayMode === 'fullscreen' ? 'inline' : 'fullscreen';
+              void requestDisplayMode?.({ mode }).catch(() => {});
+            }}
+          >
+            {displayMode === 'fullscreen' ? 'Return to inline' : 'Open all checks'}
+          </button>
+        ) : null}
       </header>
 
       <div className="passkey-probe-tests">
@@ -481,6 +501,8 @@ function PasskeyProbe() {
           {outcome.kind === 'other' ? <OtherView outcome={outcome} /> : null}
         </section>
 
+        {!compact ? (
+          <>
         <section className="passkey-probe-test" aria-labelledby="passkey-probe-popup">
           <div className="passkey-probe-test__copy">
             <h2 id="passkey-probe-popup">Scripted popup</h2>
@@ -588,9 +610,12 @@ function PasskeyProbe() {
             </div>
           ) : null}
         </section>
+          </>
+        ) : null}
       </div>
 
-      <section className="passkey-probe-runtime" aria-labelledby="passkey-probe-runtime">
+      {!compact ? (
+        <section className="passkey-probe-runtime" aria-labelledby="passkey-probe-runtime">
         <h2 id="passkey-probe-runtime">Runtime</h2>
         <dl className="passkey-probe-env">
           <div>
@@ -606,7 +631,8 @@ function PasskeyProbe() {
             <dd>{env.hasCredentials}</dd>
           </div>
         </dl>
-      </section>
+        </section>
+      ) : null}
     </main>
   );
 }

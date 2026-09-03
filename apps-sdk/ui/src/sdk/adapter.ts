@@ -42,6 +42,8 @@ function detectHost(): HostRuntime {
 }
 
 const HOST: HostRuntime = detectHost();
+let _chatGptDisplayModeOverride: DisplayMode | null = null;
+const _chatGptAdapterListeners = new Set<() => void>();
 
 // ── MCP Apps state store ──────────────────────────────────────────────
 
@@ -69,7 +71,7 @@ function stableSnapshot<T>(key: string, value: T): T {
 
 function getChatGptHostContext(): AdaptiveHostContext {
   const openai = typeof window !== 'undefined' ? window.openai : undefined;
-  const displayMode = openai?.displayMode ?? 'inline';
+  const displayMode = _chatGptDisplayModeOverride ?? openai?.displayMode ?? 'inline';
   const safeArea = openai?.safeArea?.insets ?? ZERO_SAFE_AREA;
   const maxHeight =
     typeof openai?.maxHeight === 'number' && Number.isFinite(openai.maxHeight)
@@ -183,9 +185,18 @@ function subscribeChatGPT(key: string, onChange: () => void): () => void {
 
 function subscribeChatGPTGlobals(onChange: () => void): () => void {
   if (typeof window === 'undefined') return () => {};
-  const handler = () => onChange();
+  _chatGptAdapterListeners.add(onChange);
+  const handler = (event: CustomEvent<{ globals?: Record<string, unknown> }>) => {
+    if (Object.prototype.hasOwnProperty.call(event.detail?.globals ?? {}, 'displayMode')) {
+      _chatGptDisplayModeOverride = null;
+    }
+    onChange();
+  };
   window.addEventListener('openai:set_globals', handler as EventListener, { passive: true });
-  return () => window.removeEventListener('openai:set_globals', handler as EventListener);
+  return () => {
+    _chatGptAdapterListeners.delete(onChange);
+    window.removeEventListener('openai:set_globals', handler as EventListener);
+  };
 }
 
 // ── MCP Apps subscribe helper ─────────────────────────────────────────
@@ -327,10 +338,22 @@ export function useAdaptiveRequestDisplayMode(): RequestDisplayMode | null {
   const capabilities = useAdaptiveHostCapabilities();
   const request = useCallback<RequestDisplayMode>(async ({ mode }) => {
     if (HOST === 'mcp-apps') {
-      return mcpApps.requestDisplayMode(mode);
+      const result = await mcpApps.requestDisplayMode(mode);
+      if (result.mode !== 'inline' && result.mode !== 'fullscreen' && result.mode !== 'pip') {
+        throw new Error('Host returned an invalid display mode');
+      }
+      _mcpHostContext = { ..._mcpHostContext, displayMode: result.mode };
+      notifyMcpListeners();
+      return result;
     }
     if (typeof window !== 'undefined' && window.openai?.requestDisplayMode) {
-      return window.openai.requestDisplayMode({ mode });
+      const result = await window.openai.requestDisplayMode({ mode });
+      if (result.mode !== 'inline' && result.mode !== 'fullscreen' && result.mode !== 'pip') {
+        throw new Error('Host returned an invalid display mode');
+      }
+      _chatGptDisplayModeOverride = result.mode;
+      for (const listener of _chatGptAdapterListeners) listener();
+      return result;
     }
     throw new Error('Display mode changes are not available');
   }, []);

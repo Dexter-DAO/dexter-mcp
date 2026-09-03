@@ -1,5 +1,17 @@
 import { Sheet } from './Sheet';
-import { fmtUsd } from './format';
+import { fmtExactUsd, fmtUsd } from './format';
+
+function UsdValue({ value, sign = '' }: { value: number; sign?: '' | '+' | '−' }) {
+  const absolute = Math.abs(value);
+  const exact = `${sign}${fmtExactUsd(absolute)}`;
+  const visible = `${sign}${fmtUsd(absolute)}`;
+  return (
+    <span data-exact-value={exact} title={`Exact value: ${exact}`}>
+      <span aria-hidden="true">{visible}</span>
+      <span className="sr-only">{exact}</span>
+    </span>
+  );
+}
 
 /*
  * The credit chit as a sheet — the blessed #115 design in the widget's own
@@ -27,7 +39,7 @@ export function CreditSheet({ lineUsd, drawnUsd, cashUsd, onClose }: {
   return (
     <Sheet title="Credit" onClose={onClose}>
       <div className="dxw-chit-head">
-        <span className="dxw-chit-line dxw-mono">{fmtUsd(lineUsd)}</span>
+        <span className="dxw-chit-line dxw-mono"><UsdValue value={lineUsd} /></span>
         <span className="dxw-chit-line-label">line</span>
       </div>
       <div className="dxw-chit-bar">
@@ -35,8 +47,8 @@ export function CreditSheet({ lineUsd, drawnUsd, cashUsd, onClose }: {
         <div className="dxw-chit-open" />
       </div>
       <div className="dxw-chit-legend">
-        <span>drawn <b className="dxw-mono">{fmtUsd(drawnUsd)}</b></span>
-        <span>open <b className="dxw-mono">{fmtUsd(openUsd)}</b></span>
+        <span>drawn <b className="dxw-mono"><UsdValue value={drawnUsd} /></b></span>
+        <span>open <b className="dxw-mono"><UsdValue value={openUsd} /></b></span>
       </div>
       <p className="dxw-chit-body">
         This is reported account capacity. Whether a purchase can use it is
@@ -44,13 +56,13 @@ export function CreditSheet({ lineUsd, drawnUsd, cashUsd, onClose }: {
       </p>
       {drawnUsd > 0 ? (
         <p className="dxw-chit-owed">
-          You owe <b className="dxw-mono">{fmtUsd(drawnUsd)}</b> — money arriving repays it first.
+          You owe <b className="dxw-mono"><UsdValue value={drawnUsd} /></b>. Money arriving repays it first.
         </p>
       ) : null}
       <div className="dxw-chit-net">
-        <span>balance <b className="dxw-mono">{fmtUsd(cashUsd)}</b></span>
-        <span className={drawnUsd > 0 ? 'dxw-chit-neg' : ''}>owed <b className="dxw-mono">{fmtUsd(drawnUsd)}</b></span>
-        <span className={netUsd < 0 ? 'dxw-chit-neg' : ''}>net <b className="dxw-mono">{netUsd < 0 ? `−${fmtUsd(-netUsd)}` : `+${fmtUsd(netUsd)}`}</b></span>
+        <span>balance <b className="dxw-mono"><UsdValue value={cashUsd} sign={cashUsd < 0 ? '−' : ''} /></b></span>
+        <span className={drawnUsd > 0 ? 'dxw-chit-neg' : ''}>owed <b className="dxw-mono"><UsdValue value={drawnUsd} /></b></span>
+        <span className={netUsd < 0 ? 'dxw-chit-neg' : ''}>net <b className="dxw-mono"><UsdValue value={netUsd} sign={netUsd < 0 ? '−' : '+'} /></b></span>
       </div>
       <div className="dxw-chit-meta">{drawnUsd > 0 ? 'Money arriving repays first' : 'Nothing owed'}</div>
     </Sheet>

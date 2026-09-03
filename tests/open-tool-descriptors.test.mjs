@@ -37,13 +37,13 @@ import {
 const execFileAsync = promisify(execFile);
 
 const CONNECTED = [
-  'x402_search',
+  'indexter_search',
   'x402_check',
   'x402_fetch',
   'x402_status',
   'x402_access',
-  'x402_wallet',
-  'dexter_portfolio',
+  'dexter_wallet',
+  'dexter_wallet_portfolio',
   'dexter_prepare_asset_action',
   'dexter_execute_asset_action',
   'dexter_asset_action_status',
@@ -203,7 +203,7 @@ test('--emit-json emits exactly one descriptor document and exits', () => {
   assert.deepEqual(history._meta.ui.visibility, ['model', 'app']);
 
   const indexter = descriptor.tools.find((candidate) =>
-    candidate.name === 'x402_search');
+    candidate.name === 'indexter_search');
   assert.equal(indexter._meta.ui.resourceUri, INDEXTER_WIDGET_URIS.search);
   assert.equal(indexter._meta['openai/widgetAccessible'], true);
   const accessCheck = descriptor.tools.find((candidate) =>
@@ -211,7 +211,7 @@ test('--emit-json emits exactly one descriptor document and exits', () => {
   assert.equal(accessCheck._meta['openai/widgetAccessible'], true);
 
   const wallet = descriptor.tools.find((candidate) =>
-    candidate.name === 'x402_wallet');
+    candidate.name === 'dexter_wallet');
   assert.equal(wallet._meta.ui.resourceUri, DEXTER_WALLET_WIDGET_URIS.wallet);
   assert.match(
     wallet._meta.ui.resourceUri,
@@ -222,8 +222,8 @@ test('--emit-json emits exactly one descriptor document and exits', () => {
     'x402_fetch',
     'x402_status',
     'x402_access',
-    'x402_wallet',
-    'dexter_portfolio',
+    'dexter_wallet',
+    'dexter_wallet_portfolio',
   ]) {
     const tool = descriptor.tools.find((candidate) => candidate.name === name);
     assert.ok(tool, name);
@@ -557,7 +557,7 @@ test('source materializer emits one deterministic full hosted descriptor', async
     }
   }
 
-  const search = descriptor.tools.find(({ name }) => name === 'x402_search');
+  const search = descriptor.tools.find(({ name }) => name === 'indexter_search');
   const access = descriptor.tools.find(({ name }) => name === 'x402_access');
   const prepare = descriptor.tools.find(
     ({ name }) => name === 'dexter_prepare_asset_action',
@@ -605,7 +605,7 @@ test('source materializer emits one deterministic full hosted descriptor', async
   assert.deepEqual(search._meta.securitySchemes, search.securitySchemes);
 
   const portfolio = descriptor.tools.find(
-    ({ name }) => name === 'dexter_portfolio',
+    ({ name }) => name === 'dexter_wallet_portfolio',
   );
   const targets =
     portfolio.outputSchema.properties.portfolio.properties.approvedActionTargets;

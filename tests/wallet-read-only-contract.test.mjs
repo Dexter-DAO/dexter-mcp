@@ -52,13 +52,13 @@ test('asset execution controls are disabled unless the read-only gate supplies a
   assert.doesNotMatch(sheet, /callTool|x402_(?:fetch|pay)|fetch\s*\(/);
 });
 
-test('hosted x402_wallet remains read-only with no caller identity input', async () => {
+test('hosted dexter_wallet remains read-only with no caller identity input', async () => {
   const server = await source('open-mcp-server.mjs');
-  const registrationStart = server.indexOf("registerOpenTool(server, 'x402_wallet'");
-  assert.notEqual(registrationStart, -1, 'x402_wallet registration must exist');
+  const registrationStart = server.indexOf("registerOpenTool(server, 'dexter_wallet'");
+  assert.notEqual(registrationStart, -1, 'dexter_wallet registration must exist');
   const registration = server.slice(
     registrationStart,
-    server.indexOf("registerOpenTool(server, 'dexter_portfolio'", registrationStart),
+    server.indexOf("registerOpenTool(server, 'dexter_wallet_portfolio'", registrationStart),
   );
 
   assert.match(registration, /inputSchema:\s*\{\}/);
@@ -66,7 +66,7 @@ test('hosted x402_wallet remains read-only with no caller identity input', async
   assert.doesNotMatch(registration, /walletAddress|user_handle|userHandle/);
 });
 
-test('hosted x402_wallet keeps verified portfolio display data in widget metadata', async () => {
+test('hosted dexter_wallet keeps verified portfolio display data in widget metadata', async () => {
   const [server, entry, payload] = await Promise.all([
     source('open-mcp-server.mjs'),
     source('apps-sdk/ui/src/entries/dexter-wallet.tsx'),
@@ -76,11 +76,11 @@ test('hosted x402_wallet keeps verified portfolio display data in widget metadat
     server.indexOf('async function x402Wallet'),
     server.indexOf('// ─── MCP Server Setup', server.indexOf('async function x402Wallet')),
   );
-  const registrationStart = server.indexOf("registerOpenTool(server, 'x402_wallet'");
-  assert.notEqual(registrationStart, -1, 'x402_wallet registration must exist');
+  const registrationStart = server.indexOf("registerOpenTool(server, 'dexter_wallet'");
+  assert.notEqual(registrationStart, -1, 'dexter_wallet registration must exist');
   const registration = server.slice(
     registrationStart,
-    server.indexOf("registerOpenTool(server, 'dexter_portfolio'", registrationStart),
+    server.indexOf("registerOpenTool(server, 'dexter_wallet_portfolio'", registrationStart),
   );
 
   assert.match(walletImplementation, /fetchSessionPortfolio\(\{/);

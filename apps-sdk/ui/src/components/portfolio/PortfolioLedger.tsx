@@ -1,7 +1,11 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 
 import {
+  useAdaptiveDisplayMode,
+  useAdaptiveHostCapabilities,
+  useAdaptiveHostContext,
   useAdaptiveMaxHeight,
+  useAdaptiveRequestDisplayMode,
   useAdaptiveTheme,
   useToolOutput,
 } from '../../sdk';
@@ -10,6 +14,7 @@ import { useIntrinsicHeight } from '../x402/useIntrinsicHeight';
 import {
   formatExactDecimal,
   formatExactUsd,
+  formatDisplayUsd,
   normalizeDexterPortfolio,
   type ApprovedActionAvailability,
   type ApprovedActionTarget,
@@ -95,6 +100,225 @@ function WalletLockup() {
     <div className="dxp-lockup">
       <Lockup width={132} />
     </div>
+  );
+}
+
+function summaryDisplayValue(
+  model: Extract<PortfolioViewModel, { state: 'ready' }>,
+): string | null {
+  const value = model.snapshot.portfolioValueUsd ?? (
+    model.snapshot.pricedHoldings > 0 ? model.snapshot.pricedValueUsd : null
+  );
+  return value === null ? null : formatDisplayUsd(value);
+}
+
+function InlineHolding({ holding }: { holding: PortfolioHolding }) {
+  const name = holding.assetId ?? sentenceCase(holding.assetClass);
+  return (
+    <li className="dxp-inline-holding">
+      <span className="dxp-inline-holding__name" title={holding.assetId ?? holding.mint}>
+        {name}
+      </span>
+      <span className="dxp-inline-holding__amount">
+        {formatExactDecimal(holding.displayAmount)}
+      </span>
+      <strong className={holding.valueUsd === null ? 'dxp-value-unknown' : undefined}>
+        {holding.valueUsd === null ? 'Unpriced' : formatDisplayUsd(holding.valueUsd)}
+      </strong>
+    </li>
+  );
+}
+
+function InlinePortfolio({
+  model,
+  onExpand,
+  condensed,
+  triggerRef,
+}: {
+  model: Extract<PortfolioViewModel, { state: 'ready' }>;
+  onExpand: (() => void) | null;
+  condensed: boolean;
+  triggerRef: RefObject<HTMLButtonElement | null>;
+}) {
+  const displayValue = summaryDisplayValue(model);
+  const exactValue = model.summary.value ?? 'Unknown';
+  const visibleHoldings = condensed ? [] : model.snapshot.holdings.slice(0, 2);
+  const hiddenCount = Math.max(0, model.snapshot.holdings.length - visibleHoldings.length);
+
+  return (
+    <article className="dxp-inline" aria-labelledby="dxp-title">
+      <header className="dxp-inline__header">
+        <WalletLockup />
+        <span>{formatObservedAt(model.snapshot.observedAt)}</span>
+      </header>
+
+      <div className="dxp-inline__summary">
+        <div>
+          <h1 id="dxp-title">Portfolio</h1>
+          <strong
+            className={displayValue === null ? 'dxp-unknown' : undefined}
+            aria-label={`${model.summary.label}: ${exactValue}`}
+            title={`${model.summary.label}: ${exactValue}`}
+          >
+            {displayValue ?? 'Unknown'}
+          </strong>
+        </div>
+        <p>
+          {formatCount(model.snapshot.holdings.length, 'asset')}
+          {model.isPartial ? ' · partial read' : ' · current snapshot'}
+        </p>
+      </div>
+
+      {visibleHoldings.length > 0 ? (
+        <ul className="dxp-inline-holdings">
+          {visibleHoldings.map((holding) => (
+            <InlineHolding
+              key={`${holding.tokenProgram}:${holding.tokenAccount ?? holding.mint}`}
+              holding={holding}
+            />
+          ))}
+        </ul>
+      ) : !condensed ? (
+        <p className="dxp-inline__empty">
+          {model.isEmpty ? 'No assets held.' : 'No holdings returned in this snapshot.'}
+        </p>
+      ) : null}
+
+      <div className="dxp-inline__footer">
+        <span>
+          {hiddenCount > 0
+            ? visibleHoldings.length > 0
+              ? `${formatCount(hiddenCount, 'more asset')} in the full view`
+              : `${formatCount(hiddenCount, 'asset')} in the full view`
+            : model.coverage ?? 'Session-bound · read only'}
+        </span>
+        {onExpand ? (
+          <button ref={triggerRef} type="button" onClick={onExpand}>View portfolio</button>
+        ) : null}
+      </div>
+    </article>
+  );
+}
+
+type InlinePortfolioItem =
+  | { kind: 'holding'; holding: PortfolioHolding }
+  | { kind: 'target'; target: ApprovedActionTarget };
+
+function InlineBrowserItem({ item }: { item: InlinePortfolioItem }) {
+  if (item.kind === 'target') {
+    return (
+      <li className="dxp-browser-item">
+        <div className="dxp-browser-item__identity">
+          <strong>{item.target.symbol}</strong>
+          <span>{item.target.name} · available to discover</span>
+        </div>
+        <code aria-label={`Asset identifier ${item.target.assetId}`}>{item.target.assetId}</code>
+        <p>{targetActionText(item.target)}</p>
+      </li>
+    );
+  }
+
+  const { holding } = item;
+  const name = holding.assetId ?? sentenceCase(holding.assetClass);
+  return (
+    <li className="dxp-browser-item">
+      <div className="dxp-browser-item__identity">
+        <strong>{name}</strong>
+        <span>{holdingStateText(holding)}</span>
+      </div>
+      <div className="dxp-browser-item__values">
+        <strong>{formatExactDecimal(holding.displayAmount)}</strong>
+        <span>{holding.valueUsd === null ? 'Unpriced' : formatExactUsd(holding.valueUsd)}</span>
+      </div>
+      <p>{holdingActionText(holding.availableActions)}</p>
+      <code aria-label={`Mint ${holding.mint}`}>Mint {holding.mint}</code>
+    </li>
+  );
+}
+
+function InlinePortfolioBrowser({
+  model,
+  condensed,
+  detailRef,
+  onClose,
+}: {
+  model: Extract<PortfolioViewModel, { state: 'ready' }>;
+  condensed: boolean;
+  detailRef: RefObject<HTMLElement | null>;
+  onClose: () => void;
+}) {
+  const items = useMemo<InlinePortfolioItem[]>(() => [
+    ...model.snapshot.holdings.map((holding) => ({ kind: 'holding' as const, holding })),
+    ...model.snapshot.approvedActionTargets.map((target) => ({ kind: 'target' as const, target })),
+  ], [model]);
+  const pageSize = condensed ? 1 : 2;
+  const pageCount = Math.max(1, Math.ceil(items.length / pageSize));
+  const [page, setPage] = useState(0);
+  const safePage = Math.min(page, pageCount - 1);
+  const start = safePage * pageSize;
+  const visibleItems = items.slice(start, start + pageSize);
+  const end = start + visibleItems.length;
+
+  return (
+    <article
+      className={`dxp-browser${condensed ? ' dxp-browser--condensed' : ''}`}
+      aria-labelledby="dxp-browser-title"
+      ref={detailRef}
+      tabIndex={-1}
+    >
+      <header className="dxp-browser__header">
+        <WalletLockup />
+        <button type="button" onClick={onClose}>Back</button>
+      </header>
+
+      <div className="dxp-browser__intro">
+        <h1 id="dxp-browser-title">Portfolio details</h1>
+        <p>
+          {items.length === 0
+            ? 'No held or discoverable assets in this snapshot.'
+            : `${start + 1}\u2013${end} of ${items.length} held and discoverable assets`}
+        </p>
+      </div>
+
+      {visibleItems.length > 0 ? (
+        <ul className="dxp-browser__items">
+          {visibleItems.map((item) => (
+            <InlineBrowserItem
+              key={item.kind === 'holding'
+                ? `holding:${item.holding.tokenProgram}:${item.holding.tokenAccount ?? item.holding.mint}`
+                : `target:${item.target.assetId}`}
+              item={item}
+            />
+          ))}
+        </ul>
+      ) : null}
+
+      <footer className="dxp-browser__footer">
+        <p>
+          Wallet <code>{model.snapshot.walletAddress}</code> · observed{' '}
+          {formatObservedAt(model.snapshot.observedAt)}
+        </p>
+        {pageCount > 1 ? (
+          <nav aria-label="Portfolio detail pages">
+            <button
+              type="button"
+              disabled={safePage === 0}
+              onClick={() => setPage((current) => Math.max(0, current - 1))}
+            >
+              Previous
+            </button>
+            <span aria-live="polite">Page {safePage + 1} of {pageCount}</span>
+            <button
+              type="button"
+              disabled={safePage === pageCount - 1}
+              onClick={() => setPage((current) => Math.min(pageCount - 1, current + 1))}
+            >
+              Next
+            </button>
+          </nav>
+        ) : null}
+      </footer>
+    </article>
   );
 }
 
@@ -224,21 +448,30 @@ function ReadDetails({ model }: { model: Extract<PortfolioViewModel, { state: 'r
   );
 }
 
-function ReadyLedger({ model }: { model: Extract<PortfolioViewModel, { state: 'ready' }> }) {
+function ReadyLedger({
+  model,
+  onClose,
+}: {
+  model: Extract<PortfolioViewModel, { state: 'ready' }>;
+  onClose: (() => void) | null;
+}) {
   const { summary } = model;
+  const displayValue = summaryDisplayValue(model);
   return (
     <article className="dxp-ledger" aria-labelledby="dxp-title">
       <header className="dxp-header">
         <WalletLockup />
+        {onClose ? <button type="button" onClick={onClose}>Close</button> : null}
       </header>
 
       <section className="dxp-hero" aria-label="Portfolio summary">
         <h1 id="dxp-title">Portfolio</h1>
         <strong
           className={summary.value === null ? 'dxp-unknown' : undefined}
-          aria-label={summary.label}
+          aria-label={`${summary.label}: ${summary.value ?? 'Unknown'}`}
+          title={`${summary.label}: ${summary.value ?? 'Unknown'}`}
         >
-          {summary.value ?? 'Unknown'}
+          {displayValue ?? 'Unknown'}
         </strong>
         {summary.label === 'Priced subtotal' ? <p>Priced subtotal.</p> : null}
         {model.coverage ? <p className="dxp-coverage" role="status">{model.coverage}</p> : null}
@@ -251,9 +484,13 @@ function ReadyLedger({ model }: { model: Extract<PortfolioViewModel, { state: 'r
   );
 }
 
-function LoadingLedger() {
+function LoadingLedger({ compact }: { compact: boolean }) {
   return (
-    <article className="dxp-ledger dxp-ledger--loading" aria-busy="true" aria-label="Loading portfolio">
+    <article
+      className={`dxp-ledger dxp-ledger--loading${compact ? ' dxp-ledger--compact-state' : ''}`}
+      aria-busy="true"
+      aria-label="Loading portfolio"
+    >
       <header className="dxp-header">
         <WalletLockup />
       </header>
@@ -268,13 +505,17 @@ function LoadingLedger() {
   );
 }
 
-function StateLedger({ model }: {
+function StateLedger({ model, compact }: {
   model: Extract<PortfolioViewModel, {
     state: 'authentication_required' | 'read_error' | 'invalid';
   }>;
+  compact: boolean;
 }) {
   return (
-    <article className="dxp-ledger dxp-ledger--state" aria-labelledby="dxp-state-title">
+    <article
+      className={`dxp-ledger dxp-ledger--state${compact ? ' dxp-ledger--compact-state' : ''}`}
+      aria-labelledby="dxp-state-title"
+    >
       <header className="dxp-header">
         <WalletLockup />
       </header>
@@ -290,22 +531,127 @@ export function PortfolioLedger() {
   const toolOutput = useToolOutput();
   const theme = useAdaptiveTheme();
   const maxHeight = useAdaptiveMaxHeight();
+  const displayMode = useAdaptiveDisplayMode();
+  const hostContext = useAdaptiveHostContext();
+  const hostCapabilities = useAdaptiveHostCapabilities();
+  const requestDisplayMode = useAdaptiveRequestDisplayMode();
   const rootRef = useIntrinsicHeight<HTMLDivElement>();
   const model = useMemo(() => normalizeDexterPortfolio(toolOutput), [toolOutput]);
+  const [inlineExpanded, setInlineExpanded] = useState(false);
+  const overviewTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const inlineDetailRef = useRef<HTMLElement | null>(null);
+  const restoreOverviewFocus = useRef(false);
+  const desiredDisplayMode = useRef<'inline' | 'fullscreen'>('inline');
+  const displayModeRequestId = useRef(0);
+  const isFullscreen = displayMode === 'fullscreen';
+  const condensed = !isFullscreen && maxHeight !== null && maxHeight < 520;
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
+  useEffect(() => {
+    if (inlineExpanded) {
+      inlineDetailRef.current?.focus();
+      return;
+    }
+    if (!isFullscreen && restoreOverviewFocus.current) {
+      overviewTriggerRef.current?.focus();
+      restoreOverviewFocus.current = false;
+    }
+  }, [inlineExpanded, isFullscreen]);
+
+  const requestMode = (mode: 'inline' | 'fullscreen') => {
+    if (!requestDisplayMode) return;
+    desiredDisplayMode.current = mode;
+    const requestId = ++displayModeRequestId.current;
+
+    const issueRequest = async (
+      requestedMode: 'inline' | 'fullscreen',
+      activeRequestId: number,
+    ): Promise<void> => {
+      try {
+        await Promise.resolve(requestDisplayMode({ mode: requestedMode }));
+      } catch {
+        return;
+      }
+
+      const desiredMode = desiredDisplayMode.current;
+      if (
+        activeRequestId !== displayModeRequestId.current
+        && desiredMode !== requestedMode
+      ) {
+        const correctionId = ++displayModeRequestId.current;
+        await issueRequest(desiredMode, correctionId);
+      }
+    };
+
+    void issueRequest(mode, requestId);
+  };
+
+  const canFullscreen = Boolean(
+    requestDisplayMode
+    && hostCapabilities.requestDisplayMode
+    && hostContext.availableDisplayModes.includes('fullscreen'),
+  );
+  const canReturnInline = Boolean(
+    requestDisplayMode
+    && hostCapabilities.requestDisplayMode
+    && hostContext.availableDisplayModes.includes('inline'),
+  );
+
+  const openPortfolio = () => {
+    // Respond immediately even if the host takes time to decide on fullscreen.
+    // The bounded inline pager remains usable when the request is declined.
+    setInlineExpanded(true);
+    if (canFullscreen) requestMode('fullscreen');
+  };
+
+  const closePortfolio = () => {
+    restoreOverviewFocus.current = true;
+    setInlineExpanded(false);
+    if (canReturnInline) requestMode('inline');
+  };
+
   return (
     <div
-      className="dxp-root"
+      className={`dxp-root ${isFullscreen ? 'dxp-root--fullscreen' : 'dxp-root--inline'}`}
       ref={rootRef}
-      style={maxHeight === null ? undefined : { maxHeight }}
+      data-theme={theme}
+      data-host-max-height={maxHeight ?? undefined}
+      style={isFullscreen ? {
+        paddingTop: hostContext.safeAreaInsets.top || undefined,
+        paddingRight: hostContext.safeAreaInsets.right || undefined,
+        paddingBottom: hostContext.safeAreaInsets.bottom || undefined,
+        paddingLeft: hostContext.safeAreaInsets.left || undefined,
+      } : undefined}
     >
-      {model.state === 'loading' ? <LoadingLedger /> : null}
-      {model.state === 'ready' ? <ReadyLedger model={model} /> : null}
-      {model.state !== 'loading' && model.state !== 'ready' ? <StateLedger model={model} /> : null}
+      {model.state === 'loading' ? <LoadingLedger compact={condensed} /> : null}
+      {model.state === 'ready' && !isFullscreen && !inlineExpanded ? (
+        <InlinePortfolio
+          model={model}
+          onExpand={openPortfolio}
+          condensed={condensed}
+          triggerRef={overviewTriggerRef}
+        />
+      ) : null}
+      {model.state === 'ready' && !isFullscreen && inlineExpanded ? (
+        <InlinePortfolioBrowser
+          model={model}
+          condensed={condensed}
+          detailRef={inlineDetailRef}
+          onClose={closePortfolio}
+        />
+      ) : null}
+      {model.state === 'ready' && isFullscreen ? (
+        <ReadyLedger
+          model={model}
+          onClose={closePortfolio}
+        />
+      ) : null}
+      {model.state !== 'loading' && model.state !== 'ready' ? (
+        <StateLedger model={model} compact={condensed} />
+      ) : null}
     </div>
   );
 }

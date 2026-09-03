@@ -133,6 +133,18 @@ async function assertContinuousCanvas(page) {
   assert.equal(metrics.borderTopWidth, '0px');
   assert.equal(metrics.boxShadow, 'none');
   assert.equal(metrics.backgroundColor, 'rgba(0, 0, 0, 0)');
+  const shell = await page.locator('.dx-widget').evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      backgroundColor: style.backgroundColor,
+      inlineMaxHeight: element.style.maxHeight,
+      overflowY: style.overflowY,
+    };
+  });
+  assert.equal(shell.backgroundColor, 'rgba(0, 0, 0, 0)');
+  assert.equal(shell.inlineMaxHeight, '');
+  assert.notEqual(shell.overflowY, 'auto');
+  assert.notEqual(shell.overflowY, 'scroll');
   assert.ok(metrics.overflowWidth <= 0, `renderer overflowed horizontally by ${metrics.overflowWidth}px`);
   assert.equal(await page.locator('.dx-widget__eyebrow').count(), 0);
   assert.equal(await page.locator('.dx-stock-card').count(), 0);
@@ -218,7 +230,7 @@ test('governed action and history render as one safe host-owned canvas', async (
     assert.equal(await page.getByRole('button', { name: /approve/i }).count(), 0);
     assert.equal(
       await page.locator('.dx-widget').evaluate((element) => getComputedStyle(element).backgroundColor),
-      'rgb(23, 23, 21)',
+      'rgba(0, 0, 0, 0)',
     );
     await assertContinuousCanvas(page);
 
@@ -330,7 +342,7 @@ test('governed action and history render as one safe host-owned canvas', async (
     await page.close();
   });
 
-  await t.test('loading views honor a constrained host height', async () => {
+  await t.test('loading views report intrinsic height without manufacturing an inner viewport', async () => {
     for (const entrypoint of ['governed-action.html', 'governed-history.html']) {
       const page = await browser.newPage({ viewport: { width: 375, height: 812 } });
       await installChatGptHost(page, {
@@ -340,14 +352,20 @@ test('governed action and history render as one safe host-owned canvas', async (
       });
       await page.goto(`${baseUrl}/${entrypoint}`);
 
+      await page.waitForFunction(() => (
+        window.__hostCalls ?? []
+      ).some((call) => call.kind === 'notifyIntrinsicHeight'));
       const metrics = await page.locator('.dx-widget').evaluate((element) => ({
         clientHeight: element.clientHeight,
+        inlineMaxHeight: element.style.maxHeight,
         maxHeight: getComputedStyle(element).maxHeight,
         overflowY: getComputedStyle(element).overflowY,
       }));
-      assert.equal(metrics.maxHeight, '180px');
-      assert.equal(metrics.overflowY, 'auto');
-      assert.ok(metrics.clientHeight <= 180);
+      assert.equal(metrics.inlineMaxHeight, '');
+      assert.equal(metrics.maxHeight, 'none');
+      assert.notEqual(metrics.overflowY, 'auto');
+      assert.notEqual(metrics.overflowY, 'scroll');
+      assert.ok(metrics.clientHeight > 0);
       await page.close();
     }
   });

@@ -30,13 +30,13 @@ access, payment, and governed actions.
 
 | Intent | Tool |
 | --- | --- |
-| Discover a service or resource with Indexter | `x402_search` |
+| Discover a service or resource with Indexter | `indexter_search` |
 | Custody an exact endpoint request and current quote | `x402_check` |
 | Call one approved, API-custodied intent | `x402_fetch` |
 | Inspect one intent without redispatch | `x402_status` |
 | Use wallet-proof or Sign-In-With-X access | `x402_access` |
-| Read wallet readiness, cash, reported credit capacity, deposit address, and activity | `x402_wallet` |
-| Read governed assets and currently allowed actions | `dexter_portfolio` |
+| Read wallet readiness, cash, reported credit capacity, deposit address, and activity | `dexter_wallet` |
+| Read governed assets and currently allowed actions | `dexter_wallet_portfolio` |
 | Prepare an exact governed Send, Buy, or Sell | `dexter_prepare_asset_action` |
 | Execute one prepared governed intent | `dexter_execute_asset_action` |
 | Read durable governed intent status | `dexter_asset_action_status` |
@@ -48,8 +48,7 @@ product tools. Do not select them for a new request.
 
 ## Indexter discovery and purchase
 
-1. Call the compatibility-named `x402_search` with the user's actual job. It
-   searches Indexter. Leave its network filter unset
+1. Call `indexter_search` with the user's actual job. Leave its network filter unset
    unless the user explicitly requires a seller on one network; compatible
    server-side settlement may make a seller on another network reachable from
    the Dexter account. Put a hard API invocation-price ceiling or floor in
@@ -113,7 +112,7 @@ authorize payment, consent, a route change, a follow-on call, or a retry.
 
 ## Wallet and portfolio
 
-Use `x402_wallet` for the current session-bound Dexter Wallet after connector
+Use `dexter_wallet` for the current session-bound Dexter Wallet after connector
 authorization. If an established connection later reports
 `authentication_required`, let the host resume its native OAuth flow and retry
 the same tool once. Connector authentication, wallet binding, enrollment,
@@ -130,7 +129,7 @@ required.
 Only a returned `receiveAddress` is a deposit address. `vaultPda` is not a deposit
 fallback; neither is any Swig state or configuration address.
 
-Use `dexter_portfolio` for exact asset inventory and current action
+Use `dexter_wallet_portfolio` for exact asset inventory and current action
 availability. It accepts no wallet, handle, actor, agent, grant, role, or
 authority selector. Preserve quantity and value strings exactly. Partial or
 unavailable inventory is not zero, portfolio value is not spendable cash, and
@@ -145,7 +144,7 @@ borrow, or pay execution.
 
 ## Governed Send, Buy, and Sell
 
-1. For Send and non-stock Buy or Sell, use `dexter_portfolio` to identify the
+1. For Send and non-stock Buy or Sell, use `dexter_wallet_portfolio` to identify the
    exact supported asset from an approved holding or `approvedActionTarget`
    and confirm the requested action is currently displayed as available. Pass
    only its non-null canonical `assetId`; never substitute a symbol or send a

@@ -7,15 +7,17 @@ import { IndexterLockup } from '../../brand/IndexterLockup';
 export function IndexterSummaryHeader({
   resultCount,
   rerankApplied = false,
-  isFullscreen,
-  canToggleFullscreen,
-  onToggleFullscreen,
+  comparisonOpen,
+  comparisonId,
+  showViewControl,
+  onViewControl,
 }: {
   resultCount: number;
   rerankApplied?: boolean;
-  isFullscreen: boolean;
-  canToggleFullscreen: boolean;
-  onToggleFullscreen: () => void;
+  comparisonOpen: boolean;
+  comparisonId: string;
+  showViewControl: boolean;
+  onViewControl: () => void;
 }) {
   const tierLabel =
     `${resultCount.toLocaleString()} service${resultCount !== 1 ? 's' : ''} reviewed`;
@@ -34,13 +36,17 @@ export function IndexterSummaryHeader({
             Ranking refined for this request
           </span>
         )}
-        {canToggleFullscreen && (
+        {showViewControl && (
           <button
             type="button"
             className="dx-search-header__expand"
-            onClick={onToggleFullscreen}
+            onClick={onViewControl}
+            aria-controls={comparisonId}
+            aria-expanded={comparisonOpen}
           >
-            {isFullscreen ? 'Close comparison' : 'Compare'}
+            {comparisonOpen
+              ? 'Close comparison'
+              : 'Compare'}
           </button>
         )}
       </div>

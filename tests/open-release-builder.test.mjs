@@ -40,7 +40,7 @@ const { readSealedOpenRelease } = require('../lib/open-release-provenance.cjs');
 const REVIEWED_NPM = reviewedNpmInvocation();
 
 const CONNECTED = [
-  'x402_search',
+  'indexter_search',
   'dexter_prepare_asset_action',
 ];
 const PRIVATE = ['resolve_wallet', 'auth_info'];
@@ -96,10 +96,10 @@ function descriptorFixture() {
         'scope',
       ],
     },
-    anonymousToolNames: ['x402_search'],
+    anonymousToolNames: ['indexter_search'],
     oauthPromotedToolNames: ['dexter_prepare_asset_action'],
     connectedToolNames: CONNECTED,
-    optionalOAuthToolNames: ['x402_search'],
+    optionalOAuthToolNames: ['indexter_search'],
     tools: CONNECTED.map((name) => ({
       name,
       title: name,

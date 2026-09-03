@@ -73,7 +73,7 @@ test('every current OpenDexter tool has one explicit renderer behavior', () => {
   }
 
   assert.equal(OPEN_TOOL_NAMES.length, 12);
-  const indexterBehavior = TOOL_RENDERER_BEHAVIORS.x402_search;
+  const indexterBehavior = TOOL_RENDERER_BEHAVIORS.indexter_search;
   const indexterResource = ACTIVE_RENDERER_RESOURCES.find(
     ({ family }) => family === 'indexter-search',
   );
@@ -217,11 +217,17 @@ test('current product lockups are the exact canonical masters', async () => {
   assert.deepEqual(
     await Promise.all([
       sha256('apps-sdk/ui/src/assets/indexter-wordmark.svg'),
+      sha256('apps-sdk/ui/src/assets/indexter-wordmark-reversed.svg'),
+      sha256('apps-sdk/ui/src/assets/indexter-x.svg'),
+      sha256('apps-sdk/ui/src/assets/indexter-x-reversed.svg'),
       sha256('apps-sdk/ui/src/assets/dexter-wallet-lockup-light.svg'),
       sha256('apps-sdk/ui/src/assets/dexter-wallet-lockup-dark.svg'),
     ]),
     [
-      '2c91fc2f4ac45d9e8f4212f5637271de159c138107b80ae6af53cbf208107b43',
+      '1e0a7f6f425419e0bae969df691646cc3c3ba1ce4dde7b5669a3cd13eea606d0',
+      '05d2e64d8e074e0fbc22e77a84345f65d68487dcad43be37e00240279f4b269f',
+      '6f86fd3843974a773b03a528366e6fa1d52dc19ebd27821c056a1d727ff8be3b',
+      '62eef92850a756f4948379db1e0d22844842212f53a34913dab1c15dedf8590f',
       '97d0acfc43fb073ca6e3be587df43db0f8b3ae1551387f30ce5c84319e093173',
       'a4b8d0d3e321c29e51883cefaab21437ceff69752802fbab3fd771940b1858af',
     ],
@@ -233,7 +239,13 @@ test('current product lockups are the exact canonical masters', async () => {
     source('apps-sdk/ui/src/components/wallet/Lockup.tsx'),
   ]);
   assert.match(indexterLockup, /indexter-wordmark\.svg\?url/);
-  assert.doesNotMatch(indexterLockup, /reversed|<svg/i);
+  assert.match(indexterLockup, /indexter-wordmark-reversed\.svg\?url/);
+  assert.match(indexterLockup, /useAdaptiveTheme/);
+  assert.match(
+    indexterLockup,
+    /theme === 'dark' \? indexterWordmarkReversed : indexterWordmark/,
+  );
+  assert.doesNotMatch(indexterLockup, /filter|<svg/i);
   assert.match(walletLockup, /dexter-wallet-lockup-light\.svg\?url/);
   assert.match(walletLockup, /dexter-wallet-lockup-dark\.svg\?url/);
   assert.doesNotMatch(walletLockup, /<svg/i);
