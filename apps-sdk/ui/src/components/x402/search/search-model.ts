@@ -6,7 +6,7 @@ import type {
   SearchResource,
 } from './types.ts';
 
-export const SEARCH_WIDGET_BUILD = '2026-08-04.2';
+export const SEARCH_WIDGET_BUILD = '2026-09-03.1';
 
 export type SearchPayload = {
   success?: boolean;
@@ -141,18 +141,24 @@ export function getSearchErrorCopy(payload: SearchPayload): SearchErrorCopy | nu
     payload.searchMeta?.note?.trim()
     || payload.tip?.trim()
     || payload.error?.trim()
-    || 'Dexter could not reach the marketplace. Retry the same search in a moment.';
+    || 'Indexter could not complete this search. Retry the same request in a moment.';
 
   return {
-    title: 'Marketplace search unavailable',
+    title: 'Indexter is unavailable',
     description,
   };
 }
 
 export function findSelectedResource(
   resources: SearchResource[],
-  selectedUrl: string | undefined,
+  selectedOrdinal: number | undefined,
 ): SearchResource | null {
-  if (!selectedUrl) return null;
-  return resources.find((resource) => resource.url === selectedUrl) ?? null;
+  if (
+    !Number.isSafeInteger(selectedOrdinal)
+    || Number(selectedOrdinal) < 1
+    || Number(selectedOrdinal) > resources.length
+  ) {
+    return null;
+  }
+  return resources[Number(selectedOrdinal) - 1] ?? null;
 }

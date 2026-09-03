@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Button } from '@openai/apps-sdk-ui/components/Button';
 import type { SearchResource } from './types';
 import { SearchIdentityIcon } from './SearchIdentityIcon';
 import { summarizeSearchResource } from './SearchDecisionBrief.model';
@@ -7,38 +6,41 @@ import { formatListedPrice, hostLabel } from './utils';
 
 type Props = {
   resources: SearchResource[];
-  selectedUrl?: string | null;
+  selectedOrdinal?: number | null;
   onSelect: (resource: SearchResource) => void;
   onInspect: (resource: SearchResource) => void;
+  interactionLocked?: boolean;
 };
 
 const INITIAL_SHORTLIST_SIZE = 4;
 
 export function SearchComparisonPanel({
   resources,
-  selectedUrl,
+  selectedOrdinal,
   onSelect,
   onInspect,
+  interactionLocked = false,
 }: Props) {
   const [showAll, setShowAll] = useState(false);
 
   if (resources.length < 2) return null;
 
-  const selectedIndex = resources.findIndex(
-    (resource) => resource.url === selectedUrl,
-  );
-  const keepSelectedVisible = selectedIndex >= INITIAL_SHORTLIST_SIZE;
-  const visibleResources =
-    showAll || keepSelectedVisible
-      ? resources
-      : resources.slice(0, INITIAL_SHORTLIST_SIZE);
+  const selectedIndex =
+    Number.isSafeInteger(selectedOrdinal)
+    && Number(selectedOrdinal) >= 1
+    && Number(selectedOrdinal) <= resources.length
+      ? Number(selectedOrdinal) - 1
+      : -1;
+  const visibleResources = showAll || selectedIndex >= INITIAL_SHORTLIST_SIZE
+    ? resources
+    : resources.slice(0, INITIAL_SHORTLIST_SIZE);
   const hiddenCount = resources.length - visibleResources.length;
 
   return (
     <section className="dx-search-compare" aria-labelledby="dx-search-compare-title">
       <div className="dx-search-compare__header">
         <h2 id="dx-search-compare-title">Compare services</h2>
-        <p>{resources.length} services reviewed for this request</p>
+        <p>{resources.length} results for this request</p>
       </div>
 
       <div className="dx-search-compare__grid">
@@ -49,91 +51,77 @@ export function SearchComparisonPanel({
             summary.priceUsdc,
             summary.priceFallback,
           );
-          const selected = selectedUrl === resource.url;
+          const selected = selectedIndex === index;
 
           return (
             <article
-              key={resource.resourceId || resource.url}
+              key={`${resource.resourceId || resource.url}:${index}`}
               className="dx-search-compare__card"
               data-selected={selected ? 'true' : undefined}
             >
               <div className="dx-search-compare__identity">
-                <SearchIdentityIcon resource={resource} size={38} />
+                <SearchIdentityIcon resource={resource} size={36} />
                 <div>
                   <strong>{resource.name}</strong>
-                  <small>{hostLabel(resource.url)}</small>
-                </div>
-                <div className="dx-search-compare__badges">
-                  {index === 0 && (
-                    <span>
-                      {resource.tier === 'related'
-                        ? 'Closest match'
-                        : 'Recommended'}
-                    </span>
-                  )}
-                  {selected && <span data-selected="true">Selected</span>}
+                  <small>
+                    {index === 0 ? 'Recommended · ' : ''}{hostLabel(resource.url)}
+                  </small>
                 </div>
               </div>
 
               <p className="dx-search-compare__why">{summary.why}</p>
 
-              {summary.safetyWarning && (
+              {summary.safetyWarning ? (
                 <p className="dx-search-safety-note" role="note">
                   {summary.safetyWarning}
                 </p>
-              )}
+              ) : null}
 
               <dl className="dx-search-compare__facts">
                 <div>
-                  <dt>Listed price</dt>
+                  <dt>Price</dt>
                   <dd>{price}</dd>
+                </div>
+                <div>
+                  <dt>Quality</dt>
+                  <dd>{summary.qualityScore === null ? 'Unscored' : `${summary.qualityScore}/100`}</dd>
                 </div>
                 <div>
                   <dt>Network</dt>
                   <dd>{summary.networkLabel}</dd>
                 </div>
-                <div>
-                  <dt>Evidence</dt>
-                  <dd>{summary.evidenceLabel}</dd>
-                </div>
-                <div>
-                  <dt>Next step</dt>
-                  <dd>{summary.action.label}</dd>
-                </div>
               </dl>
 
               <div className="dx-search-compare__actions">
                 {selected ? (
-                  <span className="dx-search-compare__selected-label">
-                    Current choice
-                  </span>
+                  <span className="dx-search-compare__selected-label">Current choice</span>
                 ) : (
                   <button
                     type="button"
                     className="dx-search-compare__choose"
                     onClick={() => onSelect(resource)}
                     aria-label={`Choose ${resource.name}`}
+                    disabled={interactionLocked}
                   >
                     Choose
                   </button>
                 )}
-                <Button
+                <button
+                  type="button"
                   className="dx-search-compare__details"
-                  color="secondary"
-                  variant="ghost"
-                  size="sm"
                   onClick={() => onInspect(resource)}
                   aria-label={`View details for ${resource.name}`}
+                  disabled={interactionLocked}
                 >
                   Details
-                </Button>
+                </button>
               </div>
             </article>
           );
         })}
       </div>
 
-      {hiddenCount > 0 && (
+      {hiddenCount > 0 ? (
         <button
           type="button"
           className="dx-search-compare__more"
@@ -141,7 +129,7 @@ export function SearchComparisonPanel({
         >
           Show {hiddenCount} more
         </button>
-      )}
+      ) : null}
     </section>
   );
 }

@@ -13,7 +13,7 @@ function priceLabel(route: X402PaymentRoute): string {
 }
 
 function schemeLabel(value: string | null): string {
-  if (!value) return 'x402';
+  if (!value) return 'Exact payment';
   return value.replaceAll('_', ' ').replace(/\b\w/g, (letter) =>
     letter.toUpperCase());
 }
@@ -21,7 +21,7 @@ function schemeLabel(value: string | null): string {
 function PaymentTermRow({ route }: { route: X402PaymentRoute }) {
   const { name: chainName } = getChain(route.network);
   return (
-    <div className="dx-pricing__route dx-pricing__route--terms">
+    <li className="dx-pricing__route">
       <div className="dx-pricing__route-chain">
         <ChainIcon network={route.network} size={20} />
         <div className="dx-pricing__route-chain-text">
@@ -31,8 +31,8 @@ function PaymentTermRow({ route }: { route: X402PaymentRoute }) {
             </span>
           </div>
           <span className="dx-pricing__route-chain-asset">
-            {formatAssetLabel(route.asset)} · {chainName}
-            {route.amountAtomic ? ` · ${route.amountAtomic} atomic` : ''}
+            {formatAssetLabel(route.asset)} on {chainName}
+            {route.amountAtomic ? `, ${route.amountAtomic} base units` : ''}
           </span>
         </div>
       </div>
@@ -44,7 +44,7 @@ function PaymentTermRow({ route }: { route: X402PaymentRoute }) {
         </div>
       ) : null}
       <span className="dx-pricing__route-price">{priceLabel(route)}</span>
-    </div>
+    </li>
   );
 }
 
@@ -55,12 +55,14 @@ export function PaymentRoutes({
 }) {
   return (
     <section className="dx-pricing__routes">
-      <h2 className="dx-pricing__section-title">Current seller terms</h2>
-      <div className="dx-pricing__routes-list">
+      <h2 className="dx-pricing__routes-title">
+        {options.length === 1 ? 'Seller terms' : `${options.length} seller routes`}
+      </h2>
+      <ul className="dx-pricing__routes-list">
         {options.map((route) => (
           <PaymentTermRow key={route.routeKey} route={route} />
         ))}
-      </div>
+      </ul>
     </section>
   );
 }

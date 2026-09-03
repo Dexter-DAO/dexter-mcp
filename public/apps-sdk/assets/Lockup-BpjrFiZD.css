@@ -1,0 +1,25 @@
+.dxw-lockup {
+  display: inline-flex;
+  flex: 0 0 auto;
+  line-height: 0;
+}
+
+.dxw-lockup__image {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.dxw-lockup__image--dark {
+  display: none;
+}
+
+:root[data-theme="dark"] .dxw-lockup__image--light,
+.dxw-root[data-theme="dark"] .dxw-lockup__image--light {
+  display: none;
+}
+
+:root[data-theme="dark"] .dxw-lockup__image--dark,
+.dxw-root[data-theme="dark"] .dxw-lockup__image--dark {
+  display: block;
+}

@@ -39,7 +39,7 @@ test('backend errors stay distinct from genuine empty search results', () => {
     resources: [],
     searchMeta: {
       mode: 'error',
-      note: 'Marketplace search is temporarily unavailable. Please try again.',
+      note: 'Indexter is temporarily unavailable. Please try again.',
     },
     errorDetail: 'internal upstream detail',
   };
@@ -51,8 +51,8 @@ test('backend errors stay distinct from genuine empty search results', () => {
   };
 
   assert.deepEqual(getSearchErrorCopy(backendError), {
-    title: 'Marketplace search unavailable',
-    description: 'Marketplace search is temporarily unavailable. Please try again.',
+    title: 'Indexter is unavailable',
+    description: 'Indexter is temporarily unavailable. Please try again.',
   });
   assert.equal(getSearchErrorCopy(genuineEmpty), null);
 });
@@ -64,10 +64,10 @@ test('the public recovery tip wins over internal backend error detail', () => {
     resources: [],
     searchMeta: { mode: 'error' },
     errorDetail: 'upstream_auth_secret_or_internal_diagnostic',
-    tip: 'Marketplace search is temporarily unavailable. Please retry.',
+    tip: 'Indexter is temporarily unavailable. Please retry.',
   }), {
-    title: 'Marketplace search unavailable',
-    description: 'Marketplace search is temporarily unavailable. Please retry.',
+    title: 'Indexter is unavailable',
+    description: 'Indexter is temporarily unavailable. Please retry.',
   });
 });
 
@@ -118,8 +118,17 @@ test('tiered resources stay ordered without creating an implicit selection', () 
   assert.deepEqual(sections.resources.map((item) => item.resourceId), ['resource-1', 'resource-2']);
   assert.deepEqual(sections.resources.map((item) => item.tier), ['strong', 'related']);
   assert.equal(findSelectedResource(sections.resources, undefined), null);
-  assert.equal(findSelectedResource(sections.resources, related.url)?.resourceId, related.resourceId);
-  assert.equal(findSelectedResource(sections.resources, 'https://stale.example'), null);
+  assert.equal(findSelectedResource(sections.resources, 2)?.resourceId, related.resourceId);
+  assert.equal(findSelectedResource(sections.resources, 3), null);
+});
+
+test('selected ordinals distinguish resources that publish the same URL', () => {
+  const shared = [
+    { ...resource, resourceId: 'shared-get', method: 'GET' },
+    { ...resource, resourceId: 'shared-post', method: 'POST' },
+  ];
+  assert.equal(findSelectedResource(shared, 1)?.resourceId, 'shared-get');
+  assert.equal(findSelectedResource(shared, 2)?.resourceId, 'shared-post');
 });
 
 test('payload normalization preserves legacy resources and nested seller metadata', () => {

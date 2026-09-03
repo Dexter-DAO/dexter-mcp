@@ -16,7 +16,6 @@ import {
 } from '../lib/open-tool-contracts.mjs';
 import {
   OPEN_TOOL_SECURITY_SCHEMES,
-  VAULT_WWW_AUTHENTICATE,
   installCanonicalSecuritySchemeProjection,
 } from '../lib/open-tool-auth.mjs';
 import {
@@ -102,24 +101,27 @@ test('contract is exactly the canonical hosted twelve', () => {
   }
 });
 
-test('governed trade results remain model-visible while only the receipt app renders', () => {
+test('every governed result remains model-visible and has a read-only renderer', () => {
   for (const name of [
     'dexter_prepare_asset_action',
     'dexter_execute_asset_action',
     'dexter_asset_action_status',
     'dexter_reconcile_asset_action',
+    'dexter_wallet_history',
   ]) {
     assert.deepEqual(OPEN_TOOL_CONTRACTS[name].visibility, ['model', 'app'], name);
     assert.equal(OPEN_TOOL_CONTRACTS[name].widgetAccessible, false, name);
   }
-  assert.deepEqual(
-    OPEN_TOOL_CONTRACTS.dexter_wallet_history.visibility,
-    ['model'],
-  );
-  assert.equal(
-    OPEN_TOOL_CONTRACTS.dexter_wallet_history.widgetAccessible,
-    false,
-  );
+});
+
+test('only Indexter discovery and its nested access check can call tools from a widget', () => {
+  for (const name of Object.keys(OPEN_TOOL_CONTRACTS)) {
+    assert.equal(
+      OPEN_TOOL_CONTRACTS[name].widgetAccessible,
+      name === 'x402_search' || name === 'x402_check',
+      name,
+    );
+  }
 });
 
 test('hosted paid guidance uses one opaque check-fetch-status path', () => {
@@ -201,7 +203,7 @@ test('search and wallet contracts expose current truth without route claims', ()
       degradedMessage: 'Reduced ranking is active.',
     },
     tip: 'Try another query.',
-    source: 'Dexter x402 Marketplace (https://dexter.cash)',
+    source: 'Indexter',
     providerDataPolicy: PROVIDER_DATA_POLICY,
   };
   assert.equal(search.outputSchema.safeParse(validSearchOutput).success, true);
@@ -969,6 +971,9 @@ test('real SDK clients receive governed refusal, auth, and local failures as tex
         content: [{ type: 'text', text: JSON.stringify(body) }],
         structuredContent: body,
         isError: governedErrors.has(name),
+        ...(governedErrors.has(name)
+          ? { _meta: { 'dexter/governedWidgetResult': body } }
+          : {}),
       };
     });
   }
@@ -992,6 +997,11 @@ test('real SDK clients receive governed refusal, auth, and local failures as tex
     const result = await client.callTool({ name, arguments: {} });
     assert.equal(result.isError, true, name);
     assert.equal(result.structuredContent, undefined, name);
+    assert.deepEqual(
+      result._meta?.['dexter/governedWidgetResult'],
+      expectedBody,
+      `${name}: the validated error body must remain available to its renderer`,
+    );
     const visibleBody = JSON.parse(result.content[0].text);
     assert.equal(visibleBody.namespace, expectedBody.namespace, name);
     assert.equal(
@@ -1274,57 +1284,18 @@ test('vault-bound hosted discovery retains the exact protected roster', async ()
       await server.close();
     }
   }
-  assert.deepEqual(OPEN_ANONYMOUS_TOOL_NAMES, [
-    'x402_search',
-    'x402_check',
-    'x402_access',
-    'x402_wallet',
-    'dexter_portfolio',
-  ]);
-  assert.deepEqual(OPEN_OAUTH_PROMOTED_TOOL_NAMES, [
-    'x402_fetch',
-    'x402_status',
-    'dexter_prepare_asset_action',
-    'dexter_execute_asset_action',
-    'dexter_asset_action_status',
-    'dexter_reconcile_asset_action',
-    'dexter_wallet_history',
-  ]);
+  assert.deepEqual(OPEN_ANONYMOUS_TOOL_NAMES, []);
+  assert.deepEqual(OPEN_OAUTH_PROMOTED_TOOL_NAMES, OPEN_TOOL_NAMES);
 });
 
-test('an unbound session lists entry tools while a direct protected call requests Connect', async (t) => {
-  const { createOpenMcpServer } = await import('../open-mcp-server.mjs');
-  const server = createOpenMcpServer({ includeResources: false });
-
-  const client = new Client({ name: 'unbound-client', version: '1.0.0' });
-  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-  t.after(async () => {
-    await client.close();
-    await server.close();
-  });
-  await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
-
-  const before = (await client.listTools()).tools.map((tool) => tool.name);
-  assert.deepEqual(before, OPEN_ANONYMOUS_TOOL_NAMES);
-  assert.equal(before.includes('x402_fetch'), false);
-
-  const result = await client.callTool({
-    name: 'x402_fetch',
-    arguments: {
-      intentId: 'intent-unbound',
-      maxAmountAtomic: '50000',
-    },
-  });
-  assert.equal(result.isError, true);
-  assert.equal(result.structuredContent.status, 'authentication_required');
-  assert.equal(result.structuredContent.dispatch.boundary, 'not_crossed');
-  assert.equal(result.structuredContent.payment.confirmed, false);
-  assert.deepEqual(
-    result._meta['mcp/www_authenticate'],
-    [VAULT_WWW_AUTHENTICATE],
-  );
-  assert.deepEqual(
-    (await client.listTools()).tools.map((tool) => tool.name),
-    before,
-  );
+test('the contract exposes zero tools anonymously and all twelve after OAuth', () => {
+  assert.deepEqual(OPEN_ANONYMOUS_TOOL_NAMES, []);
+  assert.deepEqual(OPEN_OAUTH_PROMOTED_TOOL_NAMES, OPEN_TOOL_NAMES);
+  for (const name of OPEN_TOOL_NAMES) {
+    assert.deepEqual(
+      OPEN_TOOL_CONTRACTS[name].securitySchemes,
+      [{ type: 'oauth2', scopes: ['vault'] }],
+      name,
+    );
+  }
 });

@@ -6,6 +6,7 @@ import { OPEN_TOOL_CONTRACTS } from '../lib/open-tool-contracts.mjs';
 test('Hermes-visible check result contains only the supported request-and-ceiling path', () => {
   const structuredContent = buildHostedCheckModelResult({
     checkResult: {
+      ok: true,
       intentId: 'intent-opaque-1',
       requiresPayment: true,
       statusCode: 402,
@@ -55,6 +56,87 @@ test('Hermes-visible check result contains only the supported request-and-ceilin
   assert.equal(structuredContent.quoteOnly, false);
 });
 
+test('canonical authenticated API success publishes its durable purchase intent', () => {
+  const structuredContent = buildHostedCheckModelResult({
+    checkResult: {
+      ok: true,
+      paymentRequired: true,
+      intentId: 'intent-canonical-api-1',
+      statusCode: 200,
+      amountAtomic: '500000',
+      network: 'solana:mainnet',
+    },
+    url: 'https://seller.example/paid',
+    method: 'GET',
+  });
+
+  assert.equal(structuredContent.requiresPayment, true);
+  assert.equal(structuredContent.intentId, 'intent-canonical-api-1');
+  assert.equal(structuredContent.quoteOnly, false);
+  assert.equal(structuredContent.executionGuidance.readyForFetch, true);
+  assert.equal(
+    structuredContent.executionGuidance.supportedPath,
+    'fetch_by_intent',
+  );
+});
+
+test('failed or ambiguous checks never publish a provisional claim as an intent', () => {
+  const structuredContent = buildHostedCheckModelResult({
+    checkResult: {
+      ok: false,
+      intentId: '200911a7-f68e-4913-b5b4-426576f6ab98',
+      requiresPayment: true,
+      status: 503,
+      error: 'purchase_check_ambiguous',
+      retryable: false,
+    },
+    url: 'https://seller.example/paid',
+    method: 'GET',
+  });
+
+  assert.equal(structuredContent.intentId, null);
+  assert.equal(structuredContent.quoteOnly, true);
+  assert.equal(structuredContent.executionGuidance.readyForFetch, false);
+  assert.equal(
+    structuredContent.executionGuidance.supportedPath,
+    'provider_error',
+  );
+});
+
+test('in-progress and incomplete success-shaped checks cannot publish an intent', () => {
+  for (const checkResult of [
+    {
+      ok: true,
+      intentId: 'provisional-check-claim',
+      status: 'check_in_progress',
+      retryable: true,
+    },
+    {
+      intentId: 'missing-success-proof',
+      requiresPayment: true,
+      statusCode: 402,
+    },
+    {
+      ok: true,
+      intentId: 'free-response-with-stale-id',
+      free: true,
+      requiresPayment: false,
+      statusCode: 200,
+      authMode: 'unprotected',
+    },
+  ]) {
+    const structuredContent = buildHostedCheckModelResult({
+      checkResult,
+      url: 'https://seller.example/resource',
+      method: 'GET',
+    });
+
+    assert.equal(structuredContent.intentId, null);
+    assert.equal(structuredContent.quoteOnly, true);
+    assert.equal(structuredContent.executionGuidance.readyForFetch, false);
+  }
+});
+
 test('non-GET check without a body requires body formation and a recheck', () => {
   const structuredContent = buildHostedCheckModelResult({
     checkResult: { requiresPayment: true, statusCode: 402, authMode: 'paid' },
@@ -72,7 +154,7 @@ test('non-GET check without a body requires body formation and a recheck', () =>
   );
 });
 
-test('anonymous check is quote-only and cannot produce an executable intent', () => {
+test('an authorized paid check without an intent is non-executable', () => {
   const structuredContent = buildHostedCheckModelResult({
     checkResult: {
       requiresPayment: true,
@@ -90,7 +172,15 @@ test('anonymous check is quote-only and cannot produce an executable intent', ()
   assert.equal(structuredContent.executionGuidance.readyForFetch, false);
   assert.equal(
     structuredContent.executionGuidance.supportedPath,
-    'connect_then_recheck',
+    'intent_unavailable',
+  );
+  assert.equal(
+    Object.hasOwn(structuredContent.executionGuidance, 'fetchArguments'),
+    false,
+  );
+  assert.equal(
+    Object.hasOwn(structuredContent.executionGuidance, 'requiredCeilingField'),
+    false,
   );
   assert.doesNotMatch(JSON.stringify(structuredContent), /challenge|selectedRail/);
 });

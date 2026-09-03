@@ -28,27 +28,12 @@ import {
   OPEN_RELEASE_FINALIZATION_SCRIPTS,
   OPEN_RELEASE_INSTALL_ARGS,
 } from '../lib/open-release-finalization.mjs';
-import { GOVERNED_ASSET_WIDGET_URIS } from '../apps-sdk/widget-uris.mjs';
+import {
+  GOVERNED_ASSET_WIDGET_URIS,
+  INDEXTER_WIDGET_URIS,
+} from '../apps-sdk/widget-uris.mjs';
 
 const execFileAsync = promisify(execFile);
-
-const ANONYMOUS = [
-  'x402_search',
-  'x402_check',
-  'x402_access',
-  'x402_wallet',
-  'dexter_portfolio',
-];
-
-const PROMOTED = [
-  'x402_fetch',
-  'x402_status',
-  'dexter_prepare_asset_action',
-  'dexter_execute_asset_action',
-  'dexter_asset_action_status',
-  'dexter_reconcile_asset_action',
-  'dexter_wallet_history',
-];
 
 const CONNECTED = [
   'x402_search',
@@ -64,6 +49,9 @@ const CONNECTED = [
   'dexter_reconcile_asset_action',
   'dexter_wallet_history',
 ];
+
+const ANONYMOUS = [];
+const PROMOTED = CONNECTED;
 
 function descriptorSourceFixture(packageManager = 'npm@10.9.3') {
   const directory = mkdtempSync(join(tmpdir(), 'opendexter-source-fixture-'));
@@ -107,6 +95,7 @@ function descriptorFinalizationFixture() {
     kind: 'opendexter-hosted-tool-descriptors/v2',
     sourceContracts: { kind: 'opendexter-source-contracts/v3' },
     oauth: {
+      mode: 'required',
       resource: 'https://open.dexter.cash/mcp',
       authorizationServer: 'https://mcp.dexter.cash/mcp',
       authorizationServerMetadata:
@@ -189,9 +178,9 @@ test('--emit-json emits exactly one descriptor document and exits', () => {
   ]) {
     const tool = descriptor.tools.find((candidate) => candidate.name === name);
     assert.ok(tool, name);
-    assert.equal(tool._meta.ui.resourceUri, GOVERNED_ASSET_WIDGET_URIS.stockTrade);
-    assert.equal(tool._meta['ui/resourceUri'], GOVERNED_ASSET_WIDGET_URIS.stockTrade);
-    assert.equal(tool._meta['openai/outputTemplate'], GOVERNED_ASSET_WIDGET_URIS.stockTrade);
+    assert.equal(tool._meta.ui.resourceUri, GOVERNED_ASSET_WIDGET_URIS.action);
+    assert.equal(tool._meta['ui/resourceUri'], GOVERNED_ASSET_WIDGET_URIS.action);
+    assert.equal(tool._meta['openai/outputTemplate'], GOVERNED_ASSET_WIDGET_URIS.action);
     assert.equal(tool._meta['openai/resultCanProduceWidget'], true);
     assert.equal(tool._meta['openai/widgetAccessible'], false);
     assert.deepEqual(tool._meta.ui.visibility, ['model', 'app']);
@@ -205,9 +194,32 @@ test('--emit-json emits exactly one descriptor document and exits', () => {
   const history = descriptor.tools.find((candidate) =>
     candidate.name === 'dexter_wallet_history');
   assert.ok(history);
-  assert.equal(history._meta.ui.resourceUri, undefined);
+  assert.equal(history._meta.ui.resourceUri, GOVERNED_ASSET_WIDGET_URIS.history);
+  assert.equal(history._meta['ui/resourceUri'], GOVERNED_ASSET_WIDGET_URIS.history);
+  assert.equal(history._meta['openai/outputTemplate'], GOVERNED_ASSET_WIDGET_URIS.history);
+  assert.equal(history._meta['openai/resultCanProduceWidget'], true);
   assert.equal(history._meta['openai/widgetAccessible'], false);
-  assert.deepEqual(history._meta.ui.visibility, ['model']);
+  assert.deepEqual(history._meta.ui.visibility, ['model', 'app']);
+
+  const indexter = descriptor.tools.find((candidate) =>
+    candidate.name === 'x402_search');
+  assert.equal(indexter._meta.ui.resourceUri, INDEXTER_WIDGET_URIS.search);
+  assert.equal(indexter._meta['openai/widgetAccessible'], true);
+  const accessCheck = descriptor.tools.find((candidate) =>
+    candidate.name === 'x402_check');
+  assert.equal(accessCheck._meta['openai/widgetAccessible'], true);
+
+  for (const name of [
+    'x402_fetch',
+    'x402_status',
+    'x402_access',
+    'x402_wallet',
+    'dexter_portfolio',
+  ]) {
+    const tool = descriptor.tools.find((candidate) => candidate.name === name);
+    assert.ok(tool, name);
+    assert.equal(tool._meta['openai/widgetAccessible'], false, name);
+  }
 });
 
 test('descriptor archive preflight rejects visible and hidden checkout state before npm', async (t) => {
@@ -488,7 +500,7 @@ test('source materializer emits one deterministic full hosted descriptor', async
     descriptor.sourceContracts.mcp.tree,
   );
   assert.deepEqual(descriptor.oauth, {
-    mode: 'mixed',
+    mode: 'required',
     resource: 'https://open.dexter.cash/mcp',
     protectedResourceMetadata:
       'https://open.dexter.cash/.well-known/oauth-protected-resource/mcp',
@@ -509,10 +521,7 @@ test('source materializer emits one deterministic full hosted descriptor', async
   assert.deepEqual(descriptor.anonymousToolNames, ANONYMOUS);
   assert.deepEqual(descriptor.oauthPromotedToolNames, PROMOTED);
   assert.deepEqual(descriptor.connectedToolNames, CONNECTED);
-  assert.deepEqual(descriptor.optionalOAuthToolNames, [
-    'x402_check',
-    'x402_access',
-  ]);
+  assert.deepEqual(descriptor.optionalOAuthToolNames, []);
   assert.deepEqual(descriptor.tools.map((tool) => tool.name), CONNECTED);
 
   for (const tool of descriptor.tools) {
@@ -582,8 +591,8 @@ test('source materializer emits one deterministic full hosted descriptor', async
       (domain) => domain !== 'https://dexter.cash',
     ),
   );
-  assert.equal(search._meta['openai/toolInvocation/invoking'], 'Searching marketplace…');
-  assert.equal(search._meta['openai/toolInvocation/invoked'], 'Results ready');
+  assert.equal(search._meta['openai/toolInvocation/invoking'], 'Searching Indexter…');
+  assert.equal(search._meta['openai/toolInvocation/invoked'], 'Indexter results ready');
   assert.deepEqual(search._meta.securitySchemes, search.securitySchemes);
 
   const portfolio = descriptor.tools.find(
@@ -642,7 +651,7 @@ test('descriptor check is byte-exact and refuses schema or OAuth drift', async (
   );
 
   const oauthDrift = JSON.parse(expected);
-  oauthDrift.optionalOAuthToolNames = [];
+  oauthDrift.oauth.mode = 'mixed';
   writeFileSync(descriptorPath, `${JSON.stringify(oauthDrift, null, 2)}\n`);
   await assert.rejects(
     verifyOpenToolDescriptor({ descriptorPath, descriptor }),

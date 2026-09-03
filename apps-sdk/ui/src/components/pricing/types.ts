@@ -119,6 +119,7 @@ export type PricingPayload = {
   requiresPayment?: boolean;
   statusCode?: number;
   x402Version?: number;
+  authMode?: 'paid' | 'siwx' | 'apiKey' | 'apiKey+paid' | 'unprotected' | 'unknown';
   paymentOptions?: PaymentOption[];
   checkedRequest?: {
     url?: string;
@@ -128,10 +129,16 @@ export type PricingPayload = {
   };
   free?: boolean;
   authRequired?: boolean;
+  siwx?: {
+    recognized?: boolean;
+    signerAvailable?: boolean;
+  } | null;
   message?: string;
   error?: boolean | string;
   resource?: unknown;
   schema?: unknown;
+  inputSchema?: unknown;
+  outputSchema?: unknown;
   enrichment?: Enrichment | null;
   enrichment_source?: string;
 };
@@ -145,7 +152,7 @@ export type PricingInput = {
 
 /** Pick the most recent passed run from the recent[] slice, falling back to
  *  the absolute most recent run if none passed. The Professor card uses this
- *  as its source of truth — we want to show the best representative run. */
+ *  as its source of truth so we can show the best representative run. */
 export function pickPrimaryRun(rows: HistoryRow[] | undefined): HistoryRow | null {
   if (!rows || !rows.length) return null;
   const passed = rows.find((r) => r.final_status === 'pass' && typeof r.ai_score === 'number');
@@ -179,7 +186,7 @@ export function formatRelative(deltaMs: number): string {
 }
 
 export function formatBytes(bytes: number | null | undefined): string {
-  if (typeof bytes !== 'number' || !Number.isFinite(bytes)) return '—';
+  if (typeof bytes !== 'number' || !Number.isFinite(bytes)) return 'Unavailable';
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;

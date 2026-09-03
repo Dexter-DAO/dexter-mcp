@@ -2411,6 +2411,10 @@ test('an execute transport failure is one call and reconciliation-only', async (
   assert.equal(result.isError, true);
   const toolResult = buildGovernedAssetToolResult(result);
   assert.equal(toolResult.structuredContent, undefined);
+  assert.deepEqual(
+    toolResult._meta['dexter/governedWidgetResult'],
+    result.body,
+  );
   assert.equal(
     JSON.parse(toolResult.content[0].text).operationId,
     OPERATION_ID,
@@ -2691,6 +2695,10 @@ test('current Send refusal stops at Prepare with no executable continuation', as
   const toolResult = buildGovernedAssetToolResult(result);
   assert.equal(toolResult.isError, true);
   assert.equal(toolResult.structuredContent, undefined);
+  assert.deepEqual(
+    toolResult._meta['dexter/governedWidgetResult'],
+    result.body,
+  );
   assert.equal(JSON.parse(toolResult.content[0].text).code, code);
 });
 

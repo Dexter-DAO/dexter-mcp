@@ -1,5 +1,4 @@
 import { useEffect, useId, useState } from 'react';
-import { Button } from '@openai/apps-sdk-ui/components/Button';
 import type { SearchResource } from './types';
 import { SearchIdentityIcon } from './SearchIdentityIcon';
 import {
@@ -9,95 +8,83 @@ import {
 import { formatListedPrice, hostLabel } from './utils';
 
 export type SearchDecisionBriefCheckState =
-  | { status: 'idle'; resourceUrl?: null; message?: null }
-  | { status: 'checking'; resourceUrl?: string | null; message?: string | null }
-  | { status: 'details_sent'; resourceUrl?: string | null; message?: string | null }
-  | { status: 'checked'; resourceUrl?: string | null; message?: string | null }
-  | { status: 'error'; resourceUrl?: string | null; message: string };
+  | { status: 'idle'; resultOrdinal?: null; message?: null }
+  | { status: 'checking'; resultOrdinal?: number | null; message?: string | null }
+  | { status: 'details_sent'; resultOrdinal?: number | null; message?: string | null }
+  | { status: 'checked'; resultOrdinal?: number | null; message?: string | null }
+  | { status: 'error'; resultOrdinal?: number | null; message: string };
 
 export type SearchDecisionBriefProps = {
   resources: SearchResource[];
-  selectedUrl?: string | null;
+  selectedOrdinal?: number | null;
   checkState?: SearchDecisionBriefCheckState;
   onSelect: (resource: SearchResource) => void;
-  /**
-   * Advance the selected resource to its honest next step: either a fresh
-   * terms check or a chat handoff for missing request details. This component
-   * deliberately performs no payment action.
-   */
   onUseService: (resource: SearchResource) => void;
   onCompareAll: () => void;
   canCheckCurrentTerms?: boolean;
   canProvideDetailsInChat?: boolean;
   canCompare?: boolean;
+  interactionLocked?: boolean;
   heading?: string;
   alternativeLimit?: number;
 };
 
+function listedPrice(resource: SearchResource): string {
+  const summary = summarizeSearchResource(resource);
+  return formatListedPrice(
+    summary.priceLabel,
+    summary.priceUsdc,
+    summary.priceFallback,
+  );
+}
+
 export function SearchDecisionBrief({
   resources,
-  selectedUrl,
+  selectedOrdinal,
   checkState = { status: 'idle' },
   onSelect,
   onUseService,
-  onCompareAll,
   canCheckCurrentTerms = true,
   canProvideDetailsInChat = true,
   canCompare = true,
-  heading = 'Best match',
+  interactionLocked = false,
   alternativeLimit = 3,
 }: SearchDecisionBriefProps) {
   const headingId = useId();
   const [showAllAlternatives, setShowAllAlternatives] = useState(false);
+
   useEffect(() => {
     setShowAllAlternatives(false);
   }, [resources]);
+
   const decision = buildSearchDecision(
     resources,
-    selectedUrl,
+    selectedOrdinal,
     showAllAlternatives ? resources.length : alternativeLimit,
   );
 
   if (!decision.recommended || !decision.actionTarget) {
     return (
-      <section
-        className="rounded-2xl border border-subtle bg-surface px-4 py-6 text-center"
-        aria-labelledby={headingId}
-      >
-        <h2 id={headingId} className="text-base font-semibold text-primary">
-          No matching services
-        </h2>
-        <p className="mt-1 text-sm leading-5 text-secondary">
-          Try describing the outcome you need in a different way.
-        </p>
+      <section className="dx-search-brief dx-search-brief--empty" aria-labelledby={headingId}>
+        <h2 id={headingId}>No matching capabilities</h2>
+        <p>Describe the result you need in a different way.</p>
       </section>
     );
   }
 
-  const {
-    recommended,
-    recommendationKind,
-    actionTarget,
-    alternatives,
-  } =
-    decision;
-  const displayedSummary = summarizeSearchResource(actionTarget);
-  const displayedPrice = formatListedPrice(
-    displayedSummary.priceLabel,
-    displayedSummary.priceUsdc,
-    displayedSummary.priceFallback,
-  );
-  const isShowingRecommendation = actionTarget.url === recommended.url;
-  const leadingLabel =
-    recommendationKind === 'related' ? 'Closest match' : 'Recommended';
+  const { recommended, recommendationKind, actionTarget, alternatives } = decision;
+  const actionTargetOrdinal = resources.indexOf(actionTarget) + 1;
+  const summary = summarizeSearchResource(actionTarget);
+  const price = listedPrice(actionTarget);
+  const isRecommended = actionTargetOrdinal === 1;
   const relevantCheckState =
-    !checkState.resourceUrl || checkState.resourceUrl === actionTarget.url
+    !checkState.resultOrdinal || checkState.resultOrdinal === actionTargetOrdinal
       ? checkState
       : { status: 'idle' as const };
   const isChecking = relevantCheckState.status === 'checking';
   const detailsSent = relevantCheckState.status === 'details_sent';
   const hasCurrentTerms = relevantCheckState.status === 'checked';
-  const resourceAction = displayedSummary.action;
+  const resourceAction = summary.action;
   const canPerformAction = !resourceAction.disabled && (
     resourceAction.kind === 'provide_details'
       ? canProvideDetailsInChat
@@ -105,248 +92,157 @@ export function SearchDecisionBrief({
         ? canCheckCurrentTerms
         : false
   );
-  const unavailableInHost =
-    !resourceAction.disabled && !canPerformAction;
+  const unavailableInHost = !resourceAction.disabled && !canPerformAction;
+  const selectionLabel = isRecommended && !selectedOrdinal
+    ? (recommendationKind === 'related' ? 'Closest match' : 'Recommended')
+    : 'Selected';
 
   return (
     <section
-      className={`dx-search-brief overflow-hidden rounded-2xl border border-default bg-surface ${
-        hasCurrentTerms ? 'dx-search-brief--confirmed' : ''
-      }`}
+      className={`dx-search-brief${hasCurrentTerms ? ' dx-search-brief--confirmed' : ''}`}
       aria-labelledby={headingId}
     >
-      <div className="dx-search-brief__recommendation p-4 sm:p-5">
-        <div className="dx-search-brief__identity flex items-start gap-3">
+      <div className="dx-search-brief__recommendation">
+        <div className="dx-search-brief__identity">
           <SearchIdentityIcon resource={actionTarget} size={44} />
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="dx-search-brief__badge">
-                {isShowingRecommendation ? leadingLabel : 'Selected'}
-              </span>
-              <span
-                className="dx-search-brief__badge dx-search-brief__badge--evidence"
-                data-basis={displayedSummary.evidenceBasis ?? 'none'}
-                title={displayedSummary.evidenceLabel}
-              >
-                {displayedSummary.evidenceBadgeLabel}
-              </span>
-              {resourceAction.disabled && (
-                <span className="dx-search-brief__badge">
-                  {resourceAction.label}
-                </span>
-              )}
-            </div>
-            <h2
-              id={headingId}
-              className="dx-search-brief__title mt-2 truncate text-lg font-semibold leading-6 text-primary"
-            >
+          <div className="dx-search-brief__identity-copy">
+            <h2 id={headingId} className="dx-search-brief__title">
               {actionTarget.name}
             </h2>
-            <p className="mt-0.5 truncate text-xs text-tertiary">
-              {isShowingRecommendation
-                ? recommendationKind === 'related'
-                  ? 'Closest related match'
-                  : heading
-                : 'Selected alternative'} ·{' '}
-              {hostLabel(actionTarget.url)}
-            </p>
+            <div className="dx-search-brief__standing">
+              <span>{selectionLabel}</span>
+              <span>{summary.evidenceBadgeLabel}</span>
+            </div>
+            <p className="dx-search-brief__host">{hostLabel(actionTarget.url)}</p>
           </div>
-          {hasCurrentTerms && canCompare && resources.length > 1 && (
-            <Button
-              className="dx-search-brief__change"
-              color="secondary"
-              variant="soft"
-              size="sm"
-              onClick={onCompareAll}
-              aria-label="Change service"
-            >
-              <span className="dx-search-brief__change-wide">Change service</span>
-              <span className="dx-search-brief__change-compact" aria-hidden="true">
-                Change
-              </span>
-            </Button>
-          )}
         </div>
 
-        {displayedSummary.safetyWarning && (
-          <p className="dx-search-safety-note mt-4" role="note">
-            {displayedSummary.safetyWarning}
-          </p>
-        )}
-
-        {!hasCurrentTerms && (
+        {!hasCurrentTerms ? (
           <>
-            <p className="dx-search-brief__why mt-4 line-clamp-3 text-sm leading-6 text-secondary">
-              {displayedSummary.why}
-            </p>
+            <p className="dx-search-brief__why">{summary.why}</p>
 
-            <dl className="dx-search-brief__facts mt-4 grid grid-cols-2 gap-3 border-t border-subtle pt-4">
+            {summary.safetyWarning ? (
+              <p className="dx-search-safety-note" role="note">
+                {summary.safetyWarning}
+              </p>
+            ) : null}
+
+            <dl className="dx-search-brief__facts">
               <div>
-                <dt className="text-xs text-tertiary">Listed price</dt>
-                <dd className="mt-0.5 text-sm font-semibold text-primary">
-                  {displayedPrice}
-                </dd>
+                <dt>Price</dt>
+                <dd>{price}</dd>
               </div>
               <div>
-                <dt className="text-xs text-tertiary">Network</dt>
-                <dd className="mt-0.5 text-sm font-semibold text-primary">
-                  {displayedSummary.networkLabel}
-                </dd>
+                <dt>Quality</dt>
+                <dd>{summary.qualityScore === null ? 'Not scored' : `${summary.qualityScore}/100`}</dd>
               </div>
               <div>
-                <dt className="text-xs text-tertiary">Quality</dt>
-                <dd className="mt-0.5 text-sm font-semibold text-primary">
-                  {displayedSummary.qualityScore === null
-                    ? 'Not scored'
-                    : `${displayedSummary.qualityScore}/100`}
-                </dd>
+                <dt>Network</dt>
+                <dd>{summary.networkLabel}</dd>
               </div>
               <div>
-                <dt className="text-xs text-tertiary">Next step</dt>
-                <dd className="mt-0.5 text-sm font-semibold text-primary">
-                  {resourceAction.label}
-                </dd>
-              </div>
-              <div className="col-span-2">
-                <dt className="text-xs text-tertiary">Evidence</dt>
-                <dd className="mt-0.5 text-sm font-semibold text-primary">
-                  {displayedSummary.evidenceLabel}
-                </dd>
+                <dt>Evidence</dt>
+                <dd>{summary.evidenceLabel}</dd>
               </div>
             </dl>
+
+            <div className="dx-search-brief__actions">
+              <button
+                type="button"
+                className="dx-search-primary-action"
+                onClick={() => onUseService(actionTarget)}
+                aria-busy={isChecking}
+                aria-label={`${resourceAction.label} for ${actionTarget.name}`}
+                disabled={
+                  isChecking
+                  || interactionLocked
+                  || detailsSent
+                  || resourceAction.disabled
+                  || !canPerformAction
+                }
+              >
+                {resourceAction.disabled
+                  ? resourceAction.label
+                  : unavailableInHost
+                    ? 'Unavailable in this host'
+                    : isChecking
+                      ? resourceAction.kind === 'provide_details'
+                        ? 'Opening chat…'
+                        : 'Checking live terms…'
+                      : detailsSent
+                        ? 'Opened in chat'
+                        : relevantCheckState.status === 'error'
+                          ? 'Try again'
+                          : resourceAction.label}
+                <span aria-hidden>{price}</span>
+              </button>
+            </div>
+
+            <p
+              className={`dx-search-brief__action-note${relevantCheckState.status === 'error' ? ' dx-search-brief__action-note--error' : ''}`}
+              aria-live="polite"
+            >
+              {resourceAction.disabled
+                ? resourceAction.helperText
+                : unavailableInHost
+                  ? resourceAction.kind === 'provide_details'
+                    ? "This host can't continue the request in chat."
+                    : "This host can't check current terms from the widget."
+                  : relevantCheckState.status === 'error'
+                    ? relevantCheckState.message
+                    : relevantCheckState.status === 'checking'
+                      ? relevantCheckState.message || 'Checking the current terms…'
+                      : relevantCheckState.status === 'details_sent'
+                        ? relevantCheckState.message || 'Continue in chat to provide the missing request details.'
+                        : resourceAction.helperText}
+            </p>
           </>
-        )}
+        ) : null}
       </div>
 
-      {!hasCurrentTerms && alternatives.length > 0 && (
-        <fieldset className="dx-search-brief__alternatives border-t border-subtle px-4 py-4 sm:px-5">
-          <legend className="px-1 text-xs font-medium text-tertiary">
-            Other options
-          </legend>
-          <ul className="dx-search-brief__alternative-list mt-1 space-y-2">
+      {!hasCurrentTerms && alternatives.length > 0 ? (
+        <div className="dx-search-brief__alternatives">
+          <p className="dx-search-brief__alternatives-title">Other results</p>
+          <ul className="dx-search-brief__alternative-list">
             {alternatives.map((resource) => {
-              const summary = summarizeSearchResource(resource);
-              const listedPrice = formatListedPrice(
-                summary.priceLabel,
-                summary.priceUsdc,
-                summary.priceFallback,
-              );
-              const isLeading = resource.url === recommended.url;
+              const alternativeSummary = summarizeSearchResource(resource);
+              const status = resource === recommended
+                ? recommendationKind === 'related' ? 'Closest match' : 'Recommended'
+                : resource.tier === 'related' ? 'Related' : null;
 
               return (
-                <li key={resource.resourceId || resource.url}>
+                <li key={`${resource.resourceId || resource.url}:${resources.indexOf(resource)}`}>
                   <button
                     type="button"
                     onClick={() => onSelect(resource)}
-                    className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-subtle px-3 py-2.5 transition-colors hover:bg-surface-secondary"
+                    disabled={interactionLocked}
                   >
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium text-primary">
-                        {resource.name}
-                      </span>
-                      <span className="block truncate text-xs text-tertiary">
-                        {isLeading ? `${leadingLabel} · ` : ''}
-                        {hostLabel(resource.url)}
-                      </span>
+                    <SearchIdentityIcon resource={resource} size={32} />
+                    <span className="dx-search-brief__alternative-copy">
+                      <strong>{resource.name}</strong>
+                      <small>{status ? `${status} · ` : ''}{hostLabel(resource.url)}</small>
                     </span>
-                    <span className="shrink-0 text-right">
-                      <span className="block text-sm font-medium text-primary">
-                        {listedPrice}
-                      </span>
-                      <span className="block text-xs text-tertiary">
-                        {summary.action.label}
-                      </span>
-                    </span>
-                    <span
-                      className="dx-search-brief__choice"
-                      aria-hidden="true"
-                    >
-                      ›
+                    <span className="dx-search-brief__alternative-evidence">
+                      <strong>{listedPrice(resource)}</strong>
+                      <small>{alternativeSummary.qualityScore === null ? 'Unscored' : `${alternativeSummary.qualityScore}/100`}</small>
                     </span>
                   </button>
                 </li>
               );
             })}
           </ul>
-          {!canCompare && decision.hiddenAlternativeCount > 0 && (
+          {!canCompare && decision.hiddenAlternativeCount > 0 ? (
             <button
               type="button"
               className="dx-search-brief__show-more"
               onClick={() => setShowAllAlternatives(true)}
+              disabled={interactionLocked}
             >
               Show {decision.hiddenAlternativeCount} more
             </button>
-          )}
-        </fieldset>
-      )}
-
-      {!hasCurrentTerms && (
-        <footer className="dx-search-brief__footer border-t border-subtle bg-surface-secondary px-4 py-4 sm:px-5">
-          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            {canCompare && resources.length > 1 && (
-              <Button
-                color="secondary"
-                variant="soft"
-                size="sm"
-                onClick={onCompareAll}
-              >
-                Compare all
-              </Button>
-            )}
-            <Button
-              className="dx-search-primary-action"
-              color="primary"
-              variant="solid"
-              size="sm"
-              onClick={() => onUseService(actionTarget)}
-              aria-busy={isChecking}
-              aria-label={`${resourceAction.label} for ${actionTarget.name}`}
-              disabled={
-                isChecking
-                || detailsSent
-                || resourceAction.disabled
-                || !canPerformAction
-              }
-            >
-              {resourceAction.disabled
-                ? resourceAction.label
-                : unavailableInHost
-                ? 'Unavailable in this host'
-                : isChecking
-                ? resourceAction.kind === 'provide_details'
-                  ? 'Opening chat…'
-                  : 'Checking live terms…'
-                : detailsSent
-                  ? 'Opened in chat'
-                : relevantCheckState.status === 'error'
-                  ? 'Try again'
-                  : resourceAction.label}
-            </Button>
-          </div>
-
-          <div className="mt-3 text-xs leading-5 text-tertiary" aria-live="polite">
-            {resourceAction.disabled ? (
-              <p>{resourceAction.helperText}</p>
-            ) : unavailableInHost ? (
-              <p>
-                {resourceAction.kind === 'provide_details'
-                  ? 'This host can’t continue the request in chat.'
-                  : 'This host can’t check current terms from the widget.'}
-              </p>
-            ) : relevantCheckState.status === 'error' ? (
-              <p className="text-danger" role="alert">
-                {relevantCheckState.message}
-              </p>
-            ) : relevantCheckState.status === 'checking' ? (
-              <p>{relevantCheckState.message || 'Confirming the current terms…'}</p>
-            ) : relevantCheckState.status === 'details_sent' ? (
-              <p>{relevantCheckState.message || 'Continue in chat to provide the missing request details.'}</p>
-            ) : (
-              <p>{resourceAction.helperText}</p>
-            )}
-          </div>
-        </footer>
-      )}
+          ) : null}
+        </div>
+      ) : null}
     </section>
   );
 }

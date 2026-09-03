@@ -16,9 +16,9 @@ interface Props {
  * The "what is this thing" header.
  *
  * Composes: favicon (from icon_url) + display_name + meta line
- * (category · host · hit count). Title falls back through catalog name →
- * catalog host → the 402 resource URL's host+path → the 402 resource
- * description → "Unknown endpoint", so a live 402 with no catalog entry still
+ * (category · host · hit count). Title falls back through catalog name,
+ * catalog host, the 402 resource URL's host and path, and the 402 resource
+ * description before "Unknown endpoint", so a live 402 with no catalog entry still
  * gets a real title instead of "Unknown endpoint".
  */
 export function ResourceIdentity({ resource, fallbackUrl, resourceRef }: Props) {
@@ -44,8 +44,8 @@ export function ResourceIdentity({ resource, fallbackUrl, resourceRef }: Props) 
 
   return (
     <div className="dx-pricing__identity">
-      <div className="dx-pricing__identity-icon">
-        {icon ? (
+      {icon ? (
+        <div className="dx-pricing__identity-icon">
           <img
             src={icon}
             alt=""
@@ -64,10 +64,8 @@ export function ResourceIdentity({ resource, fallbackUrl, resourceRef }: Props) 
               }));
             }}
           />
-        ) : (
-          <div className="dx-pricing__identity-icon-placeholder" aria-hidden />
-        )}
-      </div>
+        </div>
+      ) : null}
       <div className="dx-pricing__identity-text">
         <h1 className="dx-pricing__identity-name">{name}</h1>
         {meta ? <p className="dx-pricing__identity-meta">{meta}</p> : null}
@@ -116,7 +114,7 @@ function hostFromUrl(url: string | null): string | null {
   }
 }
 
-/** host + path (no scheme, no query) — e.g. "api.example.com/v1/price". */
+/** Host plus path with no scheme or query, for example "api.example.com/v1/price". */
 function hostPath(url: string | null): string | null {
   if (!url) return null;
   try {

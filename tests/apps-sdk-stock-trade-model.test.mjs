@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   formatAtomicDecimal,
+  normalizeGovernedHistory,
   normalizeStockTrade,
 } from '../apps-sdk/ui/src/components/stock-trade/stock-trade-model.ts';
 import {
@@ -95,10 +96,11 @@ test('normalizes a share-quantity preview without claiming a purchase', () => {
   const model = normalizeStockTrade(preparedPayload());
 
   assert.ok(model);
+  assert.equal(model.operation, 'prepare');
   assert.equal(model.stage, 'prepared');
-  assert.equal(model.stageLabel, 'Preview');
+  assert.equal(model.stageLabel, 'Prepared');
   assert.equal(model.headline, 'Buy 10 shares of SpaceX');
-  assert.match(model.supporting, /prepared, not yet bought/i);
+  assert.equal(model.supporting, 'This exact action is prepared. Nothing has been signed or submitted.');
   assert.equal(model.requestedShareQuantity, '10');
   assert.equal(model.expectedShareQuantity, '10.05');
   assert.equal(model.minimumShareQuantity, '10.006782');
@@ -114,10 +116,11 @@ test('confirmed signature plus successful execution is success', () => {
   const model = normalizeStockTrade(executionPayload());
 
   assert.ok(model);
+  assert.equal(model.operation, 'execute');
   assert.equal(model.stage, 'success');
   assert.equal(model.stageLabel, 'Confirmed');
-  assert.equal(model.headline, '10-share SpaceX purchase confirmed');
-  assert.match(model.supporting, /Dexter reports that execution succeeded/);
+  assert.equal(model.headline, '10 shares of SpaceX bought');
+  assert.match(model.supporting, /successful execution/);
   assert.equal(model.confirmationCommitment, 'confirmed');
   assert.equal(model.executionSucceeded, true);
   assert.equal(model.transactionSignature, SIGNATURE);
@@ -129,8 +132,9 @@ test('status reconnect restores the exact 10-share SpaceX receipt terms', () => 
   const model = normalizeStockTrade(statusPayload());
 
   assert.ok(model);
+  assert.equal(model.operation, 'status');
   assert.equal(model.stage, 'success');
-  assert.equal(model.headline, '10-share SpaceX purchase confirmed');
+  assert.equal(model.headline, '10 shares of SpaceX bought');
   assert.equal(model.requestedShareQuantity, '10');
   assert.equal(model.minimumShareQuantity, '10.006782');
   assert.equal(model.requestedMaximumSpend, '1,500');
@@ -146,8 +150,9 @@ test('reconcile reconnect reads the durable terms from statusAfter', () => {
   });
 
   assert.ok(model);
+  assert.equal(model.operation, 'reconcile');
   assert.equal(model.stage, 'success');
-  assert.equal(model.headline, '10-share SpaceX purchase confirmed');
+  assert.equal(model.headline, '10 shares of SpaceX bought');
   assert.equal(model.expectedShareQuantity, '10.05');
   assert.equal(model.fees?.networkFeeStatus, 'not-yet-calculated');
 });
@@ -366,9 +371,150 @@ test('sell preview uses sell wording and token-denominated proceeds', () => {
   const model = normalizeStockTrade(payload);
 
   assert.ok(model);
-  assert.equal(model.headline, 'Sell SpaceX');
-  assert.equal(model.supporting, 'Review the exact Solana asset and quote. This is prepared, not yet sold.');
+  assert.equal(model.headline, 'Sell 2 SPCX of SpaceX');
+  assert.equal(model.supporting, 'This exact action is prepared. Nothing has been signed or submitted.');
   assert.equal(model.inputAssetAmount, '2');
   assert.equal(model.expectedOutput, '265');
   assert.equal(model.minimumOutput, '262');
+});
+
+test('prepared Send leads with exact amount and destination without claiming dispatch', () => {
+  const payload = preparedPayload();
+  payload.preview.action = 'send';
+  payload.preview.amountAtomic = '2500000';
+  payload.preview.maximumInputAmountAtomic = '2500000';
+  payload.preview.destinationOwner = '11111111111111111111111111111111';
+  payload.preview.productIdentity = {
+    ...payload.preview.productIdentity,
+    assetId: 'usdc',
+    assetClass: 'cash',
+    companyName: null,
+    productName: 'USD Coin',
+    symbol: 'USDC',
+    providerName: null,
+    legalIssuerName: null,
+    issuer: 'Circle',
+    decimals: 6,
+  };
+
+  const model = normalizeStockTrade(payload);
+
+  assert.ok(model);
+  assert.equal(model.action, 'send');
+  assert.equal(model.stage, 'prepared');
+  assert.equal(model.amountDisplay, '2.5');
+  assert.equal(model.amountUnit, 'USDC');
+  assert.equal(model.destinationOwner, '11111111111111111111111111111111');
+  assert.equal(model.headline, 'Send 2.5 USDC to 11111...11111');
+  assert.equal(model.submitted, null);
+});
+
+test('history Send keeps exact base units when durable status has no certified decimals', () => {
+  const model = normalizeStockTrade({
+    namespace: 'dexter-governed-transaction-status/v1',
+    status: 'confirmed',
+    intentId: '33333333-3333-4333-8333-333333333333',
+    action: 'send',
+    assetId: 'usdc',
+    assetMint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+    tokenProgram: 'spl-token',
+    amountAtomic: '2500000',
+    destinationOwner: '11111111111111111111111111111111',
+    transactionSignature: SIGNATURE,
+    confirmationCommitment: 'confirmed',
+    executionSucceeded: true,
+  });
+
+  assert.ok(model);
+  assert.equal(model.operation, 'status');
+  assert.equal(model.stage, 'success');
+  assert.equal(model.amountDisplay, '2,500,000');
+  assert.equal(model.amountUnit, 'usdc base units');
+  assert.equal(model.headline, '2,500,000 usdc base units sent to 11111...11111');
+});
+
+test('owner approval remains out of band and visible in the model', () => {
+  const payload = preparedPayload();
+  payload.approval = {
+    status: 'owner-approval-required',
+    reasons: ['counterparty_requires_owner'],
+  };
+
+  const model = normalizeStockTrade(payload);
+
+  assert.ok(model);
+  assert.equal(model.approvalRequired, true);
+  assert.equal(model.ownerDecision, 'pending');
+  assert.deepEqual(model.approvalReasons, ['counterparty_requires_owner']);
+});
+
+test('ambiguous execution requires same-intent reconciliation and forbids execute retry', () => {
+  const payload = statusPayload({
+    status: 'ambiguous',
+    confirmationCommitment: null,
+    executionSucceeded: null,
+    reconciliationRequired: true,
+    canReconcile: true,
+    submitted: true,
+    replay: {
+      statusReadSafe: true,
+      reconcileSameAttemptOnly: true,
+      executeFromStatusForbidden: true,
+    },
+  });
+
+  const model = normalizeStockTrade(payload);
+
+  assert.ok(model);
+  assert.equal(model.stage, 'pending');
+  assert.equal(model.stageLabel, 'Outcome unknown');
+  assert.equal(model.recovery.kind, 'reconcile');
+  assert.match(model.recovery.sentence, /Do not execute again/);
+  assert.equal(model.reconcileSameAttemptOnly, true);
+  assert.equal(model.executeFromStatusForbidden, true);
+});
+
+test('execute transport uncertainty never becomes a failed or retryable transaction', () => {
+  const model = normalizeStockTrade({
+    namespace: 'opendexter-governed-backend-failure/v1',
+    operation: 'execute',
+    status: 'unknown',
+    operationId: 'operation-1234',
+    intentId: '33333333-3333-4333-8333-333333333333',
+    code: 'governed_backend_transport_failed',
+    explanation: 'The execute request may have reached Dexter, but no result was received.',
+    retry: 'reconcile_same_intent_only',
+  });
+
+  assert.ok(model);
+  assert.equal(model.operation, 'execute');
+  assert.equal(model.stage, 'pending');
+  assert.equal(model.stageLabel, 'Outcome unknown');
+  assert.equal(model.recovery.kind, 'reconcile');
+  assert.match(model.recovery.sentence, /same intent only/);
+});
+
+test('history normalizes every valid action and keeps pagination opaque', () => {
+  const stock = dynamicStockV2Fixture(
+    'tesla',
+    '019f981c-9215-7141-84f2-d89ffe9cbece',
+  ).status;
+  const pending = statusPayload({
+    status: 'submitted',
+    confirmationCommitment: null,
+    executionSucceeded: null,
+  });
+  const history = normalizeGovernedHistory({
+    namespace: 'dexter-governed-transaction-history/v1',
+    items: [stock, pending],
+    nextCursor: 'opaque-next-page',
+  });
+
+  assert.ok(history);
+  assert.equal(history.items.length, 2);
+  assert.equal(history.items[0].headline, '1.25 shares of Tesla, Inc. bought');
+  assert.equal(history.items[1].stage, 'pending');
+  assert.equal(history.hasMore, true);
+  assert.equal(history.nextCursor, 'opaque-next-page');
+  assert.equal(history.omittedItems, 0);
 });

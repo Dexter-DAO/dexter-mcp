@@ -74,7 +74,7 @@ test('served guidance requires native OAuth and bounded nonretryable spending', 
       /\bvpair\b|pairing_url|surface (?:the|a) pairing URL|\/mcp\/dlt_/i,
     );
   }
-  assert.match(WORKFLOW, /native Connect\/OAuth action/);
+  assert.match(WORKFLOW, /requires host-native OAuth before tool discovery or use/);
   assert.match(WORKFLOW, /maxAmountAtomic/);
   assert.match(
     WORKFLOW,
@@ -146,8 +146,7 @@ test('generated runtime instructions route the complete twelve-tool product', ()
   const runtime = buildOpenServerInstructions();
 
   assert.deepEqual(mentionedOpenDexterTools(runtime), [...EXPECTED_TOOLS].sort());
-  assert.match(runtime, /Set up, connect, sign in to, authenticate, authorize,[\s\S]*call x402_wallet first/);
-  assert.match(runtime, /before marketplace search or another protected tool/);
+  assert.match(runtime, /Set up, connect, sign in to, authenticate, authorize,[\s\S]*native OpenDexter authorization[\s\S]*x402_wallet/);
   assert.match(runtime, /Wallet presence, balance, cash, readiness, deposit address,[\s\S]*x402_wallet/);
   assert.match(runtime, /What's in my wallet\?[\s\S]*x402_wallet, then dexter_portfolio/);
   assert.match(runtime, /Compose cash\/readiness with governed assets/);
@@ -168,11 +167,10 @@ test('generated runtime instructions preserve exact consequence and recovery bou
   const runtime = buildOpenServerInstructions();
 
   assert.match(runtime, /non-GET check,[\s\S]*provider may process the request[\s\S]*obtain confirmation/);
-  assert.match(runtime, /Connect before the first non-GET check/);
-  assert.match(runtime, /Never automatically repeat a non-GET check after any anonymous or uncertain provider submission/);
+  assert.match(runtime, /Never automatically repeat a non-GET check after an uncertain provider submission/);
   assert.match(runtime, /second non-GET call[\s\S]*requires fresh explicit confirmation[\s\S]*duplicate submission/);
   assert.match(runtime, /non-GET access call may change provider state[\s\S]*explain and confirm/);
-  assert.match(runtime, /anonymous paid GET check is a quote, not an executable purchase/);
+  assert.match(runtime, /purchasable paid check returns an opaque intentId bound to the authenticated session/);
   assert.match(runtime, /current instruction or existing bounded policy covers the exact seller, URL, method, body,[\s\S]*maxAmountAtomic/);
   assert.match(runtime, /If it already does, do not ask for another payment approval/);
   assert.match(runtime, /x402_fetch once with only intentId and maxAmountAtomic/);
@@ -198,9 +196,11 @@ test('generated runtime instructions preserve exact consequence and recovery bou
 test('generated runtime instructions preserve current wallet and authority truth', () => {
   const runtime = buildOpenServerInstructions();
 
+  assert.match(runtime, /requires OpenDexter OAuth before initialization or tool discovery/);
   assert.match(runtime, /native OpenDexter Connect action/);
-  assert.match(runtime, /Connected label[\s\S]*wallet authorization is proven only by a successful protected tool call/);
-  assert.match(runtime, /Connected appears without authorization[\s\S]*call x402_wallet once more/);
+  assert.match(runtime, /complete twelve-tool roster/);
+  assert.match(runtime, /Connected label[\s\S]*successful authenticated tool discovery or a successful tool call proves wallet authorization/);
+  assert.match(runtime, /Connected appears without authorization[\s\S]*plugin or integration settings/);
   assert.match(runtime, /plugin or integration settings[\s\S]*Authorize or Authenticate/);
   assert.match(runtime, /never claim that a confirmation card appeared/);
   assert.match(runtime, /Authentication proves the connected wallet session; it does not by itself authorize/);
@@ -240,7 +240,7 @@ test('generated runtime instructions contain one coherent hosted contract withou
   for (const heading of [
     '# Route the user\'s request',
     '# Connect and identity',
-    '# Discover and use x402 services',
+    '# Discover with Indexter and use x402 services',
     '# Wallet and governed assets',
     '# Finality and global safety',
   ]) {

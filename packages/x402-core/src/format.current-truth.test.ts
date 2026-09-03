@@ -132,6 +132,7 @@ describe('current capability truth projection', () => {
     expect(buildSearchResponse(result).tip).toContain('requires a pre-check review');
     expect(buildSearchResponse(result).tip).toContain('provider-reservation warning');
     expect(buildSearchResponse(result).tip).toContain('do not ask twice');
+    expect(buildSearchResponse(result).source).toBe('Indexter');
   });
 
   it('keeps raw search diagnostics out of model-visible errors', () => {
@@ -140,6 +141,10 @@ describe('current capability truth projection', () => {
     );
 
     expect(response.searchMeta.mode).toBe('error');
+    expect(response.searchMeta.note).toBe(
+      'Indexter is temporarily unavailable. Please try again in a moment.',
+    );
+    expect(response.source).toBe('Indexter');
     expect(response).not.toHaveProperty('errorDetail');
     expect(JSON.stringify(response)).not.toContain('upstream_secret');
   });

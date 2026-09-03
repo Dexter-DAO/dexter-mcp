@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4771 950" role="img" aria-label="Indexter">
+  <!-- Indexter wordmark. Set in Orbitron Black (real glyph outlines).
+       Capital I, lowercase rest. Diagonal steel-band fill (hard-stop
+       45-degree gradient) with a faint cool glow. Sibling construction
+       to the Instinct and Dexterity marks. -->
+  <defs>
+    <linearGradient id="steel" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0.00" stop-color="#e8eaed"/>
+      <stop offset="0.20" stop-color="#e8eaed"/>
+      <stop offset="0.20" stop-color="#9aa1ab"/>
+      <stop offset="0.40" stop-color="#9aa1ab"/>
+      <stop offset="0.40" stop-color="#f4f6f8"/>
+      <stop offset="0.58" stop-color="#f4f6f8"/>
+      <stop offset="0.58" stop-color="#767d88"/>
+      <stop offset="0.76" stop-color="#767d88"/>
+      <stop offset="0.76" stop-color="#c7ccd3"/>
+      <stop offset="1.00" stop-color="#c7ccd3"/>
+    </linearGradient>
+    <filter id="xg" x="-25%" y="-25%" width="150%" height="150%">
+      <feDropShadow dx="0" dy="0" stdDeviation="20" flood-color="#aab2bd" flood-opacity="0.4"/>
+    </filter>
+  </defs>
+  <g filter="url(#xg)" fill="url(#steel)"
+     transform="translate(59.0,860.0) scale(1,-1)">
+    <path transform="translate(0,0)" d="M31 0V720H184V0Z"/>
+    <path transform="translate(214,0)" d="M54 0V580H497Q537 580 570.0 560.0Q603 540 622.5 507.0Q642 474 642 435V0H489V427Q489 427 489.0 427.0Q489 427 489 427H207Q207 427 207.0 427.0Q207 427 207 427V0Z"/>
+    <path transform="translate(910,0)" d="M168 0Q128 0 95.0 20.0Q62 40 42.5 73.0Q23 106 23 145V435Q23 474 42.5 507.0Q62 540 95.0 560.0Q128 580 168 580H459V770H612V0H168ZM177 153H459Q459 153 459.0 153.0Q459 153 459 153V427Q459 427 459.0 427.0Q459 427 459 427H177Q177 427 177.0 427.0Q177 427 177 427V153Q177 153 177.0 153.0Q177 153 177 153Z"/>
+    <path transform="translate(1577,0)" d="M196 0Q157 0 124.0 20.0Q91 40 71.0 73.0Q51 106 51 145V435Q51 474 71.0 507.0Q91 540 124.0 560.0Q157 580 196 580H494Q534 580 567.0 560.0Q600 540 619.5 507.0Q639 474 639 435V213H204V153Q204 153 204.0 153.0Q204 153 204 153H639V0H196ZM204 347H486V427Q486 427 486.0 427.0Q486 427 486 427H204Q204 427 204.0 427.0Q204 427 204 427Z"/>
+    <path transform="translate(2269,0)" d="M46 0V50L246 295L46 530V580H203L345 412L486 580H644V530L444 295L644 50V0H487L345 174L203 0Z"/>
+    <path transform="translate(2961,0)" d="M199 0Q159 0 126.0 20.0Q93 40 73.0 73.0Q53 106 53 145V752H206V580H421V427H206V153Q206 153 206.0 153.0Q206 153 206 153H421V0H199Z"/>
+    <path transform="translate(3412,0)" d="M196 0Q157 0 124.0 20.0Q91 40 71.0 73.0Q51 106 51 145V435Q51 474 71.0 507.0Q91 540 124.0 560.0Q157 580 196 580H494Q534 580 567.0 560.0Q600 540 619.5 507.0Q639 474 639 435V213H204V153Q204 153 204.0 153.0Q204 153 204 153H639V0H196ZM204 347H486V427Q486 427 486.0 427.0Q486 427 486 427H204Q204 427 204.0 427.0Q204 427 204 427Z"/>
+    <path transform="translate(4104,0)" d="M52 0V435Q52 474 72.0 507.0Q92 540 125.0 560.0Q158 580 198 580H518V427H205Q205 427 205.0 427.0Q205 427 205 427V0Z"/>
+  </g>
+</svg>

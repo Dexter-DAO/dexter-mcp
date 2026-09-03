@@ -2,13 +2,14 @@ import '../styles/sdk.css';
 import '../styles/widgets/stock-trade.css';
 
 import { createRoot } from 'react-dom/client';
-import { StockTradeCard } from '../components/stock-trade/StockTradeCard';
+import { GovernedActionView } from '../components/governed-action';
 
-const root = document.getElementById('stock-trade-root');
+const root = document.getElementById('governed-action-root')
+  ?? document.getElementById('stock-trade-root');
 
 if (root) {
-  root.dataset.widgetBuild = '2026-08-22.xstocks-provider-identity';
-  createRoot(root).render(<StockTradeCard />);
+  root.dataset.widgetBuild = '2026-09-03.governed-action';
+  createRoot(root).render(<GovernedActionView />);
 }
 
-export default StockTradeCard;
+export default GovernedActionView;

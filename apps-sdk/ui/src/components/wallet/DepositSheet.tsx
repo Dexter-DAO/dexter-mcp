@@ -7,14 +7,14 @@ import { CopyIcon } from './icons';
  * Read-only receive sheet. This slice exposes the real Solana receive address
  * and nothing that buys, sells, sends, or mutates a provider.
  *
- * ACTIVATION — GROUND TRUTH (on-chain verified 2026-07-24):
+ * ACTIVATION GROUND TRUTH (on-chain verified 2026-07-24):
  * Receiving a deposit works and does NOT require any Dexter action. The SENDER's
  * wallet (Phantom/Coinbase) creates the USDC mailbox (ATA) and pays its ~$0.15
- * rent in the same transfer — Dexter does not normally pay it. Deposits to a
+ * rent in the same transfer; Dexter does not normally pay it. Deposits to a
  * fresh, not-yet-deployed wallet land fine. So the deposit sheet needs NO
  * activate step. Separately, the smart wallet "activates" (Swig deploys, ~$0.85
  * paid by the facilitator) on the first SIGNING action (a withdrawal/payment),
- * and only once the wallet holds ≥ $1 — never on a deposit. Do NOT add copy
+ * and only once the wallet holds ≥ $1, never on a deposit. Do NOT add copy
  * claiming a deposit activates anything, and do NOT gate deposit behind activation.
  */
 export function DepositSheet({ address, assetSymbol, onClose }: {
@@ -22,12 +22,17 @@ export function DepositSheet({ address, assetSymbol, onClose }: {
   assetSymbol?: string;
   onClose: () => void;
 }) {
-  const [copied, setCopied] = useState(false);
-  const copy = () => {
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const copy = async () => {
     if (!address) return;
-    navigator.clipboard?.writeText(address)
-      .then(() => { setCopied(true); setTimeout(() => setCopied(false), 1400); })
-      .catch(() => {});
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable');
+      await navigator.clipboard.writeText(address);
+      setCopyState('copied');
+      setTimeout(() => setCopyState('idle'), 1400);
+    } catch {
+      setCopyState('failed');
+    }
   };
   const qrSrc = address
     ? `https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=0&data=${encodeURIComponent(`solana:${address}`)}`
@@ -49,9 +54,16 @@ export function DepositSheet({ address, assetSymbol, onClose }: {
               : 'SOL and supported Solana tokens, from any wallet or exchange.'}
           </div>
           <button className="dxw-addr dxw-mono" onClick={copy} disabled={!address} type="button">
-            {copied ? 'Copied' : shortAddr(address)}
+            {copyState === 'copied'
+              ? 'Copied'
+              : copyState === 'failed'
+                ? 'Copy unavailable'
+                : shortAddr(address)}
             <CopyIcon />
           </button>
+          {copyState === 'failed' && address ? (
+            <code className="dxw-copy-fallback" role="status">{address}</code>
+          ) : null}
         </div>
       </div>
 

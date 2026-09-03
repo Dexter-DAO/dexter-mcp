@@ -46,7 +46,7 @@ const TOOL_ROSTER = [
   'dexter_wallet_history',
 ];
 
-test('mixed auth policy covers the exact hosted roster', () => {
+test('required auth policy covers the exact hosted roster', () => {
   assert.doesNotThrow(() => assertOpenToolAuthPolicyCoverage(TOOL_ROSTER));
   assert.throws(
     () => assertOpenToolAuthPolicyCoverage(TOOL_ROSTER.slice(1)),
@@ -54,39 +54,8 @@ test('mixed auth policy covers the exact hosted roster', () => {
   );
 });
 
-test('public, wallet, portfolio, and payment tools have exact schemes', () => {
-  assert.deepEqual(OPEN_TOOL_SECURITY_SCHEMES.x402_search, [{ type: 'noauth' }]);
-  assert.deepEqual(OPEN_TOOL_SECURITY_SCHEMES.x402_check, [
-    { type: 'noauth' },
-    { type: 'oauth2', scopes: ['vault'] },
-  ]);
-  assert.deepEqual(OPEN_TOOL_SECURITY_SCHEMES.x402_access, [
-    { type: 'noauth' },
-    { type: 'oauth2', scopes: ['vault'] },
-  ]);
-  assert.deepEqual(
-    OPEN_TOOL_SECURITY_SCHEMES.x402_wallet,
-    [{ type: 'oauth2', scopes: ['vault'] }],
-  );
-  assert.deepEqual(
-    OPEN_TOOL_SECURITY_SCHEMES.dexter_portfolio,
-    [{ type: 'oauth2', scopes: ['vault'] }],
-  );
-  assert.deepEqual(
-    OPEN_TOOL_SECURITY_SCHEMES.x402_fetch,
-    [{ type: 'oauth2', scopes: ['vault'] }],
-  );
-  assert.deepEqual(
-    OPEN_TOOL_SECURITY_SCHEMES.x402_status,
-    [{ type: 'oauth2', scopes: ['vault'] }],
-  );
-  for (const name of [
-    'dexter_prepare_asset_action',
-    'dexter_execute_asset_action',
-    'dexter_asset_action_status',
-    'dexter_reconcile_asset_action',
-    'dexter_wallet_history',
-  ]) {
+test('every hosted tool requires the exact vault OAuth scheme', () => {
+  for (const name of TOOL_ROSTER) {
     assert.deepEqual(
       OPEN_TOOL_SECURITY_SCHEMES[name],
       [{ type: 'oauth2', scopes: ['vault'] }],
@@ -117,7 +86,7 @@ test('protected-call classification follows the per-tool auth declaration', () =
   assert.deepEqual(findVaultProtectedToolCall([
     call('x402_search'),
     { ...call('x402_fetch'), id: 2 },
-  ]), { name: 'x402_fetch', id: 2 });
+  ]), { name: 'x402_search', id: 1 });
   assert.deepEqual(findVaultProtectedToolCall(call('x402_status')), {
     name: 'x402_status',
     id: 1,
@@ -130,9 +99,18 @@ test('protected-call classification follows the per-tool auth declaration', () =
     findVaultProtectedToolCall(call('dexter_authorize_asset_action')),
     null,
   );
-  assert.equal(findVaultProtectedToolCall(call('x402_check')), null);
-  assert.equal(findVaultProtectedToolCall(call('x402_access')), null);
-  assert.equal(findVaultProtectedToolCall(call('x402_search')), null);
+  assert.deepEqual(findVaultProtectedToolCall(call('x402_check')), {
+    name: 'x402_check',
+    id: 1,
+  });
+  assert.deepEqual(findVaultProtectedToolCall(call('x402_access')), {
+    name: 'x402_access',
+    id: 1,
+  });
+  assert.deepEqual(findVaultProtectedToolCall(call('x402_search')), {
+    name: 'x402_search',
+    id: 1,
+  });
   assert.equal(findVaultProtectedToolCall(call('x402_pay')), null);
   assert.equal(findVaultProtectedToolCall(call('x402_compose_skill')), null);
 });
@@ -183,7 +161,7 @@ test('real SDK tools/list carries canonical and mirrored auth schemes', async ()
     }
     assert.deepEqual(
       wireList.result.tools.find((tool) => tool.name === 'x402_search').securitySchemes,
-      [{ type: 'noauth' }],
+      [{ type: 'oauth2', scopes: ['vault'] }],
     );
     assert.deepEqual(
       wireList.result.tools.find((tool) => tool.name === 'x402_wallet').securitySchemes,

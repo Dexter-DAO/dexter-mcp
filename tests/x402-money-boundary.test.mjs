@@ -24,7 +24,7 @@ function inputSchema(source) {
   return source.slice(start, end);
 }
 
-test('public fetch accepts exactly opaque intent and approved ceiling', () => {
+test('authenticated fetch accepts exactly opaque intent and approved ceiling', () => {
   const source = registration('x402_fetch', 'x402_status');
   const schema = inputSchema(source);
   assert.match(schema, /intentId:\s*z\.string\(\)/);
@@ -39,7 +39,7 @@ test('public fetch accepts exactly opaque intent and approved ceiling', () => {
   assert.doesNotMatch(source, /x402Fetch\(args, extra\)/);
 });
 
-test('public status accepts only the same opaque intent', () => {
+test('authenticated status accepts only the same opaque intent', () => {
   const source = registration('x402_status', 'x402_check');
   const schema = inputSchema(source);
   assert.match(schema, /intentId:\s*z\.string\(\)/);
@@ -47,7 +47,7 @@ test('public status accepts only the same opaque intent', () => {
   assert.match(source, /x402IntentStatus\(args, extra\)/);
 });
 
-test('public check accepts an exact raw body string and no prepared purchase', () => {
+test('authenticated check accepts an exact raw body string and no prepared purchase', () => {
   const source = registration('x402_check', 'x402_access');
   const schema = inputSchema(source);
   assert.match(schema, /url:\s*z\.string\(\)\.url\(\)/);
@@ -101,13 +101,51 @@ test('intent handlers never expose caller-carried route or prepared JSON', () =>
   assert.match(fetchAndStatus, /retryWithSameIntentOnly/);
 });
 
-test('retired URL compatibility runs only after OAuth proof and canonical fetch uses the current session', () => {
-  const rawStart = serverSource.indexOf('const protectedCall = findVaultProtectedToolCall');
-  const verified = serverSource.indexOf('if (verification.ok)', rawStart);
-  const rewrite = serverSource.indexOf('legacyIntentBridge.rewriteLegacy(parsedBody', rawStart);
+test('retired URL compatibility runs only inside an authorized established session', () => {
+  const rawStart = serverSource.indexOf('const httpServer = http.createServer');
+  const authBoundary = serverSource.indexOf('let oauthAuthorization = null;', rawStart);
+  const oauthProof = serverSource.indexOf('verifyOpenVaultBearer(bearer', authBoundary);
+  const establishedLinkProof = serverSource.indexOf(
+    'bindLinkTokenToSession(linkToken, requestSessionId)',
+    authBoundary,
+  );
+  const unknownLinkProof = serverSource.indexOf(
+    'bindLinkTokenToSession(\n          linkToken,\n          requestSessionId,',
+    authBoundary,
+  );
+  const sessionLookup = serverSource.indexOf(
+    'if (requestSessionId && transports.has(requestSessionId))',
+    authBoundary,
+  );
+  const establishedOAuthSeed = serverSource.indexOf(
+    'const seedResult = await seedOAuthVaultBinding(',
+    sessionLookup,
+  );
+  const establishedPost = serverSource.indexOf(
+    'if (sessionId && transports.has(sessionId))',
+    sessionLookup,
+  );
+  const rewrite = serverSource.indexOf(
+    'legacyIntentBridge.rewriteLegacy(parsedBody',
+    establishedPost,
+  );
   const dispatch = serverSource.indexOf('transport.handleRequest(req, res, parsedBody)', rewrite);
-  assert.ok(rawStart >= 0 && verified > rawStart, 'OAuth boundary missing');
-  assert.ok(rewrite > verified, 'legacy translation must follow current Bearer verification');
+  assert.ok(rawStart >= 0 && authBoundary > rawStart, 'authorization boundary missing');
+  assert.ok(oauthProof > authBoundary && oauthProof < sessionLookup, 'OAuth proof must precede lookup');
+  assert.ok(
+    establishedLinkProof > authBoundary && establishedLinkProof < sessionLookup,
+    'established link-token proof must precede lookup',
+  );
+  assert.ok(
+    unknownLinkProof > authBoundary && unknownLinkProof < sessionLookup,
+    'unknown-session link-token proof must precede lookup',
+  );
+  assert.ok(
+    establishedOAuthSeed > sessionLookup && establishedOAuthSeed < establishedPost,
+    'established OAuth provenance proof must precede method dispatch',
+  );
+  assert.ok(establishedPost > sessionLookup, 'established POST branch missing');
+  assert.ok(rewrite > establishedPost, 'legacy translation must stay inside established POST dispatch');
   assert.ok(dispatch > rewrite, 'legacy translation must precede SDK input validation/dispatch');
 
   const source = registration('x402_fetch', 'x402_status');

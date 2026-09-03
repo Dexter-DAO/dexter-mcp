@@ -3209,9 +3209,9 @@ export async function activateOpenRelease({
     throw new Error('verified PM2 executable is not the production binary');
   }
   // Publish only immutable release bytes, without deleting any historical
-  // hashes, and prove every JS/CSS URL referenced by release HTML before the
-  // first PM2 read or mutation. The old service remains live throughout this
-  // append-only preparation phase.
+  // hashes, and prove every admitted JS, CSS, and SVG runtime asset through
+  // its public URL before the first PM2 read or mutation. The old service
+  // remains live throughout this append-only preparation phase.
   const widgetAssetPlan = await prepareWidgetAssets({
     release,
     fetchImpl,

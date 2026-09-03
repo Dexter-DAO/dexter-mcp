@@ -1,15 +1,13 @@
-/* ═══════════════════════════════════════════════════════════════════════════
-   BASE STYLES — design tokens, resets, and common keyframes.
-   Imported by every widget (directly or via sdk.css). Tokens are dials,
-   not decisions: per-widget visual language is set in widgets/*.css and
-   in the components/widget/* shell.
-   ═══════════════════════════════════════════════════════════════════════════ */
+/* Shared OpenDexter renderer foundation.
+   The host owns the outer container. These tokens style the content plane. */
 
 :root {
-  color-scheme: dark;
-  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color-scheme: light;
+  font-family: Inter, "Inter Display", ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
 
-  /* ───── Spacing scale (4px base, geometric) ──────────────────────────── */
   --dx-space-0: 0;
   --dx-space-1: 4px;
   --dx-space-2: 8px;
@@ -21,108 +19,110 @@
   --dx-space-8: 40px;
   --dx-space-9: 56px;
 
-  /* ───── Type scale ───────────────────────────────────────────────────── */
   --dx-text-xs: 11px;
   --dx-text-sm: 12px;
   --dx-text-base: 13px;
   --dx-text-md: 14px;
   --dx-text-lg: 16px;
   --dx-text-xl: 18px;
-  --dx-text-2xl: 22px;
-  --dx-text-3xl: 28px;
+  --dx-text-2xl: 24px;
+  --dx-text-3xl: 32px;
+  --dx-text-money: clamp(42px, 11vw, 58px);
 
-  --dx-leading-tight: 1.2;
+  --dx-leading-tight: 1.08;
   --dx-leading-snug: 1.35;
-  --dx-leading-normal: 1.5;
+  --dx-leading-normal: 1.52;
   --dx-leading-relaxed: 1.65;
 
-  --dx-tracking-tight: -0.01em;
+  --dx-tracking-tight: -0.035em;
   --dx-tracking-normal: 0;
   --dx-tracking-wide: 0.04em;
   --dx-tracking-wider: 0.08em;
-  --dx-tracking-widest: 0.14em;
+  --dx-tracking-widest: 0.12em;
 
   --dx-weight-regular: 400;
   --dx-weight-medium: 500;
-  --dx-weight-semibold: 600;
-  --dx-weight-bold: 700;
+  --dx-weight-semibold: 650;
+  --dx-weight-bold: 760;
 
-  --dx-font-mono: 'IBM Plex Mono', 'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --dx-font-mono: "SFMono-Regular", "Roboto Mono", "IBM Plex Mono",
+    "JetBrains Mono", Menlo, Monaco, Consolas, monospace;
 
-  /* ───── Radii — small, deliberate. No "rounded everywhere" defaults. ── */
-  --dx-radius-sm: 6px;
-  --dx-radius-md: 10px;
+  --dx-radius-sm: 5px;
+  --dx-radius-md: 9px;
   --dx-radius-lg: 14px;
   --dx-radius-pill: 999px;
 
-  /* ───── Color roles ──────────────────────────────────────────────────── */
-  /* Surfaces: layered dark with subtle elevation differences */
-  --dx-bg: rgba(15, 23, 42, 0.68);
-  --dx-bg-elevated: rgba(22, 32, 54, 0.78);
-  --dx-bg-sunken: rgba(10, 16, 30, 0.55);
-  --dx-bg-quiet: rgba(15, 23, 42, 0.45);
+  --dx-canvas: var(--color-background-primary, #fdfaf5);
+  --dx-canvas-muted: var(--color-background-secondary, #f2eee7);
+  --dx-canvas-quiet: var(--color-background-tertiary, #f7f3ed);
+  --dx-ink: var(--color-text-primary, #3a2e24);
+  --dx-ink-muted: var(--color-text-secondary, #6f6659);
+  --dx-ink-quiet: var(--color-text-tertiary, #918677);
+  --dx-ink-faint: rgba(58, 46, 36, 0.42);
+  --dx-hairline: var(--color-border-secondary, rgba(58, 46, 36, 0.12));
+  --dx-hairline-strong: var(--color-border-primary, rgba(58, 46, 36, 0.2));
 
-  /* Foreground (text) */
-  --dx-fg: #f8fafc;
-  --dx-fg-muted: #cbd5f5;
-  --dx-fg-quiet: #94a3b8;
-  --dx-fg-faint: rgba(148, 163, 184, 0.55);
+  --dx-orange: #f2681a;
+  --dx-orange-deep: #c9490d;
+  --dx-orange-hover: #df5b10;
+  --dx-on-orange: #25180f;
+  --dx-orange-soft: rgba(242, 104, 26, 0.11);
+  --dx-blue: #1d67c8;
+  --dx-gold: #cbad72;
 
-  /* Borders */
-  --dx-border: rgba(148, 163, 184, 0.22);
-  --dx-border-strong: rgba(148, 163, 184, 0.38);
-  --dx-border-quiet: rgba(148, 163, 184, 0.10);
+  --dx-info: var(--color-text-info, #1d67c8);
+  --dx-info-soft: rgba(29, 103, 200, 0.1);
+  --dx-success: var(--color-text-success, #28795a);
+  --dx-success-soft: rgba(40, 121, 90, 0.1);
+  --dx-warn: var(--color-text-warning, #9a681c);
+  --dx-warn-soft: rgba(154, 104, 28, 0.11);
+  --dx-danger: var(--color-text-danger, #b93c30);
+  --dx-danger-soft: rgba(185, 60, 48, 0.1);
+  --dx-code: #5d4c82;
 
-  /* Brand accent — Dexter orange */
-  --dx-accent: #ff7a1a;
-  --dx-accent-bright: #ff8f3c;
-  --dx-accent-soft: rgba(255, 122, 26, 0.16);
-  --dx-accent-fg: #ffd5a8;
+  --dx-shadow-sm: 0 2px 7px rgba(47, 38, 29, 0.1);
+  --dx-shadow-md: 0 12px 26px rgba(47, 38, 29, 0.14);
+  --dx-shadow-lg: 0 22px 50px rgba(47, 38, 29, 0.18);
 
-  /* Semantic tones */
-  --dx-info: #60a5fa;
-  --dx-info-soft: rgba(96, 165, 250, 0.16);
-  --dx-success: #34d399;
-  --dx-success-soft: rgba(52, 211, 153, 0.14);
-  --dx-warn: #fbbf24;
-  --dx-warn-soft: rgba(251, 191, 36, 0.14);
-  --dx-danger: #f87171;
-  --dx-danger-soft: rgba(248, 113, 113, 0.16);
-
-  /* Code / mono color — used for addresses, hashes, mints */
-  --dx-code: #c4b5fd;
-
-  /* ───── Elevation — flat, just enough to separate layers ─────────────── */
-  --dx-shadow-sm: 0 1px 2px rgba(2, 6, 23, 0.35);
-  --dx-shadow-md: 0 6px 16px rgba(2, 6, 23, 0.32);
-  --dx-shadow-lg: 0 18px 40px rgba(2, 6, 23, 0.38);
-
-  /* ───── Motion ───────────────────────────────────────────────────────── */
   --dx-duration-fast: 120ms;
-  --dx-duration-base: 220ms;
-  --dx-duration-slow: 380ms;
+  --dx-duration-base: 190ms;
+  --dx-duration-slow: 320ms;
   --dx-ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
   --dx-ease-emphasized: cubic-bezier(0.2, 0, 0, 1);
 
-  /* ───── Z-index scale ────────────────────────────────────────────────── */
   --dx-z-base: 0;
   --dx-z-elevated: 10;
   --dx-z-overlay: 100;
   --dx-z-popover: 200;
   --dx-z-toast: 300;
 
-  /* ───── Legacy aliases — keep until widget CSS files are migrated ─────
-     Existing widget styles reference --surface, --text-primary etc.
-     These aliases let token consumers and legacy consumers coexist. */
-  --surface: var(--dx-bg);
-  --surface-muted: var(--dx-bg-quiet);
-  --surface-border: var(--dx-border-strong);
-  --surface-highlight: rgba(94, 234, 212, 0.12);
-  --text-primary: var(--dx-fg);
-  --text-secondary: var(--dx-fg-muted);
-  --text-tertiary: var(--dx-fg-quiet);
-  --accent: var(--dx-info);
-  --accent-soft: var(--dx-info-soft);
+  /* Compatibility aliases for active renderers while they converge. */
+  --dx-bg: var(--dx-canvas);
+  --dx-bg-elevated: var(--dx-canvas);
+  --dx-bg-sunken: var(--dx-canvas-muted);
+  --dx-bg-quiet: var(--dx-canvas-quiet);
+  --dx-fg: var(--dx-ink);
+  --dx-fg-muted: var(--dx-ink-muted);
+  --dx-fg-quiet: var(--dx-ink-quiet);
+  --dx-fg-faint: var(--dx-ink-faint);
+  --dx-border: var(--dx-hairline);
+  --dx-border-strong: var(--dx-hairline-strong);
+  --dx-border-quiet: rgba(58, 46, 36, 0.07);
+  --dx-accent: var(--dx-orange);
+  --dx-accent-bright: var(--dx-orange);
+  --dx-accent-soft: var(--dx-orange-soft);
+  --dx-accent-fg: var(--dx-orange-deep);
+
+  --surface: var(--dx-canvas);
+  --surface-muted: var(--dx-canvas-quiet);
+  --surface-border: var(--dx-hairline);
+  --surface-highlight: var(--dx-orange-soft);
+  --text-primary: var(--dx-ink);
+  --text-secondary: var(--dx-ink-muted);
+  --text-tertiary: var(--dx-ink-quiet);
+  --accent: var(--dx-orange);
+  --accent-soft: var(--dx-orange-soft);
   --danger-soft: var(--dx-danger-soft);
   --radius-lg: var(--dx-radius-lg);
   --radius-md: var(--dx-radius-md);
@@ -131,65 +131,100 @@
   background: transparent;
 }
 
-/* Light-mode override — host signals via prefers-color-scheme or
-   data-theme="light" on <html>. Tokens flip; widget code stays the same. */
-@media (prefers-color-scheme: light) {
-  :root:not([data-theme="dark"]) {
-    color-scheme: light;
-    --dx-bg: rgba(255, 255, 255, 0.92);
-    --dx-bg-elevated: #ffffff;
-    --dx-bg-sunken: rgba(241, 245, 249, 0.85);
-    --dx-bg-quiet: rgba(241, 245, 249, 0.65);
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --dx-canvas: var(--color-background-primary, #171715);
+  --dx-canvas-muted: var(--color-background-secondary, #24231f);
+  --dx-canvas-quiet: var(--color-background-tertiary, #1d1c19);
+  --dx-ink: var(--color-text-primary, #f0ede4);
+  --dx-ink-muted: var(--color-text-secondary, #b5aea4);
+  --dx-ink-quiet: var(--color-text-tertiary, #8f887e);
+  --dx-ink-faint: rgba(240, 237, 228, 0.4);
+  --dx-hairline: var(--color-border-secondary, rgba(240, 237, 228, 0.12));
+  --dx-hairline-strong: var(--color-border-primary, rgba(240, 237, 228, 0.2));
+  --dx-orange: #ff7430;
+  --dx-orange-deep: #ff9b68;
+  --dx-orange-hover: #f2681a;
+  --dx-on-orange: #171715;
+  --dx-orange-soft: rgba(255, 116, 48, 0.13);
+  --dx-blue: #72a7ef;
+  --dx-gold: #d1b77f;
+  --dx-info: var(--color-text-info, #72a7ef);
+  --dx-info-soft: rgba(114, 167, 239, 0.12);
+  --dx-success: var(--color-text-success, #50ad83);
+  --dx-success-soft: rgba(80, 173, 131, 0.12);
+  --dx-warn: var(--color-text-warning, #d5a44f);
+  --dx-warn-soft: rgba(213, 164, 79, 0.13);
+  --dx-danger: var(--color-text-danger, #e4776d);
+  --dx-danger-soft: rgba(228, 119, 109, 0.13);
+  --dx-code: #c9bbed;
+  --dx-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.28);
+  --dx-shadow-md: 0 14px 30px rgba(0, 0, 0, 0.32);
+  --dx-shadow-lg: 0 24px 54px rgba(0, 0, 0, 0.38);
+  --dx-border-quiet: rgba(240, 237, 228, 0.07);
+}
 
-    --dx-fg: #0f172a;
-    --dx-fg-muted: #334155;
-    --dx-fg-quiet: #64748b;
-    --dx-fg-faint: rgba(100, 116, 139, 0.55);
-
-    --dx-border: rgba(15, 23, 42, 0.12);
-    --dx-border-strong: rgba(15, 23, 42, 0.22);
-    --dx-border-quiet: rgba(15, 23, 42, 0.06);
-
-    --dx-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
-    --dx-shadow-md: 0 4px 12px rgba(15, 23, 42, 0.08);
-    --dx-shadow-lg: 0 12px 32px rgba(15, 23, 42, 0.10);
-
-    --dx-code: #6d28d9;
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --dx-canvas: var(--color-background-primary, #171715);
+    --dx-canvas-muted: var(--color-background-secondary, #24231f);
+    --dx-canvas-quiet: var(--color-background-tertiary, #1d1c19);
+    --dx-ink: var(--color-text-primary, #f0ede4);
+    --dx-ink-muted: var(--color-text-secondary, #b5aea4);
+    --dx-ink-quiet: var(--color-text-tertiary, #8f887e);
+    --dx-ink-faint: rgba(240, 237, 228, 0.4);
+    --dx-hairline: var(--color-border-secondary, rgba(240, 237, 228, 0.12));
+    --dx-hairline-strong: var(--color-border-primary, rgba(240, 237, 228, 0.2));
+    --dx-orange: #ff7430;
+    --dx-orange-deep: #ff9b68;
+    --dx-orange-hover: #f2681a;
+    --dx-on-orange: #171715;
+    --dx-orange-soft: rgba(255, 116, 48, 0.13);
+    --dx-blue: #72a7ef;
+    --dx-gold: #d1b77f;
+    --dx-info: var(--color-text-info, #72a7ef);
+    --dx-info-soft: rgba(114, 167, 239, 0.12);
+    --dx-success: var(--color-text-success, #50ad83);
+    --dx-success-soft: rgba(80, 173, 131, 0.12);
+    --dx-warn: var(--color-text-warning, #d5a44f);
+    --dx-warn-soft: rgba(213, 164, 79, 0.13);
+    --dx-danger: var(--color-text-danger, #e4776d);
+    --dx-danger-soft: rgba(228, 119, 109, 0.13);
+    --dx-code: #c9bbed;
+    --dx-border-quiet: rgba(240, 237, 228, 0.07);
   }
 }
 
-:root[data-theme="light"] {
-  color-scheme: light;
-  --dx-bg: rgba(255, 255, 255, 0.92);
-  --dx-bg-elevated: #ffffff;
-  --dx-bg-sunken: rgba(241, 245, 249, 0.85);
-  --dx-bg-quiet: rgba(241, 245, 249, 0.65);
-
-  --dx-fg: #0f172a;
-  --dx-fg-muted: #334155;
-  --dx-fg-quiet: #64748b;
-  --dx-fg-faint: rgba(100, 116, 139, 0.55);
-
-  --dx-border: rgba(15, 23, 42, 0.12);
-  --dx-border-strong: rgba(15, 23, 42, 0.22);
-  --dx-border-quiet: rgba(15, 23, 42, 0.06);
-
-  --dx-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
-  --dx-shadow-md: 0 4px 12px rgba(15, 23, 42, 0.08);
-  --dx-shadow-lg: 0 12px 32px rgba(15, 23, 42, 0.10);
-
-  --dx-code: #6d28d9;
-}
-
+html,
 body {
+  min-width: 0;
   margin: 0;
   padding: 0;
   background: transparent;
-  color: var(--dx-fg);
-  font-family: inherit;
 }
 
-/* Common keyframes used across multiple widgets */
+body {
+  color: var(--dx-ink);
+  font-family: inherit;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible {
+  outline: 2px solid var(--dx-orange);
+  outline-offset: 3px;
+}
+
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
@@ -201,18 +236,13 @@ body {
 }
 
 @keyframes fadeSlideIn {
-  from {
-    opacity: 0;
-    transform: translateY(-8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
+    scroll-behavior: auto !important;
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;

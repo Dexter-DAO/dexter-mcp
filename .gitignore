@@ -7,6 +7,7 @@ node_modules/
 
 # Screenshots
 screenshots
+/output/playwright/opendexter-renderers/
 
 # Conversation logs
 docs/conversation_logs/

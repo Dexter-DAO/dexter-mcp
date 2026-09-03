@@ -16,11 +16,12 @@ import {
   buildOpenMcpAuthorizationServerMetadata,
 } from '../lib/open-tool-auth.mjs';
 
-test('well-known manifest advertises the cumulative five-to-twelve OAuth contract', () => {
+test('well-known manifest advertises the required twelve-tool OAuth contract', () => {
   const manifest = buildOpenMcpManifest();
   assert.equal(manifest.name, 'OpenDexter');
   assert.equal(manifest.namespace, 'opendexter');
   assert.equal(manifest.url, OPEN_MCP_VAULT_AUDIENCE);
+  assert.equal(manifest.auth.mode, 'required');
   assert.equal(manifest.auth.protectedResourceMetadata, OPEN_MCP_PRM_URL);
   assert.equal(manifest.auth.authorizationServer, OPEN_MCP_AUTHORIZATION_SERVER);
   assert.deepEqual(OPEN_MCP_PRM.scopes_supported, ['vault']);
@@ -30,26 +31,13 @@ test('well-known manifest advertises the cumulative five-to-twelve OAuth contrac
     ).scopes_supported,
     ['vault'],
   );
-  assert.deepEqual(manifest.auth.protectedTools, [
-    'x402_fetch',
-    'x402_status',
-    'x402_wallet',
-    'dexter_portfolio',
-    'dexter_prepare_asset_action',
-    'dexter_execute_asset_action',
-    'dexter_asset_action_status',
-    'dexter_reconcile_asset_action',
-    'dexter_wallet_history',
-  ]);
-  assert.deepEqual(manifest.auth.conditionallyProtectedTools, [
-    'x402_check',
-    'x402_access',
-  ]);
+  assert.deepEqual(manifest.auth.protectedTools, OPEN_TOOL_NAMES);
+  assert.deepEqual(manifest.auth.conditionallyProtectedTools, []);
   assert.deepEqual(manifest.rosters.anonymous, OPEN_ANONYMOUS_TOOL_NAMES);
   assert.deepEqual(manifest.rosters.oauthPromotes, OPEN_OAUTH_PROMOTED_TOOL_NAMES);
   assert.deepEqual(manifest.rosters.connected, OPEN_TOOL_NAMES);
-  assert.equal(manifest.rosters.anonymous.length, 5);
-  assert.equal(manifest.rosters.oauthPromotes.length, 7);
+  assert.equal(manifest.rosters.anonymous.length, 0);
+  assert.deepEqual(manifest.rosters.oauthPromotes, OPEN_TOOL_NAMES);
   assert.deepEqual(manifest.tools.map((tool) => tool.name), OPEN_TOOL_NAMES);
   assert.equal(manifest.tools.length, 12);
   assert.match(manifest.description, /autonomous governed Buy and Sell/);
@@ -149,7 +137,7 @@ test('hosted source documentation states the current opaque-intent product contr
   ]) {
     assert.ok(readme.includes(`\`${name}\``), name);
   }
-  assert.match(readme, /complete connected roster/i);
+  assert.match(readme, /authenticated twelve-tool roster/i);
   assert.match(readme, /replaces only\s+`dexter-open-mcp`/i);
   assert.match(readme, /legacy `dexter-mcp` PID, path,\s+configuration, and restart counters remain unchanged/i);
   assert.doesNotMatch(readme, /deletes both named PM2\s+processes/i);

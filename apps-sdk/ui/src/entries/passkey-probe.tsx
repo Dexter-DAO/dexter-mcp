@@ -3,12 +3,12 @@ import '../styles/components.css';
 import '../styles/widgets/passkey-probe.css';
 
 import { createRoot } from 'react-dom/client';
-import { useCallback, useState } from 'react';
-// Side-effect import: triggers initMcpAppsOnce() so the iframe runs the
-// MCP Apps handshake (ui/initialize + size-changed notifications) and the
-// host actually grows the iframe to fit the rendered React tree. Without
-// this the widget mounts at height 0 and never becomes visible.
-import '../sdk';
+import { useCallback, useEffect, useState } from 'react';
+import { useIntrinsicHeight } from '../components/x402/useIntrinsicHeight';
+import {
+  useAdaptiveMaxHeight,
+  useAdaptiveTheme,
+} from '../sdk';
 import { openLinkProbe } from '../sdk/mcp-apps-bridge';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -18,12 +18,12 @@ import { openLinkProbe } from '../sdk/mcp-apps-bridge';
 // run end-to-end inside the chat client's widget iframe? The answer is one of
 // three states:
 //
-//   success  — both create() and get() returned credentials. The OS prompt
+//   success: both create() and get() returned credentials. The OS prompt
 //              fired. The full ceremony round-tripped.
-//   blocked  — the iframe sandbox refused. We capture the precise error name
-//              ("NotAllowedError", "SecurityError", "NotSupportedError"…) and
+//   blocked: the iframe sandbox refused. We capture the precise error name
+//              ("NotAllowedError", "SecurityError", "NotSupportedError"...) and
 //              the message verbatim so the post-mortem can attribute cause.
-//   other    — something else broke (timeout, abort, transient). Stack
+//   other: something else broke (timeout, abort, transient). Stack
 //              captured so we don't have to guess.
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -79,10 +79,10 @@ function reportToServer(payload: unknown): Promise<void> {
 // Popup probe
 //
 // Determines whether window.open() can launch a new tab from inside the chat
-// client's widget iframe. The popout-based passkey flow depends on this — if
-// blocked, we fall back to a deep link the user manually taps.
+// client's widget iframe. If this is blocked, the passkey flow falls back to
+// a deep link the user manually taps.
 //
-// Test target: dexter.cash/connector/link-check — a neutral page that exists
+// Test target: dexter.cash/connector/link-check, a neutral page that exists
 // for exactly this (always reachable, no side effects, and it never claims a
 // wallet was connected; the old /connector/auth/done target did). We don't try
 // to round-trip a result; we just observe whether the call returned a window
@@ -130,7 +130,7 @@ async function runPopupProbe(setOutcome: (o: PopupOutcome) => void): Promise<voi
   if (!win) {
     const o: PopupOutcome = {
       kind: 'blocked',
-      reason: 'window.open() returned null — sandbox or popup blocker rejected the call.',
+      reason: 'window.open() returned null. The sandbox or popup blocker rejected the call.',
     };
     setOutcome(o);
     await reportToServer({ probe: 'popup', outcome: o, env, target });
@@ -146,7 +146,7 @@ async function runPopupProbe(setOutcome: (o: PopupOutcome) => void): Promise<voi
     // it throws a SecurityError. dexter.cash is the popup target so this
     // should succeed when it does navigate (and only after navigation
     // settles, which is usually later than now). Treat both outcomes as
-    // "opened" — the failure mode we care about is null, not cross-origin.
+    // "opened" because the failure mode we care about is null, not cross-origin.
     void win.location.href;
     sameOrigin = true;
   } catch { /* cross-origin is fine */ }
@@ -161,8 +161,7 @@ async function runPopupProbe(setOutcome: (o: PopupOutcome) => void): Promise<voi
   setOutcome(o);
   await reportToServer({ probe: 'popup', outcome: o, env, target });
 
-  // Auto-close the probe tab so we don't leave a stray window — the user
-  // shouldn't have to clean up after a capability test.
+  // Auto-close the probe tab so the user does not have to clean it up.
   try { setTimeout(() => { try { win?.close(); } catch {} }, 1500); } catch {}
 }
 
@@ -192,7 +191,7 @@ function nowEnv(): Record<string, string> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Real ceremony — no stub
+// Real ceremony
 //
 // 1. Generate fresh challenge + user.id locally (32 random bytes each). The
 //    point is to test the call surface, not to mint a usable credential, so
@@ -200,7 +199,7 @@ function nowEnv(): Record<string, string> {
 // 2. Call navigator.credentials.create() with rp.id = "dexter.cash" so we
 //    are exercising the same RP id production will use. This requires the
 //    iframe to be authorized via the WebAuthn related-origins manifest at
-//    https://dexter.cash/.well-known/webauthn — if it isn't, we'll see a
+//    https://dexter.cash/.well-known/webauthn. If it is missing, we will see a
 //    SecurityError here. That IS one of the answers we want.
 // 3. If create() returns, immediately call navigator.credentials.get() with
 //    allowCredentials = [the new id]. This proves the assertion path works
@@ -208,9 +207,8 @@ function nowEnv(): Record<string, string> {
 // 4. In explicitly opted-in non-production environments only, POST the
 //    outcome to the diagnostic sink.
 //
-// We never persist the credential. The platform retains it locally; we just
-// drop it. That's acceptable for a probe — the user can clean it up later in
-// their OS-level passkey manager if they want.
+// We never persist the credential. The platform retains it locally; we drop
+// the reference. The user can remove it later in their OS-level passkey manager.
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function runProbe(setOutcome: (o: ProbeOutcome) => void): Promise<void> {
@@ -374,6 +372,13 @@ function PasskeyProbe() {
   const [popup, setPopup] = useState<PopupOutcome>({ kind: 'idle' });
   const [anchor, setAnchor] = useState<'idle' | 'tapped'>('idle');
   const [openlink, setOpenLink] = useState<OpenLinkOutcome>({ kind: 'idle' });
+  const theme = useAdaptiveTheme();
+  const maxHeight = useAdaptiveMaxHeight();
+  const rootRef = useIntrinsicHeight<HTMLElement>();
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
 
   const onTap = useCallback(() => {
     runProbe(setOutcome);
@@ -384,7 +389,7 @@ function PasskeyProbe() {
   // Anchor probe: distinct from window.open() because user-gesture anchor
   // taps route through the OS tab handler, not the iframe sandbox's popup
   // creation path. iOS Safari historically permits these even when scripted
-  // popups are blocked. We just record that the user tapped — whether the
+  // popups are blocked. We record that the user tapped. Whether the
   // tab actually opens is observable to the user, not to us (the new tab is
   // cross-origin and we have no handle).
   const onTapAnchor = useCallback(() => {
@@ -423,233 +428,243 @@ function PasskeyProbe() {
     if (outcome.kind === 'idle') return 'Test passkey support';
     if (outcome.kind === 'running') {
       switch (outcome.phase) {
-        case 'requesting-challenge': return 'Preparing challenge…';
-        case 'create': return 'Awaiting biometric (create)…';
-        case 'get': return 'Awaiting biometric (assert)…';
-        case 'reporting': return 'Logging result…';
-        default: return 'Working…';
+        case 'requesting-challenge': return 'Preparing challenge...';
+        case 'create': return 'Awaiting biometric (create)...';
+        case 'get': return 'Awaiting biometric (assert)...';
+        case 'reporting': return 'Logging result...';
+        default: return 'Working...';
       }
     }
     return 'Run again';
   })();
   const popupButtonLabel = (() => {
     if (popup.kind === 'idle') return 'Test window.open() (popout)';
-    if (popup.kind === 'running') return 'Opening tab…';
+    if (popup.kind === 'running') return 'Opening tab...';
     return 'Run popup test again';
   })();
 
   return (
-    <div className="passkey-probe-container">
-      <div className="passkey-probe-card">
-        <header className="passkey-probe-header">
-          <span className="passkey-probe-eyebrow">DEXTER</span>
-          <span className="passkey-probe-title">Passkey iframe probe</span>
-          <p className="passkey-probe-supporting">
-            Tests whether navigator.credentials.create() and .get() can run inside this
-            chat client's widget sandbox against rp.id = dexter.cash. The OS biometric
-            prompt should fire. The credential is discarded — this is a sandbox capability
-            check, not enrollment.
-          </p>
-        </header>
+    <main
+      className="passkey-probe-container"
+      ref={rootRef}
+      style={maxHeight === null ? undefined : { maxHeight }}
+    >
+      <header className="passkey-probe-header">
+        <h1>Passkey capability probe</h1>
+        <p>
+          Runs four browser and host capability checks inside this widget.
+          Each result is reported independently.
+        </p>
+      </header>
 
-        <button
-          type="button"
-          className="passkey-probe-button"
-          onClick={onTap}
-          disabled={running}
-        >
-          {buttonLabel}
-        </button>
-
-        {outcome.kind === 'success' ? <SuccessView outcome={outcome} /> : null}
-        {outcome.kind === 'blocked' ? <BlockedView outcome={outcome} /> : null}
-        {outcome.kind === 'other' ? <OtherView outcome={outcome} /> : null}
-
-        <button
-          type="button"
-          className="passkey-probe-button"
-          onClick={onTapPopup}
-          disabled={popupRunning}
-          style={{ marginTop: 4 }}
-        >
-          {popupButtonLabel}
-        </button>
-
-        {popup.kind === 'opened' ? (
-          <div className="passkey-probe-result passkey-probe-result--success">
-            <div className="passkey-probe-result__heading">
-              <span className="passkey-probe-result__label">Popup opened</span>
-            </div>
-            <div className="passkey-probe-result__detail-list">
-              <span className="passkey-probe-result__detail-key">handle:</span>
-              <span className="passkey-probe-result__detail-val">{String(popup.hadOpenerRef)}</span>
-              <span className="passkey-probe-result__detail-key">same-origin:</span>
-              <span className="passkey-probe-result__detail-val">{String(popup.sameOrigin)}</span>
-            </div>
+      <div className="passkey-probe-tests">
+        <section className="passkey-probe-test" aria-labelledby="passkey-probe-ceremony">
+          <div className="passkey-probe-test__copy">
+            <h2 id="passkey-probe-ceremony">WebAuthn ceremony</h2>
+            <p>
+              Calls <code>navigator.credentials.create()</code> and <code>get()</code> with{' '}
+              <code>rp.id = dexter.cash</code>. The operating system should request biometric
+              verification. The credential is discarded after the check.
+            </p>
           </div>
-        ) : null}
-        {popup.kind === 'blocked' ? (
-          <div className="passkey-probe-result passkey-probe-result--blocked">
-            <div className="passkey-probe-result__heading">
-              <span className="passkey-probe-result__label">Popup blocked</span>
-            </div>
-            <div className="passkey-probe-result__error">
-              <span>{popup.reason}</span>
-            </div>
-          </div>
-        ) : null}
-        {popup.kind === 'error' ? (
-          <div className="passkey-probe-result passkey-probe-result--other">
-            <div className="passkey-probe-result__heading">
-              <span className="passkey-probe-result__label">Popup error</span>
-            </div>
-            <div className="passkey-probe-result__error">
-              <span className="passkey-probe-result__error-name">{popup.errorName}</span>
-              {' — '}
-              <span>{popup.message}</span>
-            </div>
-          </div>
-        ) : null}
+          <button
+            type="button"
+            className="passkey-probe-button passkey-probe-button--primary"
+            onClick={onTap}
+            disabled={running}
+            aria-busy={running}
+          >
+            {buttonLabel}
+          </button>
+          {outcome.kind === 'success' ? <SuccessView outcome={outcome} /> : null}
+          {outcome.kind === 'blocked' ? <BlockedView outcome={outcome} /> : null}
+          {outcome.kind === 'other' ? <OtherView outcome={outcome} /> : null}
+        </section>
 
-        <a
-          href="https://dexter.cash/connector/link-check?probe=anchor"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="passkey-probe-button passkey-probe-button--anchor"
-          onClick={onTapAnchor}
-          style={{ marginTop: 4, textDecoration: 'none', textAlign: 'center' }}
-        >
-          {anchor === 'idle' ? 'Test anchor tap (target=_blank)' : 'Tap again — did a new tab open?'}
-        </a>
-
-        {anchor === 'tapped' ? (
-          <div className="passkey-probe-result passkey-probe-result--success">
-            <div className="passkey-probe-result__heading">
-              <span className="passkey-probe-result__label">Anchor tap fired</span>
-            </div>
-            <div className="passkey-probe-result__error">
-              <span>
-                Did a new tab open to dexter.cash? If yes, the user-gesture
-                deep-link path works. If nothing happened, the iframe sandbox
-                ate the anchor tap too.
-              </span>
-            </div>
+        <section className="passkey-probe-test" aria-labelledby="passkey-probe-popup">
+          <div className="passkey-probe-test__copy">
+            <h2 id="passkey-probe-popup">Scripted popup</h2>
+            <p>Checks whether <code>window.open()</code> returns a usable window handle.</p>
           </div>
-        ) : null}
+          <button
+            type="button"
+            className="passkey-probe-button"
+            onClick={onTapPopup}
+            disabled={popupRunning}
+            aria-busy={popupRunning}
+          >
+            {popupButtonLabel}
+          </button>
 
-        <button
-          type="button"
-          className="passkey-probe-button"
-          onClick={onTapOpenLink}
-          disabled={openlink.kind === 'running'}
-          style={{ marginTop: 4 }}
-        >
-          {openlink.kind === 'idle' && 'Test ui/open-link (host-mediated)'}
-          {openlink.kind === 'running' && 'Asking host to open tab…'}
-          {openlink.kind === 'ok' && 'Run ui/open-link again'}
-          {openlink.kind === 'rejected' && 'Run ui/open-link again'}
-        </button>
+          {popup.kind === 'opened' ? (
+            <div className="passkey-probe-result passkey-probe-result--success" role="status">
+              <h3>Popup opened</h3>
+              <dl className="passkey-probe-result__detail-list">
+                <div>
+                  <dt>Window handle</dt>
+                  <dd>{String(popup.hadOpenerRef)}</dd>
+                </div>
+                <div>
+                  <dt>Same origin</dt>
+                  <dd>{String(popup.sameOrigin)}</dd>
+                </div>
+                <div>
+                  <dt>No opener</dt>
+                  <dd>{String(popup.noopener)}</dd>
+                </div>
+              </dl>
+            </div>
+          ) : null}
+          {popup.kind === 'blocked' ? (
+            <div className="passkey-probe-result passkey-probe-result--blocked" role="alert">
+              <h3>Popup blocked</h3>
+              <p className="passkey-probe-result__error">{popup.reason}</p>
+            </div>
+          ) : null}
+          {popup.kind === 'error' ? (
+            <div className="passkey-probe-result passkey-probe-result--other" role="alert">
+              <h3>Popup error</h3>
+              <p className="passkey-probe-result__error">
+                <strong>{popup.errorName}:</strong> {popup.message}
+              </p>
+            </div>
+          ) : null}
+        </section>
 
-        {openlink.kind === 'ok' ? (
-          <div className="passkey-probe-result passkey-probe-result--success">
-            <div className="passkey-probe-result__heading">
-              <span className="passkey-probe-result__label">Host honored ui/open-link</span>
-            </div>
-            <div className="passkey-probe-result__error">
-              <span>
-                Host accepted the request without error. A new tab to
-                dexter.cash should be opening (or has opened). This is the
-                spec-blessed escape hatch — popout architecture viable.
-              </span>
-            </div>
+        <section className="passkey-probe-test" aria-labelledby="passkey-probe-anchor">
+          <div className="passkey-probe-test__copy">
+            <h2 id="passkey-probe-anchor">Direct anchor</h2>
+            <p>Checks whether a user-initiated link opens a new top-level tab.</p>
           </div>
-        ) : null}
-        {openlink.kind === 'rejected' ? (
-          <div className="passkey-probe-result passkey-probe-result--blocked">
-            <div className="passkey-probe-result__heading">
-              <span className="passkey-probe-result__label">Host rejected ui/open-link</span>
-            </div>
-            <div className="passkey-probe-result__error">
-              <span className="passkey-probe-result__error-name">error</span>
-              {' — '}
-              <span>{openlink.error}</span>
-            </div>
-          </div>
-        ) : null}
+          <a
+            href="https://dexter.cash/connector/link-check?probe=anchor"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="passkey-probe-button"
+            onClick={onTapAnchor}
+          >
+            {anchor === 'idle' ? 'Test anchor target' : 'Test anchor again'}
+          </a>
 
-        <div className="passkey-probe-env">
-          <span className="passkey-probe-env__row">
-            <span className="passkey-probe-env__key">iframe:</span>
-            <span>{env.isInIframe}</span>
-          </span>
-          <span className="passkey-probe-env__row">
-            <span className="passkey-probe-env__key">PKC:</span>
-            <span>{env.hasPKC}</span>
-          </span>
-          <span className="passkey-probe-env__row">
-            <span className="passkey-probe-env__key">creds:</span>
-            <span>{env.hasCredentials}</span>
-          </span>
-        </div>
+          {anchor === 'tapped' ? (
+            <div className="passkey-probe-result passkey-probe-result--success" role="status">
+              <h3>Anchor tap recorded</h3>
+              <p>
+                Check whether dexter.cash opened in a new tab. The widget cannot observe
+                the cross-origin tab after the click.
+              </p>
+            </div>
+          ) : null}
+        </section>
+
+        <section className="passkey-probe-test" aria-labelledby="passkey-probe-open-link">
+          <div className="passkey-probe-test__copy">
+            <h2 id="passkey-probe-open-link">Host-mediated link</h2>
+            <p>Asks the MCP Apps host to open the same test page through <code>ui/open-link</code>.</p>
+          </div>
+          <button
+            type="button"
+            className="passkey-probe-button"
+            onClick={onTapOpenLink}
+            disabled={openlink.kind === 'running'}
+            aria-busy={openlink.kind === 'running'}
+          >
+            {openlink.kind === 'idle' && 'Test ui/open-link'}
+            {openlink.kind === 'running' && 'Asking host to open tab...'}
+            {openlink.kind === 'ok' && 'Run ui/open-link again'}
+            {openlink.kind === 'rejected' && 'Run ui/open-link again'}
+          </button>
+
+          {openlink.kind === 'ok' ? (
+            <div className="passkey-probe-result passkey-probe-result--success" role="status">
+              <h3>Host accepted ui/open-link</h3>
+              <p>The host accepted the request. The host-mediated popout path is available.</p>
+            </div>
+          ) : null}
+          {openlink.kind === 'rejected' ? (
+            <div className="passkey-probe-result passkey-probe-result--blocked" role="alert">
+              <h3>Host rejected ui/open-link</h3>
+              <p className="passkey-probe-result__error"><strong>Error:</strong> {openlink.error}</p>
+            </div>
+          ) : null}
+        </section>
       </div>
-    </div>
+
+      <section className="passkey-probe-runtime" aria-labelledby="passkey-probe-runtime">
+        <h2 id="passkey-probe-runtime">Runtime</h2>
+        <dl className="passkey-probe-env">
+          <div>
+            <dt>Inside iframe</dt>
+            <dd>{env.isInIframe}</dd>
+          </div>
+          <div>
+            <dt>PublicKeyCredential</dt>
+            <dd>{env.hasPKC}</dd>
+          </div>
+          <div>
+            <dt>Credential API</dt>
+            <dd>{env.hasCredentials}</dd>
+          </div>
+        </dl>
+      </section>
+    </main>
   );
 }
 
 function SuccessView({ outcome }: { outcome: Extract<ProbeOutcome, { kind: 'success' }> }) {
   return (
-    <div className="passkey-probe-result passkey-probe-result--success">
-      <div className="passkey-probe-result__heading">
-        <span className="passkey-probe-result__label">Success — full ceremony completed</span>
-      </div>
-      <div className="passkey-probe-result__detail-list">
-        <span className="passkey-probe-result__detail-key">credential:</span>
-        <span className="passkey-probe-result__detail-val">{outcome.credentialIdPrefix}…</span>
-        <span className="passkey-probe-result__detail-key">alg:</span>
-        <span className="passkey-probe-result__detail-val">{outcome.alg ?? 'unknown'}</span>
-        <span className="passkey-probe-result__detail-key">transports:</span>
-        <span className="passkey-probe-result__detail-val">
-          {outcome.transports && outcome.transports.length ? outcome.transports.join(', ') : 'unknown'}
-        </span>
-        <span className="passkey-probe-result__detail-key">attachment:</span>
-        <span className="passkey-probe-result__detail-val">{outcome.authenticatorAttachment ?? 'unknown'}</span>
-        <span className="passkey-probe-result__detail-key">create:</span>
-        <span className="passkey-probe-result__detail-val">ok</span>
-        <span className="passkey-probe-result__detail-key">get:</span>
-        <span className="passkey-probe-result__detail-val">ok</span>
-      </div>
+    <div className="passkey-probe-result passkey-probe-result--success" role="status">
+      <h3>Ceremony completed</h3>
+      <dl className="passkey-probe-result__detail-list">
+        <div>
+          <dt>Credential prefix</dt>
+          <dd>{outcome.credentialIdPrefix}...</dd>
+        </div>
+        <div>
+          <dt>Algorithm</dt>
+          <dd>{outcome.alg ?? 'unknown'}</dd>
+        </div>
+        <div>
+          <dt>Transports</dt>
+          <dd>{outcome.transports?.length ? outcome.transports.join(', ') : 'unknown'}</dd>
+        </div>
+        <div>
+          <dt>Attachment</dt>
+          <dd>{outcome.authenticatorAttachment ?? 'unknown'}</dd>
+        </div>
+        <div>
+          <dt>Create</dt>
+          <dd>ok</dd>
+        </div>
+        <div>
+          <dt>Get</dt>
+          <dd>ok</dd>
+        </div>
+      </dl>
     </div>
   );
 }
 
 function BlockedView({ outcome }: { outcome: Extract<ProbeOutcome, { kind: 'blocked' }> }) {
   return (
-    <div className="passkey-probe-result passkey-probe-result--blocked">
-      <div className="passkey-probe-result__heading">
-        <span className="passkey-probe-result__label">Blocked by sandbox</span>
-        <span className="passkey-probe-result__phase">phase: {outcome.phase}</span>
-      </div>
-      <div className="passkey-probe-result__error">
-        <span className="passkey-probe-result__error-name">{outcome.errorName}</span>
-        {' — '}
-        <span>{outcome.message}</span>
-      </div>
+    <div className="passkey-probe-result passkey-probe-result--blocked" role="alert">
+      <h3>Blocked by sandbox</h3>
+      <p className="passkey-probe-result__phase">Phase <code>{outcome.phase}</code></p>
+      <p className="passkey-probe-result__error">
+        <strong>{outcome.errorName}:</strong> {outcome.message}
+      </p>
     </div>
   );
 }
 
 function OtherView({ outcome }: { outcome: Extract<ProbeOutcome, { kind: 'other' }> }) {
   return (
-    <div className="passkey-probe-result passkey-probe-result--other">
-      <div className="passkey-probe-result__heading">
-        <span className="passkey-probe-result__label">Other failure</span>
-        <span className="passkey-probe-result__phase">phase: {outcome.phase}</span>
-      </div>
-      <div className="passkey-probe-result__error">
-        <span className="passkey-probe-result__error-name">{outcome.errorName}</span>
-        {' — '}
-        <span>{outcome.message}</span>
-      </div>
+    <div className="passkey-probe-result passkey-probe-result--other" role="alert">
+      <h3>Probe failed</h3>
+      <p className="passkey-probe-result__phase">Phase <code>{outcome.phase}</code></p>
+      <p className="passkey-probe-result__error">
+        <strong>{outcome.errorName}:</strong> {outcome.message}
+      </p>
       {outcome.stack ? <pre className="passkey-probe-stack">{outcome.stack}</pre> : null}
     </div>
   );
@@ -661,6 +676,7 @@ function OtherView({ outcome }: { outcome: Extract<ProbeOutcome, { kind: 'other'
 
 const root = document.getElementById('passkey-probe-root');
 if (root) {
+  root.dataset.widgetBuild = '2026-09-03.passkey-probe-flat';
   createRoot(root).render(<PasskeyProbe />);
 }
 

@@ -3,26 +3,31 @@ import test from 'node:test';
 import {
   buildStandardWidgetCsp,
   buildWidgetCsp,
+  buildWidgetPermissions,
   registerAppsSdkResources,
 } from '../apps-sdk/register.mjs';
 import {
   DIAGNOSTIC_WIDGET_URIS,
   GOVERNED_ASSET_WIDGET_URIS,
+  INDEXTER_WIDGET_URIS,
   PASSKEY_WIDGET_URIS,
+  PORTFOLIO_WIDGET_URIS,
   X402_WIDGET_URIS,
 } from '../apps-sdk/widget-uris.mjs';
 
 const SELECTED_URIS = [
-  X402_WIDGET_URIS.search,
+  INDEXTER_WIDGET_URIS.search,
   X402_WIDGET_URIS.fetch,
   X402_WIDGET_URIS.pricing,
   X402_WIDGET_URIS.wallet,
+  PORTFOLIO_WIDGET_URIS.overview,
   DIAGNOSTIC_WIDGET_URIS.passkeyProbe,
   PASSKEY_WIDGET_URIS.onboard,
-  GOVERNED_ASSET_WIDGET_URIS.stockTrade,
+  GOVERNED_ASSET_WIDGET_URIS.action,
+  GOVERNED_ASSET_WIDGET_URIS.history,
 ];
 
-test('wallet resource metadata describes the multichain balance view', async (t) => {
+test('wallet resource metadata describes the current Dexter Wallet view', async (t) => {
   const originalEnvironment = {
     TOKEN_AI_APPS_SDK_ASSET_BASE: process.env.TOKEN_AI_APPS_SDK_ASSET_BASE,
     TOKEN_AI_ENABLE_APPS_SDK: process.env.TOKEN_AI_ENABLE_APPS_SDK,
@@ -52,13 +57,41 @@ test('wallet resource metadata describes the multichain balance view', async (t)
 
   assert.equal(registrations.length, 1);
   const [wallet] = registrations;
-  const expected = 'Shows wallet addresses with copy button, USDC balances across chains, and deposit QR code.';
+  const expected = 'Shows Dexter Wallet cash, reported credit, assets, Solana receive address, and recent activity.';
   assert.equal(wallet.uri, X402_WIDGET_URIS.wallet);
   assert.equal(wallet.config._meta['openai/widgetDescription'], expected);
+  assert.deepEqual(wallet.config._meta.ui.permissions, { clipboardWrite: {} });
   assert.doesNotMatch(wallet.config._meta['openai/widgetDescription'], /Solana only/i);
 
   const result = await wallet.readCallback();
   assert.equal(result.contents[0]._meta['openai/widgetDescription'], expected);
+  assert.deepEqual(result.contents[0]._meta.ui.permissions, { clipboardWrite: {} });
+});
+
+test('only Indexter discovery and Dexter Wallet request clipboard write', () => {
+  assert.deepEqual(
+    buildWidgetPermissions(INDEXTER_WIDGET_URIS.search),
+    { clipboardWrite: {} },
+  );
+  assert.deepEqual(
+    buildWidgetPermissions(X402_WIDGET_URIS.search),
+    { clipboardWrite: {} },
+  );
+  assert.deepEqual(
+    buildWidgetPermissions(X402_WIDGET_URIS.wallet),
+    { clipboardWrite: {} },
+  );
+  for (const uri of [
+    X402_WIDGET_URIS.fetch,
+    X402_WIDGET_URIS.pricing,
+    PORTFOLIO_WIDGET_URIS.overview,
+    DIAGNOSTIC_WIDGET_URIS.passkeyProbe,
+    PASSKEY_WIDGET_URIS.onboard,
+    GOVERNED_ASSET_WIDGET_URIS.action,
+    GOVERNED_ASSET_WIDGET_URIS.history,
+  ]) {
+    assert.equal(buildWidgetPermissions(uri), null, uri);
+  }
 });
 
 test('each public widget has a specific CSP with no wildcard cloud allowlist', () => {
@@ -90,9 +123,10 @@ test('standard CSP omits unsupported redirectDomains while legacy CSP preserves 
 });
 
 test('resource profiles grant only widget-specific network capabilities', () => {
-  const search = buildWidgetCsp('https://dexter.cash/assets', X402_WIDGET_URIS.search);
+  const search = buildWidgetCsp('https://dexter.cash/assets', INDEXTER_WIDGET_URIS.search);
   assert.ok(search.connect_domains.includes('https://api.dexter.cash'));
-  assert.ok(search.resource_domains.includes('https://x402gle.com'));
+  assert.ok(search.resource_domains.includes('https://api.dexter.cash'));
+  assert.ok(!search.resource_domains.includes('https://x402gle.com'));
   assert.ok(!search.resource_domains.includes('https://api.qrserver.com'));
 
   const pricing = buildWidgetCsp(
@@ -107,6 +141,7 @@ test('resource profiles grant only widget-specific network capabilities', () => 
     X402_WIDGET_URIS.fetch,
   );
   assert.ok(receipt.redirect_domains.includes('https://solscan.io'));
+  assert.ok(receipt.redirect_domains.includes('https://dexter.cash'));
 
   const wallet = buildWidgetCsp('https://dexter.cash/assets', X402_WIDGET_URIS.wallet);
   assert.ok(wallet.connect_domains.includes('https://open.dexter.cash'));
@@ -130,15 +165,58 @@ test('resource profiles grant only widget-specific network capabilities', () => 
   );
   assert.ok(developmentProbe.connect_domains.includes('https://open.dexter.cash'));
 
-  const stockTrade = buildWidgetCsp(
+  const governedAction = buildWidgetCsp(
     'https://dexter.cash/assets',
-    GOVERNED_ASSET_WIDGET_URIS.stockTrade,
+    GOVERNED_ASSET_WIDGET_URIS.action,
   );
-  assert.deepEqual(stockTrade.connect_domains, [
+  assert.deepEqual(governedAction.connect_domains, [
     'https://o4510869152923648.ingest.us.sentry.io',
   ]);
-  assert.deepEqual(stockTrade.redirect_domains, ['https://solscan.io']);
-  assert.ok(stockTrade.resource_domains.includes('https://dexter.cash'));
+  assert.deepEqual(governedAction.redirect_domains, ['https://solscan.io']);
+  assert.ok(governedAction.resource_domains.includes('https://dexter.cash'));
+});
+
+test('current governed resources register action and history as separate read-only views', async (t) => {
+  const originalEnvironment = {
+    TOKEN_AI_APPS_SDK_ASSET_BASE: process.env.TOKEN_AI_APPS_SDK_ASSET_BASE,
+    TOKEN_AI_ENABLE_APPS_SDK: process.env.TOKEN_AI_ENABLE_APPS_SDK,
+    TOKEN_AI_MCP_PUBLIC_URL: process.env.TOKEN_AI_MCP_PUBLIC_URL,
+  };
+  t.after(() => {
+    for (const [key, value] of Object.entries(originalEnvironment)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+
+  process.env.TOKEN_AI_APPS_SDK_ASSET_BASE = 'https://dexter.cash/mcp/app-assets';
+  process.env.TOKEN_AI_ENABLE_APPS_SDK = '1';
+  process.env.TOKEN_AI_MCP_PUBLIC_URL = 'https://open.dexter.cash/mcp';
+
+  const registrations = [];
+  registerAppsSdkResources({
+    registerResource(name, uri, config, readCallback) {
+      registrations.push({ name, uri, config, readCallback });
+      return {};
+    },
+  }, {
+    allowedTemplateUris: [
+      GOVERNED_ASSET_WIDGET_URIS.action,
+      GOVERNED_ASSET_WIDGET_URIS.history,
+    ],
+  });
+
+  assert.deepEqual(
+    registrations.map(({ name }) => name),
+    ['dexter_governed_action', 'dexter_governed_history'],
+  );
+  const [action, history] = registrations;
+  assert.equal(action.uri, GOVERNED_ASSET_WIDGET_URIS.action);
+  assert.equal(history.uri, GOVERNED_ASSET_WIDGET_URIS.history);
+  assert.match(action.config._meta['openai/widgetDescription'], /exact economics/);
+  assert.match(history.config._meta['openai/widgetDescription'], /prior governed actions/);
+  assert.match((await action.readCallback()).contents[0].text, /governed-action-root/);
+  assert.match((await history.readCallback()).contents[0].text, /governed-history-root/);
 });
 
 test('stock-trade resource is registered as a truthful read-only receipt', async (t) => {
@@ -189,6 +267,7 @@ test('stock-trade resource is registered as a truthful read-only receipt', async
 test('receipt CSP covers every explorer origin emitted by the widget', () => {
   const receipt = buildWidgetCsp('https://dexter.cash/assets', X402_WIDGET_URIS.fetch);
   for (const origin of [
+    'https://dexter.cash',
     'https://solscan.io',
     'https://basescan.org',
     'https://polygonscan.com',

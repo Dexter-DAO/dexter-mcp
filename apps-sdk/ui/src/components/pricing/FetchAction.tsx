@@ -1,5 +1,3 @@
-import { Button } from '@openai/apps-sdk-ui/components/Button';
-
 interface Props {
   price: string | null;
   intentReady: boolean;
@@ -19,14 +17,22 @@ export function FetchAction({
     status === 'sending'
       ? 'Opening review…'
       : status === 'sent'
-        ? 'Review opened in chat'
+        ? 'Opened in chat'
         : intentReady
           ? 'Review payment'
-          : 'Connect & re-check';
+          : 'Complete request';
   return (
-    <Button color="primary" block onClick={onFetch} disabled={disabled}>
-      {label}
-      {price && status !== 'sent' ? ` · ${price}` : ''}
-    </Button>
+    <button
+      type="button"
+      className="dx-pricing__action"
+      aria-label={label}
+      onClick={onFetch}
+      disabled={disabled}
+    >
+      <span>{label}</span>
+      {price && status !== 'sent' ? (
+        <span className="dx-pricing__action-price" aria-hidden>{price}</span>
+      ) : null}
+    </button>
   );
 }

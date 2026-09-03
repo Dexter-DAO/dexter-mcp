@@ -3,12 +3,9 @@ import type { SearchResource } from './types';
 import { providerImageSources } from '../providerImage';
 
 /**
- * Identity icon: tries Dexter-proxied provider art → Dexter favicon proxy →
- * a quiet geometric "unsigned" mark. No arbitrary provider URL is requested
- * by the browser. No letter bubbles. Letter fallbacks
- * read as tacky contacts-app filler; a small geometric glyph reads as
- * "we don't have art for this seller yet" without making each row look
- * like a different brand entirely.
+ * Identity icon fallback order: Dexter-proxied provider art, Dexter favicon proxy,
+ * a neutral missing-art marker. No arbitrary provider URL is requested by
+ * the browser and the fallback never impersonates a provider logo.
  */
 export function SearchIdentityIcon({ resource, size = 44 }: { resource: SearchResource; size?: number }) {
   const sources = useMemo(() => {
@@ -56,10 +53,7 @@ export function SearchIdentityIcon({ resource, size = 44 }: { resource: SearchRe
 }
 
 /**
- * "Unsigned" mark — quiet geometric placeholder for rows whose seller
- * hasn't supplied art yet. Concentric strokes (rounded square + diamond +
- * dot), neutral tone, no letters. Reads as "no signature on file" rather
- * than impersonating a logo.
+ * An intentionally plain marker for a provider with no usable image.
  */
 function UnsignedMark({ size }: { size: number }) {
   return (
@@ -68,32 +62,7 @@ function UnsignedMark({ size }: { size: number }) {
       style={{ width: size, height: size }}
       aria-hidden="true"
     >
-      <svg viewBox="0 0 44 44" width={size} height={size}>
-        <defs>
-          <linearGradient id="dx-id-grad" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="rgba(255,255,255,0.06)" />
-            <stop offset="100%" stopColor="rgba(255,255,255,0.02)" />
-          </linearGradient>
-        </defs>
-        <rect x="0" y="0" width="44" height="44" rx="14" fill="url(#dx-id-grad)" />
-        <rect
-          x="6" y="6" width="32" height="32"
-          rx="10"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1"
-          opacity="0.18"
-        />
-        <path
-          d="M22 12 L32 22 L22 32 L12 22 Z"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.2"
-          strokeLinejoin="round"
-          opacity="0.32"
-        />
-        <circle cx="22" cy="22" r="2.6" fill="currentColor" opacity="0.42" />
-      </svg>
+      <span className="dx-search-identity__unsigned-dot" />
     </div>
   );
 }
