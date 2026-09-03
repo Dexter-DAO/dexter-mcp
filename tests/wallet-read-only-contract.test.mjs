@@ -126,3 +126,12 @@ test('wallet cash, reported credit, and exact-intent readiness remain distinct',
   assert.match(creditSheet, /Whether a purchase can use it is[\s\S]*exact checked request/);
   assert.doesNotMatch(creditSheet, /purchases can use this/);
 });
+
+test('wallet balance motion stays brief and preserves reduced-motion handling', async () => {
+  const headline = await source('apps-sdk/ui/src/components/wallet/SpendHeadline.tsx');
+  const duration = headline.match(/const duration = (\d+);/);
+
+  assert.ok(duration, 'SpendHeadline must keep an explicit, reviewable duration');
+  assert.ok(Number(duration[1]) <= 500, 'wallet balance motion must never exceed 500ms');
+  assert.match(headline, /prefers-reduced-motion: reduce/);
+});

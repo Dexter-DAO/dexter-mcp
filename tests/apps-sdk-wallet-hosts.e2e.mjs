@@ -898,6 +898,156 @@ test('wallet Money overview renders honest states in ChatGPT and MCP Apps deskto
     });
   }
 
+  await t.test('wallet sheets preserve semantic dismissal and restore focus to remounted triggers', async () => {
+    const context = await browser.newContext({
+      viewport: { width: 1100, height: 1000 },
+      reducedMotion: 'reduce',
+      colorScheme: 'light',
+    });
+    const page = await context.newPage();
+    await installFixedClock(page);
+    await page.addInitScript(installChatGptHost, {
+      output: walletOutput(),
+      metadata: { dexterPortfolio: completePortfolio() },
+      mobile: false,
+    });
+    await page.goto(widgetUrl);
+
+    const activityTrigger = page.getByRole('button', { name: 'Activity', exact: true });
+    await activityTrigger.waitFor();
+    const originalTrigger = await activityTrigger.elementHandle();
+    assert.ok(originalTrigger, 'the Activity trigger must exist before opening its sheet');
+    await activityTrigger.focus();
+    await activityTrigger.press('Enter');
+
+    const activityDialog = page.getByRole('dialog', { name: 'Activity' });
+    await activityDialog.waitFor();
+    assert.equal(
+      await originalTrigger.evaluate((element) => element.isConnected),
+      false,
+      'opening Activity must exercise focus restoration across the remounted home subtree',
+    );
+    assert.equal(
+      await page.locator('.dxw-act-row span > div').count(),
+      0,
+      'Activity rows must not place block-level divs inside spans',
+    );
+
+    const scrimSemantics = await page.locator('.dxw-scrim').evaluate((element) => ({
+      tagName: element.tagName,
+      type: element.getAttribute('type'),
+      ariaHidden: element.getAttribute('aria-hidden'),
+      accessibleName: element.getAttribute('aria-label')?.trim() ?? '',
+    }));
+    assert.equal(scrimSemantics.tagName, 'BUTTON', 'the clickable sheet scrim must be a button');
+    assert.equal(scrimSemantics.type, 'button', 'the scrim must never submit an ancestor form');
+    assert.equal(scrimSemantics.ariaHidden, null, 'an interactive scrim must not be hidden from assistive technology');
+    assert.ok(scrimSemantics.accessibleName, 'the scrim button must have an accessible name');
+
+    await page.keyboard.press('Escape');
+    await activityDialog.waitFor({ state: 'detached' });
+    const remountedAfterEscape = page.getByRole('button', { name: 'Activity', exact: true });
+    await remountedAfterEscape.waitFor();
+    assert.equal(
+      await remountedAfterEscape.evaluate((element) => document.activeElement === element),
+      true,
+      'Escape must return focus to the remounted Activity trigger',
+    );
+
+    await remountedAfterEscape.press('Enter');
+    await page.getByRole('dialog', { name: 'Activity' }).waitFor();
+    await page.locator('.dxw-sheet-close').click();
+    await page.getByRole('dialog', { name: 'Activity' }).waitFor({ state: 'detached' });
+    const remountedAfterClose = page.getByRole('button', { name: 'Activity', exact: true });
+    await remountedAfterClose.waitFor();
+    assert.equal(
+      await remountedAfterClose.evaluate((element) => document.activeElement === element),
+      true,
+      'the visible Close control must return focus to the remounted Activity trigger',
+    );
+
+    const calls = await page.evaluate(() => window.__hostCalls ?? []);
+    const forbidden = calls.filter((call) =>
+      call.kind === 'openExternal' ||
+      call.method === 'tools/call' ||
+      call.method === 'ui/open-link',
+    );
+    assert.deepEqual(
+      forbidden,
+      [],
+      'opening and dismissing Activity must not call a tool or start a handoff',
+    );
+    await context.close();
+  });
+
+  await t.test('wallet announces loading, authentication, and read failures', async () => {
+    const context = await browser.newContext({
+      viewport: { width: 375, height: 780 },
+      reducedMotion: 'reduce',
+      colorScheme: 'light',
+    });
+    const page = await context.newPage();
+    await page.addInitScript(installChatGptHost, {
+      output: null,
+      metadata: null,
+      mobile: true,
+    });
+    await page.goto(widgetUrl);
+
+    const loading = page.getByRole('status');
+    await loading.getByRole('heading', { name: 'Reading your money', level: 2 }).waitFor();
+    assert.equal(await loading.getAttribute('aria-live'), 'polite');
+    assert.equal(await loading.getAttribute('aria-atomic'), 'true');
+    assert.equal(await loading.getAttribute('aria-busy'), 'true');
+
+    await page.evaluate(() => {
+      const toolOutput = {
+        status: 401,
+        mode: 'authentication_required',
+        user_bound: false,
+      };
+      window.openai.toolOutput = toolOutput;
+      window.dispatchEvent(new CustomEvent('openai:set_globals', {
+        detail: { globals: { toolOutput } },
+      }));
+    });
+    const authentication = page.getByRole('status');
+    await authentication.getByRole('heading', { name: 'Connect OpenDexter', level: 2 }).waitFor();
+    assert.equal(await authentication.getAttribute('aria-live'), 'polite');
+    assert.equal(await authentication.getAttribute('aria-busy'), null);
+
+    await page.evaluate(() => {
+      const toolOutput = {
+        status: 503,
+        mode: 'vault_read_error',
+        user_bound: true,
+        error: 'vault_state_read_failed',
+      };
+      window.openai.toolOutput = toolOutput;
+      window.dispatchEvent(new CustomEvent('openai:set_globals', {
+        detail: { globals: { toolOutput } },
+      }));
+    });
+    const failure = page.getByRole('alert');
+    await failure.getByRole('heading', { name: "Couldn't reach your wallet", level: 2 }).waitFor();
+    assert.equal(await failure.getAttribute('aria-live'), 'assertive');
+    assert.equal(await failure.getAttribute('aria-atomic'), 'true');
+    assert.equal(await failure.getAttribute('aria-busy'), null);
+
+    const calls = await page.evaluate(() => window.__hostCalls ?? []);
+    const forbidden = calls.filter((call) =>
+      call.kind === 'openExternal' ||
+      call.method === 'tools/call' ||
+      call.method === 'ui/open-link',
+    );
+    assert.deepEqual(
+      forbidden,
+      [],
+      'state announcements must not call a tool or start a handoff',
+    );
+    await context.close();
+  });
+
   await t.test('ChatGPT wallet read error never becomes a zero-dollar home', async () => {
     const context = await browser.newContext({
       viewport: { width: 375, height: 780 },

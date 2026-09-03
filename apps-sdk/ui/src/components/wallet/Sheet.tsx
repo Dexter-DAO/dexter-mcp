@@ -17,8 +17,6 @@ export function Sheet({ title, onClose, children }: {
   onCloseRef.current = onClose;
 
   useEffect(() => {
-    const previouslyFocused =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
     closeRef.current?.focus();
 
     const onKeyDown = (event: KeyboardEvent) => {
@@ -47,13 +45,18 @@ export function Sheet({ title, onClose, children }: {
     document.addEventListener('keydown', onKeyDown);
     return () => {
       document.removeEventListener('keydown', onKeyDown);
-      previouslyFocused?.focus();
     };
   }, []);
 
   return (
     <>
-      <div className="dxw-scrim" onClick={onClose} aria-hidden="true" />
+      <button
+        className="dxw-scrim"
+        onClick={onClose}
+        aria-label={`Close ${title}`}
+        tabIndex={-1}
+        type="button"
+      />
       <div
         className="dxw-sheet"
         ref={sheetRef}

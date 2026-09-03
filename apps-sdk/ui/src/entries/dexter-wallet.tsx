@@ -58,6 +58,7 @@ function WalletApp() {
         title="Reading your money"
         body="Checking cash, reported credit capacity, assets, and earning positions without moving anything."
         onOpenExternal={openExternal}
+        announcement="loading"
       />
     );
   } else if (mode === 'authentication_required') {
@@ -99,6 +100,7 @@ function WalletApp() {
         title="Couldn't reach your wallet"
         body="Dexter could not reach your wallet, but your funds are safe. Try again in a moment."
         onOpenExternal={openExternal}
+        announcement="error"
       />
     );
   } else if (!hasAddress) {
@@ -107,6 +109,7 @@ function WalletApp() {
         title="Wallet data unavailable"
         body="No verified wallet address was returned, so no balance or asset total is shown."
         onOpenExternal={openExternal}
+        announcement="error"
       />
     );
   } else {

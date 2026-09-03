@@ -876,10 +876,12 @@ function IndexterSearch() {
 
       {isMobile && detailOpen && selectedResource && (
         <div className="dx-search-mobile-backdrop fixed inset-0 z-20 flex items-end px-3 py-3 backdrop-blur-sm">
-          <div
+          <button
             className="dx-search-mobile-dismiss absolute inset-0"
             onClick={handleCloseDetail}
-            aria-hidden="true"
+            aria-label={`Close ${selectedResource.name} details`}
+            tabIndex={-1}
+            type="button"
           />
           <div
             ref={mobileDialogRef}

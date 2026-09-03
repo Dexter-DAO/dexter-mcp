@@ -1,11 +1,12 @@
 import { fmtUsd } from './format';
+import type { Ref } from 'react';
 
 /**
  * The money composition: a proportional bar (own funds / open credit / at-work)
  * plus a legend. Segments and legend rows appear only when their value is > 0,
  * so a cash-only wallet reads clean instead of showing empty categories.
  */
-export function CompositionBar({ own, credit, atWork, earnPct, onOpen }: {
+export function CompositionBar({ own, credit, atWork, earnPct, onOpen, triggerRef }: {
   own: number;
   credit: number;
   atWork: number;
@@ -15,10 +16,14 @@ export function CompositionBar({ own, credit, atWork, earnPct, onOpen }: {
    *  hatched segment is the learned word for credit, so the bar itself is
    *  the affordance; no fifth action button (calm-surface law). */
   onOpen?: () => void;
+  triggerRef?: Ref<HTMLButtonElement>;
 }) {
   const Root: any = onOpen ? 'button' : 'div';
   return (
-    <Root className={`dxw-comp${onOpen ? ' dxw-comp-tap' : ''}`} {...(onOpen ? { onClick: onOpen, type: 'button' } : {})}>
+    <Root
+      className={`dxw-comp${onOpen ? ' dxw-comp-tap' : ''}`}
+      {...(onOpen ? { onClick: onOpen, ref: triggerRef, type: 'button' } : {})}
+    >
       <div className="dxw-comp-bar">
         <div className="dxw-seg dxw-seg-own" style={{ flex: `${Math.max(own, 0.001)} 1 0` }} />
         {credit > 0 ? <div className="dxw-seg dxw-seg-credit" style={{ flex: `${credit} 1 0` }} /> : null}

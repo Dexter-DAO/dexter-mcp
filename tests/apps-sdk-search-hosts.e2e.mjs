@@ -8,6 +8,8 @@ import react from '@vitejs/plugin-react';
 import { chromium } from 'playwright';
 import { createServer } from 'vite';
 
+import { MCP_APPS_HOST_TOKENS } from './fixtures/opendexter-renderer-gallery-fixtures.mjs';
+
 const TEST_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(TEST_DIR, '..');
 const UI_ROOT = path.join(REPO_ROOT, 'apps-sdk', 'ui');
@@ -845,6 +847,22 @@ async function exerciseSearchFlow({
     await detailOpener.click();
     let dialog = surface.getByRole('dialog', { name: 'Beacon Price Feed details' });
     await dialog.waitFor();
+    const dismiss = surface.locator('.dx-search-mobile-dismiss');
+    assert.equal(
+      await dismiss.evaluate((element) => element.tagName),
+      'BUTTON',
+      `${hostName}: the click-away surface must use native button semantics`,
+    );
+    assert.equal(
+      await dismiss.getAttribute('aria-hidden'),
+      null,
+      `${hostName}: the click-away control must not be hidden from accessibility APIs`,
+    );
+    assert.equal(
+      await dismiss.getAttribute('aria-label'),
+      'Close Beacon Price Feed details',
+    );
+    assert.equal(await dismiss.getAttribute('tabindex'), '-1');
     let drawer = dialog.locator('.dx-search-drawer');
     const closeDetail = drawer.getByRole('button', { name: 'Close detail' });
     await closeDetail.waitFor();
@@ -1600,6 +1618,49 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
       await page.close();
     });
 
+    await t.test('ChatGPT Access Terms announces loading and failure states', async () => {
+      const page = await context.newPage();
+      await page.addInitScript(installChatGptHost, {
+        searchOutput: null,
+        checkToolResult: CHECK_TOOL_RESULT,
+        toolInput: {
+          url: 'https://fixture.example/atlas',
+          method: 'GET',
+        },
+        allowToolCalls: false,
+        allowFollowUp: false,
+        allowDisplayMode: false,
+      });
+      await page.goto(pricingWidgetUrl);
+
+      const loading = page.getByRole('status');
+      await loading.getByText('Checking current access terms…', { exact: true }).waitFor();
+      assert.equal(await loading.getAttribute('aria-live'), 'polite');
+      assert.equal(await loading.getAttribute('aria-atomic'), 'true');
+      assert.equal(await page.locator('.dx-pricing').getAttribute('aria-busy'), 'true');
+
+      await page.evaluate(() => {
+        const toolOutput = {
+          authMode: 'unknown',
+          statusCode: 503,
+          error: true,
+          message: 'Provider access could not be checked.',
+        };
+        window.openai.toolOutput = toolOutput;
+        window.dispatchEvent(new CustomEvent('openai:set_globals', {
+          detail: { globals: { toolOutput } },
+        }));
+      });
+
+      const failure = page.getByRole('alert');
+      await failure.waitFor();
+      assert.equal(await failure.getAttribute('aria-live'), 'assertive');
+      assert.equal(await failure.getAttribute('aria-atomic'), 'true');
+      assert.match(await failure.innerText(), /Provider access could not be checked\./);
+      assert.equal(await page.locator('.dx-pricing').getAttribute('aria-busy'), null);
+      await page.close();
+    });
+
     await t.test('ChatGPT dark presentation', async () => {
       const page = await context.newPage();
       const pageErrors = [];
@@ -1939,6 +2000,7 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
       const page = await context.newPage();
       const constrainedInit = structuredClone(MCP_INIT_RESULT);
       constrainedInit.hostContext.containerDimensions.maxHeight = 300;
+      constrainedInit.hostContext.styles.variables = MCP_APPS_HOST_TOKENS.light;
       await page.setContent(
         '<!doctype html><html><body style="margin:0">'
           + '<iframe id="widget" title="Access Terms widget" '
@@ -1965,6 +2027,31 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
       assert.equal(metrics.overflowY, 'auto');
       assert.ok(metrics.clientHeight <= 300);
       assert.ok(metrics.scrollHeight > metrics.clientHeight);
+
+      const requestBackground = await frame
+        .locator('.dx-pricing__request')
+        .evaluate((element) => getComputedStyle(element).backgroundColor);
+      assert.equal(
+        requestBackground,
+        'rgb(232, 225, 215)',
+        'Access Terms contrast must be measured against the exact light gallery tertiary',
+      );
+      for (const selector of [
+        '.dx-pricing__request-method',
+        '.dx-pricing__request-url',
+      ]) {
+        const sample = await frame.locator(selector).evaluate((element) => ({
+          color: getComputedStyle(element).color,
+          fontSize: Number.parseFloat(getComputedStyle(element).fontSize),
+          text: element.textContent?.trim(),
+        }));
+        const ratio = await contrastRatio(frame, sample.color, requestBackground);
+        assert.ok(
+          ratio !== null && ratio >= 4.5,
+          `Access Terms ${selector} must meet 4.5:1 on the exact light fixture `
+            + `(text ${sample.text}, ${sample.fontSize}px, ratio ${ratio})`,
+        );
+      }
       await page.close();
     });
 

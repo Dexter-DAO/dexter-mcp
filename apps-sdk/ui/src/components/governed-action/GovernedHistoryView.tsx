@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import {
   useAdaptiveMaxHeight,
@@ -57,14 +57,24 @@ export function GovernedHistoryView() {
   const openExternal = useAdaptiveOpenExternal();
   const model = useMemo(() => normalizeGovernedHistory(renderOutput), [renderOutput]);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const returnFocusIndex = useRef<number | null>(null);
+  const rowRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
   useEffect(() => {
+    returnFocusIndex.current = null;
     setSelectedIndex(null);
   }, [renderOutput]);
+
+  useLayoutEffect(() => {
+    if (selectedIndex !== null || returnFocusIndex.current === null) return;
+    const target = rowRefs.current[returnFocusIndex.current];
+    if (target?.isConnected) target.focus();
+    returnFocusIndex.current = null;
+  }, [selectedIndex]);
 
   if (renderOutput === null) return <HistoryLoading maxHeight={maxHeight} />;
 
@@ -113,7 +123,11 @@ export function GovernedHistoryView() {
                   <button
                     type="button"
                     className="dx-history__row"
-                    onClick={() => setSelectedIndex(index)}
+                    ref={(element) => { rowRefs.current[index] = element; }}
+                    onClick={() => {
+                      returnFocusIndex.current = index;
+                      setSelectedIndex(index);
+                    }}
                     aria-label={`Open details for ${item.headline}`}
                   >
                     <span className="dx-history__row-copy">

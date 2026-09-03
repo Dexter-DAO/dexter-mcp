@@ -279,8 +279,17 @@ test('governed action and history render as one safe host-owned canvas', async (
     const rowHeights = await page.locator('.dx-history__row').evaluateAll((rows) =>
       rows.map((row) => row.getBoundingClientRect().height));
     assert.ok(rowHeights.every((height) => height >= 40));
-    await page.locator('.dx-history__row').first().click();
+    const firstRow = page.locator('.dx-history__row').first();
+    const originalRow = await firstRow.elementHandle();
+    assert.ok(originalRow, 'the first history row must exist before opening its receipt');
+    await firstRow.focus();
+    await firstRow.press('Enter');
     await page.getByRole('heading', { name: '1.25 shares of Tesla, Inc. bought' }).waitFor();
+    assert.equal(
+      await originalRow.evaluate((element) => element.isConnected),
+      false,
+      'opening receipt detail must exercise focus restoration across the remounted history list',
+    );
     await page.getByText('Confirmed on Solana with successful execution.', { exact: true }).waitFor();
     await page.getByText('Receipt details', { exact: true }).click();
     await page.getByText('Status read', { exact: true }).first().waitFor();
@@ -296,7 +305,21 @@ test('governed action and history render as one safe host-owned canvas', async (
     await page.getByRole('button', { name: 'Back to history' }).click();
     await page.getByRole('heading', { name: 'Wallet history' }).waitFor();
     await page.getByText('More history is available on the next page.', { exact: true }).waitFor();
+    const restoredRow = page.locator('.dx-history__row').first();
+    await restoredRow.waitFor();
+    assert.equal(
+      await restoredRow.evaluate((element) => document.activeElement === element),
+      true,
+      'Back to history must return focus to the exact row that opened the receipt',
+    );
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth));
+
+    const calls = await page.evaluate(() => window.__hostCalls ?? []);
+    assert.deepEqual(
+      calls.filter((call) => call.kind === 'openExternal'),
+      [],
+      'opening and closing receipt detail must remain read-only',
+    );
 
     if (process.env.DEXTER_GOVERNED_SCREENSHOTS === '1') {
       await page.screenshot({
