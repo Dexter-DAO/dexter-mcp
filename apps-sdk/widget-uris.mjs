@@ -57,3 +57,19 @@ export const GOVERNED_ASSET_WIDGET_URIS = Object.freeze({
   // Retained for historical consumers. Current OpenDexter tools use action/history.
   stockTrade: versionedWidgetUri('ui://dexter/stock-trade', 'stock-trade.html'),
 });
+
+// ChatGPT can retain a tool descriptor after a connector is removed and
+// re-added. Keep the immediately preceding production template addresses
+// readable during the renderer rollout so a cached descriptor does not turn a
+// successful tool call into `Resource ... not found`. Tool descriptors always
+// advertise the content-addressed URIs above; these are read-only rollout
+// aliases that serve the current fixed renderer.
+export const OPENDEXTER_ROLLOUT_WIDGET_URIS = Object.freeze({
+  indexterSearch: Object.freeze(['ui://dexter/indexter-search-f4636936']),
+  fetch: Object.freeze(['ui://dexter/x402-fetch-result-ef385542']),
+  pricing: Object.freeze(['ui://dexter/x402-pricing-3465a350']),
+  wallet: Object.freeze(['ui://dexter/dexter-wallet-f0b010a7']),
+  portfolio: Object.freeze(['ui://dexter/portfolio-56eba5ab']),
+  governedAction: Object.freeze(['ui://dexter/governed-action-2815c33a']),
+  governedHistory: Object.freeze(['ui://dexter/governed-history-ac4c3bb9']),
+});

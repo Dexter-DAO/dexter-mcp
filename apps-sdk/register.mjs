@@ -11,6 +11,7 @@ import {
   PASSKEY_WIDGET_URIS,
   PORTFOLIO_WIDGET_URIS,
   GOVERNED_ASSET_WIDGET_URIS,
+  OPENDEXTER_ROLLOUT_WIDGET_URIS,
 } from './widget-uris.mjs';
 import { resolveAppsSdkRelease } from '../scripts/apps-sdk-release.mjs';
 import { registerAppResource, RESOURCE_MIME_TYPE } from '@modelcontextprotocol/ext-apps/server';
@@ -612,6 +613,7 @@ export function registerAppsSdkResources(server, options = {}) {
     {
       name: 'dexter_indexter_search',
       templateUri: INDEXTER_WIDGET_URIS.search,
+      rolloutTemplateUris: OPENDEXTER_ROLLOUT_WIDGET_URIS.indexterSearch,
       file: 'indexter-search.html',
       title: 'Indexter Search',
       description: 'Displays Indexter discovery results and initiates current-terms checks in chat.',
@@ -632,6 +634,7 @@ export function registerAppsSdkResources(server, options = {}) {
     {
       name: 'dexter_x402_fetch_result',
       templateUri: X402_WIDGET_URIS.fetch,
+      rolloutTemplateUris: OPENDEXTER_ROLLOUT_WIDGET_URIS.fetch,
       file: 'x402-fetch-result.html',
       title: 'OpenDexter Result',
       description: 'Displays a delivered result with payment, dispatch, and reconciliation evidence.',
@@ -642,6 +645,7 @@ export function registerAppsSdkResources(server, options = {}) {
     {
       name: 'dexter_x402_pricing',
       templateUri: X402_WIDGET_URIS.pricing,
+      rolloutTemplateUris: OPENDEXTER_ROLLOUT_WIDGET_URIS.pricing,
       file: 'x402-pricing.html',
       title: 'Access Terms',
       description: 'Displays current access requirements and exact seller terms for a checked request.',
@@ -652,6 +656,7 @@ export function registerAppsSdkResources(server, options = {}) {
     {
       name: 'dexter_wallet',
       templateUri: DEXTER_WALLET_WIDGET_URIS.wallet,
+      rolloutTemplateUris: OPENDEXTER_ROLLOUT_WIDGET_URIS.wallet,
       file: 'dexter-wallet.html',
       title: 'Dexter Wallet',
       description: 'Displays the connected Dexter Wallet, its receive address, assets, credit, and activity.',
@@ -672,6 +677,7 @@ export function registerAppsSdkResources(server, options = {}) {
     {
       name: 'dexter_wallet_portfolio',
       templateUri: PORTFOLIO_WIDGET_URIS.overview,
+      rolloutTemplateUris: OPENDEXTER_ROLLOUT_WIDGET_URIS.portfolio,
       file: 'dexter-portfolio.html',
       title: 'Dexter Wallet Portfolio',
       description: 'Displays current holdings and governed discovery targets from the authenticated Dexter Wallet portfolio read.',
@@ -732,6 +738,7 @@ export function registerAppsSdkResources(server, options = {}) {
     {
       name: 'dexter_governed_action',
       templateUri: GOVERNED_ASSET_WIDGET_URIS.action,
+      rolloutTemplateUris: OPENDEXTER_ROLLOUT_WIDGET_URIS.governedAction,
       file: 'governed-action.html',
       title: 'Dexter Wallet Governed Action',
       description: 'Displays the current prepare, execute, status, or reconciliation result for a governed Send, Buy, or Sell action.',
@@ -742,6 +749,7 @@ export function registerAppsSdkResources(server, options = {}) {
     {
       name: 'dexter_governed_history',
       templateUri: GOVERNED_ASSET_WIDGET_URIS.history,
+      rolloutTemplateUris: OPENDEXTER_ROLLOUT_WIDGET_URIS.governedHistory,
       file: 'governed-history.html',
       title: 'Dexter Wallet History',
       description: 'Displays durable governed Send, Buy, and Sell history for the authenticated Dexter Wallet.',
@@ -785,43 +793,54 @@ export function registerAppsSdkResources(server, options = {}) {
       ...(permissions ? { permissions } : {}),
     };
 
-    registerAppResource(
-      server,
-      entry.name,
+    const resourceUris = [...new Set([
       entry.templateUri,
-      {
-        title: entry.title,
-        description: entry.description,
-        _meta: {
-          ui: standardUiMeta,
-          'openai/widgetDomain': widgetDomain,
-          'openai/widgetCSP': widgetCSP,
-          'openai/widgetDescription': entry.widgetDescription || entry.description,
-          'openai/widgetPrefersBorder': false,
-        },
-      },
-      async () => {
-        const rawHtml = await fsp.readFile(assetPath, 'utf8');
-        const rewritten = tagEntryScript(rewriteHtmlForAssets(rawHtml, assetBase), entry.name);
-        const html = injectBootstrap(rewritten, MCP_PUBLIC_URL, buildWidgetRuntimeConfig(entry, assetBase));
+      ...(entry.rolloutTemplateUris || []),
+    ])];
 
-        return {
-          contents: [
-            {
-              uri: entry.templateUri,
-              mimeType: SKYBRIDGE_MIME,
-              text: html,
-              _meta: {
-                ui: standardUiMeta,
-                'openai/widgetDomain': widgetDomain,
-                'openai/widgetCSP': widgetCSP,
-                'openai/widgetDescription': entry.widgetDescription || entry.description,
-                'openai/widgetPrefersBorder': false,
+    for (const [resourceIndex, resourceUri] of resourceUris.entries()) {
+      registerAppResource(
+        server,
+        resourceIndex === 0 ? entry.name : `${entry.name}_rollout_${resourceIndex}`,
+        resourceUri,
+        {
+          title: entry.title,
+          description: entry.description,
+          _meta: {
+            ui: standardUiMeta,
+            'openai/widgetDomain': widgetDomain,
+            'openai/widgetCSP': widgetCSP,
+            'openai/widgetDescription': entry.widgetDescription || entry.description,
+            'openai/widgetPrefersBorder': false,
+          },
+        },
+        async () => {
+          const rawHtml = await fsp.readFile(assetPath, 'utf8');
+          const rewritten = tagEntryScript(rewriteHtmlForAssets(rawHtml, assetBase), entry.name);
+          const html = injectBootstrap(
+            rewritten,
+            MCP_PUBLIC_URL,
+            buildWidgetRuntimeConfig({ ...entry, templateUri: resourceUri }, assetBase),
+          );
+
+          return {
+            contents: [
+              {
+                uri: resourceUri,
+                mimeType: SKYBRIDGE_MIME,
+                text: html,
+                _meta: {
+                  ui: standardUiMeta,
+                  'openai/widgetDomain': widgetDomain,
+                  'openai/widgetCSP': widgetCSP,
+                  'openai/widgetDescription': entry.widgetDescription || entry.description,
+                  'openai/widgetPrefersBorder': false,
+                },
               },
-            },
-          ],
-        };
-      },
-    );
+            ],
+          };
+        },
+      );
+    }
   }
 }
