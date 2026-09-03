@@ -54,6 +54,7 @@ const SURFACE_CONTRACTS = Object.freeze({
     toolTitle: 'Indexter Search',
     fallbackWords: 'indexter search',
     documentTitle: 'Indexter Search',
+    rootSelector: '#indexter-search-root',
     readySelector: '.dx-search-brief__title',
     planeSelector: '.dxs-root',
     essentialSelectors: Object.freeze([
@@ -67,6 +68,7 @@ const SURFACE_CONTRACTS = Object.freeze({
     toolTitle: 'Dexter Wallet',
     fallbackWords: 'dexter wallet',
     documentTitle: 'Dexter Wallet',
+    rootSelector: '#dexter-wallet-root',
     readySelector: '.dxw-spend-amount',
     planeSelector: '.dxw-widget',
     essentialSelectors: Object.freeze([
@@ -80,6 +82,7 @@ const SURFACE_CONTRACTS = Object.freeze({
     toolTitle: 'Dexter Wallet Portfolio',
     fallbackWords: 'dexter wallet portfolio',
     documentTitle: 'Dexter Wallet Portfolio',
+    rootSelector: '#dexter-portfolio-root',
     readySelector: '[aria-label^="Portfolio value"]',
     planeSelector: '.dxp-root',
     essentialSelectors: Object.freeze([
@@ -316,6 +319,21 @@ async function inspectInlineVariant({ browser, baseUrl, surface, theme, profileN
     locale: 'en-US',
     timezoneId: 'UTC',
   });
+  // Native ChatGPT can expose only its optional window.openai extensions while
+  // delivering input, results, and sizing over the standard MCP Apps bridge.
+  // A partial compatibility object must never suppress ui/initialize.
+  await context.addInitScript(() => {
+    window.__intrinsicHeightReports = [];
+    window.openai = {
+      toolInput: null,
+      toolOutput: null,
+      toolResponseMetadata: null,
+      openExternal() {},
+      notifyIntrinsicHeight({ height }) {
+        window.__intrinsicHeightReports.push(height);
+      },
+    };
+  });
   await installFixedClock(context);
   const page = await context.newPage();
   const consoleErrors = [];
@@ -447,6 +465,9 @@ async function inspectInlineVariant({ browser, baseUrl, surface, theme, profileN
     const planeStyle = getComputedStyle(plane);
     return {
       title: document.title,
+      intrinsicHeightReports: Array.isArray(window.__intrinsicHeightReports)
+        ? window.__intrinsicHeightReports
+        : [],
       viewport: { width: viewportRight, height: viewportBottom },
       document: {
         clientWidth: document.documentElement.clientWidth,
@@ -493,6 +514,72 @@ async function inspectInlineVariant({ browser, baseUrl, surface, theme, profileN
   const hostSize = await page.evaluate(() => window.__hostSize);
   await context.close();
   return { metrics, hostSize, hostLabel, screenshot, consoleErrors, pageErrors };
+}
+
+async function inspectUnknownFirstPaint({ browser, baseUrl, surface }) {
+  const contract = SURFACE_CONTRACTS[surface.id];
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    colorScheme: 'light',
+    reducedMotion: 'reduce',
+  });
+  const page = await context.newPage();
+  const pageErrors = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
+  await page.route('**/*', async (route) => {
+    if (isLocalRequest(route.request().url(), baseUrl)) {
+      await route.continue();
+      return;
+    }
+    if (route.request().resourceType() === 'image') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'image/svg+xml',
+        body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><circle cx="20" cy="20" r="14" fill="#918677" /></svg>',
+      });
+      return;
+    }
+    await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+  });
+
+  await page.goto(`${baseUrl}/${surface.file}`, { waitUntil: 'networkidle' });
+  await page.locator(`${contract.rootSelector} > *`).first().waitFor({
+    state: 'attached',
+    timeout: 8_000,
+  });
+  const firstPaintChildren = await page.locator(contract.rootSelector).evaluate(
+    (root) => root.children.length,
+  );
+
+  await page.evaluate(({ input, output, metadata }) => {
+    window.openai = {
+      theme: 'light',
+      displayMode: 'inline',
+      toolInput: input,
+      toolOutput: output,
+      toolResponseMetadata: metadata,
+      openExternal() {},
+    };
+    window.dispatchEvent(new CustomEvent('openai:set_globals', {
+      detail: {
+        globals: {
+          theme: 'light',
+          displayMode: 'inline',
+          toolInput: input,
+          toolOutput: output,
+          toolResponseMetadata: metadata,
+        },
+      },
+    }));
+  }, {
+    input: surface.input,
+    output: surface.output,
+    metadata: surface.metadata,
+  });
+  await page.locator(contract.readySelector).waitFor({ state: 'visible', timeout: 8_000 });
+  const readyText = await page.locator(contract.readySelector).textContent();
+  await context.close();
+  return { firstPaintChildren, readyText: readyText?.trim() ?? '', pageErrors };
 }
 
 function inlineIntegrityViolations({ report, surface, contract, profileName, theme }) {
@@ -550,6 +637,10 @@ function inlineIntegrityViolations({ report, surface, contract, profileName, the
   }
   expect(report.consoleErrors.length === 0, `browser console errors: ${report.consoleErrors.join(' | ')}`);
   expect(report.pageErrors.length === 0, `browser page errors: ${report.pageErrors.join(' | ')}`);
+  expect(
+    metrics.intrinsicHeightReports.some((height) => Number.isFinite(height) && height > 0),
+    'partial window.openai bridge never received an intrinsic height',
+  );
 
   if (surface.id === 'portfolio') {
     const value = metrics.essential.at(-1);
@@ -592,6 +683,15 @@ test('OpenDexter inline renderers survive transparent, height-constrained host s
     await browser.close();
     await vite.close();
   });
+
+  for (const surface of surfaces) {
+    await t.test(`${surface.id} / native host injects bridge after first paint`, async () => {
+      const report = await inspectUnknownFirstPaint({ browser, baseUrl, surface });
+      assert.ok(report.firstPaintChildren > 0, 'renderer root was empty before bridge injection');
+      assert.ok(report.readyText.length > 0, 'renderer did not consume the late tool result');
+      assert.deepEqual(report.pageErrors, [], 'renderer threw before the native bridge arrived');
+    });
+  }
 
   for (const surface of surfaces) {
     const contract = SURFACE_CONTRACTS[surface.id];

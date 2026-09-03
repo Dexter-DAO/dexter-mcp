@@ -127,4 +127,12 @@ function initWidgetSentry() {
   window.__DEXTER_WIDGET_PREINIT_ERRORS__ = [];
 }
 
-initWidgetSentry();
+try {
+  initWidgetSentry();
+} catch (error) {
+  // Telemetry must never prevent the widget itself from mounting, especially
+  // in constrained native webviews.
+  try {
+    console.warn('[dexter-apps-sdk] widget telemetry initialization failed', error);
+  } catch {}
+}
