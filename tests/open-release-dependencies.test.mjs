@@ -384,7 +384,7 @@ test('hosted source declares one exact internal dependency train', async () => {
   assert.equal(manifest.node, '^20.19.0 || >=22.12.0');
   assert.deepEqual(manifest.repositories.hosted, {
     remote: 'https://github.com/Dexter-DAO/dexter-mcp.git',
-    provenanceCommit: '119d38ebc3bd2bbf440e3b9a1928b76be0a44c8a',
+    provenanceCommit: 'bc0ed11f0ccce92877bd4f1bc9be9a0bc3d272dc',
   });
   assert.deepEqual(
     manifest.sourcePackages.map(({ install }) => install),
