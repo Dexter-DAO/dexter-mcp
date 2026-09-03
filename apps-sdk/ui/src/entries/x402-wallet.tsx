@@ -2,16 +2,21 @@ import '../styles/sdk.css';
 import '../styles/widgets/wallet.css';
 
 import { createRoot } from 'react-dom/client';
-import { useMemo } from 'react';
-import { useToolOutput, useToolResponseMetadata, useMaxHeight, useAdaptiveOpenExternal } from '../sdk';
+import { useEffect, useMemo } from 'react';
+import {
+  useAdaptiveOpenExternal,
+  useAdaptiveTheme,
+  useAdaptiveMaxHeight,
+  useToolOutput,
+  useToolResponseMetadata,
+} from '../sdk';
 import { useIntrinsicHeight } from '../components/x402/useIntrinsicHeight';
 import { normalizeWalletPayload } from '../components/x402/walletPayload';
 import { WalletHome, SimpleState } from '../components/wallet';
 
 /*
- * Dexter Wallet widget — direction B (Calm Home + Sheets).
- * Approved spec: apps-sdk/design-reference/wallet-widget-B-calm-home-sheets.*
- * Non-custodial passkey vault. Dexter holds no keys. No card tools.
+ * Dexter Wallet widget with a calm home and focused detail views.
+ * This is the non-custodial passkey vault surface, without card controls.
  *
  * This entry is intentionally thin: read the payload, choose the state, mount.
  * All UI lives in ../components/wallet/*.
@@ -28,7 +33,6 @@ function WalletApp() {
     dexterWalletToken?: string;
     dexterPortfolio?: unknown;
   }>();
-  const cardToken = typeof meta?.dexterCardToken === 'string' ? meta.dexterCardToken : null;
   const walletToken = typeof meta?.dexterWalletToken === 'string' ? meta.dexterWalletToken : null;
   const widgetPortfolio = meta?.dexterPortfolio;
   const payload = useMemo(
@@ -36,8 +40,13 @@ function WalletApp() {
     [toolOutput, widgetPortfolio],
   );
   const containerRef = useIntrinsicHeight<HTMLDivElement>();
-  useMaxHeight();
+  const maxHeight = useAdaptiveMaxHeight();
+  const theme = useAdaptiveTheme();
   const openExternal = useAdaptiveOpenExternal();
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
 
   const hasAddress = Boolean(payload.solanaAddress || payload.address);
   const mode = payload.mode;
@@ -55,14 +64,14 @@ function WalletApp() {
     view = (
       <SimpleState
         title="Connect OpenDexter"
-        body="Use the host’s Connect control to authorize this wallet with your passkey. Your wallet will appear here when the connection returns."
+        body="Approve Connect with your passkey. Your wallet will appear here when authorization returns."
       />
     );
   } else if (mode === 'vault_required' || payload.error === 'not_enrolled' || (!hasAddress && (mode === 'not_enrolled' || payload.enrollUrl))) {
     view = (
       <SimpleState
         title="Set up your wallet"
-        body="One passkey approval creates a non-custodial wallet on Solana. No email, no seed phrase — Dexter never holds the key."
+        body="Your passkey creates a non-custodial Solana wallet. Dexter never receives the key."
         cta="Set up with your passkey"
         href={payload.enrollUrl || SETUP_URL}
         onOpenExternal={openExternal}
@@ -70,13 +79,13 @@ function WalletApp() {
     );
   } else if (payload.activated === false || (mode === 'vault_not_activated')) {
     // Ground truth (census-verified Jul 24, board #97): deposits to an
-    // undeployed wallet WORK — the address is valid from birth and the
+    // undeployed wallet works because the address is valid from birth and the
     // sender's transfer creates the token account. Only SPENDING waits on
     // the one-tap first-use setup. The server's message carries the
     // balance-aware sentence (funds waiting vs. ready to receive).
     view = (
       <SimpleState
-        title={payload.balances.usdc > 0 ? 'Money in — one tap to spend it' : 'Ready to receive'}
+        title={payload.balances.usdc > 0 ? 'Money received. Approve spending.' : 'Ready to receive'}
         body={payload.message ||
           'Deposits work right now. When you\'re ready to spend, one tap of your passkey finishes setup.'}
         cta="Open your wallet"
@@ -88,7 +97,7 @@ function WalletApp() {
     view = (
       <SimpleState
         title="Couldn't reach your wallet"
-        body="A quick hiccup talking to your wallet — your funds are safe. Try again in a moment."
+        body="Dexter could not reach your wallet, but your funds are safe. Try again in a moment."
         onOpenExternal={openExternal}
       />
     );
@@ -101,10 +110,26 @@ function WalletApp() {
       />
     );
   } else {
-    view = <WalletHome payload={payload} cardToken={cardToken} walletToken={walletToken} onOpenExternal={openExternal} />;
+    view = (
+      <WalletHome
+        key={payload.solanaAddress || payload.address}
+        payload={payload}
+        walletToken={walletToken}
+        onOpenExternal={openExternal}
+      />
+    );
   }
 
-  return <div className="dxw-root" ref={containerRef}>{view}</div>;
+  return (
+    <div
+      className="dxw-root"
+      data-theme={theme}
+      ref={containerRef}
+      style={{ maxHeight: maxHeight ?? undefined, overflowY: maxHeight ? 'auto' : undefined }}
+    >
+      {view}
+    </div>
+  );
 }
 
 const el = document.getElementById('x402-wallet-root');

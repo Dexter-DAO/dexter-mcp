@@ -3,10 +3,12 @@ import fs from 'node:fs';
 import { promises as fsp } from 'node:fs';
 import { buildWidgetBootstrapScript } from './bootstrap.js';
 import {
+  INDEXTER_WIDGET_URIS,
   X402_WIDGET_URIS,
   CARD_WIDGET_URIS,
   DIAGNOSTIC_WIDGET_URIS,
   PASSKEY_WIDGET_URIS,
+  PORTFOLIO_WIDGET_URIS,
   GOVERNED_ASSET_WIDGET_URIS,
 } from './widget-uris.mjs';
 import { resolveAppsSdkRelease } from '../scripts/apps-sdk-release.mjs';
@@ -126,13 +128,16 @@ export function buildWidgetCsp(
     } catch {}
   }
 
-  if (templateUri === X402_WIDGET_URIS.search) {
+  if (
+    templateUri === INDEXTER_WIDGET_URIS.search
+    || templateUri === X402_WIDGET_URIS.search
+  ) {
     connectDomains.push('https://api.dexter.cash');
-    resourceDomains.push('https://api.dexter.cash', 'https://x402gle.com');
+    resourceDomains.push('https://api.dexter.cash');
     redirectDomains.push('https://dexter.cash');
   } else if (templateUri === X402_WIDGET_URIS.fetch) {
     resourceDomains.push('https://api.dexter.cash', 'https://api.qrserver.com');
-    redirectDomains.push(...EXPLORER_ORIGINS);
+    redirectDomains.push('https://dexter.cash', ...EXPLORER_ORIGINS);
   } else if (templateUri === X402_WIDGET_URIS.pricing) {
     resourceDomains.push('https://api.dexter.cash');
   } else if (templateUri === X402_WIDGET_URIS.wallet) {
@@ -152,7 +157,11 @@ export function buildWidgetCsp(
     redirectDomains.push('https://dexter.cash');
   } else if (templateUri === PASSKEY_WIDGET_URIS.onboard) {
     redirectDomains.push('https://dexter.cash', 'https://solscan.io');
-  } else if (templateUri === GOVERNED_ASSET_WIDGET_URIS.stockTrade) {
+  } else if (
+    templateUri === GOVERNED_ASSET_WIDGET_URIS.action
+    || templateUri === GOVERNED_ASSET_WIDGET_URIS.history
+    || templateUri === GOVERNED_ASSET_WIDGET_URIS.stockTrade
+  ) {
     // This receipt is read-only. Its sole outbound action is the exact
     // transaction explorer link rendered from a validated Solana signature.
     redirectDomains.push('https://solscan.io');
@@ -176,6 +185,17 @@ export function buildStandardWidgetCsp(widgetCsp, widgetDomain) {
       ...((widgetCsp?.connect_domains || []).filter(Boolean)),
     ])),
   };
+}
+
+export function buildWidgetPermissions(templateUri) {
+  if (
+    templateUri === INDEXTER_WIDGET_URIS.search
+    || templateUri === X402_WIDGET_URIS.search
+    || templateUri === X402_WIDGET_URIS.wallet
+  ) {
+    return { clipboardWrite: {} };
+  }
+  return null;
 }
 
 function resolveWidgetSentryDsn() {
@@ -586,44 +606,64 @@ export function registerAppsSdkResources(server, options = {}) {
       invoked: 'Test complete',
     },
     {
+      name: 'dexter_indexter_search',
+      templateUri: INDEXTER_WIDGET_URIS.search,
+      file: 'indexter-search.html',
+      title: 'Indexter Discovery',
+      description: 'Displays Indexter discovery results with current access terms and provider evidence.',
+      widgetDescription: 'Shows Indexter resources and capabilities without authorizing a purchase.',
+      invoking: 'Searching Indexter…',
+      invoked: 'Indexter results ready',
+    },
+    {
       name: 'dexter_x402_marketplace_search',
       templateUri: X402_WIDGET_URIS.search,
       file: 'x402-marketplace-search.html',
-      title: 'x402 Marketplace Search',
-      description: 'Displays x402 API marketplace search results with pricing, quality scores, and verification status.',
-      widgetDescription: 'Shows paid API search results as interactive cards with quality rings, prices, and fetch buttons.',
-      invoking: 'Searching marketplace…',
-      invoked: 'Results ready',
+      title: 'Indexter Discovery',
+      description: 'Indexter discovery retained at the prior resource URI for cached hosts.',
+      widgetDescription: 'Shows Indexter resources and capabilities without authorizing a purchase.',
+      invoking: 'Searching Indexter…',
+      invoked: 'Indexter results ready',
     },
     {
       name: 'dexter_x402_fetch_result',
       templateUri: X402_WIDGET_URIS.fetch,
       file: 'x402-fetch-result.html',
-      title: 'x402 Fetch Result',
-      description: 'Displays the result of an x402 paid API call with payment receipt and response data.',
-      widgetDescription: 'Shows API response data with payment receipt, transaction link, and settlement status.',
-      invoking: 'Calling API…',
-      invoked: 'Response received',
+      title: 'OpenDexter Result',
+      description: 'Displays a delivered result with payment, dispatch, and reconciliation evidence.',
+      widgetDescription: 'Shows the returned result first, followed by exact transaction and delivery evidence.',
+      invoking: 'Waiting for OpenDexter…',
+      invoked: 'OpenDexter result received',
     },
     {
       name: 'dexter_x402_pricing',
       templateUri: X402_WIDGET_URIS.pricing,
       file: 'x402-pricing.html',
-      title: 'x402 Pricing Check',
-      description: 'Displays x402 endpoint pricing with payment options per chain.',
-      widgetDescription: 'Shows endpoint pricing per blockchain with payment amounts and a pay button.',
-      invoking: 'Checking pricing…',
-      invoked: 'Pricing loaded',
+      title: 'Access Terms',
+      description: 'Displays current access requirements and exact seller terms for a checked request.',
+      widgetDescription: 'Shows what access requires and makes clear that checking terms did not make a payment.',
+      invoking: 'Checking access terms…',
+      invoked: 'Access terms ready',
     },
     {
       name: 'dexter_x402_wallet',
       templateUri: X402_WIDGET_URIS.wallet,
       file: 'x402-wallet.html',
-      title: 'x402 Wallet Dashboard',
-      description: 'Displays the x402 MCP wallet address, balances, and deposit instructions.',
-      widgetDescription: 'Shows wallet addresses with copy button, USDC balances across chains, and deposit QR code.',
+      title: 'Dexter Wallet',
+      description: 'Displays the connected Dexter Wallet, its receive address, assets, credit, and activity.',
+      widgetDescription: 'Shows Dexter Wallet cash, reported credit, assets, Solana receive address, and recent activity.',
       invoking: 'Loading wallet…',
       invoked: 'Wallet loaded',
+    },
+    {
+      name: 'dexter_portfolio',
+      templateUri: PORTFOLIO_WIDGET_URIS.overview,
+      file: 'dexter-portfolio.html',
+      title: 'Dexter Wallet Portfolio',
+      description: 'Displays current holdings and governed discovery targets from the authenticated Dexter Wallet portfolio read.',
+      widgetDescription: 'Shows current holdings while keeping incomplete reads, unpriced assets, discovery targets, and action authority distinct.',
+      invoking: 'Loading portfolio…',
+      invoked: 'Portfolio loaded',
     },
     {
       name: 'dexter_card_status',
@@ -631,7 +671,7 @@ export function registerAppsSdkResources(server, options = {}) {
       file: 'card-status.html',
       title: 'Dextercard status',
       description: 'Shows the user\'s current Dextercard provisioning state, balances, and next-step actions.',
-      widgetDescription: 'Displays Dextercard status — issued vs unissued, available balance, freeze state, and pairing prompts when the MCP session is unbound.',
+      widgetDescription: 'Displays Dextercard status: issued vs unissued, available balance, freeze state, and pairing prompts when the MCP session is unbound.',
       invoking: 'Loading Dextercard status…',
       invoked: 'Dextercard status ready',
     },
@@ -641,7 +681,7 @@ export function registerAppsSdkResources(server, options = {}) {
       file: 'card-issue.html',
       title: 'Dextercard issuance',
       description: 'Walks the user through Dextercard issuance and confirms the issued card details.',
-      widgetDescription: 'Shows the Dextercard issuance flow — required user input, MoonPay handoff, and the resulting card metadata once issued.',
+      widgetDescription: 'Shows the Dextercard issuance flow, required user input, MoonPay handoff, and the resulting card metadata once issued.',
       invoking: 'Issuing Dextercard…',
       invoked: 'Dextercard issued',
     },
@@ -651,7 +691,7 @@ export function registerAppsSdkResources(server, options = {}) {
       file: 'card-link-wallet.html',
       title: 'Dextercard wallet link',
       description: 'Links a self-custody wallet to the user\'s Dextercard for top-ups.',
-      widgetDescription: 'Displays the wallet-link flow for funding a Dextercard — chain selection, address verification, and confirmation of the active funding wallet.',
+      widgetDescription: 'Displays the wallet-link flow for funding a Dextercard, including chain selection, address verification, and confirmation of the active funding wallet.',
       invoking: 'Linking wallet…',
       invoked: 'Wallet linked',
     },
@@ -661,7 +701,7 @@ export function registerAppsSdkResources(server, options = {}) {
       file: 'passkey-probe.html',
       title: 'Passkey iframe probe',
       description: 'Diagnostic widget that tests whether a real WebAuthn ceremony can run inside the chat client\'s widget iframe.',
-      widgetDescription: 'One-button capability test — calls navigator.credentials.create()/get() against rp.id=dexter.cash and reports the outcome.',
+      widgetDescription: 'One-button capability test that calls navigator.credentials.create()/get() against rp.id=dexter.cash and reports the outcome.',
       invoking: 'Loading probe…',
       invoked: 'Probe ready',
     },
@@ -671,9 +711,29 @@ export function registerAppsSdkResources(server, options = {}) {
       file: 'passkey-onboard.html',
       title: 'Dexter passkey wallet',
       description: 'Compatibility status view for the passkey wallet. Native host authorization performs the passkey ceremony; the widget shows either the Connect handoff or the bound wallet.',
-      widgetDescription: 'Passkey wallet status — asks the user to use the host Connect control when authorization is required, then shows the bound wallet when ready.',
+      widgetDescription: 'Passkey wallet status that asks the user to use the host Connect control when authorization is required, then shows the bound wallet when ready.',
       invoking: 'Checking wallet…',
       invoked: 'Wallet status loaded',
+    },
+    {
+      name: 'dexter_governed_action',
+      templateUri: GOVERNED_ASSET_WIDGET_URIS.action,
+      file: 'governed-action.html',
+      title: 'Dexter Wallet Governed Action',
+      description: 'Displays the current prepare, execute, status, or reconciliation result for a governed Send, Buy, or Sell action.',
+      widgetDescription: 'Shows exact economics, authority, execution state, finality, and recovery evidence without creating or repeating an action.',
+      invoking: 'Loading governed action…',
+      invoked: 'Governed action ready',
+    },
+    {
+      name: 'dexter_governed_history',
+      templateUri: GOVERNED_ASSET_WIDGET_URIS.history,
+      file: 'governed-history.html',
+      title: 'Dexter Wallet History',
+      description: 'Displays durable governed Send, Buy, and Sell history for the authenticated Dexter Wallet.',
+      widgetDescription: 'Shows prior governed actions and their exact recorded status without implying new authority or execution.',
+      invoking: 'Loading wallet history…',
+      invoked: 'Wallet history ready',
     },
     {
       name: 'dexter_stock_trade',
@@ -703,10 +763,12 @@ export function registerAppsSdkResources(server, options = {}) {
 
     const widgetCSP = buildWidgetCsp(assetBase, entry.templateUri);
     const cspConfig = buildStandardWidgetCsp(widgetCSP, widgetDomain);
+    const permissions = buildWidgetPermissions(entry.templateUri);
     const standardUiMeta = {
       csp: cspConfig,
       domain: widgetDomain,
-      prefersBorder: true,
+      prefersBorder: false,
+      ...(permissions ? { permissions } : {}),
     };
 
     registerAppResource(
@@ -720,7 +782,7 @@ export function registerAppsSdkResources(server, options = {}) {
           'openai/widgetDomain': widgetDomain,
           'openai/widgetCSP': widgetCSP,
           'openai/widgetDescription': entry.widgetDescription || entry.description,
-          'openai/widgetPrefersBorder': true,
+          'openai/widgetPrefersBorder': false,
         },
       },
       async () => {
@@ -739,7 +801,7 @@ export function registerAppsSdkResources(server, options = {}) {
                 'openai/widgetDomain': widgetDomain,
                 'openai/widgetCSP': widgetCSP,
                 'openai/widgetDescription': entry.widgetDescription || entry.description,
-                'openai/widgetPrefersBorder': true,
+                'openai/widgetPrefersBorder': false,
               },
             },
           ],

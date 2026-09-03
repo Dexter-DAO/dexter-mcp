@@ -3,65 +3,35 @@ import '../styles/widgets/x402-pricing.css';
 
 import { createRoot } from 'react-dom/client';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
-import { Badge } from '@openai/apps-sdk-ui/components/Badge';
-import { Alert } from '@openai/apps-sdk-ui/components/Alert';
+import type { ReactNode, Ref } from 'react';
 import {
   useToolOutput,
-  useMaxHeight,
+  useAdaptiveMaxHeight,
   useAdaptiveTheme,
   useAdaptiveSendFollowUp,
 } from '../sdk';
 import { useToolInput as useAdaptiveToolInput } from '../sdk/adapter';
-import { useIntrinsicHeight, DebugPanel } from '../components/x402';
+import { useIntrinsicHeight } from '../components/x402';
+import {
+  normalizeX402CheckResult,
+  normalizeX402PaymentRoutes,
+} from '../components/x402/check-result-model';
+import type {
+  X402CheckClassification,
+  X402PaymentRoute,
+} from '../components/x402/check-result-model';
 import {
   ResourceIdentity,
   ResourceDescription,
-  ProfessorDexterCard,
-  DoctorDexterCard,
   PaymentRoutes,
-  ResponseShape,
   FetchAction,
-  pickPrimaryRun,
-  pickFixInstructions,
 } from '../components/pricing';
-import type {
-  PricingPayload,
-  PricingInput,
-  HistoryRow,
-} from '../components/pricing';
+import type { PricingPayload, PricingInput } from '../components/pricing';
 import {
-  normalizeX402PaymentRoutes,
-  type X402PaymentRoute,
-} from '../components/x402/check-result-model';
-import { formatAssetLabel } from '../components/x402/search/utils';
-
-const WORDMARK_URL = 'https://dexter.cash/wordmarks/dexter-wordmark.svg';
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Pure helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
-function isFreeEndpoint(payload: PricingPayload): boolean {
-  if (payload.free) return true;
-  if (payload.requiresPayment) return false;
-  const code = payload.statusCode;
-  return Boolean(code && code >= 200 && code < 300);
-}
-
-function isPricingUnavailable(payload: PricingPayload): boolean {
-  if (payload.error) return true;
-  if (payload.requiresPayment && !(payload.paymentOptions || []).length) return true;
-  return false;
-}
-
-function unavailableMessage(payload: PricingPayload): string {
-  return (
-    payload.message ||
-    (typeof payload.error === 'string' ? payload.error : undefined) ||
-    'No payment options are currently available for this endpoint.'
-  );
-}
+  purchaseReviewContinuationPrompt,
+  purchaseReviewData,
+} from '../components/x402/purchase-review-continuation';
+import type { PurchaseReviewData } from '../components/x402/purchase-review-continuation';
 
 const POSITIVE_ATOMIC_AMOUNT = /^[1-9]\d{0,19}$/;
 
@@ -82,14 +52,15 @@ function checkedPaymentRequest(
 ): CheckedPaymentRequest {
   const method = canonicalMethod(payload.checkedRequest?.method ?? input?.method);
   const rawBodyProvided = typeof input?.body === 'string';
+  let body: string | null = null;
+  if (method !== 'GET') {
+    body = payload.checkedRequest?.body ?? (rawBodyProvided ? input.body! : null);
+  }
+
   return {
     url: payload.checkedRequest?.url || input?.url || '',
     method,
-    body:
-      method === 'GET'
-        ? null
-        : payload.checkedRequest?.body
-          ?? (rawBodyProvided ? input.body! : null),
+    body,
     requestBound:
       payload.checkedRequest?.requestBound
       ?? (method === 'GET' || rawBodyProvided),
@@ -110,130 +81,165 @@ function exactCeilingRoute(
   }, null);
 }
 
-function sellerTerms(route: X402PaymentRoute): string {
-  const asset = formatAssetLabel(route.asset);
-  const network = route.network || 'the listed network';
-  const recipient = route.payTo ? ` to ${route.payTo}` : '';
-  return `${route.amountAtomic} atomic units of ${asset} on ${network}${recipient}`;
-}
-
 function paidContinuationPrompt(
-  request: CheckedPaymentRequest,
-  routes: readonly X402PaymentRoute[],
-  intentId: string | null,
+  requestBound: boolean,
   quoteOnly: boolean,
+  reviewData: PurchaseReviewData | null,
 ): string {
-  if (!request.requestBound) {
-    const exactRequest = request.url
-      ? `url ${request.url}, method ${request.method}`
-      : 'the same URL and method';
-    const bodyInstruction = request.body === null
-      ? 'first form the exact raw body string required for the request'
-      : `pass body as the exact raw string ${JSON.stringify(request.body)}`;
-    return `Complete ${exactRequest}: ${bodyInstruction}, then repeat x402_check. `
-      + 'Call x402_fetch only if the new result carries quoteOnly=false and an intentId.';
+  if (!requestBound) {
+    return 'This access check is not bound to a complete request. Ask for the '
+      + 'exact missing request details, then call x402_check again. Do not call '
+      + 'x402_fetch without a new server-bound intent.';
   }
 
-  if (quoteOnly || !intentId) {
-    return `The authorized x402_check for ${request.method} ${request.url} returned no executable purchase intent. `
-      + 'Tell the user that purchasing is unavailable for this checked quote. '
+  if (quoteOnly) {
+    return 'The current access check returned no executable purchase intent. '
+      + 'Tell the user that purchasing is unavailable from this result. '
       + 'Do not call x402_fetch or ask the user to connect again.';
   }
 
-  const route = exactCeilingRoute(routes);
-  if (!route?.amountAtomic) {
-    return `Run x402_check again for the exact ${request.method} request to ${request.url} and obtain a current positive atomic amount before authorizing any payment. Do not pay from this incomplete quote.`;
+  if (!reviewData) {
+    return 'This result does not contain a safe executable intent and positive '
+      + 'payment ceiling. Run x402_check again for the exact request. Do not pay '
+      + 'from this incomplete result.';
   }
 
-  const bodyDescription = request.body === null
-    ? 'no request body'
-    : `raw JSON body ${request.body}`;
-  return `Review payment for ${request.url}. Exact request: ${request.method} with ${bodyDescription}. `
-    + `Current seller terms: ${sellerTerms(route)}. `
-    + `The execution ceiling is maxAmountAtomic ${route.amountAtomic}. Confirm whether my current instruction or a bounded delegated policy already authorizes this exact seller, request, and ceiling. `
-    + `If it does, do not ask again; otherwise ask only for the missing authority. Once covered, call x402_fetch once with only intentId ${intentId} and maxAmountAtomic ${route.amountAtomic}. `
-    + 'Do not include URL, method, body, route, payee, asset, challenge, or prepared purchase data. '
-    + `If the outcome is preparing or ambiguous, call x402_status with only intentId ${intentId}; do not call x402_fetch again.`;
+  return purchaseReviewContinuationPrompt(reviewData);
 }
 
-/** Returns seconds elapsed while `pending` is true, resetting to 0 otherwise. */
 function useElapsedSeconds(pending: boolean): number {
   const [elapsed, setElapsed] = useState(0);
+
   useEffect(() => {
     if (!pending) {
       setElapsed(0);
       return;
     }
-    const t = setInterval(() => setElapsed((e) => e + 1), 1000);
-    return () => clearInterval(t);
+    const timer = window.setInterval(() => setElapsed((value) => value + 1), 1000);
+    return () => window.clearInterval(timer);
   }, [pending]);
+
   return elapsed;
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// State frames — single wrapper for every branch
-// ─────────────────────────────────────────────────────────────────────────────
 
 function StateFrame({
   theme,
   maxHeight,
   children,
   containerRef,
-  variant = 'default',
+  loading = false,
 }: {
   theme: string;
   maxHeight: number | null;
   children: ReactNode;
-  containerRef?: React.Ref<HTMLDivElement>;
-  variant?: 'default' | 'loading';
+  containerRef?: Ref<HTMLDivElement>;
+  loading?: boolean;
 }) {
   return (
-    <div
+    <main
       data-theme={theme}
       ref={containerRef}
-      className={`dx-pricing dx-pricing--${variant}`}
-      style={{ maxHeight: maxHeight ?? undefined, overflowY: maxHeight ? 'auto' : undefined }}
+      className={`dx-pricing${loading ? ' dx-pricing--loading' : ''}`}
+      style={{
+        maxHeight: maxHeight ?? undefined,
+        overflowY: maxHeight ? 'auto' : undefined,
+      }}
     >
-      <Wordmark />
       {children}
-    </div>
+    </main>
   );
 }
 
-function Wordmark() {
+function StatusCopy({
+  classification,
+  title,
+  summary,
+}: {
+  classification: X402CheckClassification;
+  title: string;
+  summary: string;
+}) {
   return (
-    <div className="dx-pricing__wordmark">
-      <img src={WORDMARK_URL} alt="Dexter" className="dx-pricing__wordmark-img" />
+    <section className="dx-pricing__status" data-state={classification}>
+      <h2 className="dx-pricing__status-title">{title}</h2>
+      <p className="dx-pricing__status-copy">{summary}</p>
+    </section>
+  );
+}
+
+function RequestDetails({ request }: { request: CheckedPaymentRequest }) {
+  if (!request.url) return null;
+
+  return (
+    <div className="dx-pricing__request" aria-label="Checked request">
+      <span className="dx-pricing__request-method">{request.method}</span>
+      <span className="dx-pricing__request-url" title={request.url}>{request.url}</span>
     </div>
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Root component
-// ─────────────────────────────────────────────────────────────────────────────
+function AccessExplanation({
+  classification,
+  signerAvailable,
+}: {
+  classification: X402CheckClassification;
+  signerAvailable: boolean | null;
+}) {
+  if (classification === 'siwx') {
+    return (
+      <p className="dx-pricing__consequence">
+        {signerAvailable === false
+          ? 'OpenDexter recognized the wallet sign-in request, but no compatible signer is available here.'
+          : 'The provider wants a wallet signature to establish identity. It requests no funds.'}
+      </p>
+    );
+  }
+
+  if (classification === 'apiKey') {
+    return (
+      <p className="dx-pricing__consequence">
+        Provider credentials are required before access or payment terms can be verified.
+      </p>
+    );
+  }
+
+  if (classification === 'hybrid') {
+    return (
+      <p className="dx-pricing__consequence">
+        Provider authentication must be completed before these payment terms can be used.
+      </p>
+    );
+  }
+
+  return null;
+}
 
 function PricingCheck() {
   const toolOutput = useToolOutput<PricingPayload>();
   const toolInput = useAdaptiveToolInput<PricingInput>();
   const sendFollowUp = useAdaptiveSendFollowUp();
   const theme = useAdaptiveTheme();
-  const maxHeight = useMaxHeight();
+  const maxHeight = useAdaptiveMaxHeight();
   const containerRef = useIntrinsicHeight();
   const loadingElapsed = useElapsedSeconds(!toolOutput);
+  const [continueState, setContinueState] = useState<{
+    status: 'idle' | 'sending' | 'sent' | 'error';
+    message?: string;
+  }>({ status: 'idle' });
+  const continuationInFlight = useRef(false);
+
+  const state = useMemo(
+    () => normalizeX402CheckResult(toolOutput),
+    [toolOutput],
+  );
   const paymentOptions = useMemo(
     () => normalizeX402PaymentRoutes(toolOutput?.paymentOptions),
     [toolOutput?.paymentOptions],
   );
   const checkedRequest = useMemo(
-    () => toolOutput
-      ? checkedPaymentRequest(toolOutput, toolInput)
-      : null,
+    () => toolOutput ? checkedPaymentRequest(toolOutput, toolInput) : null,
     [toolInput, toolOutput],
   );
-  const [continueState, setContinueState] = useState<
-    { status: 'idle' | 'sending' | 'sent' | 'error'; message?: string }
-  >({ status: 'idle' });
-  const continuationInFlight = useRef(false);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -244,134 +250,36 @@ function PricingCheck() {
     setContinueState({ status: 'idle' });
   }, [toolOutput]);
 
-  // Live-first-render flag drives entrance choreography on the verdict block.
-  // useMemo so it locks in at first render — no flicker on re-renders.
-  const animate = useMemo(() => true, []);
-
-  // Loading
   if (!toolOutput) {
     return (
-      <StateFrame theme={theme} maxHeight={maxHeight} variant="loading">
-        <div className="dx-pricing__state">
-          <p>{loadingElapsed < 5 ? 'Checking pricing…' : 'Still probing endpoint — hang tight.'}</p>
-        </div>
+      <StateFrame theme={theme} maxHeight={maxHeight} loading>
+        <span className="dx-pricing__loading-mark" aria-hidden />
+        <p className="dx-pricing__loading-copy">
+          {loadingElapsed < 5
+            ? 'Checking current access terms…'
+            : 'The provider is taking longer than expected.'}
+        </p>
       </StateFrame>
     );
   }
 
-  // Auth required — same pattern as the unavailable branch: render whatever
-  // catalog identity + verdict context we have alongside the warning.
-  if (toolOutput.authRequired) {
-    const authEnrichment = toolOutput.enrichment ?? null;
-    const authRecent: HistoryRow[] = authEnrichment?.history?.recent ?? [];
-    const authPrimary = pickPrimaryRun(authRecent);
-    const authFix = pickFixInstructions(authRecent);
-    const authPasses = authRecent.length
-      ? {
-          passes: authRecent.filter((r) => r.final_status === 'pass').length,
-          total: authRecent.length,
-        }
-      : null;
-    return (
-      <StateFrame theme={theme} maxHeight={maxHeight} containerRef={containerRef}>
-        <ResourceIdentity
-          resource={authEnrichment?.resource ?? null}
-          fallbackUrl={toolInput?.url ?? null}
-          resourceRef={toolOutput.resource}
-        />
-        <ResourceDescription description={authEnrichment?.resource?.description ?? null} />
-        <Alert
-          color="warning"
-          title="Authentication required"
-          description={`This endpoint requires provider authentication before the x402 payment flow.${
-            toolOutput.message ? ' ' + toolOutput.message : ''
-          }`}
-        />
-        {authPrimary ? (
-          <ProfessorDexterCard run={authPrimary} passesOfRecent={authPasses} animate={animate} />
-        ) : null}
-        {authFix ? <DoctorDexterCard fixText={authFix} animate={animate} /> : null}
-      </StateFrame>
-    );
-  }
-
-  // Error / unavailable — still render the verdict scaffolding when we have
-  // catalog enrichment for this URL. The live probe failed (endpoint down,
-  // misconfigured 402, etc.) but Dexter has historical evidence: previous
-  // verifier runs, the Professor's grade, and crucially Doctor Dexter's
-  // prescription which often explains *why* the endpoint is in this state.
-  if (isPricingUnavailable(toolOutput)) {
-    const errEnrichment = toolOutput.enrichment ?? null;
-    const errRecent: HistoryRow[] = errEnrichment?.history?.recent ?? [];
-    const errPrimary = pickPrimaryRun(errRecent);
-    const errFix = pickFixInstructions(errRecent);
-    const errPasses = errRecent.length
-      ? {
-          passes: errRecent.filter((r) => r.final_status === 'pass').length,
-          total: errRecent.length,
-        }
-      : null;
-    return (
-      <StateFrame theme={theme} maxHeight={maxHeight} containerRef={containerRef}>
-        <ResourceIdentity
-          resource={errEnrichment?.resource ?? null}
-          fallbackUrl={toolInput?.url ?? null}
-          resourceRef={toolOutput.resource}
-        />
-        <ResourceDescription description={errEnrichment?.resource?.description ?? null} />
-        <Alert color="danger" title="Pricing unavailable" description={unavailableMessage(toolOutput)} />
-        {errPrimary ? (
-          <ProfessorDexterCard run={errPrimary} passesOfRecent={errPasses} animate={animate} />
-        ) : null}
-        {errFix ? <DoctorDexterCard fixText={errFix} animate={animate} /> : null}
-      </StateFrame>
-    );
-  }
-
-  // Free endpoint
-  if (isFreeEndpoint(toolOutput)) {
-    return (
-      <StateFrame theme={theme} maxHeight={maxHeight}>
-        <ResourceIdentity
-          resource={toolOutput.enrichment?.resource ?? null}
-          fallbackUrl={toolInput?.url ?? null}
-          resourceRef={toolOutput.resource}
-        />
-        <ResourceDescription description={toolOutput.enrichment?.resource?.description ?? null} />
-        <div className="dx-pricing__state">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-            <span>No payment required — this endpoint is free to use.</span>
-            <Badge color="success">Free</Badge>
-          </div>
-        </div>
-      </StateFrame>
-    );
-  }
-
-  // Paid — happy path
+  const enrichment = toolOutput.enrichment ?? null;
   const ceilingRoute = exactCeilingRoute(paymentOptions);
   const displayedPrice = ceilingRoute?.priceFormatted
     ?? paymentOptions[0]?.priceFormatted
     ?? null;
   const requestBound = checkedRequest?.requestBound ?? false;
-  const intentId = typeof toolOutput.intentId === 'string' && toolOutput.intentId.trim()
-    ? toolOutput.intentId.trim()
+  const quoteOnly = state.quoteOnly;
+  const reviewData = requestBound && ceilingRoute
+    ? purchaseReviewData(toolOutput.intentId, ceilingRoute.amountAtomic)
     : null;
-  const quoteOnly = toolOutput.quoteOnly === true || intentId === null;
-  const intentReady = Boolean(intentId && !quoteOnly && requestBound && ceilingRoute?.amountAtomic);
-
-  const enrichment = toolOutput.enrichment ?? null;
-  const recent: HistoryRow[] = enrichment?.history?.recent ?? [];
-  const primaryRun = pickPrimaryRun(recent);
-  const fixText = pickFixInstructions(recent);
-
-  // "X of Y recent runs passed" — derived from the slice we shipped, not from
-  // the global summary, so the displayed count agrees with the ribbon.
-  const passesOfRecent = recent.length
-    ? {
-        passes: recent.filter((r) => r.final_status === 'pass').length,
-        total: recent.length,
-      }
+  const intentReady = Boolean(
+    reviewData
+    && !quoteOnly
+  );
+  const isPaidState = state.classification === 'paid' || state.classification === 'hybrid';
+  const signerAvailable = typeof toolOutput.siwx?.signerAvailable === 'boolean'
+    ? toolOutput.siwx.signerAvailable
     : null;
 
   const handleContinue = async () => {
@@ -384,15 +292,16 @@ function PricingCheck() {
     ) {
       return;
     }
+
     continuationInFlight.current = true;
     setContinueState({ status: 'sending' });
+
     try {
       await sendFollowUp(
         paidContinuationPrompt(
-          checkedRequest,
-          paymentOptions,
-          intentId,
+          checkedRequest.requestBound,
           quoteOnly,
+          reviewData,
         ),
       );
       setContinueState({ status: 'sent' });
@@ -400,43 +309,51 @@ function PricingCheck() {
       continuationInFlight.current = false;
       setContinueState({
         status: 'error',
-        message: 'Couldn’t open the review in chat. Try again.',
+        message: 'The payment review could not be opened in chat. No payment was made.',
       });
     }
   };
 
   return (
-    <StateFrame theme={theme} maxHeight={maxHeight} containerRef={containerRef}>
+    <StateFrame
+      theme={theme}
+      maxHeight={maxHeight}
+      containerRef={containerRef}
+    >
       <ResourceIdentity
         resource={enrichment?.resource ?? null}
-        fallbackUrl={toolInput?.url ?? null}
+        fallbackUrl={checkedRequest?.url || toolInput?.url || null}
         resourceRef={toolOutput.resource}
       />
       <ResourceDescription description={enrichment?.resource?.description ?? null} />
 
-      {primaryRun ? (
-        <ProfessorDexterCard run={primaryRun} passesOfRecent={passesOfRecent} animate={animate} />
-      ) : null}
-
-      {fixText ? <DoctorDexterCard fixText={fixText} animate={animate} /> : null}
-
-      {paymentOptions.length ? (
-        <PaymentRoutes options={paymentOptions} />
+      {isPaidState && displayedPrice ? (
+        <section className="dx-pricing__quote" aria-label="Current price">
+          <p className="dx-pricing__price">{displayedPrice}</p>
+          <p className="dx-pricing__quote-copy">
+            Current price for this exact request. No payment has been made.
+          </p>
+        </section>
       ) : (
-        <Alert
-          color="warning"
-          title="Current seller terms unavailable"
-          description="Run x402_check again before any payment review."
+        <StatusCopy
+          classification={state.classification}
+          title={state.title}
+          summary={state.summary}
         />
       )}
 
-      <ResponseShape
-        run={primaryRun}
-        contentType={enrichment?.resource?.response_content_type ?? null}
-        sizeBytes={enrichment?.resource?.response_size_bytes ?? null}
+      {checkedRequest ? <RequestDetails request={checkedRequest} /> : null}
+
+      <AccessExplanation
+        classification={state.classification}
+        signerAvailable={signerAvailable}
       />
 
-      {checkedRequest?.url && sendFollowUp ? (
+      {isPaidState && paymentOptions.length > 0 ? (
+        <PaymentRoutes options={paymentOptions} />
+      ) : null}
+
+      {state.classification === 'paid' && checkedRequest?.url && sendFollowUp ? (
         intentReady || !requestBound ? (
           <FetchAction
             price={displayedPrice}
@@ -449,33 +366,31 @@ function PricingCheck() {
             onFetch={handleContinue}
           />
         ) : (
-          <Alert
-            color="warning"
-            title="Purchase unavailable"
-            description="This check returned current seller terms without an executable purchase intent. No payment can continue from this result."
-          />
+          <p className="dx-pricing__consequence dx-pricing__consequence--warning">
+            These terms are informational because this check did not return an executable purchase intent. No payment can continue from this result.
+          </p>
         )
       ) : null}
-      {continueState.status === 'error' ? (
-        <Alert
-          color="danger"
-          title="Couldn't open chat"
-          description={continueState.message}
-        />
+
+      {state.classification === 'error' && state.errorMessage ? (
+        <p className="dx-pricing__consequence dx-pricing__consequence--error">
+          {state.errorMessage}
+        </p>
       ) : null}
 
-      <DebugPanel widgetName="x402-pricing" />
+      {continueState.status === 'error' ? (
+        <p className="dx-pricing__consequence dx-pricing__consequence--error" role="alert">
+          {continueState.message}
+        </p>
+      ) : null}
+
     </StateFrame>
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Mount
-// ─────────────────────────────────────────────────────────────────────────────
-
 const root = document.getElementById('x402-pricing-root');
 if (root) {
-  root.setAttribute('data-widget-build', '2026-07-26.2');
+  root.setAttribute('data-widget-build', '2026-09-03.1');
   createRoot(root).render(<PricingCheck />);
 }
 

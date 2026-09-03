@@ -212,26 +212,10 @@ async function assertMoneyHome(surface, hostName) {
     `${hostName}: every home action must meet the 40px target floor`,
   );
 
-  const themeMetrics = await surface.locator('.dxw-swatch').evaluateAll((buttons) =>
-    buttons.map((button) => ({
-      width: button.getBoundingClientRect().width,
-      height: button.getBoundingClientRect().height,
-    })),
-  );
-  assert.ok(
-    themeMetrics.every(({ width, height }) => width >= 40 && height >= 40),
-    `${hostName}: every card-theme control must meet the 40px target floor`,
-  );
-
-  const reveal = surface.locator('button.dxw-reveal');
-  assert.equal(await reveal.count(), 1, `${hostName}: active fixture card can be revealed`);
-  const revealMetrics = await reveal.evaluate((button) => ({
-    width: button.getBoundingClientRect().width,
-    height: button.getBoundingClientRect().height,
-  }));
-  assert.ok(
-    revealMetrics.width >= 40 && revealMetrics.height >= 40,
-    `${hostName}: card reveal must meet the 40px target floor`,
+  assert.equal(
+    await surface.locator('.dxw-card').count(),
+    0,
+    `${hostName}: Dexter Wallet must not turn a card preview into the home screen`,
   );
 
   const rootMetrics = await surface.locator('.dxw-root').evaluate((element) => ({
@@ -357,6 +341,10 @@ async function assertCompleteAssets(surface, hostName) {
     addressMetrics.width >= 40 && addressMetrics.height >= 40,
     `${hostName}: receive-address copy must meet the 40px target floor`,
   );
+  if (hostName.startsWith('MCP Apps')) {
+    await addressControl.click();
+    await surface.getByText('Copied', { exact: true }).waitFor();
+  }
   await surface.getByRole('button', { name: 'Close Receive SPCX' }).click();
   await openAssets(surface);
 }
@@ -462,6 +450,70 @@ async function assertGovernanceAssets(surface, hostName) {
     `${hostName}: wrong-program metadata must not receive trusted artwork`,
   );
   assert.equal((await blockedMark.textContent())?.trim(), '×');
+
+  const consequential = await surface.locator([
+    '.dxw-asset-sub',
+    '.dxw-asset-value',
+    '.dxw-asset-blocked-copy',
+    '.dxw-asset-facts dt',
+    '.dxw-asset-facts dd',
+    '.dxw-asset-actions button',
+    '.dxw-asset-reasons',
+  ].join(', ')).evaluateAll((elements) => {
+    const channels = (color) =>
+      (color.match(/[\d.]+/g)?.slice(0, 3).map(Number) ?? [0, 0, 0]);
+    const luminance = (color) => {
+      const linear = channels(color).map((channel) => {
+        const value = channel / 255;
+        return value <= 0.04045
+          ? value / 12.92
+          : ((value + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+    };
+    const opaqueBackground = (element) => {
+      let node = element;
+      while (node) {
+        const color = getComputedStyle(node).backgroundColor;
+        const values = color.match(/[\d.]+/g)?.map(Number) ?? [];
+        if (values.length < 4 || values[3] > 0.99) return color;
+        node = node.parentElement;
+      }
+      return 'rgb(255, 255, 255)';
+    };
+    return elements
+      .filter((element) => element.getClientRects().length > 0)
+      .map((element) => {
+        const style = getComputedStyle(element);
+        const foreground = luminance(style.color);
+        const backgroundColor = opaqueBackground(element);
+        const background = luminance(backgroundColor);
+        return {
+          selector: element.className || element.tagName,
+          text: element.textContent?.trim().slice(0, 80),
+          fontSize: Number.parseFloat(style.fontSize),
+          opacity: Number.parseFloat(style.opacity),
+          contrast: (Math.max(foreground, background) + 0.05)
+            / (Math.min(foreground, background) + 0.05),
+        };
+      });
+  });
+  assert.ok(consequential.length > 0, `${hostName}: consequential asset copy must be exercised`);
+  for (const sample of consequential) {
+    assert.ok(
+      sample.fontSize >= 12,
+      `${hostName}: ${sample.selector} rendered ${sample.fontSize}px: ${sample.text}`,
+    );
+    assert.equal(
+      sample.opacity,
+      1,
+      `${hostName}: ${sample.selector} compounds disabled opacity: ${sample.text}`,
+    );
+    assert.ok(
+      sample.contrast >= 4.5,
+      `${hostName}: ${sample.selector} contrast ${sample.contrast}: ${sample.text}`,
+    );
+  }
 }
 
 async function assertPartialEnrichmentAssets(surface, hostName) {
@@ -534,7 +586,12 @@ test('wallet Money overview renders honest states in ChatGPT and MCP Apps deskto
   assert.ok(port);
   const widgetUrl = `http://127.0.0.1:${port}/x402-wallet.html`;
 
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({
+    headless: true,
+    ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE
+      ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE }
+      : {}),
+  });
   t.after(async () => {
     await browser.close();
     await vite.close();
@@ -604,11 +661,33 @@ test('wallet Money overview renders honest states in ChatGPT and MCP Apps deskto
         reducedMotion: 'reduce',
         colorScheme: 'light',
       });
+      if (scenario.host === 'mcp-apps') {
+        await context.grantPermissions(
+          ['clipboard-read', 'clipboard-write'],
+          { origin: new URL(widgetUrl).origin },
+        );
+      }
       const page = await context.newPage();
       await installFixedClock(page);
       const artworkRequests = [];
       await page.route('https://api.qrserver.com/**', async (route) => {
         await route.fulfill({ status: 200, contentType: 'image/png', body: TRANSPARENT_PNG });
+      });
+      const walletRefreshTokens = [];
+      await page.route('https://open.dexter.cash/widget/wallet/refresh', async (route) => {
+        const token = JSON.parse(route.request().postData() || '{}').token;
+        walletRefreshTokens.push(token);
+        if (token === 'fixture-wallet-token-next') {
+          await new Promise((resolve) => setTimeout(resolve, 250));
+        }
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            ok: true,
+            usdcAtomic: token === 'fixture-wallet-token-next' ? '5000000' : '42250000',
+          }),
+        });
       });
       await page.route('https://api.dexter.cash/api/img**', async (route) => {
         const proxied = new URL(route.request().url()).searchParams.get('url');
@@ -638,6 +717,7 @@ test('wallet Money overview renders honest states in ChatGPT and MCP Apps deskto
         await page.setContent(
           '<!doctype html><html><body style="margin:0">'
             + '<iframe id="widget" title="Wallet fixture" '
+            + 'allow="clipboard-write" '
             + 'style="border:0;width:100%;height:980px"></iframe>'
             + '</body></html>',
         );
@@ -653,6 +733,21 @@ test('wallet Money overview renders honest states in ChatGPT and MCP Apps deskto
       }
 
       await assertMoneyHome(surface, scenario.name);
+      if (scenario.host === 'mcp-apps') {
+        const constrained = await surface.locator('.dxw-root').evaluate((element) => ({
+          maxHeight: getComputedStyle(element).maxHeight,
+          overflowY: getComputedStyle(element).overflowY,
+          clientHeight: element.clientHeight,
+        }));
+        const expectedMaxHeight = scenario.mobile ? 780 : 940;
+        assert.equal(
+          constrained.maxHeight,
+          `${expectedMaxHeight}px`,
+          `${scenario.name}: wallet must honor MCP containerDimensions`,
+        );
+        assert.equal(constrained.overflowY, 'auto');
+        assert.ok(constrained.clientHeight <= expectedMaxHeight);
+      }
       await scenario.assertAssets(surface, scenario.name, artworkRequests);
 
       const scrolling = await surface.locator('.dxw-sheet').evaluate((sheet) => {
@@ -702,16 +797,46 @@ test('wallet Money overview renders honest states in ChatGPT and MCP Apps deskto
       await maybeScreenshot(surface, scenario.screenshot);
 
       if (scenario.name === 'ChatGPT desktop complete') {
+        for (let attempt = 0; attempt < 50 && !walletRefreshTokens.includes('fixture-wallet-token'); attempt += 1) {
+          await page.waitForTimeout(20);
+        }
+        assert.ok(
+          walletRefreshTokens.includes('fixture-wallet-token'),
+          'ChatGPT desktop complete: the initial live cash snapshot must land before replacement',
+        );
         const focusedRow = surface.locator('.dxw-asset-row').first();
         await focusedRow.focus();
-        await page.evaluate((nextOutput) => {
+        await page.evaluate(({ nextOutput, nextMetadata }) => {
           window.openai.toolOutput = nextOutput;
+          window.openai.toolResponseMetadata = nextMetadata;
           window.dispatchEvent(new CustomEvent('openai:set_globals', {
-            detail: { globals: { toolOutput: nextOutput } },
+            detail: {
+              globals: {
+                toolOutput: nextOutput,
+                toolResponseMetadata: nextMetadata,
+              },
+            },
           }));
         }, {
-          ...scenario.output,
-          personhood: { verified: false },
+          nextOutput: {
+            ...scenario.output,
+            balances: {
+              ...scenario.output.balances,
+              usdc: 5,
+              fundedAtomic: '5000000',
+              availableAtomic: '5000000',
+            },
+            spendingPower: {
+              ...scenario.output.spendingPower,
+              totalUsd: 30,
+              cashAtomic: '5000000',
+            },
+            personhood: { verified: false },
+          },
+          nextMetadata: {
+            ...walletMetadata(scenario.portfolio),
+            dexterWalletToken: 'fixture-wallet-token-next',
+          },
         });
         await page.waitForTimeout(50);
         assert.equal(
@@ -719,6 +844,43 @@ test('wallet Money overview renders honest states in ChatGPT and MCP Apps deskto
           true,
           'ChatGPT desktop complete: host rerenders must not yank sheet focus to Close',
         );
+        await surface.getByRole('button', { name: 'Close Assets' }).click();
+        assert.equal(
+          (await surface.locator('.dxw-spend-amount').locator('span').nth(1).textContent())?.trim(),
+          '30',
+          'ChatGPT desktop complete: replacement output must never reuse the prior call\'s live cash',
+        );
+
+        await openAssets(surface);
+        await surface.getByRole('button', { name: /SPCX SpaceX/ }).click();
+        await surface.getByRole('button', { name: 'Receive', exact: true }).last().click();
+        await surface.getByRole('dialog', { name: 'Receive SPCX' }).waitFor();
+        await page.evaluate(({ nextOutput, nextMetadata }) => {
+          window.openai.toolOutput = nextOutput;
+          window.openai.toolResponseMetadata = nextMetadata;
+          window.dispatchEvent(new CustomEvent('openai:set_globals', {
+            detail: {
+              globals: {
+                toolOutput: nextOutput,
+                toolResponseMetadata: nextMetadata,
+              },
+            },
+          }));
+        }, {
+          nextOutput: {
+            ...scenario.output,
+            address: 'SysvarC1ock11111111111111111111111111111111',
+            solanaAddress: 'SysvarC1ock11111111111111111111111111111111',
+          },
+          nextMetadata: {
+            ...walletMetadata(scenario.portfolio),
+            dexterWalletToken: 'fixture-wallet-token-other-address',
+          },
+        });
+        await surface.getByRole('dialog', { name: 'Receive SPCX' }).waitFor({
+          state: 'detached',
+        });
+        await surface.getByRole('button', { name: 'Receive', exact: true }).waitFor();
       }
 
       const calls = await page.evaluate(() => window.__hostCalls ?? []);

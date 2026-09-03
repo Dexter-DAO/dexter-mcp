@@ -34,7 +34,7 @@ test('keeps the top recommendation fixed while honoring a user selection', () =>
     url: 'https://two.example/data',
   });
 
-  const decision = buildSearchDecision([first, second], second.url);
+  const decision = buildSearchDecision([first, second], 2);
 
   assert.equal(decision.recommended, first);
   assert.equal(decision.recommendationKind, 'strong');
@@ -54,7 +54,7 @@ test('promotes an offscreen selection into the hero without duplicating it', () 
     }),
   );
 
-  const decision = buildSearchDecision(resources, resources[5].url, 3);
+  const decision = buildSearchDecision(resources, 6, 3);
 
   assert.deepEqual(
     decision.alternatives.map(({ resourceId }) => resourceId),
@@ -75,10 +75,32 @@ test('uses the recommendation as the action target without implying selection', 
     url: 'https://one.example/data',
   });
 
-  const decision = buildSearchDecision([first], 'https://gone.example/data');
+  const decision = buildSearchDecision([first], 2);
 
   assert.equal(decision.selected, null);
   assert.equal(decision.actionTarget, first);
+  assert.equal(decision.isRecommendationSelected, false);
+});
+
+test('same-URL results remain distinct selections by ordinal', () => {
+  const first = resource({
+    resourceId: 'shared-url-get',
+    name: 'Shared GET capability',
+    url: 'https://shared.example/data',
+    method: 'GET',
+  });
+  const second = resource({
+    resourceId: 'shared-url-post',
+    name: 'Shared POST capability',
+    url: 'https://shared.example/data',
+    method: 'POST',
+  });
+
+  const decision = buildSearchDecision([first, second], 2);
+
+  assert.equal(decision.selected, second);
+  assert.equal(decision.actionTarget, second);
+  assert.deepEqual(decision.alternatives, [first]);
   assert.equal(decision.isRecommendationSelected, false);
 });
 

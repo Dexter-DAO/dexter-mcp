@@ -16,7 +16,10 @@ const drawer = read('apps-sdk/ui/src/components/x402/search/SearchVerdictDrawer.
 const model = read('apps-sdk/ui/src/components/x402/search/search-model.ts');
 const response = read('packages/x402-core/src/response.ts');
 const css = read('apps-sdk/ui/src/styles/widgets/x402-search.css');
-const actionSources = `${entry}\n${brief}\n${quote}\n${drawer}`;
+const baseCss = read('apps-sdk/ui/src/styles/base.css');
+const continuation = read('apps-sdk/ui/src/components/x402/purchase-review-continuation.ts');
+const indexterContinuation = read('apps-sdk/ui/src/components/x402/search/indexter-continuation.ts');
+const actionSources = `${entry}\n${brief}\n${quote}\n${drawer}\n${continuation}\n${indexterContinuation}`;
 
 test('error rendering precedes the genuine-empty branch', () => {
   assert.ok(entry.indexOf('if (searchError)') >= 0);
@@ -28,7 +31,7 @@ test('error rendering precedes the genuine-empty branch', () => {
 test('degraded ranking guidance remains visible when fallback search is empty', () => {
   assert.match(
     entry,
-    /if \(resources\.length === 0\)[\s\S]*?<EmptyMessage\.Description>[\s\S]*?searchGuidance[\s\S]*?emptyDescription/,
+    /if \(resources\.length === 0\)[\s\S]*?<IndexterLockup \/>[\s\S]*?<p>\{searchGuidance \? `\$\{searchGuidance\} \$\{emptyDescription\}` : emptyDescription\}<\/p>/,
   );
 });
 
@@ -48,9 +51,18 @@ test('search can only open a safe next step before payment', () => {
   assert.doesNotMatch(actionSources, /Check fresh price/);
   assert.match(entry, /normalizeX402CheckResult/);
   assert.match(entry, /structuredContent/);
-  assert.match(entry, /call x402_fetch once with only intentId/);
-  assert.match(entry, /returned no executable purchase intent/);
-  assert.match(entry, /Do not call x402_fetch or ask the user to connect again/);
+  assert.match(entry, /indexterPurchaseContinuationPrompt/);
+  assert.match(indexterContinuation, /indexter_result_continuation_v1/);
+  assert.match(indexterContinuation, /searchResultOrdinal/);
+  assert.match(indexterContinuation, /currentResultCount/);
+  assert.match(entry, /modelContextBound = await Promise\.race/);
+  assert.match(entry, /updateModelContext\(\{/);
+  assert.match(entry, /modelContextBound/);
+  assert.match(continuation, /call x402_fetch once/);
+  assert.match(continuation, /Never automatically retry x402_fetch/);
+  assert.match(continuation, /retryWithSameIntentOnly true/);
+  assert.match(indexterContinuation, /returned no executable purchase intent/);
+  assert.match(indexterContinuation, /Do not call x402_fetch or ask the user to connect again/);
   assert.doesNotMatch(
     entry,
     /call x402_fetch once with (?:url|method|body)/i,
@@ -69,9 +81,10 @@ test('search can only open a safe next step before payment', () => {
 
 test('featured ranking and user selection remain separate states', () => {
   assert.match(briefModel, /const recommended = resources\[0\] \?\? null/);
-  assert.match(briefModel, /const selected =\s+resources\.find/);
+  assert.match(briefModel, /const selected = selectedIndex >= 0 \? resources\[selectedIndex\] : null/);
   assert.match(briefModel, /const actionTarget = selected \?\? recommended/);
-  assert.doesNotMatch(entry, /resources\[0\]\?\.url/);
+  assert.match(entry, /selectedOrdinal/);
+  assert.doesNotMatch(entry, /selectedUrl/);
   assert.doesNotMatch(model, /resources\[0\]/);
 });
 
@@ -87,7 +100,7 @@ test('dual-host adapters and capability-driven fullscreen are wired locally', ()
 });
 
 test('current build stamp, result evidence, tokens, and dead-code removals are pinned', () => {
-  assert.match(model, /SEARCH_WIDGET_BUILD = '2026-08-04\.2'/);
+  assert.match(model, /SEARCH_WIDGET_BUILD = '2026-09-03\.1'/);
   assert.doesNotMatch(entry, /2026-04-16\.1/);
   assert.match(briefModel, /resource\.why/);
   assert.match(briefModel, /resource\.qualityScore/);
@@ -100,10 +113,12 @@ test('current build stamp, result evidence, tokens, and dead-code removals are p
   assert.match(quote, /formatAssetLabel\(route\.asset\)/);
   assert.match(quote, /route\.routeKey/);
   assert.match(drawer, /assetLabel: formatAssetLabel\(chain\.asset\)/);
-  assert.match(drawer, /dx-search-drawer__chain-asset/);
+  assert.match(drawer, /dx-search-drawer__chains-list/);
+  assert.match(drawer, /<small>\{route\.assetLabel\}<\/small>/);
   assert.match(comparison, /Compare services/);
   assert.match(css, /\.dxs-root/);
-  assert.match(css, /--color-background-primary/);
+  assert.match(css, /--dxs-page: var\(--dx-canvas\)/);
+  assert.match(baseCss, /--color-background-primary/);
   assert.match(css, /\.dx-search-brief/);
   assert.match(css, /\.dx-search-quote/);
   assert.match(css, /\.dx-search-compare/);

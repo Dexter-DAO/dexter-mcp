@@ -1,5 +1,4 @@
 import { useEffect, useRef } from 'react';
-import { Button } from '@openai/apps-sdk-ui/components/Button';
 import type { SearchResource } from './types';
 import type {
   X402CheckClassification,
@@ -17,41 +16,36 @@ type Props = {
   timeZone?: string;
   onRetry?: () => void;
   onContinue?: () => void;
+  requiresChatRecheck?: boolean;
   continueStatus?: 'idle' | 'sending' | 'sent' | 'error';
   continueError?: string | null;
 };
 
 const COPY: Record<
   X402CheckClassification,
-  { eyebrow: string; title: string; body: string }
+  { title: string; body: string }
 > = {
   paid: {
-    eyebrow: 'Current terms',
     title: 'Ready to review',
     body: 'Review the exact request, seller terms, and ceiling. Nothing has been charged.',
   },
   free: {
-    eyebrow: 'Current access',
     title: 'Ready to use',
     body: 'This service did not request payment.',
   },
   siwx: {
-    eyebrow: 'Current access',
     title: 'Wallet sign-in required',
     body: 'The service wants wallet identity, not a payment.',
   },
   apiKey: {
-    eyebrow: 'Current access',
     title: 'Provider access required',
     body: 'Connect the provider account before using this service.',
   },
   hybrid: {
-    eyebrow: 'Current terms',
     title: 'Sign in, then review',
     body: 'Provider authentication comes first. Nothing has been charged.',
   },
   error: {
-    eyebrow: 'Live check',
     title: 'Current terms unavailable',
     body: 'Dexter could not verify this service right now.',
   },
@@ -65,6 +59,7 @@ export function SearchQuotePanel({
   timeZone,
   onRetry,
   onContinue,
+  requiresChatRecheck = false,
   continueStatus = 'idle',
   continueError = null,
 }: Props) {
@@ -77,11 +72,16 @@ export function SearchQuotePanel({
     && !quote.quoteOnly
     && requestBound,
   );
-  const copy = getQuoteCopy(
-    quote.classification,
-    requestBound,
-    intentReady,
-  );
+  const copy = requiresChatRecheck && quote.classification !== 'error'
+    ? {
+        title: 'Continue in chat',
+        body: 'Current terms are shown here, but this host could not bind them to the conversation. Recheck this result in chat before continuing.',
+      }
+    : getQuoteCopy(
+        quote.classification,
+        requestBound,
+        intentReady,
+      );
   const routes = [...quote.routes].sort((a, b) => a.price - b.price);
   const routeDisplayCounts = routes.reduce((counts, route) => {
     const key = routeDisplayKey(route);
@@ -94,11 +94,13 @@ export function SearchQuotePanel({
     minute: '2-digit',
     timeZone,
   }).format(checkedAt);
-  const actionLabel = getContinueLabel(
-    quote.classification,
-    intentReady,
-    requestBound,
-  );
+  const actionLabel = requiresChatRecheck && quote.classification !== 'error'
+    ? 'Recheck in chat'
+    : getContinueLabel(
+        quote.classification,
+        intentReady,
+        requestBound,
+      );
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
@@ -115,15 +117,10 @@ export function SearchQuotePanel({
       aria-live="polite"
       aria-labelledby="dx-search-quote-title"
     >
-      <div className="dx-search-quote__signal" aria-hidden="true">
-        <span />
-      </div>
-
       <div className="dx-search-quote__content">
         <div className="dx-search-quote__meta">
-          <span>{copy.eyebrow}</span>
           <span aria-label={`Checked at ${checkedLabel}`}>
-            updated {checkedLabel}
+            Checked {checkedLabel}
           </span>
         </div>
 
@@ -174,20 +171,17 @@ export function SearchQuotePanel({
         {(onRetry || (onContinue && actionLabel)) && (
           <div className="dx-search-quote__actions">
             {quote.classification === 'error' && onRetry ? (
-              <Button
-                color="secondary"
-                variant="soft"
-                size="sm"
+              <button
+                type="button"
+                className="dx-search-secondary-action"
                 onClick={onRetry}
               >
                 Try again
-              </Button>
+              </button>
             ) : onContinue && actionLabel ? (
-              <Button
+              <button
+                type="button"
                 className="dx-search-primary-action"
-                color="primary"
-                variant="solid"
-                size="sm"
                 onClick={onContinue}
                 disabled={
                   continueStatus === 'sending'
@@ -199,7 +193,7 @@ export function SearchQuotePanel({
                   : continueStatus === 'sent'
                     ? 'Opened in chat'
                     : actionLabel}
-              </Button>
+              </button>
             ) : null}
           </div>
         )}
@@ -249,20 +243,18 @@ function getQuoteCopy(
   classification: X402CheckClassification,
   requestBound: boolean,
   intentReady: boolean,
-): { eyebrow: string; title: string; body: string } {
+): { title: string; body: string } {
   if (
     !intentReady
     && (classification === 'paid' || classification === 'hybrid')
   ) {
     if (requestBound) {
       return {
-        eyebrow: 'Current terms',
         title: 'Purchase unavailable',
         body: 'This check returned seller terms without an executable purchase intent. No payment can continue from this result.',
       };
     }
     return {
-      eyebrow: 'Price estimate',
       title: 'Exact request required',
       body: 'Form the exact raw request body and repeat this check before payment review. Nothing has been charged.',
     };

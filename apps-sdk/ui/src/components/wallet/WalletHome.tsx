@@ -3,13 +3,11 @@ import type { CanonicalWalletPayload } from '../x402/walletPayload';
 import { Lockup } from './Lockup';
 import { SpendHeadline } from './SpendHeadline';
 import { CompositionBar } from './CompositionBar';
-import { CardFace } from './CardFace';
 import { DepositSheet } from './DepositSheet';
 import { ActivitySheet } from './ActivitySheet';
 import { CreditSheet } from './CreditSheet';
 import { AssetsSheet } from './AssetsSheet';
 import { fmtSignedUsd, relativeTime } from './format';
-import type { CardThemeId } from './cardThemes';
 import { ActivityIcon, AssetsIcon, Chevron, CreditMark, DepositIcon, WorldMark } from './icons';
 // Widget-frame-only refresh rail (auth = _meta.dexterWalletToken).
 const WALLET_RAIL = 'https://open.dexter.cash/widget/wallet';
@@ -21,47 +19,55 @@ const REFRESH_MAX_MS = 15 * 60_000;
 type OpenSheet = null | 'deposit' | 'assets' | 'activity' | 'credit';
 
 /**
- * The calm home (direction B): account-capacity headline, composition bar, card face,
+ * The calm home: account-capacity headline, composition bar,
  * a four-verb action row, and the most recent activity teaser. Every capability
- * beyond the resting view lives one gesture below it in a single sheet — only
+ * beyond the resting view lives one gesture below it in a single sheet; only
  * one sheet is ever open, which is what keeps the surface calm.
  *
  * Live balance: while visible, the widget polls the refresh rail so a landing
  * deposit moves the headline without a tool re-call (money surfaces show NOW,
- * not a snapshot — Branch ruling, Jul 24). The model's prose stays historical;
+ * rather than a snapshot (Branch ruling, Jul 24). The model's prose stays historical;
  * the renderer is the live instrument.
  */
-export function WalletHome({ payload, cardToken, walletToken, onOpenExternal }: {
+export function WalletHome({ payload, walletToken, onOpenExternal }: {
   payload: CanonicalWalletPayload;
-  /** Widget-only Dextercard credential from _meta; null = reveal not armed. */
-  cardToken: string | null;
   /** Widget-only refresh credential from _meta; null = live balance off. */
   walletToken: string | null;
   onOpenExternal: (url: string) => void;
 }) {
   const [sheet, setSheet] = useState<OpenSheet>(null);
   const [receiveAsset, setReceiveAsset] = useState<string | null>(null);
-  const [cardTheme, setCardTheme] = useState<CardThemeId>('obsidian');
-  // Live cash (USD) from the refresh rail; null until the first poll lands.
-  const [liveCashUsd, setLiveCashUsd] = useState<number | null>(null);
+  // A refresh result belongs only to the exact credential + wallet snapshot
+  // that requested it. Hosts can reuse this React tree for later tool calls.
+  const [liveCash, setLiveCash] = useState<{
+    refreshKey: string;
+    usd: number;
+  } | null>(null);
   const startedAt = useRef<number>(Date.now());
 
   const money = payload.money;
   const payloadCash = money ? money.cashUsd : payload.balances.usdc;
-  const own = liveCashUsd ?? payloadCash;
+  const address = payload.solanaAddress || payload.address;
+  const refreshKey = walletToken
+    ? JSON.stringify([walletToken, address, payloadCash])
+    : null;
+  const own = refreshKey && liveCash?.refreshKey === refreshKey
+    ? liveCash.usd
+    : payloadCash;
   const credit = money ? money.creditAvailableUsd : 0;
   const atWork = money ? money.atWorkUsd : 0;
-  // Account capacity = cash + reported open credit. This is not a promise that
-  // every endpoint can use credit; exact-intent eligibility stays server-side.
+  // Account capacity = cash + reported open credit. The server still decides
+  // exact-intent credit eligibility for each endpoint.
   const payloadCapacity = money ? money.accountCapacityUsd : payload.balances.usdc;
   const accountCapacity = payloadCapacity + (own - payloadCash);
   const capacityLabel = credit > 0 ? 'Cash + reported credit' : 'Available cash';
-  const address = payload.solanaAddress || payload.address;
   const activity = payload.activity ?? [];
   const latest = activity[0];
   const verified = payload.personhood?.verified === true;
 
   useEffect(() => {
+    startedAt.current = Date.now();
+    setLiveCash(null);
     if (!walletToken) return;
     let stopped = false;
     const tick = async () => {
@@ -76,18 +82,70 @@ export function WalletHome({ payload, cardToken, walletToken, onOpenExternal }: 
         const body = await res.json();
         if (!stopped && res.ok && body?.ok && typeof body.usdcAtomic === 'string') {
           const usd = Number(body.usdcAtomic) / 1e6;
-          if (Number.isFinite(usd)) setLiveCashUsd(usd);
+          if (Number.isFinite(usd) && refreshKey) {
+            setLiveCash({ refreshKey, usd });
+          }
         }
-      } catch { /* transient — next tick retries */ }
+      } catch { /* A transient failure is retried on the next tick. */ }
     };
+    void tick();
     const id = setInterval(tick, REFRESH_EVERY_MS);
     return () => { stopped = true; clearInterval(id); };
-  }, [walletToken]);
+  }, [refreshKey, walletToken]);
 
   // Kept in the signature because the entry's host adapter owns external
   // navigation. This read-only Money slice intentionally exposes no external
   // acquisition, credit-opening, card-signup, or movement handoff.
   void onOpenExternal;
+
+  if (sheet === 'deposit') {
+    return (
+      <div className="dxw-widget dxw-widget--sheet">
+        <DepositSheet
+          address={address}
+          assetSymbol={receiveAsset ?? undefined}
+          onClose={() => setSheet(null)}
+        />
+      </div>
+    );
+  }
+
+  if (sheet === 'assets') {
+    return (
+      <div className="dxw-widget dxw-widget--sheet">
+        <AssetsSheet
+          portfolio={payload.portfolio}
+          receiveAvailable={Boolean(address)}
+          onReceive={(holding) => {
+            setReceiveAsset(holding.symbol);
+            setSheet('deposit');
+          }}
+          onClose={() => setSheet(null)}
+        />
+      </div>
+    );
+  }
+
+  if (sheet === 'activity') {
+    return (
+      <div className="dxw-widget dxw-widget--sheet">
+        <ActivitySheet items={activity} onClose={() => setSheet(null)} />
+      </div>
+    );
+  }
+
+  if (sheet === 'credit' && money) {
+    return (
+      <div className="dxw-widget dxw-widget--sheet">
+        <CreditSheet
+          lineUsd={money.creditCapUsd}
+          drawnUsd={money.creditDrawnUsd}
+          cashUsd={own}
+          onClose={() => setSheet(null)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="dxw-widget">
@@ -96,7 +154,7 @@ export function WalletHome({ payload, cardToken, walletToken, onOpenExternal }: 
         <span className="dxw-custody">
           Held by your passkey
           {verified ? (
-            <span className="dxw-verified" title="World ID verified — one unique human">
+            <span className="dxw-verified" title="World ID verified: one unique human">
               <WorldMark /> Verified human
             </span>
           ) : null}
@@ -111,13 +169,6 @@ export function WalletHome({ payload, cardToken, walletToken, onOpenExternal }: 
         earnPct={money?.earnRatePct ?? null}
         onOpen={money?.hasCreditLine ? () => setSheet('credit') : undefined}
       />
-      <CardFace
-        theme={cardTheme}
-        card={payload.card ?? { status: 'none', last4: null, expiry: null }}
-        cardToken={cardToken}
-        onTheme={setCardTheme}
-      />
-
       <div className="dxw-actions">
         <button
           className="dxw-action dxw-primary"
@@ -150,44 +201,15 @@ export function WalletHome({ payload, cardToken, walletToken, onOpenExternal }: 
 
       {latest ? (
         <button className="dxw-last-tx" onClick={() => setSheet('activity')} type="button">
-          <span>
-            <div className="dxw-tx-main">{latest.label}</div>
-            <div className="dxw-tx-sub">{relativeTime(latest.at)}{latest.kind === 'payment' ? ' · paid API call' : ''}</div>
+          <span className="dxw-tx-copy">
+            <span className="dxw-tx-main">{latest.label}</span>
+            <span className="dxw-tx-sub">{relativeTime(latest.at)}{latest.kind === 'payment' ? ' · paid API call' : ''}</span>
           </span>
           <span className="dxw-tx-amt dxw-mono">{fmtSignedUsd(latest.amountUsd)}</span>
           <Chevron />
         </button>
       ) : null}
 
-      {sheet === 'deposit' ? (
-        <DepositSheet
-          address={address}
-          assetSymbol={receiveAsset ?? undefined}
-          onClose={() => setSheet(null)}
-        />
-      ) : null}
-      {sheet === 'assets' ? (
-        <AssetsSheet
-          portfolio={payload.portfolio}
-          receiveAvailable={Boolean(address)}
-          onReceive={(holding) => {
-            setReceiveAsset(holding.symbol);
-            setSheet('deposit');
-          }}
-          onClose={() => setSheet(null)}
-        />
-      ) : null}
-      {sheet === 'activity' ? (
-        <ActivitySheet items={activity} onClose={() => setSheet(null)} />
-      ) : null}
-      {sheet === 'credit' && money ? (
-        <CreditSheet
-          lineUsd={money.creditCapUsd}
-          drawnUsd={money.creditDrawnUsd}
-          cashUsd={own}
-          onClose={() => setSheet(null)}
-        />
-      ) : null}
     </div>
   );
 }

@@ -101,24 +101,27 @@ test('contract is exactly the canonical hosted twelve', () => {
   }
 });
 
-test('governed trade results remain model-visible while only the receipt app renders', () => {
+test('every governed result remains model-visible and has a read-only renderer', () => {
   for (const name of [
     'dexter_prepare_asset_action',
     'dexter_execute_asset_action',
     'dexter_asset_action_status',
     'dexter_reconcile_asset_action',
+    'dexter_wallet_history',
   ]) {
     assert.deepEqual(OPEN_TOOL_CONTRACTS[name].visibility, ['model', 'app'], name);
     assert.equal(OPEN_TOOL_CONTRACTS[name].widgetAccessible, false, name);
   }
-  assert.deepEqual(
-    OPEN_TOOL_CONTRACTS.dexter_wallet_history.visibility,
-    ['model'],
-  );
-  assert.equal(
-    OPEN_TOOL_CONTRACTS.dexter_wallet_history.widgetAccessible,
-    false,
-  );
+});
+
+test('only Indexter discovery and its nested access check can call tools from a widget', () => {
+  for (const name of Object.keys(OPEN_TOOL_CONTRACTS)) {
+    assert.equal(
+      OPEN_TOOL_CONTRACTS[name].widgetAccessible,
+      name === 'x402_search' || name === 'x402_check',
+      name,
+    );
+  }
 });
 
 test('hosted paid guidance uses one opaque check-fetch-status path', () => {
@@ -200,7 +203,7 @@ test('search and wallet contracts expose current truth without route claims', ()
       degradedMessage: 'Reduced ranking is active.',
     },
     tip: 'Try another query.',
-    source: 'Dexter x402 Marketplace (https://dexter.cash)',
+    source: 'Indexter',
     providerDataPolicy: PROVIDER_DATA_POLICY,
   };
   assert.equal(search.outputSchema.safeParse(validSearchOutput).success, true);
@@ -968,6 +971,9 @@ test('real SDK clients receive governed refusal, auth, and local failures as tex
         content: [{ type: 'text', text: JSON.stringify(body) }],
         structuredContent: body,
         isError: governedErrors.has(name),
+        ...(governedErrors.has(name)
+          ? { _meta: { 'dexter/governedWidgetResult': body } }
+          : {}),
       };
     });
   }
@@ -991,6 +997,11 @@ test('real SDK clients receive governed refusal, auth, and local failures as tex
     const result = await client.callTool({ name, arguments: {} });
     assert.equal(result.isError, true, name);
     assert.equal(result.structuredContent, undefined, name);
+    assert.deepEqual(
+      result._meta?.['dexter/governedWidgetResult'],
+      expectedBody,
+      `${name}: the validated error body must remain available to its renderer`,
+    );
     const visibleBody = JSON.parse(result.content[0].text);
     assert.equal(visibleBody.namespace, expectedBody.namespace, name);
     assert.equal(

@@ -1,18 +1,8 @@
-import { X402gleLockup } from '../../brand/X402gleLockup';
+import { IndexterLockup } from '../../brand/IndexterLockup';
 
 /**
- * Marketplace header — x402gle composite lockup + meta line.
- *
- * Search is an x402gle product, not a bare-Dexter one — the header now
- * uses the full "x402gle by Dexter" lockup (multi-color wordmark plus
- * the small "by [dexter glyph + wordmark]" tagline beneath). When this
- * widget was first built, x402gle didn't exist yet and the bare Dexter
- * wordmark was the right call; that's no longer true.
- *
- * The on-widget search input was removed: agents communicate via chat,
- * nobody types into the widget input, and on mobile it ate ~140px of
- * vertical space above the actual results. The toolbar keeps one calm
- * reviewed-count label and the expand affordance.
+ * Indexter owns discovery. The renderer uses the canonical Indexter asset
+ * while the host remains responsible for its own OpenDexter tool chrome.
  */
 export function MarketplaceSummaryHeader({
   resultCount,
@@ -32,7 +22,7 @@ export function MarketplaceSummaryHeader({
   return (
     <div className="dx-search-header">
       <div className="dx-search-header__brand">
-        <X402gleLockup size="sm" showBeta />
+        <IndexterLockup />
       </div>
 
       <div className="dx-search-header__meta">

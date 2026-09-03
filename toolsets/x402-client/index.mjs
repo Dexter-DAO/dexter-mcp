@@ -3,19 +3,22 @@
  *
  * Authenticated counterpart to open-mcp x402 tools.
  *
- * x402_search: Discover paid APIs in the Dexter marketplace.
+ * x402_search: Discover capabilities through Indexter.
  * x402_pay:    Call any x402-enabled endpoint with automatic payment
  *              settlement via the Dexter facilitator (authenticated users).
  * x402_fetch:  Same as x402_pay but normalized to fetch-result widget schema.
  * x402_check:  Probe endpoint pricing without payment.
- * x402_wallet: Show active authenticated wallet + SOL/USDC balances.
+ * x402_wallet: Show the connected Dexter Wallet and its current money view.
  */
 
 import { z } from 'zod';
 import { fetchWithX402Json } from '../../clients/x402Client.mjs';
 import { createWidgetMeta } from '../widgetMeta.mjs';
 import { resolveWalletForRequest } from '../wallet/index.mjs';
-import { X402_WIDGET_URIS } from '../../apps-sdk/widget-uris.mjs';
+import {
+  INDEXTER_WIDGET_URIS,
+  X402_WIDGET_URIS,
+} from '../../apps-sdk/widget-uris.mjs';
 import {
   capabilitySearch,
   buildSearchResponse,
@@ -31,12 +34,12 @@ const DEXTER_API = (
 const CAPABILITY_PATH = '/api/x402gle/capability';
 
 const SEARCH_META = createWidgetMeta({
-  templateUri: X402_WIDGET_URIS.search,
-  widgetDescription: 'Shows paid API search results as interactive cards with prices and fetch actions.',
-  invoking: 'Searching marketplace...',
-  invoked: 'Results ready',
+  templateUri: INDEXTER_WIDGET_URIS.search,
+  widgetDescription: 'Shows Indexter discovery results and current access terms without authorizing a purchase.',
+  invoking: 'Searching Indexter…',
+  invoked: 'Indexter results ready',
   extra: {
-    ui: { resourceUri: X402_WIDGET_URIS.search, visibility: ['model', 'app'] },
+    ui: { resourceUri: INDEXTER_WIDGET_URIS.search, visibility: ['model', 'app'] },
   },
 });
 
@@ -64,8 +67,8 @@ const CHECK_META = createWidgetMeta({
 
 const WALLET_META = createWidgetMeta({
   templateUri: X402_WIDGET_URIS.wallet,
-  widgetDescription: 'Shows active wallet address, balances, and deposit QR.',
-  invoking: 'Loading wallet...',
+  widgetDescription: 'Shows Dexter Wallet cash, reported credit, assets, Solana receive address, and recent activity.',
+  invoking: 'Loading Dexter Wallet...',
   invoked: 'Wallet loaded',
   resourceDomains: ['https://api.qrserver.com', 'https://cdn.jsdelivr.net'],
   extra: {
@@ -387,9 +390,9 @@ function buildWalletReadError(address) {
 export function registerX402ClientToolset(server) {
   // --- x402_search ---
   server.registerTool('x402_search', {
-    title: 'x402 Capability Search',
+    title: 'Indexter Search',
     description:
-      'Semantic capability search over the Dexter x402 marketplace. ' +
+      'Semantic capability search through Indexter. ' +
       'Pass a natural-language query. maxPriceUsdc and minPriceUsdc set hard bounds on the primary USDC invocation price. paidOnly requires a known positive price. sortBy orders each relevance tier while strong results stay ahead of related results. A typed control is usable only when appliedConstraints or appliedOrdering confirms it. Keep product and order budgets in the query. ' +
       'Results come back in two tiers: strongResults (high-confidence capability hits) ' +
       'and relatedResults (adjacent services that cleared the similarity floor). ' +
@@ -410,9 +413,9 @@ export function registerX402ClientToolset(server) {
     },
     annotations: { readOnlyHint: true },
     _meta: {
-      category: 'x402.marketplace',
+      category: 'indexter.discovery',
       access: 'guest',
-      tags: ['x402', 'marketplace', 'search', 'capability'],
+      tags: ['indexter', 'search', 'capability'],
       ...SEARCH_META,
     },
   }, async (args) => {
@@ -528,7 +531,7 @@ export function registerX402ClientToolset(server) {
     },
     annotations: { readOnlyHint: true },
     _meta: {
-      category: 'x402.marketplace',
+      category: 'x402.access',
       access: 'guest',
       tags: ['x402', 'check', 'pricing'],
       ...CHECK_META,
@@ -554,13 +557,13 @@ export function registerX402ClientToolset(server) {
 
   // --- x402_wallet ---
   server.registerTool('x402_wallet', {
-    title: 'x402 Wallet',
-    description: 'Show the active authenticated wallet and any live balances the managed-wallet backend can currently resolve for x402 payments.',
+    title: 'Dexter Wallet',
+    description: 'Show the connected Dexter Wallet and the current money, asset, receive-address, and activity data the wallet backend can resolve.',
     annotations: { readOnlyHint: true },
     _meta: {
-      category: 'x402.payments',
+      category: 'dexter.wallet',
       access: 'member',
-      tags: ['x402', 'wallet', 'balances'],
+      tags: ['dexter', 'wallet', 'balances'],
       ...WALLET_META,
     },
   }, async (_args, extra) => {

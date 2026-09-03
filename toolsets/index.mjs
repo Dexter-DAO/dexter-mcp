@@ -129,7 +129,7 @@ const TOOLSET_REGISTRY = {
   },
   'x402-client': {
     register: registerX402ClientToolset,
-    description: 'Search and pay for any x402 resource in the Dexter marketplace.',
+    description: 'Discover capabilities through Indexter and use x402 access when required.',
   },
 };
 

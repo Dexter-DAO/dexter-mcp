@@ -13,7 +13,7 @@ import type {
 } from './types.js';
 import { normalizeRankingState } from './ranking.js';
 
-const SOURCE = 'Dexter x402 Marketplace (https://dexter.cash)';
+const SOURCE = 'Indexter';
 
 function buildSearchMeta(result: CapabilitySearchResult): SearchMeta {
   if (result.strongCount > 0) {
@@ -252,7 +252,7 @@ export function buildSearchResponse(result: CapabilitySearchResult): SearchRespo
  *
  * A failed search is NOT an empty result. Earlier this returned
  * `mode: 'empty'` with the raw error string crammed into `note` — which made
- * a backend outage indistinguishable from "the marketplace has nothing for
+ * a backend outage indistinguishable from "Indexter has nothing for
  * you", and leaked stack-trace text to the model/user. A failure now has its
  * own `mode: 'error'` and a calm human-facing `note`. Raw upstream detail is
  * deliberately excluded because this response is model- and user-visible;
@@ -280,7 +280,7 @@ export function buildSearchErrorResponse(_error: string): SearchResponse {
     },
     searchMeta: {
       mode: 'error',
-      note: 'Marketplace search is temporarily unavailable. Please try again in a moment.',
+      note: 'Indexter is temporarily unavailable. Please try again in a moment.',
     },
     tip: 'This is a temporary backend error, not an empty result — retry the same query shortly.',
     source: SOURCE,

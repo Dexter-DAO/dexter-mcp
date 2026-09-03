@@ -19,6 +19,8 @@
     "mcp:sessions": "node scripts/mcp-sessions.mjs",
     "mcp:sessions:json": "node scripts/mcp-sessions.mjs --json",
     "test:pumpstream": "node scripts/run-pumpstream-harness.js",
+    "test:renderers:inventory": "node --test tests/apps-sdk-renderer-inventory.test.mjs",
+    "test:renderers:gallery": "DEXTER_RENDERER_GALLERY=1 node --test tests/apps-sdk-renderer-gallery.e2e.mjs",
     "verify:release:runtime": "node scripts/verify-open-release-dependencies.mjs --runtime",
     "verify:release:source": "node scripts/verify-open-release-dependencies.mjs --source && npm run verify:open-tool-descriptors",
     "verify:release:lock": "node scripts/verify-open-release-dependencies.mjs --lock",

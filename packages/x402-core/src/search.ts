@@ -81,7 +81,7 @@ function returnedSortBy(value: unknown): CapabilitySearchSortBy | undefined {
 }
 
 /**
- * Search the Dexter x402 marketplace using semantic capability search.
+ * Search Indexter using semantic capability search.
  *
  * Returns tiered results (strongResults + relatedResults) with every field
  * run through the canonical formatResource(). Handles synonym expansion and

@@ -9,21 +9,23 @@ async function source(path) {
 }
 
 test('pricing widget continues in chat instead of invoking a money tool', async () => {
-  const [pricing, action, pricingTypes] = await Promise.all([
+  const [pricing, continuation, action, pricingTypes] = await Promise.all([
     source('apps-sdk/ui/src/entries/x402-pricing.tsx'),
+    source('apps-sdk/ui/src/components/x402/purchase-review-continuation.ts'),
     source('apps-sdk/ui/src/components/pricing/FetchAction.tsx'),
     source('apps-sdk/ui/src/components/pricing/types.ts'),
   ]);
   assert.doesNotMatch(pricing, /callTool\(\s*['"]x402_(?:fetch|pay)['"]/);
   assert.match(pricing, /useAdaptiveSendFollowUp/);
-  assert.match(pricing, /Exact request:/);
-  assert.match(pricing, /maxAmountAtomic/);
-  assert.match(pricing, /call x402_fetch once with only intentId/);
+  assert.match(pricing, /purchaseReviewContinuationPrompt/);
+  assert.match(continuation, /maxAmountAtomic/);
+  assert.match(continuation, /call x402_fetch once/);
+  assert.match(continuation, /Never automatically retry x402_fetch/);
+  assert.match(continuation, /retryWithSameIntentOnly true/);
   assert.match(pricing, /returned no executable purchase intent/);
   assert.match(pricing, /Do not call x402_fetch or ask the user to connect again/);
-  assert.match(pricing, /pass body as the exact raw string/);
   assert.doesNotMatch(
-    pricing,
+    `${pricing}\n${continuation}`,
     /call x402_fetch once with (?:url|method|body)/i,
   );
   assert.doesNotMatch(
@@ -37,11 +39,12 @@ test('pricing widget continues in chat instead of invoking a money tool', async 
 });
 
 test('fetch result reports one intent lifecycle and never interprets rail modes', async () => {
-  const [fetchResult, lifecycleModel, loading, server] = await Promise.all([
+  const [fetchResult, lifecycleModel, loading, server, styles] = await Promise.all([
     source('apps-sdk/ui/src/entries/x402-fetch-result.tsx'),
     source('apps-sdk/ui/src/components/x402/fetch-result-model.ts'),
     source('apps-sdk/ui/src/components/receipt/ReceiptLoading.tsx'),
     source('open-mcp-server.mjs'),
+    source('apps-sdk/ui/src/styles/widgets/x402-fetch-result.css'),
   ]);
   const lifecycleSources = `${fetchResult}\n${lifecycleModel}`;
   assert.match(fetchResult, /normalizeIntentLifecycle/);
@@ -50,8 +53,8 @@ test('fetch result reports one intent lifecycle and never interprets rail modes'
   assert.match(lifecycleSources, /Payment/);
   assert.match(lifecycleSources, /Reconciliation/);
   assert.match(lifecycleSources, /Reservation/);
-  assert.match(fetchResult, /Open Dexter consent/);
-  assert.match(fetchResult, /toolOutput\.dispatch/);
+  assert.match(fetchResult, /Review in Dexter/);
+  assert.match(lifecycleModel, /dispatchBoundary\(payload\.dispatch\)/);
   assert.match(loading, /MISSING_TOOL_RESULT_TIMEOUT_SECONDS/);
   assert.match(loading, /dx-receipt-error/);
   assert.doesNotMatch(
@@ -61,6 +64,17 @@ test('fetch result reports one intent lifecycle and never interprets rail modes'
   assert.match(server, /'Waiting for OpenDexter…', 'OpenDexter result received'/);
   assert.doesNotMatch(server, /X402_WIDGET_URIS\.fetch, 'Calling API/);
   assert.match(fetchResult, /startsWith\('https:\/\/dexter\.cash\/'\)/);
+  assert.match(
+    server,
+    /const STATUS_META = readOnlyResultWidgetMeta\(\s*X402_WIDGET_URIS\.fetch/,
+  );
+  assert.ok(
+    fetchResult.indexOf('<ReturnedResult data={result}')
+      < fetchResult.indexOf('<LifecycleSummary'),
+    'returned payload must render before lifecycle proof',
+  );
+  assert.doesNotMatch(fetchResult, /ReceiptHeader|DebugPanel|__eyebrow/);
+  assert.doesNotMatch(styles, /gradient|dashed|box-shadow|border-left|border-inline-start/i);
   assert.doesNotMatch(
     lifecycleSources,
     /purchaseReceipt|normalizePurchaseReceipt|toolOutput\.mode|direct_exact|native_tab/,

@@ -114,7 +114,7 @@ export type SearchNoMatchReason =
   | null;
 
 export type SearchWidgetState = {
-  selectedUrl?: string;
+  selectedOrdinal?: number;
   detailOpen?: boolean;
   searchQuery?: string;
 };

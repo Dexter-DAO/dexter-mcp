@@ -33,9 +33,11 @@ if (process.env.NODE_ENV !== 'production') {
 }
 import { extractMcpSessionId } from './lib/mcp-session-id.mjs';
 import {
+  INDEXTER_WIDGET_URIS,
   X402_WIDGET_URIS,
   DIAGNOSTIC_WIDGET_URIS,
   PASSKEY_WIDGET_URIS,
+  PORTFOLIO_WIDGET_URIS,
   GOVERNED_ASSET_WIDGET_URIS,
 } from './apps-sdk/widget-uris.mjs';
 // Card TOOLS are gone (runbook Jul 23); createRemoteCardOperations remains the
@@ -58,6 +60,7 @@ import {
 } from './lib/open-x402-binding-state.mjs';
 import {
   OPEN_X402_INTENT_API_PATHS,
+  OPEN_X402_INTENT_ID_RE,
   callOpenX402IntentApi,
   isOpenX402AuthorityRequired,
   projectOpenX402AuthorizationRequired,
@@ -221,7 +224,9 @@ function widgetMeta(templateUri, invoking, invoked, description) {
       visibility: ['model', 'app'],
       csp: standardCsp,
       domain: WIDGET_DOMAIN,
-      prefersBorder: true,
+      // The renderer owns its content plane; the host must not wrap it in a
+      // second rounded card. This keeps ChatGPT and MCP Apps visually aligned.
+      prefersBorder: false,
     },
     // Deprecated flat key alongside the nested `ui.resourceUri` — the official
     // ext-apps registerAppTool emits BOTH for backward compat. Older MCP Apps
@@ -232,7 +237,7 @@ function widgetMeta(templateUri, invoking, invoked, description) {
     'openai/resultCanProduceWidget': true,
     'openai/widgetAccessible': true,
     'openai/widgetDomain': WIDGET_DOMAIN,
-    'openai/widgetPrefersBorder': true,
+    'openai/widgetPrefersBorder': false,
     'openai/widgetCSP': csp,
     'openai/toolInvocation/invoking': invoking,
     'openai/toolInvocation/invoked': invoked,
@@ -249,7 +254,7 @@ function readOnlyResultWidgetMeta(templateUri, invoking, invoked, description) {
       visibility: ['model', 'app'],
       csp: standardCsp,
       domain: WIDGET_DOMAIN,
-      prefersBorder: true,
+      prefersBorder: false,
     },
     'ui/resourceUri': templateUri,
     'openai/outputTemplate': templateUri,
@@ -258,7 +263,7 @@ function readOnlyResultWidgetMeta(templateUri, invoking, invoked, description) {
     // it cannot call execute or any other MCP tool.
     'openai/widgetAccessible': false,
     'openai/widgetDomain': WIDGET_DOMAIN,
-    'openai/widgetPrefersBorder': true,
+    'openai/widgetPrefersBorder': false,
     'openai/widgetCSP': csp,
     'openai/toolInvocation/invoking': invoking,
     'openai/toolInvocation/invoked': invoked,
@@ -266,45 +271,55 @@ function readOnlyResultWidgetMeta(templateUri, invoking, invoked, description) {
   });
 }
 
-const SEARCH_META = widgetMeta(X402_WIDGET_URIS.search, 'Searching marketplace…', 'Results ready', 'Shows paid API search results as interactive cards with quality rings, prices, and fetch buttons.');
-const FETCH_META = widgetMeta(X402_WIDGET_URIS.fetch, 'Waiting for OpenDexter…', 'OpenDexter result received', 'Shows returned dispatch, delivery, payment, and reconciliation evidence without inferring finality.');
-const ACCESS_META = widgetMeta(X402_WIDGET_URIS.fetch, 'Checking access…', 'Access checked', 'Shows the request classification, payment intent when present, or current SIWX signer availability.');
-const CHECK_META = widgetMeta(X402_WIDGET_URIS.pricing, 'Checking pricing…', 'Pricing loaded', 'Shows endpoint pricing per blockchain with payment amounts and a pay button.');
-const WALLET_META = widgetMeta(X402_WIDGET_URIS.wallet, 'Loading wallet…', 'Wallet loaded', 'Shows wallet addresses with copy button, USDC balances across chains, and deposit QR code.');
-const PORTFOLIO_META = Object.freeze({
-  'openai/toolInvocation/invoking': 'Loading portfolio…',
-  'openai/toolInvocation/invoked': 'Portfolio loaded',
-});
-const STATUS_META = Object.freeze({
-  'openai/toolInvocation/invoking': 'Checking purchase…',
-  'openai/toolInvocation/invoked': 'Purchase status loaded',
-});
-const STOCK_TRADE_WIDGET_DESCRIPTION =
-  'Shows the exact Solana stock product, requested and quoted share equivalents, fees, and truthful transaction state. Confirmed requires an exact signature, Solana confirmation, and successful execution.';
+const SEARCH_META = widgetMeta(INDEXTER_WIDGET_URIS.search, 'Searching Indexter…', 'Indexter results ready', 'Shows Indexter discovery results, current access terms, and available capabilities without authorizing a purchase.');
+const FETCH_META = readOnlyResultWidgetMeta(X402_WIDGET_URIS.fetch, 'Waiting for OpenDexter…', 'OpenDexter result received', 'Shows returned dispatch, delivery, payment, and reconciliation evidence without inferring finality.');
+const ACCESS_META = readOnlyResultWidgetMeta(X402_WIDGET_URIS.pricing, 'Checking access…', 'Access checked', 'Shows the exact request classification, current seller terms when present, or wallet sign-in availability. It never reports that a payment occurred.');
+const CHECK_META = readOnlyResultWidgetMeta(X402_WIDGET_URIS.pricing, 'Checking access terms…', 'Access terms ready', 'Shows current access requirements and exact seller terms for the checked request without making a payment.');
+const WALLET_META = readOnlyResultWidgetMeta(X402_WIDGET_URIS.wallet, 'Loading wallet…', 'Wallet loaded', 'Shows Dexter Wallet cash, reported credit, assets, Solana receive address, and recent activity.');
+const PORTFOLIO_META = readOnlyResultWidgetMeta(
+  PORTFOLIO_WIDGET_URIS.overview,
+  'Loading portfolio…',
+  'Portfolio loaded',
+  'Shows current Dexter Wallet holdings and keeps governed discovery targets separate from balances and authority.',
+);
+const STATUS_META = readOnlyResultWidgetMeta(
+  X402_WIDGET_URIS.fetch,
+  'Checking this intent...',
+  'Intent status ready',
+  'Shows returned dispatch, provider delivery, payment, reservation, and reconciliation evidence for the same purchase intent.',
+);
+const GOVERNED_ACTION_WIDGET_DESCRIPTION =
+  'Shows exact economics, authority, execution state, finality, and recovery evidence for a governed Send, Buy, or Sell action. It cannot create or repeat an action.';
 const GOVERNED_ASSET_META = Object.freeze({
   prepare: readOnlyResultWidgetMeta(
-    GOVERNED_ASSET_WIDGET_URIS.stockTrade,
-    'Preparing stock trade…',
-    'Trade preview ready',
-    STOCK_TRADE_WIDGET_DESCRIPTION,
+    GOVERNED_ASSET_WIDGET_URIS.action,
+    'Preparing governed action…',
+    'Action preview ready',
+    GOVERNED_ACTION_WIDGET_DESCRIPTION,
   ),
   execute: readOnlyResultWidgetMeta(
-    GOVERNED_ASSET_WIDGET_URIS.stockTrade,
-    'Sending approved stock trade…',
-    'Trade update ready',
-    STOCK_TRADE_WIDGET_DESCRIPTION,
+    GOVERNED_ASSET_WIDGET_URIS.action,
+    'Sending approved action…',
+    'Action update ready',
+    GOVERNED_ACTION_WIDGET_DESCRIPTION,
   ),
   status: readOnlyResultWidgetMeta(
-    GOVERNED_ASSET_WIDGET_URIS.stockTrade,
-    'Checking stock trade…',
-    'Trade status ready',
-    STOCK_TRADE_WIDGET_DESCRIPTION,
+    GOVERNED_ASSET_WIDGET_URIS.action,
+    'Checking governed action…',
+    'Action status ready',
+    GOVERNED_ACTION_WIDGET_DESCRIPTION,
   ),
   reconcile: readOnlyResultWidgetMeta(
-    GOVERNED_ASSET_WIDGET_URIS.stockTrade,
-    'Reconciling stock trade…',
-    'Trade reconciliation update ready',
-    STOCK_TRADE_WIDGET_DESCRIPTION,
+    GOVERNED_ASSET_WIDGET_URIS.action,
+    'Reconciling governed action…',
+    'Reconciliation update ready',
+    GOVERNED_ACTION_WIDGET_DESCRIPTION,
+  ),
+  history: readOnlyResultWidgetMeta(
+    GOVERNED_ASSET_WIDGET_URIS.history,
+    'Loading wallet history…',
+    'Wallet history ready',
+    'Shows durable governed Send, Buy, and Sell history without implying new authority or execution.',
   ),
 });
 
@@ -2080,8 +2095,8 @@ export function createOpenMcpServer({
   }
 
   registerOpenTool(server, 'x402_search', {
-    title: 'x402 Search',
-    description: 'Search the x402 marketplace with a natural-language capability query. maxPriceUsdc and minPriceUsdc set hard bounds on the primary USDC invocation price. paidOnly requires a known positive price. sortBy orders each relevance tier while strong results stay ahead of related results. A typed control is usable only when appliedConstraints or appliedOrdering confirms it. rankingMode and degradedMessage report reduced fallback ranking. searchMeta.mode distinguishes direct, related_only, empty, and error results. Each result exposes seller payment options in chains[]. Search results do not authorize payment.',
+    title: 'Indexter Search',
+    description: 'Search Indexter with a natural-language capability query. Results may describe resources, providers, and other available capabilities. maxPriceUsdc and minPriceUsdc set hard bounds on the primary USDC invocation price. paidOnly requires a known positive price. sortBy orders each relevance tier while strong results stay ahead of related results. A typed control is usable only when appliedConstraints or appliedOrdering confirms it. rankingMode and degradedMessage report reduced fallback ranking. searchMeta.mode distinguishes direct, related_only, empty, and error results. Each priced result exposes seller payment options in chains[]. Search results do not authorize payment.',
     inputSchema: {
       query: z.string().describe('Natural-language capability request, such as "check wallet balance on Base", "generate an image", "ETH spot price feed", or "translate text". Broad requests are valid; semantic ranking handles them directly.'),
       network: z.string().optional().describe('Optional hard seller-network filter ("solana", "base", "ethereum", "polygon", "arbitrum", "optimism", "avalanche", or a CAIP-2 id). Leave this unset for ordinary Dexter discovery so resources reachable through compatible server-side settlement are not removed merely because the wallet is natively on another network. Set it only when the user explicitly requires a seller on that network.'),
@@ -2091,7 +2106,7 @@ export function createOpenMcpServer({
       sortBy: z.enum(['relevance', 'price_asc', 'price_desc']).optional().describe('Order results inside each relevance tier. Strong results remain ahead of related results.'),
       limit: z.number().min(1).max(50).optional().default(20).describe('Max results across strong + related tiers combined (1-50, default 20)'),
       unverified: z.boolean().optional().describe('Include unverified resources (default false). Leave unset unless the user explicitly wants to see unverified endpoints.'),
-      testnets: z.boolean().optional().describe('Include testnet-only resources (default false). Testnets are excluded by default to keep the marketplace view clean.'),
+      testnets: z.boolean().optional().describe('Include testnet-only resources (default false). Testnets are excluded by default to keep Indexter results focused on current production services.'),
       rerank: z.boolean().optional().describe('Cross-encoder LLM rerank of top strong results (default true). Set false for deterministic order or lowest-latency path.'),
     },
     annotations: { readOnlyHint: true },
@@ -2108,10 +2123,10 @@ export function createOpenMcpServer({
   });
 
   registerOpenTool(server, 'x402_fetch', {
-    title: 'x402 Fetch',
+    title: 'OpenDexter Purchase',
     description: 'Execute one API-custodied purchase intent. Pass only the opaque intentId from an authenticated x402_check and the exact maxAmountAtomic ceiling approved by the user or delegated policy. Never pass URL, body, seller terms, route data, or a prepared purchase. Say dispatched only when dispatch.boundary is crossed. Never automatically retry an ambiguous or post-dispatch outcome; use x402_status on the same intent.',
     inputSchema: {
-      intentId: z.string().min(1).max(256).describe('Opaque server-owned purchase-intent handle returned by the authenticated x402_check. Do not parse, reconstruct, or replace it.'),
+      intentId: z.string().regex(OPEN_X402_INTENT_ID_RE).describe('Opaque canonical server-owned purchase-intent UUID returned by the authenticated x402_check. Do not parse, reconstruct, or replace it.'),
       maxAmountAtomic: z.string().regex(MAX_AMOUNT_ATOMIC_RE).describe('Required approved maximum charge in USDC base units (positive 1-20 digit decimal string). The API binds it to this intent and rejects a different or larger charge.'),
     },
     annotations: { destructiveHint: true },
@@ -2152,10 +2167,10 @@ export function createOpenMcpServer({
   });
 
   registerOpenTool(server, 'x402_status', {
-    title: 'x402 Status',
+    title: 'Purchase Status',
     description: 'Inspect the same server-owned purchase intent without creating a purchase, changing routes, redispatching the provider request, or rebroadcasting a transaction. Pass only intentId.',
     inputSchema: {
-      intentId: z.string().min(1).max(256).describe('Opaque server-owned purchase-intent handle returned by x402_check. Do not parse or replace it.'),
+      intentId: z.string().regex(OPEN_X402_INTENT_ID_RE).describe('Opaque canonical server-owned purchase-intent UUID returned by x402_check. Do not parse or replace it.'),
     },
     annotations: { readOnlyHint: true },
     _meta: STATUS_META,
@@ -2194,7 +2209,7 @@ export function createOpenMcpServer({
   });
 
   registerOpenTool(server, 'x402_check', {
-    title: 'x402 Check',
+    title: 'Check Access Terms',
     description: 'Probe the exact endpoint and request shape before paying. For a non-GET request, pass body as the exact raw JSON string to preserve lexical bytes. A purchasable quote has quoteOnly=false and an opaque intentId for x402_fetch and x402_status. A quote with quoteOnly=true has no executable intent. A check never authorizes payment, and a non-GET probe may mutate the provider.',
     inputSchema: {
       url: z.string().url().describe('The URL to check'),
@@ -2242,7 +2257,7 @@ export function createOpenMcpServer({
   });
 
   registerOpenTool(server, 'x402_access', {
-    title: 'x402 Access',
+    title: 'Check Access',
     description: 'Classify the exact request through the canonical x402 check path. Paid requests return the canonical quote or intent. Free requests return the provider check result. Sign-In-With-X is reported as unavailable until OpenDexter has an eligible connected signer. This tool does not create a temporary wallet or sign a proof. A non-GET request may change provider state and is checked only once.',
     inputSchema: {
       url: z.string().url().describe('The exact HTTPS resource URL to check'),
@@ -2288,7 +2303,7 @@ export function createOpenMcpServer({
   });
 
   registerOpenTool(server, 'x402_wallet', {
-    title: 'x402 Wallet',
+    title: 'Dexter Wallet',
     description: "Read-only view of the user's Dexter wallet, the non-custodial passkey vault bound to this session. Returns its receive address, cash, reported credit capacity and read status, payment-readiness guidance, and recent activity after native OpenDexter authorization. Cash, reported credit, and exact-intent execution eligibility are distinct: never infer that a deposit is required from zero cash alone, and never promise that credit can fund an endpoint until its exact intent is checked. A missing or stale authorization triggers the host's Connect flow; it never creates a separate connector URL. Dexter holds no keys and runs no server-side session wallet.",
     inputSchema: {},
     annotations: { readOnlyHint: true },
@@ -2316,7 +2331,7 @@ export function createOpenMcpServer({
   });
 
   registerOpenTool(server, 'dexter_portfolio', {
-    title: 'Dexter Portfolio',
+    title: 'Dexter Wallet Portfolio',
     description:
       'Read the governed asset portfolio bound to this authenticated MCP session. It accepts no identity or authority arguments. Approved holdings expose the canonical assetId accepted by governed Send, Buy, and Sell; unreviewed or blocked holdings expose null.',
     inputSchema: {},
@@ -2368,11 +2383,13 @@ export function createOpenMcpServer({
     try {
       registerAppsSdkResources(server, {
         allowedTemplateUris: [
-          X402_WIDGET_URIS.search,
+          INDEXTER_WIDGET_URIS.search,
           X402_WIDGET_URIS.fetch,
           X402_WIDGET_URIS.pricing,
           X402_WIDGET_URIS.wallet,
-          GOVERNED_ASSET_WIDGET_URIS.stockTrade,
+          PORTFOLIO_WIDGET_URIS.overview,
+          GOVERNED_ASSET_WIDGET_URIS.action,
+          GOVERNED_ASSET_WIDGET_URIS.history,
           // Preserve already-served resource bytes for cached host renders.
           // Neither compatibility resource has a callable tool in this release.
           DIAGNOSTIC_WIDGET_URIS.passkeyProbe,

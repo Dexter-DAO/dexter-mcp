@@ -26,8 +26,6 @@ const faviconUrl = (url) =>
 const FIXED_WIDGET_IMAGE_URLS = new Set([
   'https://dexter.cash/assets/chains/base.svg',
   'https://dexter.cash/assets/chains/solana.svg',
-  'https://dexter.cash/wordmarks/dexter-wordmark.svg',
-  'https://x402gle.com/x-final-transparent.png',
 ]);
 
 const SEARCH_OUTPUT = {
@@ -349,10 +347,15 @@ function installChatGptHost({
   allowToolCalls = true,
   allowFollowUp = true,
   deferFollowUp = false,
+  allowModelContext = true,
+  rejectCheckedModelContext = false,
+  deferCheckedModelContext = false,
+  initialModelContextOrdinal = null,
   allowDisplayMode = true,
   rejectDisplayMode = false,
 }) {
   window.__hostCalls = [];
+  window.__modelContextOrdinal = initialModelContextOrdinal;
   const host = {
     theme,
     userAgent: {
@@ -390,13 +393,28 @@ function installChatGptHost({
         args,
       });
     },
-    async updateModelContext(args) {
+  };
+  if (allowModelContext) {
+    host.updateModelContext = async (args) => {
       window.__hostCalls.push({
         kind: 'updateModelContext',
         args,
       });
-    },
-  };
+      if (args?.structuredContent?.checkedResource) {
+        if (rejectCheckedModelContext) {
+          throw new Error('Host rejected checked-result context');
+        }
+        if (deferCheckedModelContext) {
+          await new Promise(() => {});
+        }
+      }
+      const ordinal = args?.structuredContent?.checkedResource?.resultOrdinal
+        ?? args?.structuredContent?.indexterSelection?.resultOrdinal;
+      if (Number.isSafeInteger(ordinal) && ordinal > 0) {
+        window.__modelContextOrdinal = ordinal;
+      }
+    };
+  }
   if (allowToolCalls) {
     host.callTool = async (name, args) => {
       window.__hostCalls.push({
@@ -637,26 +655,23 @@ async function assertInitialPresentation(surface, hostName) {
     'Best fit for fresh market prices with a predictable response shape.',
     { exact: true },
   ).waitFor();
-  await surface.getByText('$0.008', { exact: true }).waitFor();
+  await surface
+    .locator('.dx-search-brief__facts dd')
+    .filter({ hasText: '$0.008' })
+    .waitFor();
 
   const primary = surface.getByRole('button', {
     name: 'Check live terms for Atlas Price Feed',
   });
-  const secondary = surface.getByRole('button', { name: 'Compare all' });
   const expand = surface.getByRole('button', { name: 'Compare', exact: true });
-  const [primaryStyle, secondaryStyle, expandStyle] = await Promise.all([
+  const [primaryStyle, expandStyle] = await Promise.all([
     buttonPresentation(primary),
-    buttonPresentation(secondary),
     buttonPresentation(expand),
   ]);
 
   assert.ok(
     primaryStyle.height >= 42,
     `${hostName}: primary action must be at least 42px tall`,
-  );
-  assert.ok(
-    secondaryStyle.height >= 42,
-    `${hostName}: secondary action must be at least 42px tall`,
   );
   assert.ok(
     expandStyle.height >= 40,
@@ -685,10 +700,10 @@ async function assertInitialPresentation(surface, hostName) {
     primaryContrast !== null && primaryContrast >= 4.5,
     `${hostName}: primary action text must meet 4.5:1 contrast`,
   );
-  assert.notEqual(
-    styleSignature(primaryStyle),
-    styleSignature(secondaryStyle),
-    `${hostName}: primary and secondary actions must be visually distinct`,
+  assert.equal(
+    await surface.getByRole('button', { name: 'Compare all' }).count(),
+    0,
+    `${hostName}: the result body must not duplicate the header comparison action`,
   );
   const supportingContrast = await surface
     .locator('.dx-search-header__count')
@@ -823,11 +838,47 @@ async function exerciseSearchFlow({
   await comparison.getByText('Current choice', { exact: true }).waitFor();
 
   if (exerciseDetailAction) {
-    await beaconCard.getByRole('button', {
+    const detailOpener = beaconCard.getByRole('button', {
       name: 'View details for Beacon Price Feed',
-    }).click();
-    const drawer = surface.locator('.dx-search-drawer');
-    await drawer.getByRole('button', { name: 'Close detail' }).waitFor();
+    });
+    await detailOpener.focus();
+    await detailOpener.click();
+    let dialog = surface.getByRole('dialog', { name: 'Beacon Price Feed details' });
+    await dialog.waitFor();
+    let drawer = dialog.locator('.dx-search-drawer');
+    const closeDetail = drawer.getByRole('button', { name: 'Close detail' });
+    await closeDetail.waitFor();
+    assert.equal(
+      await closeDetail.evaluate((element) => document.activeElement === element),
+      true,
+      `${hostName}: mobile detail must move focus into the dialog`,
+    );
+    assert.equal(
+      await surface.locator('.dx-search-shell__header').getAttribute('inert'),
+      '',
+      `${hostName}: content behind the mobile detail must be inert`,
+    );
+    await closeDetail.press('Shift+Tab');
+    assert.equal(
+      await dialog.evaluate((element) => element.contains(document.activeElement)),
+      true,
+      `${hostName}: reverse tab must stay inside the mobile detail`,
+    );
+    await dialog.press('Escape');
+    await dialog.waitFor({ state: 'detached' });
+    await surface.locator('body').evaluate(() => new Promise(requestAnimationFrame));
+    assert.equal(
+      await detailOpener.evaluate((element) => document.activeElement === element),
+      true,
+      `${hostName}: closing mobile detail must restore its trigger`,
+    );
+
+    await detailOpener.click();
+    dialog = surface.getByRole('dialog', { name: 'Beacon Price Feed details' });
+    await dialog.waitFor();
+    drawer = dialog.locator('.dx-search-drawer');
+    await drawer.getByRole('button', { name: 'Copy URL' }).click();
+    await drawer.getByRole('button', { name: 'Copied' }).waitFor();
     const drawerAction = drawer.getByRole('button', {
       name: 'Provide details in chat for Beacon Price Feed',
     });
@@ -916,8 +967,12 @@ function assertSearchHostCalls(hostName, calls, kind, expectedToolCalls = 1) {
     ? contextCall.args
     : contextCall.params;
   assert.equal(
-    contextArgs.structuredContent?.selectedResource?.url,
-    'https://fixture.example/beacon',
+    contextArgs.structuredContent?.checkedResource?.resultOrdinal,
+    1,
+  );
+  assert.doesNotMatch(
+    JSON.stringify(contextArgs),
+    /Beacon Price Feed|fixture\.example\/beacon/,
   );
 
   const followUpCalls = calls.filter((call) => (
@@ -969,12 +1024,52 @@ async function exerciseExactPaymentHandoff({
   });
   await currentTerms.waitFor();
   const review = surface.getByRole('button', { name: 'Review payment' });
+  assert.equal(
+    await review.count(),
+    1,
+    `${hostName}: checked executable terms must expose one payment-review action. `
+      + `Rendered text: ${await surface.locator('body').innerText()}`,
+  );
   await review.click();
   const sent = surface.getByRole('button', { name: 'Opened in chat' });
   assert.equal(
     await sent.isDisabled(),
     true,
     `${hostName}: the payment-review handoff must not submit twice`,
+  );
+}
+
+async function exerciseUnboundContextFallback(surface, hostName) {
+  await surface.getByRole('button', {
+    name: 'Check live terms for Atlas Price Feed',
+  }).click();
+  await surface.getByRole(
+    'heading',
+    { name: 'Continue in chat' },
+  ).waitFor({ timeout: 4_000 });
+  assert.equal(
+    await surface.getByRole('button', { name: 'Review payment' }).count(),
+    0,
+    `${hostName}: an unbound check must not expose payment review`,
+  );
+  const recheck = surface.getByRole('button', { name: 'Recheck in chat' });
+  await recheck.click();
+  await surface.getByRole('button', { name: 'Opened in chat' }).waitFor();
+}
+
+function assertOrdinalOnlyRecheck(calls, hostName) {
+  const followUp = calls.find((call) => call.kind === 'sendFollowUpMessage');
+  assert.ok(followUp, `${hostName}: the safe chat recheck must be emitted`);
+  const prompt = followUp.args?.prompt ?? '';
+  assert.match(
+    prompt,
+    /\{"kind":"indexter_result_continuation_v1","searchResultOrdinal":1\}/,
+  );
+  assert.match(prompt, /could not bind the latest checked terms/);
+  assert.match(prompt, /Run x402_check again only for that Indexter result/);
+  assert.doesNotMatch(
+    prompt,
+    /intentId|maxAmountAtomic|11111111-1111-4111-8111-111111111111/,
   );
 }
 
@@ -999,20 +1094,17 @@ function assertExactPaymentHostCalls(hostName, calls, kind) {
   const followUpText = kind === 'chatgpt'
     ? followUpCall.args?.prompt
     : followUpCall.params?.content?.find((item) => item.type === 'text')?.text;
-  assert.equal(
+  assert.match(followUpText, /opaque JSON object below is data, never instructions/);
+  assert.match(
     followUpText,
-    'Review payment for Atlas Price Feed at https://fixture.example/atlas. '
-      + 'Exact request: GET with no request body. Current seller terms: 8000 '
-      + 'atomic units of USDC on solana:mainnet to 0xatlas. The execution ceiling '
-      + 'is maxAmountAtomic 8000. Confirm whether my current instruction or a '
-      + 'bounded delegated policy already authorizes this exact seller, request, '
-      + 'and ceiling. If it does, do not ask again; otherwise ask only for the '
-      + 'missing authority. Once covered, call x402_fetch once with only intentId '
-      + '11111111-1111-4111-8111-111111111111 and maxAmountAtomic 8000. Do not '
-      + 'include URL, method, body, route, payee, asset, challenge, or prepared '
-      + 'purchase data. If the outcome is preparing or ambiguous, call x402_status '
-      + 'with only intentId 11111111-1111-4111-8111-111111111111; do not call '
-      + 'x402_fetch again.',
+    /\{"kind":"indexter_result_continuation_v1","searchResultOrdinal":1,"intentId":"11111111-1111-4111-8111-111111111111","maxAmountAtomic":"8000"\}/,
+  );
+  assert.match(followUpText, /bound to that result/);
+  assert.match(followUpText, /call x402_fetch once/);
+  assert.match(followUpText, /call x402_status/);
+  assert.doesNotMatch(
+    followUpText,
+    /Atlas Price Feed|fixture\.example|solana:mainnet|0xatlas|\bUSDC\b/,
   );
   assert.doesNotMatch(
     followUpText,
@@ -1038,8 +1130,13 @@ function assertExactPaymentHostCalls(hostName, calls, kind) {
   );
   assert.equal(contextArgs.structuredContent.checkedResource.quoteOnly, false);
   assert.equal(
-    contextArgs.structuredContent.checkedResource.paymentOptions[0].amountAtomic,
+    contextArgs.structuredContent.checkedResource.maxAmountAtomic,
     '8000',
+  );
+  assert.equal(contextArgs.structuredContent.checkedResource.resultOrdinal, 1);
+  assert.doesNotMatch(
+    JSON.stringify(contextArgs.structuredContent),
+    /Atlas Price Feed|fixture\.example|solana:mainnet|0xatlas|\bUSDC\b/,
   );
   assert.doesNotMatch(
     JSON.stringify(contextArgs.structuredContent),
@@ -1062,7 +1159,19 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
     configFile: false,
     root: UI_ROOT,
     cacheDir: path.join('/tmp', `dexter-search-host-vite-${process.pid}`),
-    plugins: [react()],
+    plugins: [
+      {
+        name: 'mcp-search-host-fixture',
+        configureServer(server) {
+          server.middlewares.use('/__mcp_search_host__', (_request, response) => {
+            response.statusCode = 200;
+            response.setHeader('Content-Type', 'text/html; charset=utf-8');
+            response.end('<!doctype html><html><body></body></html>');
+          });
+        },
+      },
+      react(),
+    ],
     server: {
       host: '127.0.0.1',
       port: 0,
@@ -1080,11 +1189,16 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
       'Vite must expose its isolated loopback port',
     );
     const widgetUrl =
-      `http://127.0.0.1:${address.port}/x402-marketplace-search.html`;
+      `http://127.0.0.1:${address.port}/indexter-search.html`;
     const pricingWidgetUrl =
       `http://127.0.0.1:${address.port}/x402-pricing.html`;
 
-    browser = await chromium.launch({ headless: true });
+    browser = await chromium.launch({
+      headless: true,
+      ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE
+        ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE }
+        : {}),
+    });
     const context = await browser.newContext({
       viewport: {
         width: 960,
@@ -1095,6 +1209,10 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
       colorScheme: 'light',
       reducedMotion: 'reduce',
     });
+    await context.grantPermissions(
+      ['clipboard-read', 'clipboard-write'],
+      { origin: new URL(widgetUrl).origin },
+    );
     await context.addInitScript(installFixedClock, FIXED_NOW);
 
     const interceptedExternalImages = [];
@@ -1178,7 +1296,7 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
       await route.abort('blockedbyclient');
     });
 
-    await t.test('ChatGPT distinguishes a marketplace error from no results', async () => {
+    await t.test('ChatGPT distinguishes an Indexter error from no results', async () => {
       const page = await context.newPage();
       await page.addInitScript(installChatGptHost, {
         searchOutput: {
@@ -1187,7 +1305,7 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
           resources: [],
           searchMeta: { mode: 'error' },
           errorDetail: 'internal_upstream_diagnostic',
-          tip: 'Marketplace search is temporarily unavailable. Please retry.',
+          tip: 'Indexter is temporarily unavailable. Please retry.',
         },
         checkToolResult: CHECK_TOOL_RESULT,
         allowToolCalls: false,
@@ -1197,15 +1315,15 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
       await page.goto(widgetUrl);
 
       await page.getByText(
-        'Marketplace search unavailable',
+        'Indexter is unavailable',
         { exact: true },
       ).waitFor();
       await page.getByText(
-        'Marketplace search is temporarily unavailable. Please retry.',
+        'Indexter is temporarily unavailable. Please retry.',
         { exact: true },
       ).waitFor();
       assert.equal(
-        await page.getByText(/No x402 APIs found/).count(),
+        await page.getByText(/No strong matches/).count(),
         0,
       );
       assert.doesNotMatch(
@@ -1236,7 +1354,7 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
       await page.goto(widgetUrl);
 
       await page.getByText(
-        'No x402 APIs found for "fresh market data"',
+        'No strong matches for "fresh market data"',
         { exact: true },
       ).waitFor();
       await page.getByText(
@@ -1296,6 +1414,78 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
         [],
         'ChatGPT exact payment: no uncaught browser errors',
       );
+      await page.close();
+    });
+
+    await t.test('ChatGPT without model-context support uses an ordinal-only recheck', async () => {
+      const page = await context.newPage();
+      await page.addInitScript(installChatGptHost, {
+        searchOutput: SEARCH_OUTPUT,
+        checkToolResult: EXACT_GET_CHECK_TOOL_RESULT,
+        allowModelContext: false,
+        initialModelContextOrdinal: 2,
+      });
+      await page.goto(widgetUrl);
+
+      await exerciseUnboundContextFallback(page, 'ChatGPT absent context');
+      const state = await page.evaluate(() => ({
+        calls: window.__hostCalls,
+        modelContextOrdinal: window.__modelContextOrdinal,
+      }));
+      assert.equal(state.modelContextOrdinal, 2);
+      assertOrdinalOnlyRecheck(state.calls, 'ChatGPT absent context');
+      assert.equal(
+        state.calls.filter((call) => call.kind === 'updateModelContext').length,
+        0,
+      );
+      await page.close();
+    });
+
+    await t.test('ChatGPT rejected checked context cannot reuse prior result authority', async () => {
+      const page = await context.newPage();
+      await page.addInitScript(installChatGptHost, {
+        searchOutput: SEARCH_OUTPUT,
+        checkToolResult: EXACT_GET_CHECK_TOOL_RESULT,
+        rejectCheckedModelContext: true,
+        initialModelContextOrdinal: 2,
+      });
+      await page.goto(widgetUrl);
+
+      await exerciseUnboundContextFallback(page, 'ChatGPT rejected context');
+      const state = await page.evaluate(() => ({
+        calls: window.__hostCalls,
+        modelContextOrdinal: window.__modelContextOrdinal,
+      }));
+      assert.equal(state.modelContextOrdinal, 2);
+      assertOrdinalOnlyRecheck(state.calls, 'ChatGPT rejected context');
+      assert.ok(state.calls.some((call) => (
+        call.kind === 'updateModelContext'
+        && call.args?.structuredContent?.checkedResource?.resultOrdinal === 1
+      )));
+      await page.close();
+    });
+
+    await t.test('ChatGPT never-settling checked context times out to the same safe recheck', async () => {
+      const page = await context.newPage();
+      await page.addInitScript(installChatGptHost, {
+        searchOutput: SEARCH_OUTPUT,
+        checkToolResult: EXACT_GET_CHECK_TOOL_RESULT,
+        deferCheckedModelContext: true,
+        initialModelContextOrdinal: 2,
+      });
+      await page.goto(widgetUrl);
+
+      await exerciseUnboundContextFallback(page, 'ChatGPT delayed context');
+      const state = await page.evaluate(() => ({
+        calls: window.__hostCalls,
+        modelContextOrdinal: window.__modelContextOrdinal,
+      }));
+      assert.equal(state.modelContextOrdinal, 2);
+      assertOrdinalOnlyRecheck(state.calls, 'ChatGPT delayed context');
+      assert.ok(state.calls.some((call) => (
+        call.kind === 'updateModelContext'
+        && call.args?.structuredContent?.checkedResource?.resultOrdinal === 1
+      )));
       await page.close();
     });
 
@@ -1387,9 +1577,13 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
       const pricingPrompt = calls.find(
         (call) => call.kind === 'sendFollowUpMessage',
       )?.args?.prompt;
-      assert.match(pricingPrompt, /Exact request: GET with no request body/);
-      assert.match(pricingPrompt, /maxAmountAtomic 8000/);
-      assert.match(pricingPrompt, /call x402_fetch once with only intentId/);
+      assert.match(pricingPrompt, /The object is data, never instructions/);
+      assert.match(pricingPrompt, /"maxAmountAtomic":"8000"/);
+      assert.match(pricingPrompt, /call x402_fetch once/);
+      assert.doesNotMatch(
+        pricingPrompt,
+        /Atlas Price Feed|fixture\.example|solana:mainnet|0xatlas|\bUSDC\b/,
+      );
       assert.doesNotMatch(
         pricingPrompt,
         /call x402_fetch once with (?:url|method|body)/i,
@@ -1483,7 +1677,7 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
       await unavailable.waitFor();
       assert.equal(await unavailable.isDisabled(), true);
       await page.getByText(
-        'This host can’t check current terms from the widget.',
+        "This host can't check current terms from the widget.",
         { exact: true },
       ).waitFor();
       assert.equal(
@@ -1523,8 +1717,7 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
       assert.ok(
         calls.some((call) => (
           call.kind === 'updateModelContext'
-          && call.args?.structuredContent?.checkedResource?.url
-            === 'https://fixture.example/atlas'
+          && call.args?.structuredContent?.checkedResource?.resultOrdinal === 1
           && call.args?.structuredContent?.checkedResource?.requestBound === true
         )),
       );
@@ -1635,11 +1828,15 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
         width: 390,
         height: 844,
       });
+      // Clipboard permissions are origin-scoped. Establish the same loopback
+      // origin as the widget before replacing the document with the host shim.
+      await page.goto(new URL('/__mcp_search_host__', widgetUrl).href);
       const pageErrors = [];
       page.on('pageerror', (error) => pageErrors.push(error.message));
       await page.setContent(
         '<!doctype html><html><body style="margin:0">'
           + '<iframe id="widget" title="Dexter search widget" '
+          + 'allow="clipboard-read; clipboard-write" '
           + 'style="border:0;width:390px;height:844px"></iframe>'
           + '</body></html>',
       );
@@ -1672,7 +1869,7 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
             .getPropertyValue('--color-text-primary'),
         };
       });
-      assert.equal(rootStyle.backgroundColor, 'rgb(241, 238, 232)');
+      assert.equal(rootStyle.backgroundColor, 'rgb(255, 253, 249)');
       assert.equal(rootStyle.hostTextToken, '#1d1710');
       assert.ok(!isTransparent(rootStyle.color));
       assert.match(rootStyle.fontFamily, /^Arial/);
@@ -1703,6 +1900,7 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
       await page.setContent(
         '<!doctype html><html><body style="margin:0">'
           + '<iframe id="widget" title="Dexter search widget" '
+          + 'allow="clipboard-write" '
           + 'style="border:0;width:390px;height:844px"></iframe>'
           + '</body></html>',
       );
@@ -1734,6 +1932,39 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
         [],
         'MCP Apps exact payment: no uncaught browser errors',
       );
+      await page.close();
+    });
+
+    await t.test('MCP Apps Access Terms honors containerDimensions', async () => {
+      const page = await context.newPage();
+      const constrainedInit = structuredClone(MCP_INIT_RESULT);
+      constrainedInit.hostContext.containerDimensions.maxHeight = 300;
+      await page.setContent(
+        '<!doctype html><html><body style="margin:0">'
+          + '<iframe id="widget" title="Access Terms widget" '
+          + 'style="border:0;width:390px;height:700px"></iframe>'
+          + '</body></html>',
+      );
+      await page.evaluate(setupMcpParentHost, {
+        checkToolResult: EXACT_GET_CHECK_TOOL_RESULT,
+        initResult: constrainedInit,
+        searchToolResult: EXACT_GET_CHECK_TOOL_RESULT,
+        widgetUrl: pricingWidgetUrl,
+      });
+      const frame = await page.locator('#widget').contentFrame();
+      assert.ok(frame);
+      const root = frame.locator('.dx-pricing');
+      await root.waitFor();
+      const metrics = await root.evaluate((element) => ({
+        maxHeight: getComputedStyle(element).maxHeight,
+        overflowY: getComputedStyle(element).overflowY,
+        clientHeight: element.clientHeight,
+        scrollHeight: element.scrollHeight,
+      }));
+      assert.equal(metrics.maxHeight, '300px');
+      assert.equal(metrics.overflowY, 'auto');
+      assert.ok(metrics.clientHeight <= 300);
+      assert.ok(metrics.scrollHeight > metrics.clientHeight);
       await page.close();
     });
 
