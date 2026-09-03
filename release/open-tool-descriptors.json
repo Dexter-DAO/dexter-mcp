@@ -960,8 +960,7 @@
           "csp": {
             "resourceDomains": [
               "https://dexter.cash",
-              "https://api.dexter.cash",
-              "https://api.qrserver.com"
+              "https://api.dexter.cash"
             ],
             "connectDomains": [
               "https://dexter.cash",
@@ -983,8 +982,7 @@
           ],
           "resource_domains": [
             "https://dexter.cash",
-            "https://api.dexter.cash",
-            "https://api.qrserver.com"
+            "https://api.dexter.cash"
           ],
           "redirect_domains": [
             "https://dexter.cash",
@@ -1150,8 +1148,7 @@
           "csp": {
             "resourceDomains": [
               "https://dexter.cash",
-              "https://api.dexter.cash",
-              "https://api.qrserver.com"
+              "https://api.dexter.cash"
             ],
             "connectDomains": [
               "https://dexter.cash",
@@ -1173,8 +1170,7 @@
           ],
           "resource_domains": [
             "https://dexter.cash",
-            "https://api.dexter.cash",
-            "https://api.qrserver.com"
+            "https://api.dexter.cash"
           ],
           "redirect_domains": [
             "https://dexter.cash",
