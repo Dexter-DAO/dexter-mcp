@@ -16,6 +16,7 @@ const TEST_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(TEST_DIR, '..');
 const UI_ROOT = path.join(REPO_ROOT, 'apps-sdk', 'ui');
 const HOST_MAX_HEIGHT_STRESS_VALUE = 240;
+const LONG_SOLANA_RECIPIENT = 'DexWirjm2hS5ghfS41bLBx7FgaR2Mug9AsstisrT9jpW';
 
 function mcpInitResult(theme) {
   return {
@@ -178,11 +179,18 @@ test('x402 protocol renderers use an intrinsic transparent host shell', async (t
           + 'style="border:0;width:390px;height:900px"></iframe>'
           + '</body></html>',
       );
+      const surfaceOutput = structuredClone(surface.output);
+      if (surface.id === 'access-terms') {
+        Object.assign(surfaceOutput.paymentOptions[0], {
+          network: 'solana',
+          payTo: LONG_SOLANA_RECIPIENT,
+        });
+      }
       await page.evaluate(installMcpHost, {
         initResult: mcpInitResult('dark'),
         toolInput: surface.input,
         toolResult: {
-          structuredContent: surface.output,
+          structuredContent: surfaceOutput,
           content: [{ type: 'text', text: 'Deterministic x402 renderer fixture.' }],
           _meta: surface.metadata,
           isError: false,
@@ -241,7 +249,7 @@ test('x402 protocol renderers use an intrinsic transparent host shell', async (t
       );
 
       if (surface.id === 'access-terms') {
-        const recipient = surface.output.paymentOptions[0].payTo;
+        const recipient = surfaceOutput.paymentOptions[0].payTo;
         await frame.getByText(recipient, { exact: false }).waitFor();
         const recipientLayout = await frame.locator('.dx-pricing__route-payto').evaluate(
           (element) => {
@@ -263,6 +271,34 @@ test('x402 protocol renderers use an intrinsic transparent host shell', async (t
         assert.ok(recipientLayout.width > 300);
         assert.ok(recipientLayout.addressTop > recipientLayout.labelTop);
         assert.ok(recipientLayout.addressHeight <= recipientLayout.addressLineHeight + 1);
+
+        await page.locator('#widget').evaluate((element) => {
+          element.style.width = '320px';
+        });
+        const narrowLayout = await frame.locator('.dx-pricing__route-payto').evaluate(
+          (element) => {
+            const route = element.closest('.dx-pricing__route');
+            const address = element.querySelector('.dx-pricing__route-payto-addr');
+            const addressRect = address?.getBoundingClientRect();
+            return {
+              addressText: address?.textContent,
+              addressLeft: addressRect?.left,
+              addressRight: addressRect?.right,
+              addressClientHeight: address?.clientHeight,
+              addressScrollHeight: address?.scrollHeight,
+              documentClientWidth: document.documentElement.clientWidth,
+              documentScrollWidth: document.documentElement.scrollWidth,
+              gridTemplateAreas: route ? getComputedStyle(route).gridTemplateAreas : '',
+            };
+          },
+        );
+        assert.equal(narrowLayout.documentClientWidth, 320);
+        assert.equal(narrowLayout.addressText, recipient);
+        assert.match(narrowLayout.gridTemplateAreas, /"chain" "payto" "price"/);
+        assert.ok(narrowLayout.documentScrollWidth <= narrowLayout.documentClientWidth + 1);
+        assert.ok(narrowLayout.addressLeft >= 0);
+        assert.ok(narrowLayout.addressRight <= narrowLayout.documentClientWidth + 1);
+        assert.ok(narrowLayout.addressClientHeight >= narrowLayout.addressScrollHeight - 1);
         await frame.getByRole('button', { name: 'Review payment' }).click();
       }
       if (surface.id === 'purchase-result' || surface.id === 'purchase-status') {
