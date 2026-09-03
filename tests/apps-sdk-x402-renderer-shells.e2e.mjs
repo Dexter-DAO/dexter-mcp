@@ -243,6 +243,26 @@ test('x402 protocol renderers use an intrinsic transparent host shell', async (t
       if (surface.id === 'access-terms') {
         const recipient = surface.output.paymentOptions[0].payTo;
         await frame.getByText(recipient, { exact: false }).waitFor();
+        const recipientLayout = await frame.locator('.dx-pricing__route-payto').evaluate(
+          (element) => {
+            const style = getComputedStyle(element);
+            const label = element.querySelector('.dx-pricing__route-payto-label');
+            const address = element.querySelector('.dx-pricing__route-payto-addr');
+            const addressStyle = address ? getComputedStyle(address) : null;
+            return {
+              display: style.display,
+              width: element.getBoundingClientRect().width,
+              labelTop: label?.getBoundingClientRect().top,
+              addressTop: address?.getBoundingClientRect().top,
+              addressHeight: address?.getBoundingClientRect().height,
+              addressLineHeight: addressStyle ? Number.parseFloat(addressStyle.lineHeight) : 0,
+            };
+          },
+        );
+        assert.equal(recipientLayout.display, 'grid');
+        assert.ok(recipientLayout.width > 300);
+        assert.ok(recipientLayout.addressTop > recipientLayout.labelTop);
+        assert.ok(recipientLayout.addressHeight <= recipientLayout.addressLineHeight + 1);
         await frame.getByRole('button', { name: 'Review payment' }).click();
       }
       if (surface.id === 'purchase-result' || surface.id === 'purchase-status') {

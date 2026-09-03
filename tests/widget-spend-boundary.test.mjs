@@ -111,7 +111,8 @@ test('x402 protocol renderers leave framing and height to the host', async () =>
   }
   assert.match(resultFrame, /overflow:\s*visible/);
   assert.doesNotMatch(paymentRoutes, /shortRecipient/);
-  assert.match(paymentRoutes, /to \{route\.payTo\}/);
+  assert.match(paymentRoutes, /dx-pricing__route-payto-label">Recipient/);
+  assert.match(paymentRoutes, /dx-pricing__route-payto-addr">\{route\.payTo\}/);
   assert.doesNotMatch(fetchResult, /displayIntent/);
   assert.match(fetchResult, /<dd>\{lifecycle\.intentId\}<\/dd>/);
 });
