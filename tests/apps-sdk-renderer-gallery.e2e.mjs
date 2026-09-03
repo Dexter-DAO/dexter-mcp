@@ -29,6 +29,8 @@ const GALLERY_ENABLED = process.env.DEXTER_RENDERER_GALLERY === '1';
 const SURFACE_FILTER = String(process.env.DEXTER_RENDERER_GALLERY_SURFACE || '').trim();
 const DEVICE_FILTER = String(process.env.DEXTER_RENDERER_GALLERY_DEVICE || '').trim();
 const THEME_FILTER = String(process.env.DEXTER_RENDERER_GALLERY_THEME || '').trim();
+const BASE_CHAIN_MARK = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 111 111" fill="none"><circle cx="55.5" cy="55.5" r="55.5" fill="#0052FF"/><path d="M55.4912 94.222C77.1578 94.222 94.7217 76.881 94.7217 55.4897C94.7217 34.0984 77.1578 16.7573 55.4912 16.7573C34.908 16.7573 17.9917 32.5547 16.3311 52.5543H67.4656V58.425H16.3311C17.9917 78.4247 34.908 94.222 55.4912 94.222Z" fill="white"/></svg>';
+const GENERIC_IMAGE_MARK = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><circle cx="20" cy="20" r="14" fill="#918677" /></svg>';
 
 const VIEWPORTS = Object.freeze({
   desktop: Object.freeze({ width: 1180, height: 980, maxHeight: 880 }),
@@ -343,10 +345,20 @@ async function renderVariant({ browser, baseUrl, surface, device, theme }) {
       return;
     }
     if (request.resourceType() === 'image') {
+      const requestUrl = new URL(request.url());
+      if (
+        requestUrl.origin === 'https://dexter.cash'
+        && requestUrl.pathname === '/api/favicon'
+      ) {
+        await route.fulfill({ status: 204, body: '' });
+        return;
+      }
       await route.fulfill({
         status: 200,
         contentType: 'image/svg+xml',
-        body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><circle cx="20" cy="20" r="14" fill="#918677" /></svg>',
+        body: requestUrl.href === 'https://dexter.cash/assets/chains/base.svg'
+          ? BASE_CHAIN_MARK
+          : GENERIC_IMAGE_MARK,
       });
       return;
     }

@@ -126,10 +126,10 @@ function PaymentTermRow({ route }) {
         ] })
       ] })
     ] }),
-    route.payTo ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "dx-pricing__route-payto", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "dx-pricing__route-payto-addr", children: [
-      "to ",
-      route.payTo
-    ] }) }) : null,
+    route.payTo ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dx-pricing__route-payto", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-pricing__route-payto-label", children: "Recipient" }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-pricing__route-payto-addr", children: route.payTo })
+    ] }) : null,
     /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "dx-pricing__route-price", children: priceLabel(route) })
   ] });
 }

@@ -137,7 +137,7 @@ export function buildWidgetCsp(
     resourceDomains.push('https://api.dexter.cash');
     redirectDomains.push('https://dexter.cash');
   } else if (templateUri === X402_WIDGET_URIS.fetch) {
-    resourceDomains.push('https://api.dexter.cash', 'https://api.qrserver.com');
+    resourceDomains.push('https://api.dexter.cash');
     redirectDomains.push('https://dexter.cash', ...EXPLORER_ORIGINS);
   } else if (templateUri === X402_WIDGET_URIS.pricing) {
     resourceDomains.push('https://api.dexter.cash');
@@ -790,6 +790,7 @@ export function registerAppsSdkResources(server, options = {}) {
       entry.name,
       entry.templateUri,
       {
+        title: entry.title,
         description: entry.description,
         _meta: {
           ui: standardUiMeta,

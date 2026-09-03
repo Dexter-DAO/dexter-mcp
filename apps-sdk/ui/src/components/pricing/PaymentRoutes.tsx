@@ -32,9 +32,8 @@ function PaymentTermRow({ route }: { route: X402PaymentRoute }) {
       </div>
       {route.payTo ? (
         <div className="dx-pricing__route-payto">
-          <span className="dx-pricing__route-payto-addr">
-            to {route.payTo}
-          </span>
+          <span className="dx-pricing__route-payto-label">Recipient</span>
+          <span className="dx-pricing__route-payto-addr">{route.payTo}</span>
         </div>
       ) : null}
       <span className="dx-pricing__route-price">{priceLabel(route)}</span>

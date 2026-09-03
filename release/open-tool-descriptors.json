@@ -771,7 +771,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-pricing-ecdad580",
+          "resourceUri": "ui://dexter/x402-pricing-82c33aab",
           "visibility": [
             "model",
             "app"
@@ -789,8 +789,8 @@
           "domain": "https://dexter.cash",
           "prefersBorder": false
         },
-        "ui/resourceUri": "ui://dexter/x402-pricing-ecdad580",
-        "openai/outputTemplate": "ui://dexter/x402-pricing-ecdad580",
+        "ui/resourceUri": "ui://dexter/x402-pricing-82c33aab",
+        "openai/outputTemplate": "ui://dexter/x402-pricing-82c33aab",
         "openai/resultCanProduceWidget": true,
         "openai/widgetAccessible": true,
         "openai/widgetDomain": "https://dexter.cash",
@@ -960,8 +960,7 @@
           "csp": {
             "resourceDomains": [
               "https://dexter.cash",
-              "https://api.dexter.cash",
-              "https://api.qrserver.com"
+              "https://api.dexter.cash"
             ],
             "connectDomains": [
               "https://dexter.cash",
@@ -983,8 +982,7 @@
           ],
           "resource_domains": [
             "https://dexter.cash",
-            "https://api.dexter.cash",
-            "https://api.qrserver.com"
+            "https://api.dexter.cash"
           ],
           "redirect_domains": [
             "https://dexter.cash",
@@ -1150,8 +1148,7 @@
           "csp": {
             "resourceDomains": [
               "https://dexter.cash",
-              "https://api.dexter.cash",
-              "https://api.qrserver.com"
+              "https://api.dexter.cash"
             ],
             "connectDomains": [
               "https://dexter.cash",
@@ -1173,8 +1170,7 @@
           ],
           "resource_domains": [
             "https://dexter.cash",
-            "https://api.dexter.cash",
-            "https://api.qrserver.com"
+            "https://api.dexter.cash"
           ],
           "redirect_domains": [
             "https://dexter.cash",
@@ -1421,7 +1417,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-pricing-ecdad580",
+          "resourceUri": "ui://dexter/x402-pricing-82c33aab",
           "visibility": [
             "model",
             "app"
@@ -1439,8 +1435,8 @@
           "domain": "https://dexter.cash",
           "prefersBorder": false
         },
-        "ui/resourceUri": "ui://dexter/x402-pricing-ecdad580",
-        "openai/outputTemplate": "ui://dexter/x402-pricing-ecdad580",
+        "ui/resourceUri": "ui://dexter/x402-pricing-82c33aab",
+        "openai/outputTemplate": "ui://dexter/x402-pricing-82c33aab",
         "openai/resultCanProduceWidget": true,
         "openai/widgetAccessible": false,
         "openai/widgetDomain": "https://dexter.cash",

@@ -61,6 +61,7 @@ test('wallet resource metadata describes the current Dexter Wallet view', async 
   const expected = 'Shows Dexter Wallet cash, reported credit, assets, Solana receive address, and recent activity.';
   assert.equal(wallet.name, 'dexter_wallet');
   assert.equal(wallet.uri, DEXTER_WALLET_WIDGET_URIS.wallet);
+  assert.equal(wallet.config.title, 'Dexter Wallet');
   assert.match(wallet.uri, /^ui:\/\/dexter\/dexter-wallet(?:-[a-f0-9]{8})?$/);
   assert.equal(wallet.config._meta['openai/widgetDescription'], expected);
   assert.deepEqual(wallet.config._meta.ui.permissions, { clipboardWrite: {} });
@@ -69,6 +70,49 @@ test('wallet resource metadata describes the current Dexter Wallet view', async 
   const result = await wallet.readCallback();
   assert.equal(result.contents[0]._meta['openai/widgetDescription'], expected);
   assert.deepEqual(result.contents[0]._meta.ui.permissions, { clipboardWrite: {} });
+});
+
+test('every public resource exposes its user-facing title', (t) => {
+  const originalEnvironment = {
+    TOKEN_AI_APPS_SDK_ASSET_BASE: process.env.TOKEN_AI_APPS_SDK_ASSET_BASE,
+    TOKEN_AI_ENABLE_APPS_SDK: process.env.TOKEN_AI_ENABLE_APPS_SDK,
+    TOKEN_AI_MCP_PUBLIC_URL: process.env.TOKEN_AI_MCP_PUBLIC_URL,
+  };
+  t.after(() => {
+    for (const [key, value] of Object.entries(originalEnvironment)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+
+  process.env.TOKEN_AI_APPS_SDK_ASSET_BASE = 'https://dexter.cash/mcp/app-assets';
+  process.env.TOKEN_AI_ENABLE_APPS_SDK = '1';
+  process.env.TOKEN_AI_MCP_PUBLIC_URL = 'https://open.dexter.cash/mcp';
+
+  const registrations = [];
+  registerAppsSdkResources({
+    registerResource(name, uri, config) {
+      registrations.push({ name, uri, config });
+      return {};
+    },
+  }, { allowedTemplateUris: SELECTED_URIS });
+
+  const expectedTitles = new Map([
+    [INDEXTER_WIDGET_URIS.search, 'Indexter Search'],
+    [X402_WIDGET_URIS.fetch, 'OpenDexter Result'],
+    [X402_WIDGET_URIS.pricing, 'Access Terms'],
+    [DEXTER_WALLET_WIDGET_URIS.wallet, 'Dexter Wallet'],
+    [PORTFOLIO_WIDGET_URIS.overview, 'Dexter Wallet Portfolio'],
+    [DIAGNOSTIC_WIDGET_URIS.passkeyProbe, 'Passkey iframe probe'],
+    [PASSKEY_WIDGET_URIS.onboard, 'Dexter passkey wallet'],
+    [GOVERNED_ASSET_WIDGET_URIS.action, 'Dexter Wallet Governed Action'],
+    [GOVERNED_ASSET_WIDGET_URIS.history, 'Dexter Wallet History'],
+  ]);
+
+  assert.equal(registrations.length, expectedTitles.size);
+  for (const registration of registrations) {
+    assert.equal(registration.config.title, expectedTitles.get(registration.uri));
+  }
 });
 
 test('only Indexter discovery and Dexter Wallet request clipboard write', () => {
@@ -143,7 +187,7 @@ test('resource profiles grant only widget-specific network capabilities', () => 
     'https://dexter.cash/assets',
     X402_WIDGET_URIS.fetch,
   );
-  assert.ok(receipt.resource_domains.includes('https://api.qrserver.com'));
+  assert.ok(!receipt.resource_domains.includes('https://api.qrserver.com'));
   assert.ok(receipt.redirect_domains.includes('https://solscan.io'));
   assert.ok(receipt.redirect_domains.includes('https://dexter.cash'));
 
