@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { CanonicalWalletPayload } from '../x402/walletPayload';
 import { Lockup } from './Lockup';
 import { SpendHeadline } from './SpendHeadline';
@@ -17,6 +17,7 @@ const REFRESH_EVERY_MS = 10_000;
 const REFRESH_MAX_MS = 15 * 60_000;
 
 type OpenSheet = null | 'deposit' | 'assets' | 'activity' | 'credit';
+type HomeFocusTarget = Exclude<OpenSheet, null> | 'composition' | 'latest';
 
 /**
  * The calm home: account-capacity headline, composition bar,
@@ -44,6 +45,15 @@ export function WalletHome({ payload, walletToken, onOpenExternal }: {
     usd: number;
   } | null>(null);
   const startedAt = useRef<number>(Date.now());
+  const returnFocusTarget = useRef<HomeFocusTarget | null>(null);
+  const homeControls = useRef<Record<HomeFocusTarget, HTMLButtonElement | null>>({
+    deposit: null,
+    assets: null,
+    activity: null,
+    credit: null,
+    composition: null,
+    latest: null,
+  });
 
   const money = payload.money;
   const payloadCash = money ? money.cashUsd : payload.balances.usdc;
@@ -64,6 +74,19 @@ export function WalletHome({ payload, walletToken, onOpenExternal }: {
   const activity = payload.activity ?? [];
   const latest = activity[0];
   const verified = payload.personhood?.verified === true;
+
+  const openSheet = (nextSheet: Exclude<OpenSheet, null>, target: HomeFocusTarget) => {
+    if (sheet === null) returnFocusTarget.current = target;
+    setSheet(nextSheet);
+  };
+  const closeSheet = () => setSheet(null);
+
+  useLayoutEffect(() => {
+    if (sheet !== null || returnFocusTarget.current === null) return;
+    const target = homeControls.current[returnFocusTarget.current];
+    if (target?.isConnected) target.focus();
+    returnFocusTarget.current = null;
+  }, [sheet]);
 
   useEffect(() => {
     startedAt.current = Date.now();
@@ -104,7 +127,7 @@ export function WalletHome({ payload, walletToken, onOpenExternal }: {
         <DepositSheet
           address={address}
           assetSymbol={receiveAsset ?? undefined}
-          onClose={() => setSheet(null)}
+          onClose={closeSheet}
         />
       </div>
     );
@@ -120,7 +143,7 @@ export function WalletHome({ payload, walletToken, onOpenExternal }: {
             setReceiveAsset(holding.symbol);
             setSheet('deposit');
           }}
-          onClose={() => setSheet(null)}
+          onClose={closeSheet}
         />
       </div>
     );
@@ -129,7 +152,7 @@ export function WalletHome({ payload, walletToken, onOpenExternal }: {
   if (sheet === 'activity') {
     return (
       <div className="dxw-widget dxw-widget--sheet">
-        <ActivitySheet items={activity} onClose={() => setSheet(null)} />
+        <ActivitySheet items={activity} onClose={closeSheet} />
       </div>
     );
   }
@@ -141,7 +164,7 @@ export function WalletHome({ payload, walletToken, onOpenExternal }: {
           lineUsd={money.creditCapUsd}
           drawnUsd={money.creditDrawnUsd}
           cashUsd={own}
-          onClose={() => setSheet(null)}
+          onClose={closeSheet}
         />
       </div>
     );
@@ -167,25 +190,33 @@ export function WalletHome({ payload, walletToken, onOpenExternal }: {
         credit={credit}
         atWork={atWork}
         earnPct={money?.earnRatePct ?? null}
-        onOpen={money?.hasCreditLine ? () => setSheet('credit') : undefined}
+        onOpen={money?.hasCreditLine ? () => openSheet('credit', 'composition') : undefined}
+        triggerRef={(element) => { homeControls.current.composition = element; }}
       />
       <div className="dxw-actions">
         <button
           className="dxw-action dxw-primary"
+          ref={(element) => { homeControls.current.deposit = element; }}
           onClick={() => {
             setReceiveAsset(null);
-            setSheet('deposit');
+            openSheet('deposit', 'deposit');
           }}
           type="button"
         >
           <DepositIcon /> Receive
         </button>
-        <button className="dxw-action" onClick={() => setSheet('assets')} type="button">
+        <button
+          className="dxw-action"
+          ref={(element) => { homeControls.current.assets = element; }}
+          onClick={() => openSheet('assets', 'assets')}
+          type="button"
+        >
           <AssetsIcon /> Assets
         </button>
         <button
           className="dxw-action"
-          onClick={money?.hasCreditLine ? () => setSheet('credit') : undefined}
+          ref={(element) => { homeControls.current.credit = element; }}
+          onClick={money?.hasCreditLine ? () => openSheet('credit', 'credit') : undefined}
           disabled={!money?.hasCreditLine}
           type="button"
         >
@@ -194,13 +225,23 @@ export function WalletHome({ payload, walletToken, onOpenExternal }: {
             <span className="dxw-action-note">No line reported</span>
           ) : null}
         </button>
-        <button className="dxw-action" onClick={() => setSheet('activity')} type="button">
+        <button
+          className="dxw-action"
+          ref={(element) => { homeControls.current.activity = element; }}
+          onClick={() => openSheet('activity', 'activity')}
+          type="button"
+        >
           <ActivityIcon /> Activity
         </button>
       </div>
 
       {latest ? (
-        <button className="dxw-last-tx" onClick={() => setSheet('activity')} type="button">
+        <button
+          className="dxw-last-tx"
+          ref={(element) => { homeControls.current.latest = element; }}
+          onClick={() => openSheet('activity', 'latest')}
+          type="button"
+        >
           <span className="dxw-tx-copy">
             <span className="dxw-tx-main">{latest.label}</span>
             <span className="dxw-tx-sub">{relativeTime(latest.at)}{latest.kind === 'payment' ? ' · paid API call' : ''}</span>

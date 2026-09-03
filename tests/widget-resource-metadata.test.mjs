@@ -7,6 +7,7 @@ import {
   registerAppsSdkResources,
 } from '../apps-sdk/register.mjs';
 import {
+  DEXTER_WALLET_WIDGET_URIS,
   DIAGNOSTIC_WIDGET_URIS,
   GOVERNED_ASSET_WIDGET_URIS,
   INDEXTER_WIDGET_URIS,
@@ -19,7 +20,7 @@ const SELECTED_URIS = [
   INDEXTER_WIDGET_URIS.search,
   X402_WIDGET_URIS.fetch,
   X402_WIDGET_URIS.pricing,
-  X402_WIDGET_URIS.wallet,
+  DEXTER_WALLET_WIDGET_URIS.wallet,
   PORTFOLIO_WIDGET_URIS.overview,
   DIAGNOSTIC_WIDGET_URIS.passkeyProbe,
   PASSKEY_WIDGET_URIS.onboard,
@@ -52,13 +53,15 @@ test('wallet resource metadata describes the current Dexter Wallet view', async 
     },
   };
   registerAppsSdkResources(server, {
-    allowedTemplateUris: [X402_WIDGET_URIS.wallet],
+    allowedTemplateUris: [DEXTER_WALLET_WIDGET_URIS.wallet],
   });
 
   assert.equal(registrations.length, 1);
   const [wallet] = registrations;
   const expected = 'Shows Dexter Wallet cash, reported credit, assets, Solana receive address, and recent activity.';
-  assert.equal(wallet.uri, X402_WIDGET_URIS.wallet);
+  assert.equal(wallet.name, 'dexter_wallet');
+  assert.equal(wallet.uri, DEXTER_WALLET_WIDGET_URIS.wallet);
+  assert.match(wallet.uri, /^ui:\/\/dexter\/dexter-wallet(?:-[a-f0-9]{8})?$/);
   assert.equal(wallet.config._meta['openai/widgetDescription'], expected);
   assert.deepEqual(wallet.config._meta.ui.permissions, { clipboardWrite: {} });
   assert.doesNotMatch(wallet.config._meta['openai/widgetDescription'], /Solana only/i);
@@ -78,7 +81,7 @@ test('only Indexter discovery and Dexter Wallet request clipboard write', () => 
     { clipboardWrite: {} },
   );
   assert.deepEqual(
-    buildWidgetPermissions(X402_WIDGET_URIS.wallet),
+    buildWidgetPermissions(DEXTER_WALLET_WIDGET_URIS.wallet),
     { clipboardWrite: {} },
   );
   for (const uri of [
@@ -143,7 +146,7 @@ test('resource profiles grant only widget-specific network capabilities', () => 
   assert.ok(receipt.redirect_domains.includes('https://solscan.io'));
   assert.ok(receipt.redirect_domains.includes('https://dexter.cash'));
 
-  const wallet = buildWidgetCsp('https://dexter.cash/assets', X402_WIDGET_URIS.wallet);
+  const wallet = buildWidgetCsp('https://dexter.cash/assets', DEXTER_WALLET_WIDGET_URIS.wallet);
   assert.ok(wallet.connect_domains.includes('https://open.dexter.cash'));
   assert.ok(wallet.resource_domains.includes('https://open.dexter.cash'));
   assert.ok(wallet.resource_domains.includes('https://api.dexter.cash'));

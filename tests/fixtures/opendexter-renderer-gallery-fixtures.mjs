@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 
 import {
+  DEXTER_WALLET_WIDGET_URIS,
   DIAGNOSTIC_WIDGET_URIS,
   GOVERNED_ASSET_WIDGET_URIS,
   INDEXTER_WIDGET_URIS,
@@ -219,8 +220,8 @@ export const TOOL_RENDERER_BEHAVIORS = Object.freeze({
   }),
   x402_wallet: Object.freeze({
     family: 'dexter-wallet',
-    resourceToken: 'X402_WIDGET_URIS.wallet',
-    resourceUri: X402_WIDGET_URIS.wallet,
+    resourceToken: 'DEXTER_WALLET_WIDGET_URIS.wallet',
+    resourceUri: DEXTER_WALLET_WIDGET_URIS.wallet,
     metadataName: 'WALLET_META',
   }),
   dexter_portfolio: Object.freeze({
@@ -282,9 +283,9 @@ export const ACTIVE_RENDERER_RESOURCES = Object.freeze([
   }),
   Object.freeze({
     family: 'dexter-wallet',
-    resourceToken: 'X402_WIDGET_URIS.wallet',
-    resourceUri: X402_WIDGET_URIS.wallet,
-    file: 'x402-wallet.html',
+    resourceToken: 'DEXTER_WALLET_WIDGET_URIS.wallet',
+    resourceUri: DEXTER_WALLET_WIDGET_URIS.wallet,
+    file: 'dexter-wallet.html',
   }),
   Object.freeze({
     family: 'portfolio',
@@ -577,8 +578,8 @@ export async function buildRendererGallerySurfaces() {
     {
       id: 'dexter-wallet',
       title: 'Dexter Wallet',
-      file: 'x402-wallet.html',
-      resourceUri: X402_WIDGET_URIS.wallet,
+      file: 'dexter-wallet.html',
+      resourceUri: DEXTER_WALLET_WIDGET_URIS.wallet,
       tools: ['x402_wallet'],
       input: {},
       output: walletOutput(),

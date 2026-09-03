@@ -140,6 +140,7 @@ function StateFrame({
       data-theme={theme}
       ref={containerRef}
       className={`dx-pricing${loading ? ' dx-pricing--loading' : ''}`}
+      aria-busy={loading || undefined}
       style={{
         maxHeight: maxHeight ?? undefined,
         overflowY: maxHeight ? 'auto' : undefined,
@@ -154,15 +155,29 @@ function StatusCopy({
   classification,
   title,
   summary,
+  errorMessage,
 }: {
   classification: X402CheckClassification;
   title: string;
   summary: string;
+  errorMessage?: string | null;
 }) {
+  const isError = classification === 'error';
   return (
-    <section className="dx-pricing__status" data-state={classification}>
+    <section
+      className="dx-pricing__status"
+      data-state={classification}
+      role={isError ? 'alert' : undefined}
+      aria-live={isError ? 'assertive' : undefined}
+      aria-atomic={isError ? 'true' : undefined}
+    >
       <h2 className="dx-pricing__status-title">{title}</h2>
       <p className="dx-pricing__status-copy">{summary}</p>
+      {isError && errorMessage ? (
+        <p className="dx-pricing__consequence dx-pricing__consequence--error">
+          {errorMessage}
+        </p>
+      ) : null}
     </section>
   );
 }
@@ -254,7 +269,12 @@ function PricingCheck() {
     return (
       <StateFrame theme={theme} maxHeight={maxHeight} loading>
         <span className="dx-pricing__loading-mark" aria-hidden />
-        <p className="dx-pricing__loading-copy">
+        <p
+          className="dx-pricing__loading-copy"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
           {loadingElapsed < 5
             ? 'Checking current access terms…'
             : 'The provider is taking longer than expected.'}
@@ -339,6 +359,7 @@ function PricingCheck() {
           classification={state.classification}
           title={state.title}
           summary={state.summary}
+          errorMessage={state.errorMessage}
         />
       )}
 
@@ -370,12 +391,6 @@ function PricingCheck() {
             These terms are informational because this check did not return an executable purchase intent. No payment can continue from this result.
           </p>
         )
-      ) : null}
-
-      {state.classification === 'error' && state.errorMessage ? (
-        <p className="dx-pricing__consequence dx-pricing__consequence--error">
-          {state.errorMessage}
-        </p>
       ) : null}
 
       {continueState.status === 'error' ? (

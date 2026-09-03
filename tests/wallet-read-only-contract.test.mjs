@@ -69,7 +69,7 @@ test('hosted x402_wallet remains read-only with no caller identity input', async
 test('hosted x402_wallet keeps verified portfolio display data in widget metadata', async () => {
   const [server, entry, payload] = await Promise.all([
     source('open-mcp-server.mjs'),
-    source('apps-sdk/ui/src/entries/x402-wallet.tsx'),
+    source('apps-sdk/ui/src/entries/dexter-wallet.tsx'),
     source('apps-sdk/ui/src/components/x402/walletPayload.ts'),
   ]);
   const walletImplementation = server.slice(
@@ -125,4 +125,13 @@ test('wallet cash, reported credit, and exact-intent readiness remain distinct',
   assert.match(headline, /\{label\}/);
   assert.match(creditSheet, /Whether a purchase can use it is[\s\S]*exact checked request/);
   assert.doesNotMatch(creditSheet, /purchases can use this/);
+});
+
+test('wallet balance motion stays brief and preserves reduced-motion handling', async () => {
+  const headline = await source('apps-sdk/ui/src/components/wallet/SpendHeadline.tsx');
+  const duration = headline.match(/const duration = (\d+);/);
+
+  assert.ok(duration, 'SpendHeadline must keep an explicit, reviewable duration');
+  assert.ok(Number(duration[1]) <= 500, 'wallet balance motion must never exceed 500ms');
+  assert.match(headline, /prefers-reduced-motion: reduce/);
 });

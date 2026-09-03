@@ -3,7 +3,7 @@ import test from 'node:test';
 import {
   buildSearchDecision,
   summarizeSearchResource,
-} from '../apps-sdk/ui/src/components/x402/search/SearchDecisionBrief.model.ts';
+} from '../apps-sdk/ui/src/components/indexter/search/SearchDecisionBrief.model.ts';
 
 function resource(overrides) {
   return {

@@ -64,7 +64,7 @@
   --dx-hairline-strong: var(--color-border-primary, rgba(58, 46, 36, 0.2));
 
   --dx-orange: #f2681a;
-  --dx-orange-deep: #c9490d;
+  --dx-orange-deep: #b33c04;
   --dx-orange-hover: #df5b10;
   --dx-on-orange: #25180f;
   --dx-orange-soft: rgba(242, 104, 26, 0.11);
@@ -221,7 +221,7 @@ textarea {
 button:focus-visible,
 a:focus-visible,
 [role="button"]:focus-visible {
-  outline: 2px solid var(--dx-orange);
+  outline: 2px solid var(--dx-orange-deep);
   outline-offset: 3px;
 }
 

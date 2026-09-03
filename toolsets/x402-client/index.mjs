@@ -16,6 +16,7 @@ import { fetchWithX402Json } from '../../clients/x402Client.mjs';
 import { createWidgetMeta } from '../widgetMeta.mjs';
 import { resolveWalletForRequest } from '../wallet/index.mjs';
 import {
+  DEXTER_WALLET_WIDGET_URIS,
   INDEXTER_WIDGET_URIS,
   X402_WIDGET_URIS,
 } from '../../apps-sdk/widget-uris.mjs';
@@ -31,7 +32,7 @@ const DEXTER_API = (
   'https://x402.dexter.cash'
 ).replace(/\/+$/, '');
 
-const CAPABILITY_PATH = '/api/x402gle/capability';
+const INDEXTER_DISCOVERY_PATH = '/api/x402gle/capability';
 
 const SEARCH_META = createWidgetMeta({
   templateUri: INDEXTER_WIDGET_URIS.search,
@@ -66,13 +67,13 @@ const CHECK_META = createWidgetMeta({
 });
 
 const WALLET_META = createWidgetMeta({
-  templateUri: X402_WIDGET_URIS.wallet,
+  templateUri: DEXTER_WALLET_WIDGET_URIS.wallet,
   widgetDescription: 'Shows Dexter Wallet cash, reported credit, assets, Solana receive address, and recent activity.',
   invoking: 'Loading Dexter Wallet...',
   invoked: 'Wallet loaded',
   resourceDomains: ['https://api.qrserver.com', 'https://cdn.jsdelivr.net'],
   extra: {
-    ui: { resourceUri: X402_WIDGET_URIS.wallet, visibility: ['model', 'app'] },
+    ui: { resourceUri: DEXTER_WALLET_WIDGET_URIS.wallet, visibility: ['model', 'app'] },
   },
 });
 
@@ -182,7 +183,7 @@ async function searchCapability({
     return empty;
   }
 
-  const endpoint = `${DEXTER_API}${CAPABILITY_PATH}`;
+  const endpoint = `${DEXTER_API}${INDEXTER_DISCOVERY_PATH}`;
   const searchResult = await capabilitySearch({
     query: rawQuery,
     limit,

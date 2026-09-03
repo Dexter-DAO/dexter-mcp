@@ -66,6 +66,7 @@ export default defineConfig({
         'indexter-search': path.resolve(rootDir, 'indexter-search.html'),
         'x402-fetch-result': path.resolve(rootDir, 'x402-fetch-result.html'),
         'x402-pricing': path.resolve(rootDir, 'x402-pricing.html'),
+        'dexter-wallet': path.resolve(rootDir, 'dexter-wallet.html'),
         'x402-wallet': path.resolve(rootDir, 'x402-wallet.html'),
         'dexter-portfolio': path.resolve(rootDir, 'dexter-portfolio.html'),
         'card-status': path.resolve(rootDir, 'card-status.html'),

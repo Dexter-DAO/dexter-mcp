@@ -1,6 +1,6 @@
 ---
 name: opendexter
-description: "Use hosted OpenDexter through one authorized connection to discover services, create and inspect opaque purchase intents, call approved paid or wallet-gated resources, and read the session-bound Dexter Wallet and governed portfolio."
+description: "Use hosted OpenDexter through one authorized connection to discover services with Indexter, create and inspect opaque purchase intents, call approved paid or wallet-gated resources, and read the session-bound Dexter Wallet and governed portfolio."
 ---
 
 # OpenDexter
@@ -30,7 +30,7 @@ access, payment, and governed actions.
 
 | Intent | Tool |
 | --- | --- |
-| Discover a service or resource | `x402_search` |
+| Discover a service or resource with Indexter | `x402_search` |
 | Custody an exact endpoint request and current quote | `x402_check` |
 | Call one approved, API-custodied intent | `x402_fetch` |
 | Inspect one intent without redispatch | `x402_status` |
@@ -46,9 +46,10 @@ access, payment, and governed actions.
 Deprecated compatibility and internal diagnostic endpoints are not user-facing
 product tools. Do not select them for a new request.
 
-## Discovery and purchase
+## Indexter discovery and purchase
 
-1. Call `x402_search` with the user's actual job. Leave its network filter unset
+1. Call the compatibility-named `x402_search` with the user's actual job. It
+   searches Indexter. Leave its network filter unset
    unless the user explicitly requires a seller on one network; compatible
    server-side settlement may make a seller on another network reachable from
    the Dexter account. Put a hard API invocation-price ceiling or floor in

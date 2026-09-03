@@ -21,11 +21,16 @@ export const X402_WIDGET_URIS = Object.freeze({
   search: versionedWidgetUri('ui://dexter/x402-marketplace-search', 'x402-marketplace-search.html'),
   fetch: versionedWidgetUri('ui://dexter/x402-fetch-result', 'x402-fetch-result.html'),
   pricing: versionedWidgetUri('ui://dexter/x402-pricing', 'x402-pricing.html'),
+  // Historical wallet URI retained for cached consumers only.
   wallet: versionedWidgetUri('ui://dexter/x402-wallet', 'x402-wallet.html'),
 });
 
 export const INDEXTER_WIDGET_URIS = Object.freeze({
   search: versionedWidgetUri('ui://dexter/indexter-search', 'indexter-search.html'),
+});
+
+export const DEXTER_WALLET_WIDGET_URIS = Object.freeze({
+  wallet: versionedWidgetUri('ui://dexter/dexter-wallet', 'dexter-wallet.html'),
 });
 
 export const CARD_WIDGET_URIS = Object.freeze({

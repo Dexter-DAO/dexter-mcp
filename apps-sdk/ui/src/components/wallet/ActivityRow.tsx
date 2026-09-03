@@ -8,10 +8,10 @@ export function ActivityRow({ item }: { item: WalletActivityItem }) {
     : relativeTime(item.at);
   return (
     <div className="dxw-act-row">
-      <span>
+      <div>
         <div className="dxw-act-main">{item.label}</div>
         <div className="dxw-act-sub">{sub}</div>
-      </span>
+      </div>
       <span className="dxw-act-amt dxw-mono">{fmtSignedUsd(item.amountUsd)}</span>
     </div>
   );

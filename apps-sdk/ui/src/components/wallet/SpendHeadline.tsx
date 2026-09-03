@@ -15,7 +15,7 @@ export function SpendHeadline({ value, label }: { value: number; label: string }
       setDisplay(value);
       return;
     }
-    const duration = 700;
+    const duration = 300;
     const start = performance.now();
     const tick = (now: number) => {
       const p = Math.min((now - start) / duration, 1);

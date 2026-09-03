@@ -1,6 +1,6 @@
 import { ChainIcon, getChain } from '../x402';
 import type { X402PaymentRoute } from '../x402/check-result-model';
-import { formatAssetLabel } from '../x402/search/utils';
+import { formatAssetLabel } from '../indexter/search/utils';
 
 function shortRecipient(value: string): string {
   return value.length <= 12
