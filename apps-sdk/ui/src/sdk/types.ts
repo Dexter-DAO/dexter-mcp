@@ -115,6 +115,7 @@ export type OpenAIGlobals<
   toolResponseMetadata: ToolResponseMetadata | null;
   widgetState: WidgetState | null;
   setWidgetState: (state: WidgetState) => Promise<void>;
+  notifyIntrinsicHeight?: (args: { height: number }) => void;
   callTool: CallTool;
   sendFollowUpMessage: (args: { prompt: string; scrollToBottom?: boolean }) => Promise<void>;
   openExternal: (payload: { href: string }) => void;

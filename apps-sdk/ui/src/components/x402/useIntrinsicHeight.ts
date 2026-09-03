@@ -11,18 +11,29 @@ export function useIntrinsicHeight<T extends HTMLElement = HTMLDivElement>() {
 
   useEffect(() => {
     const el = ref.current;
-    const notify = (window as any).openai?.notifyIntrinsicHeight;
-    if (!el || typeof notify !== 'function') return;
+    if (!el) return;
 
-    const report = () => notify({ height: el.scrollHeight });
+    const report = () => {
+      const notify = (window as any).openai?.notifyIntrinsicHeight;
+      if (typeof notify === 'function') {
+        notify({ height: el.scrollHeight });
+      }
+    };
 
     report();
 
+    window.addEventListener('openai:set_globals', report, { passive: true });
+
+    let observer: ResizeObserver | null = null;
     if (typeof ResizeObserver !== 'undefined') {
-      const observer = new ResizeObserver(report);
+      observer = new ResizeObserver(report);
       observer.observe(el);
-      return () => observer.disconnect();
     }
+
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('openai:set_globals', report);
+    };
   }, []);
 
   return ref;

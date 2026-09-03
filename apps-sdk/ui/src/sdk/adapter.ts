@@ -4,9 +4,9 @@
  * Provides unified React hooks that work in both ChatGPT (OpenAI Apps SDK)
  * and MCP Apps hosts (Cursor, Claude Desktop, VS Code).
  *
- * Host detection happens once at module load. Each hook uses a single
- * useSyncExternalStore call that routes to the correct backend based
- * on the detected host, avoiding React hook ordering issues.
+ * ChatGPT can expose both the standard MCP Apps postMessage bridge and the
+ * optional window.openai extensions. Each hook subscribes to both surfaces
+ * and chooses live data by capability, avoiding a brittle module-load fork.
  */
 
 import { useSyncExternalStore, useCallback } from 'react';
@@ -22,7 +22,6 @@ import type {
   UnknownObject,
 } from './types';
 import {
-  ZERO_SAFE_AREA,
   createDefaultCapabilities,
   createDefaultHostContext,
   normalizeMcpCapabilities,
@@ -33,6 +32,9 @@ import * as mcpApps from './mcp-apps-bridge';
 
 type HostRuntime = 'chatgpt' | 'mcp-apps' | 'unknown';
 
+const DEFAULT_HOST_CONTEXT = createDefaultHostContext();
+const DEFAULT_HOST_CAPABILITIES = createDefaultCapabilities();
+
 function detectHost(): HostRuntime {
   if (typeof window === 'undefined') return 'unknown';
   if (typeof window.openai !== 'undefined') return 'chatgpt';
@@ -41,7 +43,10 @@ function detectHost(): HostRuntime {
   return 'unknown';
 }
 
-const HOST: HostRuntime = detectHost();
+function isEmbeddedHost(): boolean {
+  return typeof window !== 'undefined' && window.self !== window.top;
+}
+
 let _chatGptDisplayModeOverride: DisplayMode | null = null;
 const _chatGptAdapterListeners = new Set<() => void>();
 
@@ -51,8 +56,8 @@ let _mcpToolOutput: unknown = null;
 let _mcpToolInput: unknown = null;
 let _mcpToolMeta: unknown = null;
 let _mcpTheme: Theme = 'dark';
-let _mcpHostContext: AdaptiveHostContext = createDefaultHostContext();
-let _mcpHostCapabilities: AdaptiveHostCapabilities = createDefaultCapabilities();
+let _mcpHostContext: AdaptiveHostContext = DEFAULT_HOST_CONTEXT;
+let _mcpHostCapabilities: AdaptiveHostCapabilities = DEFAULT_HOST_CAPABILITIES;
 let _mcpInitDone = false;
 const _mcpListeners = new Set<() => void>();
 const _adaptiveSnapshotCache = new Map<string, { serialized: string; value: unknown }>();
@@ -69,29 +74,48 @@ function stableSnapshot<T>(key: string, value: T): T {
   return value;
 }
 
-function getChatGptHostContext(): AdaptiveHostContext {
+function getChatGptHostContext(
+  fallback: AdaptiveHostContext = DEFAULT_HOST_CONTEXT,
+): AdaptiveHostContext {
   const openai = typeof window !== 'undefined' ? window.openai : undefined;
-  const displayMode = _chatGptDisplayModeOverride ?? openai?.displayMode ?? 'inline';
-  const safeArea = openai?.safeArea?.insets ?? ZERO_SAFE_AREA;
+  const displayMode = _chatGptDisplayModeOverride
+    ?? openai?.displayMode
+    ?? fallback.displayMode;
+  const safeArea = openai?.safeArea?.insets ?? fallback.safeAreaInsets;
   const maxHeight =
     typeof openai?.maxHeight === 'number' && Number.isFinite(openai.maxHeight)
       ? openai.maxHeight
-      : undefined;
+      : fallback.containerDimensions?.maxHeight;
+  const platform = openai?.userAgent?.device?.type === 'mobile'
+    ? 'mobile'
+    : openai?.userAgent?.device?.type === 'desktop'
+      ? 'desktop'
+      : fallback.platform;
 
   return stableSnapshot('chatgpt-host-context', {
-    theme: openai?.theme ?? 'dark',
+    ...fallback,
+    theme: openai?.theme ?? fallback.theme,
     displayMode,
     availableDisplayModes: typeof openai?.requestDisplayMode === 'function'
-      ? Array.from(new Set<DisplayMode>([displayMode, 'inline', 'fullscreen']))
-      : [displayMode],
-    ...(maxHeight ? { containerDimensions: { maxHeight } } : {}),
-    locale: openai?.locale,
-    platform: openai?.userAgent?.device?.type === 'mobile'
-      ? 'mobile'
-      : openai?.userAgent?.device?.type === 'desktop'
-        ? 'desktop'
-        : undefined,
-    deviceCapabilities: openai?.userAgent?.capabilities,
+      ? Array.from(new Set<DisplayMode>([
+          ...fallback.availableDisplayModes,
+          displayMode,
+          'inline',
+          'fullscreen',
+        ]))
+      : fallback.availableDisplayModes,
+    ...(maxHeight
+      ? {
+          containerDimensions: {
+            ...fallback.containerDimensions,
+            maxHeight,
+          },
+        }
+      : {}),
+    locale: openai?.locale ?? fallback.locale,
+    platform,
+    deviceCapabilities:
+      openai?.userAgent?.capabilities ?? fallback.deviceCapabilities,
     safeAreaInsets: safeArea,
   });
 }
@@ -160,7 +184,9 @@ function initMcpAppsOnce() {
   }).catch(() => {});
 }
 
-if (HOST === 'mcp-apps') {
+// MCP Apps is the portable baseline, including in ChatGPT. window.openai is
+// additive and may be injected before or after this module evaluates.
+if (isEmbeddedHost()) {
   initMcpAppsOnce();
 }
 
@@ -168,19 +194,6 @@ function tryParseTextContent(content?: Array<{ type: string; text?: string }>): 
   const text = content?.find(c => c.type === 'text')?.text;
   if (!text) return null;
   try { return JSON.parse(text); } catch { return text; }
-}
-
-// ── ChatGPT subscribe/snapshot helpers ────────────────────────────────
-
-function subscribeChatGPT(key: string, onChange: () => void): () => void {
-  if (typeof window === 'undefined') return () => {};
-  const handler = (event: CustomEvent<{ globals: Record<string, unknown> }>) => {
-    if (Object.prototype.hasOwnProperty.call(event.detail.globals, key)) {
-      onChange();
-    }
-  };
-  window.addEventListener('openai:set_globals', handler as EventListener, { passive: true });
-  return () => window.removeEventListener('openai:set_globals', handler as EventListener);
 }
 
 function subscribeChatGPTGlobals(onChange: () => void): () => void {
@@ -206,6 +219,42 @@ function subscribeMcpApps(onChange: () => void): () => void {
   return () => { _mcpListeners.delete(onChange); };
 }
 
+function subscribeAdaptive(onChange: () => void): () => void {
+  const unsubscribeChatGpt = subscribeChatGPTGlobals(onChange);
+  const unsubscribeMcpApps = subscribeMcpApps(onChange);
+  return () => {
+    unsubscribeChatGpt();
+    unsubscribeMcpApps();
+  };
+}
+
+function chatGptGlobal<T>(key: string): T | undefined {
+  if (typeof window === 'undefined' || !window.openai) return undefined;
+  const value = (window.openai as unknown as Record<string, unknown>)[key];
+  return value === undefined ? undefined : value as T;
+}
+
+function getAdaptiveHostContext(): AdaptiveHostContext {
+  if (typeof window === 'undefined' || !window.openai) return _mcpHostContext;
+  return getChatGptHostContext(_mcpHostContext);
+}
+
+function getAdaptiveCapabilities(): AdaptiveHostCapabilities {
+  const chatGpt = getChatGptCapabilities();
+  return stableSnapshot('adaptive-capabilities', {
+    callTool: chatGpt.callTool || _mcpHostCapabilities.callTool,
+    openExternal: chatGpt.openExternal || _mcpHostCapabilities.openExternal,
+    requestDisplayMode:
+      chatGpt.requestDisplayMode || _mcpHostCapabilities.requestDisplayMode,
+    updateModelContext:
+      chatGpt.updateModelContext || _mcpHostCapabilities.updateModelContext,
+    sendFollowUpMessage:
+      chatGpt.sendFollowUpMessage || _mcpHostCapabilities.sendFollowUpMessage,
+    downloadFile: chatGpt.downloadFile || _mcpHostCapabilities.downloadFile,
+    widgetState: chatGpt.widgetState,
+  });
+}
+
 // ── Unified hooks ─────────────────────────────────────────────────────
 
 /**
@@ -213,16 +262,8 @@ function subscribeMcpApps(onChange: () => void): () => void {
  */
 export function useToolOutput<T = unknown>(): T | null {
   return useSyncExternalStore(
-    HOST === 'chatgpt'
-      ? (onChange) => subscribeChatGPT('toolOutput', onChange)
-      : HOST === 'mcp-apps'
-        ? (onChange) => subscribeMcpApps(onChange)
-        : () => () => {},
-    HOST === 'chatgpt'
-      ? () => (window.openai?.toolOutput ?? null) as T | null
-      : HOST === 'mcp-apps'
-        ? () => _mcpToolOutput as T | null
-        : () => null,
+    subscribeAdaptive,
+    () => (_mcpToolOutput ?? chatGptGlobal<T | null>('toolOutput') ?? null) as T | null,
     () => null,
   );
 }
@@ -234,16 +275,10 @@ export function useToolOutput<T = unknown>(): T | null {
  */
 export function useToolResponseMetadata<T = Record<string, unknown>>(): T | null {
   return useSyncExternalStore(
-    HOST === 'chatgpt'
-      ? (onChange) => subscribeChatGPT('toolResponseMetadata', onChange)
-      : HOST === 'mcp-apps'
-        ? (onChange) => subscribeMcpApps(onChange)
-        : () => () => {},
-    HOST === 'chatgpt'
-      ? () => (window.openai?.toolResponseMetadata ?? null) as T | null
-      : HOST === 'mcp-apps'
-        ? () => _mcpToolMeta as T | null
-        : () => null,
+    subscribeAdaptive,
+    () => (
+      _mcpToolMeta ?? chatGptGlobal<T | null>('toolResponseMetadata') ?? null
+    ) as T | null,
     () => null,
   );
 }
@@ -253,16 +288,8 @@ export function useToolResponseMetadata<T = Record<string, unknown>>(): T | null
  */
 export function useToolInput<T = Record<string, unknown>>(): T | null {
   return useSyncExternalStore(
-    HOST === 'chatgpt'
-      ? (onChange) => subscribeChatGPT('toolInput', onChange)
-      : HOST === 'mcp-apps'
-        ? (onChange) => subscribeMcpApps(onChange)
-        : () => () => {},
-    HOST === 'chatgpt'
-      ? () => (window.openai?.toolInput ?? null) as T | null
-      : HOST === 'mcp-apps'
-        ? () => _mcpToolInput as T | null
-        : () => null,
+    subscribeAdaptive,
+    () => (_mcpToolInput ?? chatGptGlobal<T | null>('toolInput') ?? null) as T | null,
     () => null,
   );
 }
@@ -272,16 +299,8 @@ export function useToolInput<T = Record<string, unknown>>(): T | null {
  */
 export function useAdaptiveTheme(): Theme {
   return useSyncExternalStore(
-    HOST === 'chatgpt'
-      ? (onChange) => subscribeChatGPT('theme', onChange)
-      : HOST === 'mcp-apps'
-        ? (onChange) => subscribeMcpApps(onChange)
-        : () => () => {},
-    HOST === 'chatgpt'
-      ? () => window.openai?.theme ?? 'dark'
-      : HOST === 'mcp-apps'
-        ? () => _mcpTheme
-        : () => 'dark' as Theme,
+    subscribeAdaptive,
+    () => chatGptGlobal<Theme>('theme') ?? _mcpTheme,
     () => 'dark' as Theme,
   );
 }
@@ -291,17 +310,9 @@ export function useAdaptiveTheme(): Theme {
  */
 export function useAdaptiveHostContext(): AdaptiveHostContext {
   return useSyncExternalStore(
-    HOST === 'chatgpt'
-      ? subscribeChatGPTGlobals
-      : HOST === 'mcp-apps'
-        ? subscribeMcpApps
-        : () => () => {},
-    HOST === 'chatgpt'
-      ? getChatGptHostContext
-      : HOST === 'mcp-apps'
-        ? () => _mcpHostContext
-        : createDefaultHostContext,
-    createDefaultHostContext,
+    subscribeAdaptive,
+    getAdaptiveHostContext,
+    () => DEFAULT_HOST_CONTEXT,
   );
 }
 
@@ -310,17 +321,9 @@ export function useAdaptiveHostContext(): AdaptiveHostContext {
  */
 export function useAdaptiveHostCapabilities(): AdaptiveHostCapabilities {
   return useSyncExternalStore(
-    HOST === 'chatgpt'
-      ? subscribeChatGPTGlobals
-      : HOST === 'mcp-apps'
-        ? subscribeMcpApps
-        : () => () => {},
-    HOST === 'chatgpt'
-      ? getChatGptCapabilities
-      : HOST === 'mcp-apps'
-        ? () => _mcpHostCapabilities
-        : createDefaultCapabilities,
-    createDefaultCapabilities,
+    subscribeAdaptive,
+    getAdaptiveCapabilities,
+    () => DEFAULT_HOST_CAPABILITIES,
   );
 }
 
@@ -337,7 +340,7 @@ export function useAdaptiveMaxHeight(): number | null {
 export function useAdaptiveRequestDisplayMode(): RequestDisplayMode | null {
   const capabilities = useAdaptiveHostCapabilities();
   const request = useCallback<RequestDisplayMode>(async ({ mode }) => {
-    if (HOST === 'mcp-apps') {
+    if (mcpApps.isInitialized() && _mcpHostCapabilities.requestDisplayMode) {
       const result = await mcpApps.requestDisplayMode(mode);
       if (result.mode !== 'inline' && result.mode !== 'fullscreen' && result.mode !== 'pip') {
         throw new Error('Host returned an invalid display mode');
@@ -353,6 +356,15 @@ export function useAdaptiveRequestDisplayMode(): RequestDisplayMode | null {
       }
       _chatGptDisplayModeOverride = result.mode;
       for (const listener of _chatGptAdapterListeners) listener();
+      return result;
+    }
+    if (isEmbeddedHost()) {
+      const result = await mcpApps.requestDisplayMode(mode);
+      if (result.mode !== 'inline' && result.mode !== 'fullscreen' && result.mode !== 'pip') {
+        throw new Error('Host returned an invalid display mode');
+      }
+      _mcpHostContext = { ..._mcpHostContext, displayMode: result.mode };
+      notifyMcpListeners();
       return result;
     }
     throw new Error('Display mode changes are not available');
@@ -374,7 +386,7 @@ export function useAdaptiveUpdateModelContext(): ((
       structuredContent?: UnknownObject;
     },
   ) => {
-    if (HOST === 'mcp-apps') {
+    if (mcpApps.isInitialized() && _mcpHostCapabilities.updateModelContext) {
       await mcpApps.updateModelContext(value);
       return;
     }
@@ -390,6 +402,10 @@ export function useAdaptiveUpdateModelContext(): ((
       });
       return;
     }
+    if (isEmbeddedHost()) {
+      await mcpApps.updateModelContext(value);
+      return;
+    }
     throw new Error('Model-context updates are not available');
   }, []);
 
@@ -401,7 +417,7 @@ export function useAdaptiveSendFollowUp(): ((
 ) => Promise<void>) | null {
   const capabilities = useAdaptiveHostCapabilities();
   const send = useCallback(async (prompt: string) => {
-    if (HOST === 'mcp-apps') {
+    if (mcpApps.isInitialized() && _mcpHostCapabilities.sendFollowUpMessage) {
       await mcpApps.sendMessage(prompt);
       return;
     }
@@ -410,6 +426,10 @@ export function useAdaptiveSendFollowUp(): ((
         prompt,
         scrollToBottom: false,
       });
+      return;
+    }
+    if (isEmbeddedHost()) {
+      await mcpApps.sendMessage(prompt);
       return;
     }
     throw new Error('Follow-up messages are not available');
@@ -423,11 +443,14 @@ export function useAdaptiveSendFollowUp(): ((
  */
 export function useAdaptiveCallToolFn(): CallTool {
   return useCallback(async (name: string, args: Record<string, unknown>) => {
-    if (HOST === 'mcp-apps') {
+    if (mcpApps.isInitialized() && _mcpHostCapabilities.callTool) {
       return mcpApps.callTool(name, args);
     }
     if (typeof window !== 'undefined' && window.openai?.callTool) {
       return normalizeCallToolResult(await window.openai.callTool(name, args));
+    }
+    if (isEmbeddedHost()) {
+      return mcpApps.callTool(name, args);
     }
     throw new Error('callTool is not available');
   }, []);
@@ -438,12 +461,16 @@ export function useAdaptiveCallToolFn(): CallTool {
  */
 export function useAdaptiveOpenExternal(): (href: string) => void {
   return useCallback((href: string) => {
-    if (HOST === 'mcp-apps') {
+    if (mcpApps.isInitialized() && _mcpHostCapabilities.openExternal) {
       void mcpApps.openLink(href).catch(() => {});
       return;
     }
     if (typeof window !== 'undefined' && window.openai?.openExternal) {
       window.openai.openExternal({ href });
+      return;
+    }
+    if (isEmbeddedHost()) {
+      void mcpApps.openLink(href).catch(() => {});
       return;
     }
     window?.open(href, '_blank', 'noopener,noreferrer');
@@ -454,5 +481,5 @@ export function useAdaptiveOpenExternal(): (href: string) => void {
  * Returns the detected host runtime.
  */
 export function useHostRuntime(): HostRuntime {
-  return HOST;
+  return detectHost();
 }
