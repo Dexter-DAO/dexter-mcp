@@ -1,8 +1,17 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type Ref } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type Ref,
+} from 'react';
 
 import {
   useAdaptiveDisplayMode,
   useAdaptiveHostCapabilities,
+  useAdaptiveHostContext,
   useAdaptiveOpenExternal,
   useAdaptiveRequestDisplayMode,
   useAdaptiveTheme,
@@ -30,9 +39,15 @@ function formatActivityTime(model: GovernedActionViewModel): string | null {
   }).format(date);
 }
 
-function HistoryLoading({ rootRef }: { rootRef: Ref<HTMLDivElement> }) {
+function HistoryLoading({
+  rootRef,
+  style,
+}: {
+  rootRef: Ref<HTMLDivElement>;
+  style?: CSSProperties;
+}) {
   return (
-    <WidgetShell width="full" rootRef={rootRef}>
+    <WidgetShell width="full" rootRef={rootRef} style={style}>
       <div className="dx-history dx-history--loading" role="status" aria-live="polite" aria-label="Loading wallet history">
         <span className="dx-action__skeleton dx-history__skeleton-title" />
         <span className="dx-action__skeleton dx-history__skeleton-copy" />
@@ -55,6 +70,7 @@ export function GovernedHistoryView() {
   const theme = useAdaptiveTheme();
   const displayMode = useAdaptiveDisplayMode();
   const hostCapabilities = useAdaptiveHostCapabilities();
+  const hostContext = useAdaptiveHostContext();
   const requestDisplayMode = useAdaptiveRequestDisplayMode();
   const openExternal = useAdaptiveOpenExternal();
   const rootRef = useIntrinsicHeight<HTMLDivElement>();
@@ -81,19 +97,27 @@ export function GovernedHistoryView() {
 
   const canExpand = Boolean(requestDisplayMode && hostCapabilities.requestDisplayMode);
   const isFullscreen = displayMode === 'fullscreen';
+  const rootStyle = isFullscreen ? {
+    paddingTop: `max(var(--dx-space-6), ${hostContext.safeAreaInsets.top}px)`,
+    paddingRight: `max(var(--dx-space-6), ${hostContext.safeAreaInsets.right}px)`,
+    paddingBottom: `max(var(--dx-space-6), ${hostContext.safeAreaInsets.bottom}px)`,
+    paddingLeft: `max(var(--dx-space-6), ${hostContext.safeAreaInsets.left}px)`,
+  } : undefined;
   const requestMode = (mode: 'inline' | 'fullscreen') => {
     if (!requestDisplayMode) return;
     void requestDisplayMode({ mode }).catch(() => {});
   };
 
-  if (renderOutput === null) return <HistoryLoading rootRef={rootRef} />;
+  if (renderOutput === null) {
+    return <HistoryLoading rootRef={rootRef} style={rootStyle} />;
+  }
 
   const selected = model && selectedIndex !== null
     ? model.items[selectedIndex] ?? null
     : null;
 
   return (
-    <WidgetShell width="full" rootRef={rootRef}>
+    <WidgetShell width="full" rootRef={rootRef} style={rootStyle}>
       {selected ? (
         <GovernedActionDetail
           model={selected}

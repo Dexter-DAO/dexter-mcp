@@ -112,8 +112,26 @@ function summaryDisplayValue(
   return value === null ? null : formatDisplayUsd(value);
 }
 
+const ASSET_WORDMARKS: Readonly<Record<string, string>> = {
+  bitcoin: 'Bitcoin',
+  ethereum: 'Ethereum',
+  solana: 'Solana',
+};
+
+function displayAssetLabel(assetId: string | null, assetClass: PortfolioHolding['assetClass']): string {
+  if (!assetId) return sentenceCase(assetClass);
+
+  return assetId
+    .split(/[-_]+/u)
+    .filter(Boolean)
+    .map((part) => ASSET_WORDMARKS[part] ?? (
+      part.length <= 5 ? part.toUpperCase() : sentenceCase(part)
+    ))
+    .join(' ');
+}
+
 function InlineHolding({ holding }: { holding: PortfolioHolding }) {
-  const name = holding.assetId ?? sentenceCase(holding.assetClass);
+  const name = displayAssetLabel(holding.assetId, holding.assetClass);
   return (
     <li className="dxp-inline-holding">
       <span className="dxp-inline-holding__name" title={holding.assetId ?? holding.mint}>
@@ -154,7 +172,7 @@ function InlinePortfolio({
 
       <div className="dxp-inline__summary">
         <div>
-          <h1 id="dxp-title">Portfolio</h1>
+          <h1 id="dxp-title">{model.summary.label}</h1>
           <strong
             className={displayValue === null ? 'dxp-unknown' : undefined}
             aria-label={`${model.summary.label}: ${exactValue}`}
@@ -165,7 +183,9 @@ function InlinePortfolio({
         </div>
         <p>
           {formatCount(model.snapshot.holdings.length, 'asset')}
-          {model.isPartial ? ' · partial read' : ' · current snapshot'}
+          {model.snapshot.unpricedHoldings > 0
+            ? ` · ${formatCount(model.snapshot.unpricedHoldings, 'unpriced asset')}`
+            : model.isPartial ? ' · partial read' : ' · current snapshot'}
         </p>
       </div>
 
@@ -219,7 +239,7 @@ function InlineBrowserItem({ item }: { item: InlinePortfolioItem }) {
   }
 
   const { holding } = item;
-  const name = holding.assetId ?? sentenceCase(holding.assetClass);
+  const name = displayAssetLabel(holding.assetId, holding.assetClass);
   return (
     <li className="dxp-browser-item">
       <div className="dxp-browser-item__identity">
@@ -465,7 +485,7 @@ function ReadyLedger({
       </header>
 
       <section className="dxp-hero" aria-label="Portfolio summary">
-        <h1 id="dxp-title">Portfolio</h1>
+        <h1 id="dxp-title">{summary.label}</h1>
         <strong
           className={summary.value === null ? 'dxp-unknown' : undefined}
           aria-label={`${summary.label}: ${summary.value ?? 'Unknown'}`}
@@ -473,7 +493,6 @@ function ReadyLedger({
         >
           {displayValue ?? 'Unknown'}
         </strong>
-        {summary.label === 'Priced subtotal' ? <p>Priced subtotal.</p> : null}
         {model.coverage ? <p className="dxp-coverage" role="status">{model.coverage}</p> : null}
       </section>
 
@@ -495,7 +514,7 @@ function LoadingLedger({ compact }: { compact: boolean }) {
         <WalletLockup />
       </header>
       <section className="dxp-hero">
-        <h1>Portfolio</h1>
+        <h1>Portfolio value</h1>
         <div className="dxp-skeleton dxp-skeleton--value" />
         <div className="dxp-skeleton dxp-skeleton--line" />
       </section>

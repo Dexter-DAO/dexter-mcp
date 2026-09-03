@@ -184,7 +184,7 @@ test('--emit-json emits exactly one descriptor document and exits', () => {
     assert.equal(tool._meta['openai/outputTemplate'], GOVERNED_ASSET_WIDGET_URIS.action);
     assert.equal(tool._meta['openai/resultCanProduceWidget'], true);
     assert.equal(tool._meta['openai/widgetAccessible'], false);
-    assert.deepEqual(tool._meta.ui.visibility, ['model', 'app']);
+    assert.deepEqual(tool._meta.ui.visibility, ['model']);
     assert.doesNotMatch(
       tool._meta['openai/toolInvocation/invoked'],
       /confirmed|executed|succeeded|complete/i,
@@ -200,15 +200,17 @@ test('--emit-json emits exactly one descriptor document and exits', () => {
   assert.equal(history._meta['openai/outputTemplate'], GOVERNED_ASSET_WIDGET_URIS.history);
   assert.equal(history._meta['openai/resultCanProduceWidget'], true);
   assert.equal(history._meta['openai/widgetAccessible'], false);
-  assert.deepEqual(history._meta.ui.visibility, ['model', 'app']);
+  assert.deepEqual(history._meta.ui.visibility, ['model']);
 
   const indexter = descriptor.tools.find((candidate) =>
     candidate.name === 'indexter_search');
   assert.equal(indexter._meta.ui.resourceUri, INDEXTER_WIDGET_URIS.search);
-  assert.equal(indexter._meta['openai/widgetAccessible'], true);
+  assert.equal(indexter._meta['openai/widgetAccessible'], false);
+  assert.deepEqual(indexter._meta.ui.visibility, ['model']);
   const accessCheck = descriptor.tools.find((candidate) =>
     candidate.name === 'x402_check');
-  assert.equal(accessCheck._meta['openai/widgetAccessible'], true);
+  assert.equal(accessCheck._meta['openai/widgetAccessible'], false);
+  assert.deepEqual(accessCheck._meta.ui.visibility, ['model']);
 
   const wallet = descriptor.tools.find((candidate) =>
     candidate.name === 'dexter_wallet');
@@ -228,6 +230,7 @@ test('--emit-json emits exactly one descriptor document and exits', () => {
     const tool = descriptor.tools.find((candidate) => candidate.name === name);
     assert.ok(tool, name);
     assert.equal(tool._meta['openai/widgetAccessible'], false, name);
+    assert.deepEqual(tool._meta.ui.visibility, ['model'], name);
   }
 });
 

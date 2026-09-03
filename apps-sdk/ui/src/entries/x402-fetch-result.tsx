@@ -1,11 +1,13 @@
 import '../sdk';
 import '../styles/sdk.css';
+import '../styles/widgets/returned-result.css';
 import '../styles/widgets/x402-fetch-result.css';
 
 import { createRoot } from 'react-dom/client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   useAdaptiveDisplayMode,
+  useAdaptiveHostContext,
   useAdaptiveMaxHeight,
   useAdaptiveOpenExternal,
   useAdaptiveRequestDisplayMode,
@@ -23,6 +25,11 @@ import {
   normalizeIntentLifecycle,
   type IntentLifecycleModel,
 } from '../components/x402/fetch-result-model';
+import {
+  ReturnedResult,
+  returnedResultIsImage,
+  returnedResultNeedsPreview,
+} from '../components/x402/ReturnedResult';
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -99,88 +106,6 @@ function deliveredResult(payload: FetchPayload): unknown {
     return payload.delivery.result;
   }
   return undefined;
-}
-
-function parseJsonString(value: string): unknown {
-  const trimmed = value.trim();
-  if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return value;
-  try {
-    return JSON.parse(trimmed);
-  } catch {
-    return value;
-  }
-}
-
-function imageFrom(value: unknown): { src: string; alt: string } | null {
-  if (!isRecord(value)) return null;
-  const candidate = value.image_url ?? value.imageUrl ?? value.url;
-  if (typeof candidate !== 'string') return null;
-  try {
-    const parsed = new URL(candidate);
-    if (!['http:', 'https:'].includes(parsed.protocol)) return null;
-    if (!/\.(?:avif|gif|jpe?g|png|svg|webp)$/i.test(parsed.pathname)) return null;
-    const alt = cleanString(value.alt) ?? cleanString(value.title) ?? 'Returned result';
-    return {
-      src: `https://api.dexter.cash/api/img?url=${encodeURIComponent(parsed.toString())}`,
-      alt,
-    };
-  } catch {
-    return null;
-  }
-}
-
-function ReturnedResult({ data }: { data: unknown }) {
-  const parsed = typeof data === 'string' ? parseJsonString(data) : data;
-  const image = imageFrom(parsed);
-
-  if (image) {
-    return (
-      <figure className="dx-result-payload dx-result-payload--image">
-        <img src={image.src} alt={image.alt} width={960} height={640} />
-      </figure>
-    );
-  }
-
-  if (typeof parsed === 'string') {
-    return (
-      <div className="dx-result-payload dx-result-payload--text" aria-label="Returned result">
-        <p>{parsed}</p>
-      </div>
-    );
-  }
-
-  if (
-    parsed === null
-    || (Array.isArray(parsed) && parsed.length === 0)
-    || (isRecord(parsed) && Object.keys(parsed).length === 0)
-  ) {
-    return (
-      <p className="dx-result-payload dx-result-payload--empty">
-        The provider returned an empty result.
-      </p>
-    );
-  }
-
-  if (typeof parsed === 'number' || typeof parsed === 'boolean') {
-    return (
-      <p className="dx-result-payload dx-result-payload--value" aria-label="Returned result">
-        {String(parsed)}
-      </p>
-    );
-  }
-
-  let serialized: string;
-  try {
-    serialized = JSON.stringify(parsed, null, 2);
-  } catch {
-    serialized = String(parsed);
-  }
-
-  return (
-    <pre className="dx-result-payload dx-result-payload--json" aria-label="Returned result" tabIndex={0}>
-      <code>{serialized}</code>
-    </pre>
-  );
 }
 
 function LoadingResult() {
@@ -335,6 +260,7 @@ function FetchResult() {
   const theme = useAdaptiveTheme();
   const maxHeight = useAdaptiveMaxHeight();
   const displayMode = useAdaptiveDisplayMode();
+  const hostContext = useAdaptiveHostContext();
   const requestDisplayMode = useAdaptiveRequestDisplayMode();
   const containerRef = useIntrinsicHeight();
   const [followUpState, setFollowUpState] = useState<StatusFollowUpState>('idle');
@@ -346,19 +272,45 @@ function FetchResult() {
   }, [theme]);
 
   const isFullscreen = displayMode === 'fullscreen';
+  const canToggleFullscreen = Boolean(
+    requestDisplayMode
+    && hostContext.availableDisplayModes.includes(isFullscreen ? 'inline' : 'fullscreen'),
+  );
+  const rootStyle = isFullscreen ? {
+    paddingTop: hostContext.safeAreaInsets.top || undefined,
+    paddingRight: hostContext.safeAreaInsets.right || undefined,
+    paddingBottom: hostContext.safeAreaInsets.bottom || undefined,
+    paddingLeft: hostContext.safeAreaInsets.left || undefined,
+  } : undefined;
   const lifecycle = useMemo(() => normalizeIntentLifecycle(toolOutput), [toolOutput]);
   const result = useMemo(
     () => (toolOutput ? deliveredResult(toolOutput) : undefined),
     [toolOutput],
   );
-  const resultLength = useMemo(() => {
-    if (result === undefined) return 0;
-    try {
-      return typeof result === 'string' ? result.length : JSON.stringify(result).length;
-    } catch {
-      return 0;
-    }
-  }, [result]);
+  const inlinePreviewLimit = maxHeight === null
+    ? 900
+    : maxHeight <= 720
+      ? 80
+      : 360;
+  const inlinePreviewLines = maxHeight !== null && maxHeight <= 720 ? 6 : 18;
+  const resultIsImage = useMemo(
+    () => result !== undefined && returnedResultIsImage(result),
+    [result],
+  );
+  const compactImage = !isFullscreen && maxHeight !== null && maxHeight <= 720;
+  const resultNeedsPreview = useMemo(
+    () => result !== undefined && (
+      resultIsImage
+        ? true
+        : returnedResultNeedsPreview(result, inlinePreviewLimit, inlinePreviewLines)
+    ),
+    [inlinePreviewLimit, inlinePreviewLines, result, resultIsImage],
+  );
+  const resultPreviewCharacters = isFullscreen ? null : inlinePreviewLimit;
+  const resultPreviewLines = isFullscreen ? null : inlinePreviewLines;
+  const resultPreviewMessage = canToggleFullscreen
+    ? 'Showing a preview. Open the full result to see the rest.'
+    : 'Showing a preview. Ask in chat for the full result.';
 
   useEffect(() => {
     followUpInFlight.current = false;
@@ -406,7 +358,9 @@ function FetchResult() {
         data-theme={theme}
         data-host-max-height={maxHeight ?? undefined}
         data-display-mode={displayMode}
+        data-image-density={compactImage ? 'compact' : 'regular'}
         ref={containerRef}
+        style={rootStyle}
         className="dx-fetch-result-frame"
       >
         <LoadingResult />
@@ -427,28 +381,15 @@ function FetchResult() {
       data-theme={theme}
       data-host-max-height={maxHeight ?? undefined}
       data-display-mode={displayMode}
+      data-image-density={compactImage ? 'compact' : 'regular'}
       ref={containerRef}
+      style={rootStyle}
       className={`dx-fetch-result-frame${isFullscreen ? ' dx-fetch-result-frame--fullscreen' : ''}`}
     >
       <article className="dx-result" aria-labelledby="dx-result-lifecycle-title">
-        {hasResult ? (
-          <div className="dx-result-delivery">
-            {resultLength > 600 && requestDisplayMode ? (
-              <button
-                className="dx-result-expand"
-                type="button"
-                onClick={() => { void toggleFullscreen(); }}
-              >
-                {isFullscreen ? 'Return to chat size' : 'View full result'}
-              </button>
-            ) : null}
-            <ReturnedResult data={result} />
-          </div>
-        ) : null}
-
         <LifecycleSummary
           lifecycle={lifecycle}
-          primary={!hasResult}
+          primary
           message={message}
           canCheckStatus={Boolean(openStatusFollowUp)}
           followUpState={followUpState}
@@ -462,6 +403,29 @@ function FetchResult() {
             <button type="button" onClick={() => openExternal(consentUrl)}>
               Review in Dexter
             </button>
+          </section>
+        ) : null}
+
+        {hasResult ? (
+          <section className="dx-result-delivery" aria-labelledby="dx-result-provider-title">
+            <div className="dx-result-delivery__heading">
+              <h2 id="dx-result-provider-title">Provider response</h2>
+              {resultNeedsPreview && canToggleFullscreen ? (
+                <button
+                  className="dx-result-expand"
+                  type="button"
+                  onClick={() => { void toggleFullscreen(); }}
+                >
+                  {isFullscreen ? 'Return to chat size' : 'View full result'}
+                </button>
+              ) : null}
+            </div>
+            <ReturnedResult
+              data={result}
+              maxCharacters={resultPreviewCharacters}
+              maxLines={resultPreviewLines}
+              previewMessage={resultPreviewMessage}
+            />
           </section>
         ) : null}
 

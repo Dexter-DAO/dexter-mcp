@@ -1,8 +1,9 @@
-import { useEffect, useMemo, type Ref } from 'react';
+import { useEffect, useMemo, type CSSProperties, type Ref } from 'react';
 
 import {
   useAdaptiveDisplayMode,
   useAdaptiveHostCapabilities,
+  useAdaptiveHostContext,
   useAdaptiveOpenExternal,
   useAdaptiveRequestDisplayMode,
   useAdaptiveTheme,
@@ -454,9 +455,15 @@ function QuoteDetails({ model }: { model: GovernedActionViewModel }) {
   );
 }
 
-function GovernedLoading({ rootRef }: { rootRef: Ref<HTMLDivElement> }) {
+function GovernedLoading({
+  rootRef,
+  style,
+}: {
+  rootRef: Ref<HTMLDivElement>;
+  style?: CSSProperties;
+}) {
   return (
-    <WidgetShell width="full" rootRef={rootRef}>
+    <WidgetShell width="full" rootRef={rootRef} style={style}>
       <div className="dx-action dx-action--loading" role="status" aria-live="polite" aria-label="Loading governed action">
         <span className="dx-action__skeleton dx-action__skeleton--state" />
         <span className="dx-action__skeleton dx-action__skeleton--title" />
@@ -581,6 +588,7 @@ export function GovernedActionView() {
   const theme = useAdaptiveTheme();
   const displayMode = useAdaptiveDisplayMode();
   const hostCapabilities = useAdaptiveHostCapabilities();
+  const hostContext = useAdaptiveHostContext();
   const requestDisplayMode = useAdaptiveRequestDisplayMode();
   const openExternal = useAdaptiveOpenExternal();
   const rootRef = useIntrinsicHeight<HTMLDivElement>();
@@ -595,15 +603,23 @@ export function GovernedActionView() {
 
   const canExpand = Boolean(requestDisplayMode && hostCapabilities.requestDisplayMode);
   const isFullscreen = displayMode === 'fullscreen';
+  const rootStyle = isFullscreen ? {
+    paddingTop: `max(var(--dx-space-6), ${hostContext.safeAreaInsets.top}px)`,
+    paddingRight: `max(var(--dx-space-6), ${hostContext.safeAreaInsets.right}px)`,
+    paddingBottom: `max(var(--dx-space-6), ${hostContext.safeAreaInsets.bottom}px)`,
+    paddingLeft: `max(var(--dx-space-6), ${hostContext.safeAreaInsets.left}px)`,
+  } : undefined;
   const requestMode = (mode: 'inline' | 'fullscreen') => {
     if (!requestDisplayMode) return;
     void requestDisplayMode({ mode }).catch(() => {});
   };
 
-  if (renderOutput === null) return <GovernedLoading rootRef={rootRef} />;
+  if (renderOutput === null) {
+    return <GovernedLoading rootRef={rootRef} style={rootStyle} />;
+  }
 
   return (
-    <WidgetShell width="full" rootRef={rootRef}>
+    <WidgetShell width="full" rootRef={rootRef} style={rootStyle}>
       {model ? (
         <GovernedActionDetail
           model={model}

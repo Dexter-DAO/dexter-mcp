@@ -265,7 +265,7 @@ export function WalletHome({
       />
       <div className="dxw-actions">
         <button
-          className="dxw-action dxw-primary"
+          className="dxw-action"
           ref={(element) => { homeControls.current.deposit = element; }}
           onClick={() => {
             setReceiveAsset(null);

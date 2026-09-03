@@ -222,7 +222,6 @@ function widgetMeta(templateUri, invoking, invoked, description) {
   return {
     ui: {
       resourceUri: templateUri,
-      visibility: ['model', 'app'],
       csp: standardCsp,
       domain: WIDGET_DOMAIN,
       // The host owns the only content plane. The renderer stays transparent,
@@ -236,7 +235,6 @@ function widgetMeta(templateUri, invoking, invoked, description) {
     'ui/resourceUri': templateUri,
     'openai/outputTemplate': templateUri,
     'openai/resultCanProduceWidget': true,
-    'openai/widgetAccessible': true,
     'openai/widgetDomain': WIDGET_DOMAIN,
     'openai/widgetPrefersBorder': false,
     'openai/widgetCSP': csp,
@@ -252,7 +250,6 @@ function readOnlyResultWidgetMeta(templateUri, invoking, invoked, description) {
   return Object.freeze({
     ui: {
       resourceUri: templateUri,
-      visibility: ['model', 'app'],
       csp: standardCsp,
       domain: WIDGET_DOMAIN,
       prefersBorder: false,
@@ -260,9 +257,6 @@ function readOnlyResultWidgetMeta(templateUri, invoking, invoked, description) {
     'ui/resourceUri': templateUri,
     'openai/outputTemplate': templateUri,
     'openai/resultCanProduceWidget': true,
-    // The card is a receipt surface. It may open the exact Solscan link, but
-    // it cannot call execute or any other MCP tool.
-    'openai/widgetAccessible': false,
     'openai/widgetDomain': WIDGET_DOMAIN,
     'openai/widgetPrefersBorder': false,
     'openai/widgetCSP': csp,
@@ -272,7 +266,7 @@ function readOnlyResultWidgetMeta(templateUri, invoking, invoked, description) {
   });
 }
 
-const SEARCH_META = widgetMeta(INDEXTER_WIDGET_URIS.search, 'Searching Indexter…', 'Indexter results ready', 'Shows Indexter discovery results, current access terms, and available capabilities without authorizing a purchase.');
+const SEARCH_META = widgetMeta(INDEXTER_WIDGET_URIS.search, 'Searching Indexter…', 'Indexter results ready', 'Shows Indexter discovery results and can initiate a current-terms check in chat without authorizing a purchase.');
 const FETCH_META = readOnlyResultWidgetMeta(X402_WIDGET_URIS.fetch, 'Waiting for OpenDexter…', 'OpenDexter result received', 'Shows returned dispatch, delivery, payment, and reconciliation evidence without inferring finality.');
 const ACCESS_META = readOnlyResultWidgetMeta(X402_WIDGET_URIS.pricing, 'Checking access…', 'Access checked', 'Shows the exact request classification, current seller terms when present, or wallet sign-in availability. It never reports that a payment occurred.');
 const CHECK_META = readOnlyResultWidgetMeta(X402_WIDGET_URIS.pricing, 'Checking access terms…', 'Access terms ready', 'Shows current access requirements and exact seller terms for the checked request without making a payment.');
@@ -2097,7 +2091,7 @@ export function createOpenMcpServer({
 
   registerOpenTool(server, 'indexter_search', {
     title: 'Indexter Search',
-    description: 'Search Indexter with a natural-language capability query. Results may describe resources, providers, and other available capabilities. maxPriceUsdc and minPriceUsdc set hard bounds on the primary USDC invocation price. paidOnly requires a known positive price. sortBy orders each relevance tier while strong results stay ahead of related results. A typed control is usable only when appliedConstraints or appliedOrdering confirms it. rankingMode and degradedMessage report reduced fallback ranking. searchMeta.mode distinguishes direct, related_only, empty, and error results. Each priced result exposes seller payment options in chains[]. Search results do not authorize payment.',
+    description: 'Search Indexter with a natural-language capability query. Results may describe resources, providers, and other available capabilities. Each response includes a server-issued searchResultSetId that disambiguates its result ordinals from every other search. maxPriceUsdc and minPriceUsdc set hard bounds on the primary USDC invocation price. paidOnly requires a known positive price. sortBy orders each relevance tier while strong results stay ahead of related results. A typed control is usable only when appliedConstraints or appliedOrdering confirms it. rankingMode and degradedMessage report reduced fallback ranking. searchMeta.mode distinguishes direct, related_only, empty, and error results. Each priced result exposes seller payment options in chains[]. Search results do not authorize payment.',
     inputSchema: {
       query: z.string().describe('Natural-language capability request, such as "check wallet balance on Base", "generate an image", "ETH spot price feed", or "translate text". Broad requests are valid; semantic ranking handles them directly.'),
       network: z.string().optional().describe('Optional hard seller-network filter ("solana", "base", "ethereum", "polygon", "arbitrum", "optimism", "avalanche", or a CAIP-2 id). Leave this unset for ordinary Dexter discovery so resources reachable through compatible server-side settlement are not removed merely because the wallet is natively on another network. Set it only when the user explicitly requires a seller on that network.'),
@@ -2114,11 +2108,17 @@ export function createOpenMcpServer({
     _meta: SEARCH_META,
   }, async (args) => {
     try {
-      const data = await x402Search(args);
+      const data = {
+        ...(await x402Search(args)),
+        searchResultSetId: randomUUID(),
+      };
       return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }], structuredContent: data, _meta: SEARCH_META };
     } catch (err) {
       console.warn(`[indexter_search] search failed (${safeErrorLabel(err)})`);
-      const data = buildSearchErrorResponse(err?.message || String(err));
+      const data = {
+        ...buildSearchErrorResponse(err?.message || String(err)),
+        searchResultSetId: randomUUID(),
+      };
       return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }], structuredContent: data, isError: true, _meta: SEARCH_META };
     }
   });

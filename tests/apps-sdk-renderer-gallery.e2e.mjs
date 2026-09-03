@@ -187,7 +187,14 @@ function hostDocument({ title, theme, mobile, clipboardWrite }) {
 </html>`;
 }
 
-function installFixtureHost({ initResult, toolInput, toolResult, widgetUrl, maxHeight }) {
+function installFixtureHost({
+  initResult,
+  toolInput,
+  toolResult,
+  omitToolResult,
+  widgetUrl,
+  maxHeight,
+}) {
   window.__rendererGalleryCalls = [];
   window.__rendererGallerySize = null;
   const iframe = document.getElementById('widget');
@@ -214,7 +221,9 @@ function installFixtureHost({ initResult, toolInput, toolResult, widgetUrl, maxH
       case 'ui/notifications/initialized':
         setTimeout(() => {
           notify('ui/notifications/tool-input', { arguments: toolInput });
-          notify('ui/notifications/tool-result', toolResult);
+          if (!omitToolResult) {
+            notify('ui/notifications/tool-result', toolResult);
+          }
         }, 0);
         break;
       case 'ui/notifications/size-changed': {
@@ -312,6 +321,18 @@ async function installFixedClock(context) {
   }, GALLERY_FIXED_NOW);
 }
 
+async function accelerateMissingResultTimeout(context, surface) {
+  if (!surface.accelerateMissingResultTimeout) return;
+  await context.addInitScript((targetDelay) => {
+    const nativeSetTimeout = window.setTimeout.bind(window);
+    window.setTimeout = (handler, delay = 0, ...args) => nativeSetTimeout(
+      handler,
+      Number(delay) === targetDelay ? 0 : delay,
+      ...args,
+    );
+  }, 18_000);
+}
+
 function isLocalRequest(url, baseUrl) {
   try {
     return new URL(url).origin === new URL(baseUrl).origin;
@@ -331,6 +352,7 @@ async function renderVariant({ browser, baseUrl, surface, device, theme }) {
     timezoneId: 'UTC',
   });
   await installFixedClock(context);
+  await accelerateMissingResultTimeout(context, surface);
   const page = await context.newPage();
   const consoleErrors = [];
   const pageErrors = [];
@@ -380,6 +402,7 @@ async function renderVariant({ browser, baseUrl, surface, device, theme }) {
     initResult: mcpInitResult({ theme, mobile, viewport }),
     toolInput: surface.input,
     toolResult: toolResult(surface),
+    omitToolResult: surface.omitToolResult === true,
     widgetUrl,
     maxHeight: viewport.maxHeight,
   });
@@ -467,7 +490,8 @@ async function renderVariant({ browser, baseUrl, surface, device, theme }) {
     MCP_APPS_HOST_TOKENS[theme]['--color-text-primary'],
   );
 
-  const brandContract = BRAND_CONTRACTS[surface.id];
+  const brandContract = BRAND_CONTRACTS[surface.id]
+    ?? (surface.id.startsWith('portfolio-') ? BRAND_CONTRACTS.portfolio : null);
   if (brandContract) {
     const brandLocator = frame.locator(brandContract.selector);
     const brandVisibility = await brandLocator.evaluateAll((elements) => ({
@@ -516,6 +540,230 @@ async function renderVariant({ browser, baseUrl, surface, device, theme }) {
   assert.deepEqual(pageErrors, [], `${surface.id} raised a browser exception`);
   assert.deepEqual(consoleErrors, [], `${surface.id} logged a browser error`);
 
+  const nestedScrollers = await frame.locator(surface.outerSelector).evaluate((element) =>
+    [...element.querySelectorAll('*')]
+      .filter((candidate) => {
+        const style = getComputedStyle(candidate);
+        return (style.overflowY === 'auto' || style.overflowY === 'scroll')
+          && candidate.scrollHeight > candidate.clientHeight + 1;
+      })
+      .map((candidate) => ({
+        className: candidate.className,
+        clientHeight: candidate.clientHeight,
+        scrollHeight: candidate.scrollHeight,
+      })),
+  );
+  assert.deepEqual(
+    nestedScrollers,
+    [],
+    `${surface.id} trapped vertically clipped content in a nested scroller`,
+  );
+
+  if (surface.id === 'purchase-loading') {
+    const loadingText = await frame.locator('.dx-result--loading').innerText();
+    assert.match(loadingText, /tool call has not returned/i);
+    assert.doesNotMatch(
+      loadingText,
+      /submitting payment|awaiting settlement|payment cleared|settlement landed|seller is taking longer/i,
+      'The pre-result state implied economic progress without backend evidence',
+    );
+    assert.equal(
+      await frame.locator('.dx-loading, .dx-loading__eyebrow').count(),
+      0,
+      'The active renderer exposed the retired ornamental loader',
+    );
+  }
+
+  if (surface.id === 'purchase-missing-result') {
+    const missingText = await frame.locator('.dx-result--missing').innerText();
+    assert.match(missingText, /No tool result returned/i);
+    assert.match(
+      missingText,
+      /Dispatch, payment, settlement, and delivery are not confirmed/i,
+    );
+  }
+
+  if (surface.id === 'access-free-result') {
+    const bodyText = await frame.locator('body').innerText();
+    assert.match(bodyText, /No payment required/i);
+    assert.match(bodyText, /Provider response/i);
+    assert.match(bodyText, /Brooklyn, NY/i);
+    assert.match(bodyText, /Clear/i);
+    assert.equal(
+      await frame.getByRole('button', { name: /review|pay|purchase/i }).count(),
+      0,
+      'A free provider result exposed a payment action',
+    );
+    const payloadMetrics = await frame.locator('.dx-result-payload').evaluate((element) => {
+      const style = getComputedStyle(element);
+      return {
+        overflowY: style.overflowY,
+        clientHeight: element.clientHeight,
+        scrollHeight: element.scrollHeight,
+      };
+    });
+    assert.notEqual(payloadMetrics.overflowY, 'auto');
+    assert.notEqual(payloadMetrics.overflowY, 'scroll');
+    assert.ok(
+      payloadMetrics.scrollHeight <= payloadMetrics.clientHeight + 1,
+      'The free provider result was clipped inside its renderer',
+    );
+  }
+
+  if (surface.id === 'purchase-authorization') {
+    const bodyText = await frame.locator('body').innerText();
+    assert.match(bodyText, /Approval needed/i);
+    assert.match(bodyText, /Review in Dexter/i);
+    assert.doesNotMatch(bodyText, /payment (?:is |was )?confirmed|result delivered/i);
+  }
+
+  if (surface.id === 'purchase-ambiguous-post-dispatch') {
+    const bodyText = await frame.locator('body').innerText();
+    assert.match(bodyText, /Outcome unresolved/i);
+    assert.match(bodyText, /another fetch could duplicate the purchase/i);
+    assert.doesNotMatch(bodyText, /payment (?:is |was )?confirmed|result delivered/i);
+  }
+
+  if (surface.id === 'purchase-definitive-failure') {
+    const bodyText = await frame.locator('body').innerText();
+    assert.match(bodyText, /Purchase stopped/i);
+    assert.match(bodyText, /no successful purchase/i);
+    assert.doesNotMatch(bodyText, /payment (?:is |was )?confirmed|result delivered/i);
+  }
+
+  if (surface.id === 'access-free-empty-result') {
+    const bodyText = await frame.locator('body').innerText();
+    assert.match(bodyText, /No payment required/i);
+    assert.match(bodyText, /Provider response/i);
+    assert.match(bodyText, /The provider returned an empty result/i);
+    assert.equal(
+      await frame.getByRole('button', { name: /review|pay|purchase/i }).count(),
+      0,
+      'An empty free provider result exposed a payment action',
+    );
+  }
+
+  if (surface.id === 'access-loading') {
+    const bodyText = await frame.locator('body').innerText();
+    assert.match(bodyText, /Checking current access terms/i);
+    assert.doesNotMatch(bodyText, /payment (?:is |was )?confirmed|payment submitted|settlement/i);
+  }
+
+  if (surface.id === 'access-siwx-required') {
+    const bodyText = await frame.locator('body').innerText();
+    assert.match(bodyText, /Wallet sign-in required/i);
+    assert.match(bodyText, /identity, not a payment quote/i);
+    assert.match(bodyText, /no compatible signer is available/i);
+    assert.match(bodyText, /made no payment/i);
+  }
+
+  if (surface.id === 'access-api-key-required') {
+    const bodyText = await frame.locator('body').innerText();
+    assert.match(bodyText, /Provider authentication required/i);
+    assert.match(bodyText, /credentials are required/i);
+  }
+
+  if (surface.id === 'access-hybrid-api-key-paid') {
+    const bodyText = await frame.locator('body').innerText();
+    assert.match(bodyText, /Provider authentication must be completed/i);
+    assert.match(bodyText, /No payment has been made/i);
+  }
+
+  if (surface.id === 'access-error') {
+    const bodyText = await frame.locator('body').innerText();
+    assert.match(bodyText, /Pricing unavailable/i);
+    assert.match(bodyText, /This check made no payment/i);
+  }
+
+  if (surface.id === 'access-paid-quote-only') {
+    const bodyText = await frame.locator('body').innerText();
+    assert.match(bodyText, /informational/i);
+    assert.match(bodyText, /No payment can continue from this result/i);
+    assert.equal(
+      await frame.getByRole('button', { name: /review|pay|purchase/i }).count(),
+      0,
+      'A quote-only access result exposed a purchase action',
+    );
+  }
+
+  if (surface.id === 'purchase-dense-json-result') {
+    const bodyText = await frame.locator('body').innerText();
+    assert.match(bodyText, /Showing a preview\. Open the full result to see the rest\./i);
+    assert.equal(
+      await frame.getByRole('button', { name: 'View full result' }).count(),
+      1,
+      'A dense result did not offer the Apps SDK fullscreen view',
+    );
+  }
+
+  if (surface.id === 'purchase-result') {
+    const trustOrder = await frame.locator('.dx-result').evaluate((element) => {
+      const lifecycle = element.querySelector('.dx-result-lifecycle');
+      const provider = element.querySelector('.dx-result-delivery');
+      return {
+        lifecycleBeforeProvider: Boolean(
+          lifecycle
+          && provider
+          && (lifecycle.compareDocumentPosition(provider) & Node.DOCUMENT_POSITION_FOLLOWING)
+        ),
+        providerLabel: provider?.querySelector('h2')?.textContent,
+      };
+    });
+    assert.equal(trustOrder.lifecycleBeforeProvider, true);
+    assert.equal(trustOrder.providerLabel, 'Provider response');
+  }
+
+  if (surface.id === 'portfolio-loading') {
+    const bodyText = await frame.locator('body').innerText();
+    assert.match(bodyText, /Loading the current portfolio/i);
+    assert.doesNotMatch(bodyText, /\$[\d,.]+/);
+  }
+
+  if (surface.id === 'portfolio-authentication-required') {
+    const bodyText = await frame.locator('body').innerText();
+    assert.match(bodyText, /Connect OpenDexter/i);
+    assert.match(bodyText, /passkey/i);
+  }
+
+  if (surface.id === 'portfolio-read-error') {
+    assert.match(await frame.locator('body').innerText(), /Portfolio unavailable/i);
+  }
+
+  if (surface.id === 'portfolio-invalid') {
+    assert.match(await frame.locator('body').innerText(), /Portfolio data unavailable/i);
+  }
+
+  if (surface.id === 'portfolio-empty') {
+    assert.match(await frame.locator('body').innerText(), /No assets held/i);
+  }
+
+  if (surface.id === 'portfolio-partial-unpriced') {
+    const bodyText = await frame.locator('body').innerText();
+    assert.match(bodyText, /Unpriced/i);
+    assert.match(bodyText, /Priced subtotal/i);
+    assert.match(bodyText, /unpriced asset/i);
+  }
+
+  if (surface.id === 'portfolio-partial-omitted') {
+    assert.match(await frame.locator('body').innerText(), /partial read/i);
+  }
+
+  if (surface.id.startsWith('governed-') && surface.id !== 'governed-action' && surface.id !== 'governed-history') {
+    assert.equal(
+      await frame.getByRole('button', { name: /approve|execute|buy|sell|send/i }).count(),
+      0,
+      `${surface.id} exposed an economic action inside a receipt renderer`,
+    );
+  }
+
+  if (surface.id === 'governed-history-empty') {
+    assert.match(await frame.locator('body').innerText(), /No governed actions yet/i);
+  }
+
+  if (surface.id === 'governed-history-error') {
+    assert.match(await frame.locator('body').innerText(), /Wallet history unavailable/i);
+  }
+
   const screenshotName = `${surface.id}--${device}--${theme}.png`;
   await page.screenshot({
     path: path.join(OUTPUT_DIR, screenshotName),
@@ -523,6 +771,12 @@ async function renderVariant({ browser, baseUrl, surface, device, theme }) {
     animations: 'disabled',
   });
   const size = await page.evaluate(() => window.__rendererGallerySize);
+  if (!surface.compatibility) {
+    assert.ok(
+      size.reported <= size.applied + 1,
+      `${surface.id} asked the host for ${size.reported}px but was clipped to ${size.applied}px`,
+    );
+  }
   await context.close();
   return {
     surface: surface.id,

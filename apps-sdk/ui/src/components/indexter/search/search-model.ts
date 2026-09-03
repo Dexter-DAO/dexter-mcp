@@ -6,9 +6,10 @@ import type {
   SearchResource,
 } from './types.ts';
 
-export const SEARCH_WIDGET_BUILD = '2026-09-03.2';
+export const SEARCH_WIDGET_BUILD = '2026-09-03.3';
 
 export type SearchPayload = {
+  searchResultSetId?: string;
   success?: boolean;
   count: number;
   resources?: SearchResource[];

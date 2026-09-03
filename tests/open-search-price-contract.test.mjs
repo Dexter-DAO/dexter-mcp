@@ -145,6 +145,7 @@ test('hosted indexter_search sends and returns typed price, paid, and ordering c
   });
 
   assert.notEqual(result.isError, true);
+  assert.match(result.structuredContent.searchResultSetId, /^[0-9a-f-]{36}$/i);
   assert.equal(captured.requestedUrl?.searchParams.get('maxPriceUsdc'), '0.01');
   assert.equal(captured.requestedUrl?.searchParams.get('paidOnly'), 'true');
   assert.equal(captured.requestedUrl?.searchParams.get('sortBy'), 'price_asc');
@@ -159,6 +160,16 @@ test('hosted indexter_search sends and returns typed price, paid, and ordering c
   assert.equal(
     result.structuredContent.providerDataPolicy.trust,
     'untrusted_external_data',
+  );
+
+  const secondResult = await client.callTool({
+    name: 'indexter_search',
+    arguments: { query: 'weather data' },
+  });
+  assert.notEqual(
+    secondResult.structuredContent.searchResultSetId,
+    result.structuredContent.searchResultSetId,
+    'each search invocation must receive a collision-resistant result-set binding',
   );
 });
 

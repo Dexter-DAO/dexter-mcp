@@ -17,6 +17,7 @@ const REPO_ROOT = path.resolve(TEST_DIR, '..');
 const UI_ROOT = path.join(REPO_ROOT, 'apps-sdk', 'ui');
 const HOST_MAX_HEIGHT_STRESS_VALUE = 240;
 const LONG_SOLANA_RECIPIENT = 'DexWirjm2hS5ghfS41bLBx7FgaR2Mug9AsstisrT9jpW';
+const FULLSCREEN_SAFE_AREA = Object.freeze({ top: 11, right: 13, bottom: 17, left: 19 });
 
 function mcpInitResult(theme) {
   return {
@@ -40,13 +41,20 @@ function mcpInitResult(theme) {
       timeZone: 'UTC',
       platform: 'mobile',
       deviceCapabilities: { touch: true, hover: false },
-      safeAreaInsets: { top: 0, right: 0, bottom: 12, left: 0 },
+      safeAreaInsets: FULLSCREEN_SAFE_AREA,
       styles: { variables: MCP_APPS_HOST_TOKENS[theme] },
     },
   };
 }
 
-function installMcpHost({ initResult, toolInput, toolResult, widgetUrl }) {
+function installMcpHost({
+  initResult,
+  toolInput,
+  toolResult,
+  widgetUrl,
+  fullscreenSafeArea,
+  inlineMaxHeight,
+}) {
   window.__x402RendererCalls = [];
   window.__x402RendererSizes = [];
   const iframe = document.getElementById('widget');
@@ -89,7 +97,20 @@ function installMcpHost({ initResult, toolInput, toolResult, widgetUrl }) {
         respond({ isError: false });
         break;
       case 'ui/request-display-mode':
-        respond({ mode: message.params?.mode ?? 'inline' });
+        {
+          const mode = message.params?.mode ?? 'inline';
+          respond({ mode });
+          setTimeout(() => {
+            notify('ui/notifications/host-context-changed', {
+              displayMode: mode,
+              containerDimensions: {
+                width: 390,
+                maxHeight: mode === 'fullscreen' ? 1600 : inlineMaxHeight,
+              },
+              safeAreaInsets: fullscreenSafeArea,
+            });
+          }, 0);
+        }
         break;
       case 'tools/call':
         respond({
@@ -120,12 +141,29 @@ function isLocalRequest(url, baseUrl) {
 }
 
 test('x402 protocol renderers use an intrinsic transparent host shell', async (t) => {
-  const surfaces = (await buildRendererGallerySurfaces()).filter(({ id }) => [
+  const baseSurfaces = (await buildRendererGallerySurfaces()).filter(({ id }) => [
     'access-terms',
+    'access-free-result',
     'purchase-result',
     'purchase-status',
   ].includes(id));
-  assert.equal(surfaces.length, 3);
+  assert.equal(baseSurfaces.length, 4);
+  const purchaseResult = baseSurfaces.find(({ id }) => id === 'purchase-result');
+  assert.ok(purchaseResult);
+  const surfaces = [
+    ...baseSurfaces,
+    {
+      ...purchaseResult,
+      id: 'purchase-image-result',
+      output: {
+        ...purchaseResult.output,
+        data: {
+          image_url: 'https://provider.example/portrait.png',
+          alt: 'Tall provider chart',
+        },
+      },
+    },
+  ];
 
   const vite = await createServer({
     root: UI_ROOT,
@@ -164,10 +202,13 @@ test('x402 protocol renderers use an intrinsic transparent host shell', async (t
           return;
         }
         if (route.request().resourceType() === 'image') {
+          const portrait = route.request().url().includes('portrait.png');
           await route.fulfill({
             status: 200,
             contentType: 'image/svg+xml',
-            body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><circle cx="20" cy="20" r="14" fill="#918677" /></svg>',
+            body: portrait
+              ? '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="1800" viewBox="0 0 300 1800"><rect width="300" height="1800" fill="#918677" /></svg>'
+              : '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><circle cx="20" cy="20" r="14" fill="#918677" /></svg>',
           });
           return;
         }
@@ -186,6 +227,24 @@ test('x402 protocol renderers use an intrinsic transparent host shell', async (t
           payTo: LONG_SOLANA_RECIPIENT,
         });
       }
+      if (surface.id === 'access-free-result') {
+        surfaceOutput.data = {
+          ...surfaceOutput.data,
+          observations: Array.from({ length: 40 }, (_, index) => ({
+            hour: index,
+            conditions: index % 2 === 0 ? 'Clear' : 'Partly cloudy',
+          })),
+        };
+      }
+      if (surface.id === 'purchase-result') {
+        surfaceOutput.data = {
+          ...surfaceOutput.data,
+          observations: Array.from({ length: 40 }, (_, index) => ({
+            sample: index,
+            value: `${141 + index / 100}`,
+          })),
+        };
+      }
       await page.evaluate(installMcpHost, {
         initResult: mcpInitResult('dark'),
         toolInput: surface.input,
@@ -196,6 +255,8 @@ test('x402 protocol renderers use an intrinsic transparent host shell', async (t
           isError: false,
         },
         widgetUrl: `${baseUrl}/${surface.file}`,
+        fullscreenSafeArea: FULLSCREEN_SAFE_AREA,
+        inlineMaxHeight: HOST_MAX_HEIGHT_STRESS_VALUE,
       });
 
       const frame = page.frameLocator('#widget');
@@ -301,11 +362,94 @@ test('x402 protocol renderers use an intrinsic transparent host shell', async (t
         assert.ok(narrowLayout.addressClientHeight >= narrowLayout.addressScrollHeight - 1);
         await frame.getByRole('button', { name: 'Review payment' }).click();
       }
-      if (surface.id === 'purchase-result' || surface.id === 'purchase-status') {
+      if (
+        surface.id === 'purchase-result'
+        || surface.id === 'purchase-image-result'
+        || surface.id === 'purchase-status'
+      ) {
         await frame.getByText(surface.output.intentId, { exact: true }).waitFor();
+      }
+      if (surface.id === 'access-free-result' || surface.id === 'purchase-result') {
+        await frame.getByText(
+          'Showing a preview. Open the full result to see the rest.',
+          { exact: true },
+        ).waitFor();
+        assert.equal(
+          await frame.getByText(/"(?:hour|sample)": 39/).count(),
+          0,
+          `${surface.id} rendered the complete dense result inline`,
+        );
+        await frame.getByRole('button', { name: 'View full result', exact: true }).click();
+        await frame.locator(`${surface.outerSelector}[data-display-mode="fullscreen"]`).waitFor();
+        const safeArea = await frame.locator(surface.outerSelector).evaluate((element) => {
+          const style = getComputedStyle(element);
+          return {
+            top: Number.parseFloat(style.paddingTop),
+            right: Number.parseFloat(style.paddingRight),
+            bottom: Number.parseFloat(style.paddingBottom),
+            left: Number.parseFloat(style.paddingLeft),
+          };
+        });
+        const normalGutter = surface.id === 'access-free-result' ? 32 : 0;
+        for (const side of Object.keys(safeArea)) {
+          assert.ok(
+            safeArea[side] >= Math.max(normalGutter, FULLSCREEN_SAFE_AREA[side]),
+            `${surface.id}: ${side} padding ${safeArea[side]} discarded the normal gutter or host safe area`,
+          );
+        }
+        await frame.getByText(/"(?:hour|sample)": 39/).waitFor();
+        assert.equal(
+          await frame.getByText(
+            'Showing a preview. Open the full result to see the rest.',
+            { exact: true },
+          ).count(),
+          0,
+          `${surface.id} kept the inline preview after fullscreen was granted`,
+        );
       }
       if (surface.id === 'purchase-status') {
         await frame.getByRole('button', { name: 'Check this intent in chat' }).click();
+      }
+
+      if (surface.id === 'purchase-image-result') {
+        const trustOrder = await frame.locator('.dx-result').evaluate((element) => {
+          const lifecycle = element.querySelector('.dx-result-lifecycle');
+          const provider = element.querySelector('.dx-result-delivery');
+          return {
+            lifecycleBeforeProvider: Boolean(
+              lifecycle
+              && provider
+              && (lifecycle.compareDocumentPosition(provider) & Node.DOCUMENT_POSITION_FOLLOWING)
+            ),
+            providerLabel: provider?.querySelector('h2')?.textContent,
+          };
+        });
+        assert.equal(trustOrder.lifecycleBeforeProvider, true);
+        assert.equal(trustOrder.providerLabel, 'Provider response');
+
+        const inlineImageHeight = await frame.locator('.dx-result-payload--image img').evaluate(
+          (image) => image.getBoundingClientRect().height,
+        );
+        assert.ok(inlineImageHeight <= 220.5);
+        await frame.getByRole('button', { name: 'View full result', exact: true }).click();
+        await frame.locator(`${surface.outerSelector}[data-display-mode="fullscreen"]`).waitFor();
+        await frame.getByRole('button', { name: 'Return to chat size', exact: true }).waitFor();
+        await frame.locator('.dx-result-payload--image img').evaluate(() => new Promise((resolve) => {
+          requestAnimationFrame(() => requestAnimationFrame(resolve));
+        }));
+        const fullscreenImage = await frame.locator('.dx-result-payload--image img').evaluate(
+          (image) => ({
+            height: image.getBoundingClientRect().height,
+            maxHeight: getComputedStyle(image).maxHeight,
+            naturalWidth: image.naturalWidth,
+            naturalHeight: image.naturalHeight,
+          }),
+        );
+        assert.ok(
+          fullscreenImage.height > inlineImageHeight,
+          JSON.stringify({ inlineImageHeight, fullscreenImage }),
+        );
+        assert.ok(fullscreenImage.height <= 1200.5);
       }
 
       if (surface.id === 'access-terms' || surface.id === 'purchase-status') {
