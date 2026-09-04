@@ -119,16 +119,17 @@ test('every governed result remains model-visible without granting the renderer 
   }
 });
 
-test('renderers cannot call server tools directly', () => {
+test('only read-only Indexter discovery is callable from its renderer', () => {
   for (const name of Object.keys(OPEN_TOOL_CONTRACTS)) {
+    const discovery = name === 'indexter_discover';
     assert.deepEqual(
       OPEN_TOOL_CONTRACTS[name].visibility,
-      ['model'],
+      discovery ? ['model', 'app'] : ['model'],
       `${name} native MCP Apps visibility`,
     );
     assert.equal(
       OPEN_TOOL_CONTRACTS[name].widgetAccessible,
-      false,
+      discovery,
       `${name} ChatGPT compatibility visibility`,
     );
   }

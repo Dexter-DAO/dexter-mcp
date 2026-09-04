@@ -52,9 +52,10 @@ product tools. Do not select them for a new request.
 1. For a broad question such as "What can I do?" or a question about one
    provider, call `indexter_discover` once. Use no provider for the curated
    overview; otherwise copy the provider name from the request. If the user
-   explicitly asks for more overview results, call it once with the prior
-   `page.nextCursor` copied exactly. Never decode, alter, or replace the cursor
-   with a numeric offset.
+   explicitly asks for more results, call it once with the prior
+   `page.nextCursor` copied exactly. Keep provider unset for an overview page;
+   for another provider-capability page, pass the same returned `providerKey`.
+   Never decode, alter, or replace the cursor with a numeric offset.
 2. For a concrete job, outcome, or constraint, call `indexter_search` once
    with the user's actual job. Do not fan out into category searches or retry
    with invented synonyms. Leave its network filter unset

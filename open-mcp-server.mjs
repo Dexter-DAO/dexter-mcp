@@ -268,12 +268,20 @@ function readOnlyResultWidgetMeta(templateUri, invoking, invoked, description) {
   });
 }
 
-const DISCOVERY_META = widgetMeta(
+const DISCOVERY_META_BASE = widgetMeta(
   INDEXTER_WIDGET_URIS.search,
   'Exploring Indexter…',
   'Indexter overview ready',
   'Shows the curated Indexter provider catalog, grouped capabilities, and current evidence labels. It makes no payment and reads no wallet data.',
 );
+const DISCOVERY_META = Object.freeze({
+  ...DISCOVERY_META_BASE,
+  ui: {
+    ...DISCOVERY_META_BASE.ui,
+    visibility: ['model', 'app'],
+  },
+  'openai/widgetAccessible': true,
+});
 const SEARCH_META = widgetMeta(INDEXTER_WIDGET_URIS.search, 'Searching Indexter…', 'Indexter results ready', 'Shows Indexter task-search results and can initiate a current-terms check in chat without authorizing a purchase.');
 const FETCH_META = readOnlyResultWidgetMeta(X402_WIDGET_URIS.fetch, 'Waiting for OpenDexter…', 'OpenDexter result received', 'Shows returned dispatch, delivery, payment, and reconciliation evidence without inferring finality.');
 const ACCESS_META = readOnlyResultWidgetMeta(X402_WIDGET_URIS.pricing, 'Checking access…', 'Access checked', 'Shows the exact request classification, current seller terms when present, or wallet sign-in availability. It never reports that a payment occurred.');
@@ -429,10 +437,11 @@ function logX402SearchDebug(stage, details = {}) {
 function buildIndexterDiscoveryError({
   mode,
   requestedProvider,
-  limit,
+  pageLimit,
   error,
   message,
 }) {
+  const providerMode = mode === 'provider';
   return {
     discoveryResultSetId: randomUUID(),
     ok: false,
@@ -449,9 +458,16 @@ function buildIndexterDiscoveryError({
     },
     providers: [],
     page: {
-      version: 1,
-      order: 'featured_provider_curation_v1',
-      limit,
+      version: 2,
+      namespace: providerMode
+        ? 'indexter.endpoint.provider-capabilities.v1'
+        : 'indexter.endpoint.providers.v1',
+      scope: providerMode ? 'provider_capabilities' : 'providers',
+      order: providerMode
+        ? 'curated_capability_breadth_v1'
+        : 'featured_provider_curation_v1',
+      limit: pageLimit,
+      returned: 0,
       hasMore: false,
       nextCursor: null,
     },
@@ -463,20 +479,20 @@ function buildIndexterDiscoveryError({
 
 async function indexterDiscover({
   provider,
-  limit = 8,
-  capabilityLimit,
+  limit,
+  capabilityPageSize,
   cursor,
 }) {
   const requestedProvider = typeof provider === 'string'
     ? provider.trim()
     : '';
   const mode = requestedProvider ? 'provider' : 'overview';
-  const searchParams = new URLSearchParams({
-    mode,
-    limit: String(limit),
-  });
-  if (Number.isInteger(capabilityLimit)) {
-    searchParams.set('capabilityLimit', String(capabilityLimit));
+  const searchParams = new URLSearchParams({ mode });
+  if (!requestedProvider && Number.isInteger(limit)) {
+    searchParams.set('limit', String(limit));
+  }
+  if (requestedProvider && Number.isInteger(capabilityPageSize)) {
+    searchParams.set('capabilityPageSize', String(capabilityPageSize));
   }
   if (requestedProvider) searchParams.set('provider', requestedProvider);
   if (typeof cursor === 'string' && cursor.length > 0) {
@@ -485,8 +501,8 @@ async function indexterDiscover({
   logIndexterDebug('indexter_discover', 'start', {
     mode,
     providerRef: requestedProvider ? logRef(requestedProvider) : null,
-    limit,
-    capabilityLimit: capabilityLimit ?? null,
+    limit: limit ?? null,
+    capabilityPageSize: capabilityPageSize ?? null,
     continuing: typeof cursor === 'string' && cursor.length > 0,
   });
 
@@ -511,7 +527,7 @@ async function indexterDiscover({
     return buildIndexterDiscoveryError({
       mode,
       requestedProvider: requestedProvider || null,
-      limit,
+      pageLimit: requestedProvider ? (capabilityPageSize ?? 16) : (limit ?? 8),
       error: 'indexter_discovery_unavailable',
       message: 'Indexter discovery is unavailable right now.',
     });
@@ -520,6 +536,8 @@ async function indexterDiscover({
   if (!response.ok || payload?.ok !== true || payload?.mode !== mode) {
     const providerNotFound = response.status === 404
       || payload?.error === 'provider_not_found';
+    const invalidCursor = response.status === 400
+      && payload?.error === 'invalid_discovery_cursor';
     logIndexterDebug('indexter_discover', 'rejected', {
       mode,
       providerRef: requestedProvider ? logRef(requestedProvider) : null,
@@ -529,12 +547,16 @@ async function indexterDiscover({
     return buildIndexterDiscoveryError({
       mode,
       requestedProvider: requestedProvider || null,
-      limit,
+      pageLimit: requestedProvider ? (capabilityPageSize ?? 16) : (limit ?? 8),
       error: providerNotFound
         ? 'provider_not_found'
+        : invalidCursor
+          ? 'invalid_discovery_cursor'
         : 'indexter_discovery_unavailable',
       message: providerNotFound
         ? `Indexter could not find a provider matching "${requestedProvider}".`
+        : invalidCursor
+          ? 'This Indexter page is no longer current. Open the provider again.'
         : 'Indexter discovery is unavailable right now.',
     });
   }
@@ -2242,18 +2264,25 @@ export function createOpenMcpServer({
 
   registerOpenTool(server, 'indexter_discover', {
     title: 'Explore Indexter',
-    description: 'Explore the curated Indexter catalog. Call once with no provider for broad questions such as "What can I do?" or "What is available?" Pass provider for questions such as "What can I do with Glassnode?" Use indexter_search for a concrete task or outcome. This reads no wallet data and makes no payment.',
+    description: 'Explore the curated Indexter catalog. Call once with no provider for broad questions such as "What can I do?" or "What is available?" Pass provider for questions such as "What can I do with Glassnode?" Copy nextCursor exactly to continue the same overview or provider. Use indexter_search for a concrete task or outcome. This reads no wallet data and makes no payment.',
     inputSchema: z.object({
       provider: z.string().trim().min(1).max(160).optional().describe("Optional provider name, slug, key, or host copied from the user's request. Leave unset for the broad curated overview."),
-      limit: z.number().int().min(1).max(25).optional().default(8).describe('Maximum providers to return (1-25, default 8).'),
-      capabilityLimit: z.number().int().min(1).max(8).optional().describe('Maximum endpoint examples in each capability group (1-8). Omit for the mode-specific default.'),
-      cursor: z.string().min(1).max(2048).optional().describe('Opaque overview continuation cursor copied exactly from page.nextCursor in the previous discovery result. Do not construct or alter it, and do not use it with provider.'),
+      limit: z.number().int().min(1).max(25).optional().describe('Overview provider page size (1-25, default 8). Leave unset in provider mode.'),
+      capabilityPageSize: z.number().int().min(1).max(24).optional().describe('Provider capability page size (1-24, default 16). Use only with provider.'),
+      cursor: z.string().min(1).max(2048).optional().describe('Opaque continuation cursor copied exactly from page.nextCursor. Keep provider set to the same providerKey for provider capability pages; leave provider unset for overview pages.'),
     }).strict().superRefine((value, context) => {
-      if (value.provider && value.cursor) {
+      if (value.provider && value.limit !== undefined) {
         context.addIssue({
           code: z.ZodIssueCode.custom,
-          path: ['cursor'],
-          message: 'cursor is available only for overview discovery',
+          path: ['limit'],
+          message: 'limit is available only for overview discovery',
+        });
+      }
+      if (!value.provider && value.capabilityPageSize !== undefined) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['capabilityPageSize'],
+          message: 'capabilityPageSize requires provider',
         });
       }
     }),

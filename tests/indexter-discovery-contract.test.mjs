@@ -19,6 +19,19 @@ function evidence(
   return { state, label, observedAt: OBSERVED_AT };
 }
 
+function providerEvidence(overrides = {}) {
+  return {
+    totalResourceCount: 1,
+    evaluatedResourceCount: 1,
+    deliveredRecentlyCount: 0,
+    termsCheckedCount: 1,
+    noCurrentConfirmationCount: 0,
+    latestObservedAt: OBSERVED_AT,
+    coverageComplete: true,
+    ...overrides,
+  };
+}
+
 function resource(overrides = {}) {
   return {
     kind: 'endpoint',
@@ -56,18 +69,22 @@ function provider(overrides = {}) {
     description: 'Weather data services.',
     logoUrl: 'https://weather.example.test/logo.png',
     docsUrl: 'https://weather.example.test/docs',
-    editorial: { featured: true, order: 1 },
+    editorial: {
+      featured: true,
+      order: 1,
+      evidenceResourceId: '11111111-1111-4111-8111-111111111111',
+    },
     catalog: {
       resourceCount: 1,
       capabilityGroupCount: 1,
-      scannedResourceCount: 1,
-      complete: true,
+      countsComplete: true,
     },
-    evidence: evidence(),
+    evidence: providerEvidence(),
     capabilityGroups: [{
       id: 'weather-co:weather',
       label: 'Weather',
       resourceCount: 1,
+      returnedResourceCount: 1,
       resources: [resource()],
     }],
     ...overrides,
@@ -75,9 +92,10 @@ function provider(overrides = {}) {
 }
 
 function discoveryPayload(overrides = {}) {
+  const mode = overrides.mode ?? 'overview';
   return {
     ok: true,
-    mode: 'overview',
+    mode,
     generatedAt: OBSERVED_AT,
     summary: {
       endpointCatalog: {
@@ -89,9 +107,16 @@ function discoveryPayload(overrides = {}) {
     },
     providers: [provider()],
     page: {
-      version: 1,
-      order: 'featured_provider_curation_v1',
-      limit: 8,
+      version: 2,
+      namespace: mode === 'provider'
+        ? 'indexter.endpoint.provider-capabilities.v1'
+        : 'indexter.endpoint.providers.v1',
+      scope: mode === 'provider' ? 'provider_capabilities' : 'providers',
+      order: mode === 'provider'
+        ? 'curated_capability_breadth_v1'
+        : 'featured_provider_curation_v1',
+      limit: mode === 'provider' ? 16 : 8,
+      returned: 1,
       hasMore: false,
       nextCursor: null,
     },
@@ -142,8 +167,8 @@ test('broad discovery calls the overview endpoint exactly once without a wallet 
   assert.equal(requests[0].pathname, '/api/x402gle/indexter/discovery');
   assert.equal(requests[0].searchParams.get('mode'), 'overview');
   assert.equal(requests[0].searchParams.get('provider'), null);
-  assert.equal(requests[0].searchParams.get('limit'), '8');
-  assert.equal(requests[0].searchParams.get('capabilityLimit'), null);
+  assert.equal(requests[0].searchParams.get('limit'), null);
+  assert.equal(requests[0].searchParams.get('capabilityPageSize'), null);
   assert.equal(requests.some(({ pathname }) => pathname.includes('wallet')), false);
   assert.notEqual(result.isError, true);
   assert.match(result.structuredContent.discoveryResultSetId, /^[0-9a-f-]{36}$/i);
@@ -180,12 +205,14 @@ test('provider exploration sends the user provider once and does not run search'
   const client = await connectedOpenClient(t, 'indexter-discovery-provider');
   const result = await client.callTool({
     name: 'indexter_discover',
-    arguments: { provider: 'Glassnode', limit: 4, capabilityLimit: 2 },
+    arguments: { provider: 'Glassnode', capabilityPageSize: 12 },
   });
 
   assert.equal(requests.length, 1);
   assert.equal(requests[0].searchParams.get('mode'), 'provider');
   assert.equal(requests[0].searchParams.get('provider'), 'Glassnode');
+  assert.equal(requests[0].searchParams.get('capabilityPageSize'), '12');
+  assert.equal(requests[0].searchParams.get('limit'), null);
   assert.equal(requests[0].pathname.includes('/capability'), false);
   assert.equal(result.structuredContent.mode, 'provider');
   assert.equal(result.structuredContent.requestedProvider, 'Glassnode');
@@ -219,12 +246,15 @@ test('overview continuation forwards one opaque cursor without a numeric offset'
   assert.notEqual(result.isError, true);
 });
 
-test('provider discovery rejects an overview cursor before any API call', async (t) => {
+test('provider continuation forwards the opaque cursor with the canonical provider', async (t) => {
   const previousFetch = globalThis.fetch;
-  let calls = 0;
-  globalThis.fetch = async () => {
-    calls += 1;
-    throw new Error('must_not_dispatch');
+  const requests = [];
+  globalThis.fetch = async (input) => {
+    requests.push(new URL(String(input)));
+    return new Response(JSON.stringify(discoveryPayload({ mode: 'provider' })), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
   };
   t.after(() => {
     globalThis.fetch = previousFetch;
@@ -234,13 +264,17 @@ test('provider discovery rejects an overview cursor before any API call', async 
   const result = await client.callTool({
     name: 'indexter_discover',
     arguments: {
-      provider: 'Glassnode',
-      cursor: 'opaque-overview-cursor',
+      provider: 'glassnode.com',
+      cursor: 'opaque-provider-cursor',
+      capabilityPageSize: 16,
     },
   });
-  assert.equal(result.isError, true);
-  assert.match(JSON.stringify(result.content), /cursor is available only for overview discovery/i);
-  assert.equal(calls, 0);
+  assert.notEqual(result.isError, true);
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].searchParams.get('provider'), 'glassnode.com');
+  assert.equal(requests[0].searchParams.get('cursor'), 'opaque-provider-cursor');
+  assert.equal(requests[0].searchParams.get('capabilityPageSize'), '16');
+  assert.equal(requests[0].searchParams.has('offset'), false);
 });
 
 test('managed resources stay checkable without exposing their private route', async (t) => {
@@ -260,16 +294,31 @@ test('managed resources stay checkable without exposing their private route', as
       catalog: {
         resourceCount: 2,
         capabilityGroupCount: 1,
-        scannedResourceCount: 2,
-        complete: true,
+        countsComplete: true,
       },
+      evidence: providerEvidence({
+        totalResourceCount: 2,
+        evaluatedResourceCount: 2,
+        termsCheckedCount: 2,
+      }),
       capabilityGroups: [{
         id: 'weather-co:weather',
         label: 'Weather',
         resourceCount: 2,
+        returnedResourceCount: 2,
         resources: [resource(), managed],
       }],
     })],
+    page: {
+      version: 2,
+      namespace: 'indexter.endpoint.providers.v1',
+      scope: 'providers',
+      order: 'featured_provider_curation_v1',
+      limit: 8,
+      returned: 1,
+      hasMore: false,
+      nextCursor: null,
+    },
   })), {
     status: 200,
     headers: { 'content-type': 'application/json' },
@@ -352,7 +401,10 @@ test('evidence labels and access identity fail closed when contradictory', () =>
   assert.equal(schema.safeParse({
     ...valid,
     providers: [provider({
-      evidence: evidence('terms_checked', 'Delivered recently'),
+      evidence: providerEvidence({
+        totalResourceCount: 2,
+        evaluatedResourceCount: 1,
+      }),
     })],
   }).success, false);
   assert.equal(schema.safeParse({
@@ -362,6 +414,7 @@ test('evidence labels and access identity fail closed when contradictory', () =>
         id: 'weather-co:weather',
         label: 'Weather',
         resourceCount: 1,
+        returnedResourceCount: 1,
         resources: [resource({
           resourceUrl: 'https://indexter-managed.invalid/resources/fixture',
         })],
@@ -390,6 +443,7 @@ test('discovery records are explicitly endpoints, not provisional actor records'
       id: 'weather-co:weather',
       label: 'Weather',
       resourceCount: 1,
+      returnedResourceCount: 1,
       resources: [resource({
         kind: 'actor',
         actorId: 'weather-actor',

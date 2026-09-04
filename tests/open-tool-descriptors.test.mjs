@@ -216,8 +216,8 @@ test('--emit-json emits exactly one descriptor document and exits', () => {
     /^ui:\/\/dexter\/indexter-search-[a-f0-9]{8}$/,
   );
   assert.equal(indexterDiscovery._meta['openai/outputTemplate'], INDEXTER_WIDGET_URIS.search);
-  assert.equal(indexterDiscovery._meta['openai/widgetAccessible'], false);
-  assert.deepEqual(indexterDiscovery._meta.ui.visibility, ['model']);
+  assert.equal(indexterDiscovery._meta['openai/widgetAccessible'], true);
+  assert.deepEqual(indexterDiscovery._meta.ui.visibility, ['model', 'app']);
   assert.equal(
     Object.hasOwn(indexterDiscovery.inputSchema.properties, 'cursor'),
     true,
