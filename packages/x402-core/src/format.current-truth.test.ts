@@ -129,7 +129,7 @@ describe('current capability truth projection', () => {
     const formatted = formatResource(rawResource({
       kind: 'endpoint',
       resourceUrl: null,
-      host: null,
+      host: 'private-gateway.internal',
       merchant: {
         providerKey: 'apollo',
         providerSlug: 'apollo',
@@ -177,6 +177,7 @@ describe('current capability truth projection', () => {
       },
     });
     expect(JSON.stringify(formatted)).not.toContain('indexter-managed.invalid');
+    expect(JSON.stringify(formatted)).not.toContain('private-gateway.internal');
   });
 
   it('does not invent endpoint metadata for legacy search rows', () => {

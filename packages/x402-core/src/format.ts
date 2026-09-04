@@ -197,9 +197,13 @@ function currentMerchantIdentity(
   resourceUrl: string | null,
 ): IndexterMerchantIdentity {
   const supplied = result.merchant;
-  const technicalHost = cleanIdentityText(supplied?.technicalHost)
-    ?? cleanIdentityText(result.host)?.toLowerCase()
-    ?? directHost(resourceUrl);
+  // A managed resource intentionally has no public route. Never revive an
+  // internal transport host from legacy or malformed rows when its URL is null.
+  const technicalHost = resourceUrl === null
+    ? null
+    : cleanIdentityText(supplied?.technicalHost)
+      ?? cleanIdentityText(result.host)?.toLowerCase()
+      ?? directHost(resourceUrl);
   const providerKey = cleanIdentityText(supplied?.providerKey)
     ?? technicalHost
     ?? `resource:${result.resourceId}`;
@@ -286,7 +290,9 @@ export function formatResource(r: RawCapabilityResult): FormattedResource {
 
     // Identity / visual
     iconUrl: r.icon ?? null,
-    host: r.host ?? null,
+    host: resourceUrl === null
+      ? null
+      : cleanIdentityText(r.host)?.toLowerCase() ?? directHost(resourceUrl),
 
     // Gaming — `gaming` may be absent on a raw row (e.g. a result that
     // predates gaming analysis); guard it like every other optional field
