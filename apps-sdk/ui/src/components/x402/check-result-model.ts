@@ -2,6 +2,9 @@ import type {
   CheckResult,
   PaymentOption,
 } from '../../../../../packages/x402-core/src/check.js';
+import type {
+  CheckResourceIdentity,
+} from '../pricing/types.js';
 
 /**
  * Reader-facing classifications for an x402_check result.
@@ -35,12 +38,23 @@ export type X402PaymentRoute = Readonly<PaymentOption & {
   routeKey: string;
 }>;
 
-export type X402CheckedRequest = Readonly<{
-  url: string | null;
+type X402CheckedRequestBase = Readonly<{
   method: string | null;
   body: string | null;
   requestBound: boolean | null;
 }>;
+
+export type X402CheckedRequest =
+  | Readonly<X402CheckedRequestBase & {
+      targetKind: 'direct_url';
+      url: string;
+      resourceId: null;
+    }>
+  | Readonly<X402CheckedRequestBase & {
+      targetKind: 'managed_resource';
+      url: null;
+      resourceId: string;
+    }>;
 
 export type X402CheckState = Readonly<{
   intentId: string | null;
@@ -60,6 +74,7 @@ export type X402CheckState = Readonly<{
   inputSchema: unknown | null;
   outputSchema: unknown | null;
   resource: unknown | null;
+  resourceIdentity: CheckResourceIdentity | null;
   errorMessage: string | null;
 }>;
 
@@ -84,18 +99,77 @@ function nullableInteger(value: unknown): number | null {
   return number !== null && Number.isInteger(number) ? number : null;
 }
 
+const RESOURCE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const CHECK_METHODS = new Set(['GET', 'POST', 'PUT', 'DELETE']);
+
+function boundedString(value: unknown, maxLength: number): string | null {
+  const string = nullableString(value);
+  if (!string) return null;
+  return string.length <= maxLength
+    ? string
+    : `${string.slice(0, Math.max(1, maxLength - 1)).trimEnd()}…`;
+}
+
 function normalizeCheckedRequest(value: unknown): X402CheckedRequest | null {
   if (!isRecord(value)) return null;
 
-  return {
-    url:
-      typeof value.url === 'string' && value.url.length > 0
-        ? value.url
-        : null,
-    method: nullableString(value.method)?.toUpperCase() ?? null,
+  const url = nullableString(value.url);
+  const resourceId = nullableString(value.resourceId);
+  if (Boolean(url) === Boolean(resourceId)) return null;
+  if (resourceId && !RESOURCE_ID.test(resourceId)) return null;
+
+  const method = nullableString(value.method)?.toUpperCase() ?? null;
+  if (method !== null && !CHECK_METHODS.has(method)) return null;
+
+  const shared = {
+    method,
     body: typeof value.body === 'string' ? value.body : null,
     requestBound:
       typeof value.requestBound === 'boolean' ? value.requestBound : null,
+  } satisfies X402CheckedRequestBase;
+
+  return url
+    ? {
+        ...shared,
+        targetKind: 'direct_url',
+        url,
+        resourceId: null,
+      }
+    : {
+        ...shared,
+        targetKind: 'managed_resource',
+        url: null,
+        resourceId: resourceId!,
+      };
+}
+
+function nullableIdentityString(value: unknown, maxLength: number): string | null {
+  return value === null ? null : boundedString(value, maxLength);
+}
+
+export function normalizeX402ResourceIdentity(
+  value: unknown,
+): CheckResourceIdentity | null {
+  if (!isRecord(value) || value.kind !== 'endpoint') return null;
+  const displayName = boundedString(value.displayName, 160);
+  const merchant = isRecord(value.merchant) ? value.merchant : null;
+  if (!displayName || !merchant) return null;
+
+  const resourceId = nullableIdentityString(value.resourceId, 64);
+  if (resourceId !== null && !RESOURCE_ID.test(resourceId)) return null;
+
+  return {
+    kind: 'endpoint',
+    resourceId,
+    displayName,
+    description: nullableIdentityString(value.description, 320),
+    merchant: {
+      providerKey: nullableIdentityString(merchant.providerKey, 120),
+      providerSlug: nullableIdentityString(merchant.providerSlug, 120),
+      displayName: nullableIdentityString(merchant.displayName, 160),
+      logoUrl: nullableIdentityString(merchant.logoUrl, 2_048),
+      technicalHost: nullableIdentityString(merchant.technicalHost, 253),
+    },
   };
 }
 
@@ -265,43 +339,41 @@ function readerCopy(
   routes: readonly X402PaymentRoute[],
   failure: string | null,
 ): Pick<X402CheckState, 'title' | 'summary' | 'nextStep'> {
-  const noPayment = 'This check made no payment.';
-
   switch (classification) {
     case 'paid':
       return {
         title: 'Payment required',
-        summary: `Current quote: ${quoteDescription(routes)}. ${noPayment}`,
+        summary: `Current quote: ${quoteDescription(routes)}.`,
         nextStep: 'review-payment',
       };
     case 'free':
       return {
-        title: 'No payment required',
-        summary: `This endpoint is currently unprotected. ${noPayment}`,
+        title: 'Free',
+        summary: 'Available without payment.',
         nextStep: 'use-without-payment',
       };
     case 'siwx':
       return {
         title: 'Wallet sign-in required',
-        summary: `This endpoint requires wallet identity, not a payment quote. ${noPayment}`,
+        summary: 'Sign in with a compatible wallet to continue.',
         nextStep: 'sign-in',
       };
     case 'apiKey':
       return {
         title: 'Provider authentication required',
-        summary: `Authenticate with the provider before x402 access can be checked. ${noPayment}`,
+        summary: 'Authenticate with the provider to continue.',
         nextStep: 'authenticate',
       };
     case 'hybrid':
       return {
-        title: 'Authentication and payment required',
-        summary: `Authenticate first; the current quote is ${quoteDescription(routes)}. ${noPayment}`,
+        title: 'Provider authentication required',
+        summary: `Authenticate to use the ${quoteDescription(routes)} quote.`,
         nextStep: 'authenticate-then-review-payment',
       };
     case 'error':
       return {
-        title: 'Pricing unavailable',
-        summary: `Current pricing could not be verified${failure ? `: ${failure}` : ''}. ${noPayment}`,
+        title: 'Price unavailable',
+        summary: failure ?? 'Try checking again.',
         nextStep: 'retry-check',
       };
   }
@@ -323,6 +395,12 @@ export function normalizeX402CheckResult(value: unknown): X402CheckState {
   const classification = classify(payload, authMode, routes, statusCode);
   const failure = classification === 'error' ? errorMessage(payload) : null;
   const copy = readerCopy(classification, routes, failure);
+  const checkedRequest = normalizeCheckedRequest(payload.checkedRequest);
+  const normalizedIdentity = normalizeX402ResourceIdentity(payload.resourceIdentity);
+  const resourceIdentity = checkedRequest?.targetKind === 'managed_resource'
+    && normalizedIdentity?.resourceId !== checkedRequest.resourceId
+    ? null
+    : normalizedIdentity;
 
   return {
     intentId,
@@ -341,10 +419,11 @@ export function normalizeX402CheckResult(value: unknown): X402CheckState {
     paymentStatus: 'not_attempted',
     paymentOccurred: false,
     routes,
-    checkedRequest: normalizeCheckedRequest(payload.checkedRequest),
+    checkedRequest,
     inputSchema: payload.inputSchema ?? null,
     outputSchema: payload.outputSchema ?? null,
     resource: payload.resource ?? null,
+    resourceIdentity,
     errorMessage: failure,
   };
 }

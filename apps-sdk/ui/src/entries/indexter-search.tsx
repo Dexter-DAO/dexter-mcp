@@ -1,5 +1,6 @@
 import '../styles/sdk.css';
 import '../styles/widgets/indexter-search.css';
+import '../styles/widgets/indexter-discovery.css';
 
 import { createRoot } from 'react-dom/client';
 import { useState, useCallback, useEffect, useId, useMemo, useRef } from 'react';
@@ -43,6 +44,15 @@ import {
 import type { SearchPayload } from '../components/indexter/search/search-model';
 import { addWidgetBreadcrumb, captureWidgetException } from '../sdk/init-sentry';
 import { useIntrinsicHeight } from '../components/x402/useIntrinsicHeight';
+import {
+  IndexterDiscovery,
+  IndexterDiscoveryUnavailable,
+} from '../components/indexter/discovery/IndexterDiscovery';
+import {
+  isIndexterDiscoveryCandidate,
+  isIndexterDiscoveryPayload,
+  type IndexterDiscoveryPayload,
+} from '../components/indexter/discovery/discovery-model';
 
 type SearchToolInput = {
   query?: string;
@@ -89,8 +99,7 @@ function useCompactViewport() {
   return isCompact;
 }
 
-function IndexterSearch() {
-  const toolOutput = useToolOutput<SearchPayload>();
+function IndexterSearch({ toolOutput }: { toolOutput: SearchPayload | null }) {
   const toolInput = useAdaptiveToolInput<SearchToolInput>();
   const theme = useAdaptiveTheme();
   const hostContext = useAdaptiveHostContext();
@@ -490,6 +499,16 @@ function IndexterSearch() {
 
   const interactionLocked =
     checkFlow.status === 'checking' || checkFlow.status === 'details_sending';
+  const showInlineDetail = Boolean(
+    comparisonOpen && detailOpen && !isFullscreen && selectedResource,
+  );
+  const showMobileDetail = Boolean(
+    comparisonOpen && detailOpen && isMobile && isFullscreen && selectedResource,
+  );
+  const showDesktopDetail = Boolean(
+    comparisonOpen && detailOpen && !isMobile && isFullscreen && selectedResource,
+  );
+  const showComparison = comparisonOpen && !showInlineDetail && !showMobileDetail;
 
   if (!activeOutput) {
     const loadingTitle = externalQuery
@@ -583,7 +602,7 @@ function IndexterSearch() {
           rerankApplied={rerankApplied}
           comparisonOpen={comparisonOpen}
           comparisonId={comparisonRegionId}
-          showViewControl={resources.length > 1 || (isFullscreen && Boolean(requestDisplayMode))}
+          showViewControl={resources.length > 1 && !showMobileDetail}
           onViewControl={handleViewControl}
         />
       </div>
@@ -591,13 +610,14 @@ function IndexterSearch() {
       <main
         className={`dx-search-experience ${
           isFullscreen ? 'dx-search-experience--fullscreen' : ''
+        }${comparisonOpen ? ' dx-search-experience--comparison-open' : ''}${
+          showDesktopDetail ? ' dx-search-experience--detail-open' : ''
         }`}
       >
-        {(!comparisonOpen || isFullscreen) && (
+        {!comparisonOpen && (
           <>
             <header className="dx-search-query">
               <h1 title={queryHeading}>{queryHeading}</h1>
-              <p>{activeOutput.count.toLocaleString()} result{activeOutput.count === 1 ? '' : 's'} ranked for this request</p>
             </header>
             <div className="dx-search-experience__decision">
               <SearchDecisionBrief
@@ -624,7 +644,7 @@ function IndexterSearch() {
           </>
         )}
 
-        {comparisonOpen && detailOpen && !isFullscreen && selectedResource ? (
+        {showInlineDetail && selectedResource ? (
           <section
             id={comparisonRegionId}
             className="dx-search-comparison-region"
@@ -654,13 +674,15 @@ function IndexterSearch() {
               />
             </div>
           </section>
-        ) : comparisonOpen ? (
+        ) : null}
+
+        {showComparison ? (
           <SearchComparisonPanel
             resources={resources}
             selectedOrdinal={selectedOrdinal}
             onSelect={handleSelectResource}
             onInspect={handleInspectResource}
-            openDetailOrdinal={detailOpen ? selectedOrdinal : null}
+            openDetailOrdinal={showDesktopDetail ? selectedOrdinal : null}
             comparisonId={comparisonRegionId}
             isFullscreen={isFullscreen}
             condensed={condensed}
@@ -669,7 +691,7 @@ function IndexterSearch() {
           />
         ) : null}
 
-        {!isMobile && isFullscreen && detailOpen && selectedResource && (
+        {showDesktopDetail && selectedResource && (
           <aside
             ref={detailRegionRef}
             id={detailRegionId}
@@ -688,27 +710,27 @@ function IndexterSearch() {
             />
           </aside>
         )}
-      </main>
 
-      {isMobile && isFullscreen && detailOpen && selectedResource && (
-        <section
-          ref={detailRegionRef}
-          id={detailRegionId}
-          className="dx-search-mobile-detail"
-          aria-label={`${selectedResource.name} details`}
-          tabIndex={-1}
-        >
-          <SearchVerdictDrawer
-            resource={selectedResource}
-            onClose={handleCloseDetail}
-            onUseService={
-              canUseResourceFromWidget(selectedResource)
-                ? checkFromDetail
-                : undefined
-            }
-          />
-        </section>
-      )}
+        {showMobileDetail && selectedResource && (
+          <section
+            ref={detailRegionRef}
+            id={detailRegionId}
+            className="dx-search-mobile-detail"
+            aria-label={`${selectedResource.name} details`}
+            tabIndex={-1}
+          >
+            <SearchVerdictDrawer
+              resource={selectedResource}
+              onClose={handleCloseDetail}
+              onUseService={
+                canUseResourceFromWidget(selectedResource)
+                  ? checkFromDetail
+                  : undefined
+              }
+            />
+          </section>
+        )}
+      </main>
 
       {searchGuidance && isFullscreen && (
         <p className="dx-search-shell__tip">{searchGuidance}</p>
@@ -720,7 +742,18 @@ function IndexterSearch() {
 const root = document.getElementById('indexter-search-root');
 if (root) {
   root.setAttribute('data-widget-build', SEARCH_WIDGET_BUILD);
-  createRoot(root).render(<IndexterSearch />);
+  createRoot(root).render(<IndexterEntry />);
+}
+
+function IndexterEntry() {
+  const toolOutput = useToolOutput<unknown>();
+  if (isIndexterDiscoveryPayload(toolOutput)) {
+    return <IndexterDiscovery initialPayload={toolOutput as IndexterDiscoveryPayload} />;
+  }
+  if (isIndexterDiscoveryCandidate(toolOutput)) {
+    return <IndexterDiscoveryUnavailable />;
+  }
+  return <IndexterSearch toolOutput={toolOutput as SearchPayload | null} />;
 }
 
 export default IndexterSearch;

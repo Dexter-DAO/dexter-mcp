@@ -1,8 +1,13 @@
 import { useEffect, useState } from 'react';
 import type { SearchResource } from './types';
 import { SearchIdentityIcon } from './SearchIdentityIcon';
+import { ChainIcon } from '../../x402';
 import { summarizeSearchResource } from './SearchDecisionBrief.model';
-import { formatListedPrice, hostLabel } from './utils';
+import {
+  compactEvidenceLabel,
+  formatListedPrice,
+  merchantLabel,
+} from './utils';
 
 type Props = {
   resources: SearchResource[];
@@ -19,6 +24,16 @@ type Props = {
 
 const CONDENSED_PAGE_SIZE = 1;
 const INLINE_PAGE_SIZE = 2;
+
+function evidenceDateLabel(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+  }).format(date);
+}
 
 export function SearchComparisonPanel({
   resources,
@@ -82,7 +97,6 @@ export function SearchComparisonPanel({
     >
       <div className="dx-search-compare__header">
         <h2 id={`${comparisonId}-title`}>Compare services</h2>
-        <p>{resources.length} results for this request</p>
       </div>
 
       <div className="dx-search-compare__grid">
@@ -94,6 +108,10 @@ export function SearchComparisonPanel({
             summary.priceFallback,
           );
           const selected = selectedOrdinal === ordinal;
+          const evidenceDate = evidenceDateLabel(resource.lastVerifiedAt);
+          const paymentDescription = summary.paymentRouteCount > 1
+            ? `${summary.paymentAssetLabel}; primary route on ${summary.networkLabel}`
+            : `${summary.paymentAssetLabel} on ${summary.networkLabel}`;
 
           return (
             <article
@@ -104,12 +122,11 @@ export function SearchComparisonPanel({
               <div className="dx-search-compare__identity">
                 <SearchIdentityIcon resource={resource} size={36} />
                 <div>
+                  <small>{merchantLabel(resource)}</small>
                   <strong>{resource.name}</strong>
-                  <small>
-                    {ordinal === 1 ? 'Recommended · ' : ''}{hostLabel(resource.url)}
-                  </small>
                   <span className="sr-only">Result {ordinal} of {resources.length}</span>
                 </div>
+                <span className="dx-search-compare__price">{price}</span>
               </div>
 
               <div className="dx-search-compare__rationale">
@@ -123,45 +140,67 @@ export function SearchComparisonPanel({
 
               <dl className="dx-search-compare__facts">
                 <div>
-                  <dt>Price</dt>
-                  <dd>{price}</dd>
+                  <dt>Evidence</dt>
+                  <dd className="dx-search-compare__evidence">
+                    <span
+                      className="dx-search-compare__evidence-dot"
+                      data-basis={summary.evidenceBasis || 'none'}
+                      aria-hidden="true"
+                    />
+                    <span>{compactEvidenceLabel(resource)}</span>
+                    {evidenceDate ? (
+                      <time dateTime={resource.lastVerifiedAt ?? undefined}>{evidenceDate}</time>
+                    ) : null}
+                  </dd>
                 </div>
                 <div>
-                  <dt>Quality</dt>
-                  <dd>{summary.qualityScore === null ? 'Unscored' : `${summary.qualityScore}/100`}</dd>
+                  <dt>Required</dt>
+                  <dd>{summary.requiredInputsLabel}</dd>
                 </div>
                 <div>
-                  <dt>Network</dt>
-                  <dd>{summary.networkLabel}</dd>
+                  <dt>Payment</dt>
+                  <dd
+                    className="dx-search-compare__payment"
+                    title={paymentDescription}
+                  >
+                    <ChainIcon network={summary.paymentNetwork} size={16} />
+                    <span>{summary.paymentAssetLabel}</span>
+                    <span className="sr-only">
+                      {summary.paymentRouteCount > 1 ? '; primary route on ' : ' on '}
+                      {summary.networkLabel}
+                    </span>
+                  </dd>
                 </div>
               </dl>
 
-              <div className="dx-search-compare__actions">
-                {selected ? (
-                  <span className="dx-search-compare__selected-label">Current choice</span>
-                ) : (
+              <div className="dx-search-compare__footer">
+                <div className="dx-search-compare__actions">
+                  {selected ? (
+                    <span className="dx-search-compare__selected-label">Selected</span>
+                  ) : (
+                    <button
+                      type="button"
+                      className="dx-search-compare__choose"
+                      onClick={() => onSelect(resource)}
+                      aria-label={`Select ${resource.name} from ${merchantLabel(resource)}`}
+                      disabled={interactionLocked}
+                    >
+                      Select
+                    </button>
+                  )}
                   <button
                     type="button"
-                    className="dx-search-compare__choose"
-                    onClick={() => onSelect(resource)}
-                    aria-label={`Choose ${resource.name}`}
+                    className="dx-search-compare__details"
+                    onClick={() => onInspect(resource)}
+                    aria-label={`View ${resource.name} details from ${merchantLabel(resource)}`}
+                    aria-expanded={openDetailOrdinal === ordinal}
+                    aria-controls={detailsId}
+                    data-indexter-detail-trigger={ordinal}
                     disabled={interactionLocked}
                   >
-                    Choose
+                    Details
                   </button>
-                )}
-                <button
-                  type="button"
-                  className="dx-search-compare__details"
-                  onClick={() => onInspect(resource)}
-                  aria-label={`View details for ${resource.name}`}
-                  aria-expanded={openDetailOrdinal === ordinal}
-                  aria-controls={detailsId}
-                  data-indexter-detail-trigger={ordinal}
-                  disabled={interactionLocked}
-                >
-                  Details
-                </button>
+                </div>
               </div>
             </article>
           );

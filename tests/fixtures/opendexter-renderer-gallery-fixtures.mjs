@@ -10,6 +10,7 @@ import {
   X402_WIDGET_URIS,
 } from '../../apps-sdk/widget-uris.mjs';
 import { modelSafePortfolioSnapshot } from '../../lib/session-portfolio.mjs';
+import { PROVIDER_DATA_POLICY } from '../../lib/open-tool-contracts.mjs';
 import { dynamicStockV2Fixture } from './governed-stock-v2.fixtures.mjs';
 import { buildGovernedRendererStateSurfaces } from './opendexter-governed-renderer-states.mjs';
 import { buildPortfolioRendererStateSurfaces } from './opendexter-portfolio-renderer-states.mjs';
@@ -327,9 +328,11 @@ export const COMPATIBILITY_RENDERER_RESOURCES = Object.freeze([
 
 function searchResource(overrides = {}) {
   return {
-    resourceId: 'atlas-market-data',
+    kind: 'endpoint',
+    resourceId: '77777777-7777-4777-8777-777777777777',
     name: 'Atlas Market Data',
     url: 'https://atlas.fixture.example/v1/markets',
+    access: { kind: 'direct_url', checkable: true, requiresFreshCheck: true },
     method: 'GET',
     price: '$0.008',
     priceAtomic: '8000',
@@ -385,7 +388,7 @@ function searchResource(overrides = {}) {
 function searchOutput() {
   const primary = searchResource();
   const alternative = searchResource({
-    resourceId: 'beacon-market-data',
+    resourceId: '88888888-8888-4888-8888-888888888888',
     name: 'Beacon Market Data',
     url: 'https://beacon.fixture.example/v2/spot',
     method: 'POST',
@@ -432,6 +435,255 @@ function searchOutput() {
   };
 }
 
+function discoveryProviderEvidence(resourceCount, state) {
+  const deliveredRecentlyCount = state === 'delivered_recently' ? 1 : 0;
+  const termsCheckedCount = state === 'terms_checked' ? 1 : 0;
+  return {
+    totalResourceCount: resourceCount,
+    evaluatedResourceCount: resourceCount,
+    deliveredRecentlyCount,
+    termsCheckedCount,
+    noCurrentConfirmationCount: resourceCount - deliveredRecentlyCount - termsCheckedCount,
+    latestObservedAt: state === 'no_current_confirmation' ? null : FIXED_NOW,
+    coverageComplete: true,
+  };
+}
+
+function discoveryOverviewGroup(id, label, resourceCount) {
+  return { id, label, resourceCount, returnedResourceCount: 0, resources: [] };
+}
+
+function discoveryOutput() {
+  const providers = [
+    {
+      id: 'massive.com',
+      providerKey: 'massive.com',
+      providerSlug: 'agent.massive.com',
+      technicalHost: 'agent.massive.com',
+      displayName: 'Massive',
+      description: 'Stocks, options, forex, and market reference data.',
+      logoUrl: 'https://agent.massive.com/icon.png',
+      docsUrl: 'https://massive.com/docs',
+      editorial: { featured: true, order: 0, evidenceResourceId: null },
+      catalog: { resourceCount: 18, capabilityGroupCount: 4, countsComplete: true },
+      evidence: discoveryProviderEvidence(18, 'delivered_recently'),
+      capabilityGroups: [
+        discoveryOverviewGroup('market-snapshots', 'Market snapshots', 7),
+        discoveryOverviewGroup('reference-data', 'Reference data', 6),
+        discoveryOverviewGroup('market-aggregates', 'Market aggregates', 5),
+      ],
+    },
+    {
+      id: 'arkm.com',
+      providerKey: 'arkm.com',
+      providerSlug: 'api.arkm.com',
+      technicalHost: 'api.arkm.com',
+      displayName: 'Arkham',
+      description: 'Wallet, entity, and on-chain intelligence.',
+      logoUrl: 'https://api.arkm.com/black-logo.png',
+      docsUrl: 'https://docs.arkm.com',
+      editorial: { featured: true, order: 1, evidenceResourceId: null },
+      catalog: { resourceCount: 9, capabilityGroupCount: 3, countsComplete: true },
+      evidence: discoveryProviderEvidence(9, 'terms_checked'),
+      capabilityGroups: [
+        discoveryOverviewGroup('wallet-intelligence', 'Wallet intelligence', 4),
+        discoveryOverviewGroup('entity-data', 'Entity data', 3),
+        discoveryOverviewGroup('transfers', 'Transfers', 2),
+      ],
+    },
+    {
+      id: 'glassnode.com',
+      providerKey: 'glassnode.com',
+      providerSlug: 'x402.glassnode.com',
+      technicalHost: 'x402.glassnode.com',
+      displayName: 'Glassnode',
+      description: 'On-chain metrics and digital-asset market intelligence.',
+      logoUrl: 'https://glassnode.com/favicon.png',
+      docsUrl: 'https://docs.glassnode.com',
+      editorial: { featured: true, order: 2, evidenceResourceId: null },
+      catalog: { resourceCount: 14, capabilityGroupCount: 3, countsComplete: true },
+      evidence: discoveryProviderEvidence(14, 'delivered_recently'),
+      capabilityGroups: [
+        discoveryOverviewGroup('on-chain-metrics', 'On-chain metrics', 8),
+        discoveryOverviewGroup('market-indicators', 'Market indicators', 4),
+        discoveryOverviewGroup('asset-reference', 'Asset reference', 2),
+      ],
+    },
+    {
+      id: 'openwebninja.com',
+      providerKey: 'openwebninja.com',
+      providerSlug: 'x402.openwebninja.com',
+      technicalHost: 'x402.openwebninja.com',
+      displayName: 'OpenWeb Ninja',
+      description: 'News, events, and public web data.',
+      logoUrl: 'https://www.openwebninja.com/openwebninja.png',
+      docsUrl: 'https://openwebninja.com',
+      editorial: { featured: true, order: 3, evidenceResourceId: null },
+      catalog: { resourceCount: 7, capabilityGroupCount: 2, countsComplete: true },
+      evidence: discoveryProviderEvidence(7, 'no_current_confirmation'),
+      capabilityGroups: [
+        discoveryOverviewGroup('news', 'News', 4),
+        discoveryOverviewGroup('events', 'Events', 3),
+      ],
+    },
+    {
+      id: '0x.org',
+      providerKey: '0x.org',
+      providerSlug: 'agent.api.0x.org',
+      technicalHost: 'agent.api.0x.org',
+      displayName: '0x',
+      description: 'Token prices and executable swap quotes.',
+      logoUrl: 'https://cdn.prod.website-files.com/66967cfef0a246cbbb9aee94/6a044a889f49586c2de5c0a6_ox-logo-box.svg',
+      docsUrl: 'https://0x.org/docs',
+      editorial: { featured: true, order: 4, evidenceResourceId: null },
+      catalog: { resourceCount: 6, capabilityGroupCount: 2, countsComplete: true },
+      evidence: discoveryProviderEvidence(6, 'terms_checked'),
+      capabilityGroups: [
+        discoveryOverviewGroup('prices', 'Token prices', 2),
+        discoveryOverviewGroup('quotes', 'Swap quotes', 4),
+      ],
+    },
+    {
+      id: 'bitrefill.com',
+      providerKey: 'bitrefill.com',
+      providerSlug: 'api.bitrefill.com',
+      technicalHost: 'api.bitrefill.com',
+      displayName: 'Bitrefill',
+      description: 'Gift cards, mobile refills, and travel products.',
+      logoUrl: 'https://bitrefill.com/favicon.ico',
+      docsUrl: 'https://www.bitrefill.com/api',
+      editorial: { featured: true, order: 5, evidenceResourceId: null },
+      catalog: { resourceCount: 11, capabilityGroupCount: 3, countsComplete: true },
+      evidence: discoveryProviderEvidence(11, 'terms_checked'),
+      capabilityGroups: [
+        discoveryOverviewGroup('gift-cards', 'Gift cards', 6),
+        discoveryOverviewGroup('mobile', 'Mobile refills', 3),
+        discoveryOverviewGroup('travel', 'Travel', 2),
+      ],
+    },
+  ];
+
+  return {
+    ok: true,
+    discoveryResultSetId: '22222222-2222-4222-8222-222222222222',
+    mode: 'overview',
+    generatedAt: FIXED_NOW,
+    requestedProvider: null,
+    summary: {
+      endpointCatalog: {
+        featuredProviderCount: 25,
+        providerCount: 84,
+        endpointCount: 231,
+      },
+      returnedProviderCount: providers.length,
+    },
+    providers,
+    page: {
+      version: 2,
+      namespace: 'indexter.endpoint.providers.v1',
+      scope: 'providers',
+      order: 'featured_provider_curation_v1',
+      limit: 6,
+      returned: 6,
+      hasMore: true,
+      nextCursor: 'gallery-next-page',
+    },
+    source: 'Indexter',
+    providerDataPolicy: PROVIDER_DATA_POLICY,
+  };
+}
+
+function discoveryProviderOutput() {
+  const overview = discoveryOutput();
+  const provider = overview.providers[0];
+  const endpoint = (overrides) => ({
+    kind: 'endpoint',
+    id: '33333333-3333-4333-8333-333333333333',
+    resourceId: '33333333-3333-4333-8333-333333333333',
+    resourceUrl: 'https://agent.massive.com/v3/reference/tickers/AAPL',
+    displayName: 'Ticker details',
+    description: 'Company identity, market, exchange, and listing details for one ticker.',
+    category: 'Reference data',
+    method: 'GET',
+    iconUrl: null,
+    docsUrl: 'https://massive.com/docs/rest/stocks/tickers/ticker-overview',
+    price: { usdc: 0.01, label: '$0.01', network: 'eip155:8453' },
+    evidence: { state: 'delivered_recently', label: 'Delivered recently', observedAt: FIXED_NOW },
+    access: { kind: 'direct_url', checkable: true, requiresFreshCheck: true },
+    ...overrides,
+  });
+
+  return {
+    ...overview,
+    mode: 'provider',
+    requestedProvider: 'massive.com',
+    summary: {
+      ...overview.summary,
+      returnedProviderCount: 1,
+    },
+    providers: [{
+      ...provider,
+      editorial: {
+        ...provider.editorial,
+        evidenceResourceId: '33333333-3333-4333-8333-333333333333',
+      },
+      capabilityGroups: [
+        {
+          id: 'reference-data',
+          label: 'Reference data',
+          resourceCount: 2,
+          returnedResourceCount: 2,
+          resources: [
+            endpoint({}),
+            endpoint({
+              id: '44444444-4444-4444-8444-444444444444',
+              resourceId: '44444444-4444-4444-8444-444444444444',
+              resourceUrl: 'https://agent.massive.com/v3/reference/exchanges',
+              displayName: 'Stock exchanges',
+              description: 'Exchange identifiers, market types, and operating MIC codes.',
+              evidence: { state: 'terms_checked', label: 'Terms checked', observedAt: FIXED_NOW },
+            }),
+          ],
+        },
+        {
+          id: 'market-snapshots',
+          label: 'Market snapshots',
+          resourceCount: 2,
+          returnedResourceCount: 2,
+          resources: [
+            endpoint({
+              id: '55555555-5555-4555-8555-555555555555',
+              resourceId: '55555555-5555-4555-8555-555555555555',
+              resourceUrl: 'https://agent.massive.com/v2/snapshot/locale/us/markets/stocks/tickers/AAPL',
+              displayName: 'Stock snapshot',
+              description: 'Latest trade, quote, minute bar, daily bar, and prior close.',
+              price: { usdc: 0.02, label: '$0.02', network: 'eip155:8453' },
+            }),
+            endpoint({
+              id: '66666666-6666-4666-8666-666666666666',
+              resourceId: '66666666-6666-4666-8666-666666666666',
+              resourceUrl: 'https://agent.massive.com/v2/aggs/ticker/AAPL/prev',
+              displayName: 'Previous close',
+              description: 'Previous trading-day open, high, low, close, and volume.',
+              evidence: { state: 'no_current_confirmation', label: 'No current confirmation', observedAt: null },
+            }),
+          ],
+        },
+      ],
+    }],
+    page: {
+      version: 2,
+      namespace: 'indexter.endpoint.provider-capabilities.v1',
+      scope: 'provider_capabilities',
+      order: 'curated_capability_breadth_v1',
+      limit: 4,
+      returned: 4,
+      hasMore: false,
+      nextCursor: null,
+    },
+  };
+}
+
 function accessTermsOutput() {
   return {
     intentId: INTENT_ID,
@@ -458,6 +710,19 @@ function accessTermsOutput() {
       decimals: 6,
       expiresAt: '2026-09-03T12:05:00.000Z',
     }],
+    resourceIdentity: {
+      kind: 'endpoint',
+      resourceId: '77777777-7777-4777-8777-777777777777',
+      displayName: 'Live market prices',
+      description: 'Current market prices with source timestamps.',
+      merchant: {
+        providerKey: 'atlas-labs',
+        providerSlug: 'atlas-labs',
+        displayName: 'Atlas Labs',
+        logoUrl: 'https://atlas.fixture.example/logo.svg',
+        technicalHost: 'atlas.fixture.example',
+      },
+    },
     enrichment: {
       resource: {
         resource_url: 'https://atlas.fixture.example/v1/markets',
@@ -578,6 +843,30 @@ export async function buildRendererGallerySurfaces() {
       metadata: {},
       readySelector: '.dx-search-brief__title',
       outerSelector: '.dxs-root',
+    },
+    {
+      id: 'indexter-discovery',
+      title: 'Indexter Discovery',
+      file: 'indexter-search.html',
+      resourceUri: INDEXTER_WIDGET_URIS.search,
+      tools: ['indexter_discover'],
+      input: {},
+      output: discoveryOutput(),
+      metadata: {},
+      readySelector: '.dx-discovery-providers',
+      outerSelector: '.dx-discovery',
+    },
+    {
+      id: 'indexter-provider',
+      title: 'Indexter Provider',
+      file: 'indexter-search.html',
+      resourceUri: INDEXTER_WIDGET_URIS.search,
+      tools: ['indexter_discover'],
+      input: { provider: 'massive.com' },
+      output: discoveryProviderOutput(),
+      metadata: {},
+      readySelector: '.dx-discovery-provider-hero',
+      outerSelector: '.dx-discovery',
     },
     {
       id: 'access-terms',

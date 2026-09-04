@@ -1,39 +1,43 @@
 import { useMemo, useState } from 'react';
-import type { EnrichedResource } from './types';
-import { formatHitCount } from './types';
+import type { CheckResourceIdentity, EnrichedResource } from './types';
 import { providerImageSources } from '../x402/providerImage';
 
 interface Props {
+  identity: CheckResourceIdentity | null;
   resource: EnrichedResource | null;
   fallbackUrl: string | null;
-  /** The raw `resource` field from the 402 body (URL string or object with a
-   *  description). Rescues the title when there's no catalog entry and the
-   *  client never exposed the tool input URL. */
+  /** The raw `resource` field from the 402 body. Only a human description may
+   *  be used as a title fallback; transport URLs never outrank checked input. */
   resourceRef?: unknown;
 }
 
 /**
  * The "what is this thing" header.
  *
- * Composes: favicon (from icon_url) + display_name + meta line
- * (category · host · hit count). Title falls back through catalog name,
- * catalog host, the 402 resource URL's host and path, and the 402 resource
- * description before "Unknown endpoint", so a live 402 with no catalog entry still
- * gets a real title instead of "Unknown endpoint".
+ * Merchant comes first, followed by the specific resource. Public identity
+ * supplied by the check result outranks legacy catalog enrichment.
  */
-export function ResourceIdentity({ resource, fallbackUrl, resourceRef }: Props) {
-  const refUrl = fallbackUrl || resourceUrlFrom(resourceRef);
-  const name =
+export function ResourceIdentity({ identity, resource, fallbackUrl, resourceRef }: Props) {
+  const refUrl = fallbackUrl;
+  const directHost = hostFromUrl(fallbackUrl);
+  const resourceName =
+    identity?.displayName?.trim() ||
     resource?.display_name?.trim() ||
-    prettyHost(resource?.host) ||
     hostPath(refUrl) ||
     descriptionFrom(resourceRef) ||
-    'Unknown endpoint';
-  const meta = buildMetaLine(resource, refUrl);
+    'Unknown service';
+  const merchantName =
+    identity?.merchant.displayName?.trim() ||
+    resource?.upstream_service?.trim() ||
+    resource?.og_site_name?.trim() ||
+    directHost ||
+    (!fallbackUrl ? prettyHost(identity?.merchant.technicalHost) : null);
+  const showMerchant = merchantName
+    && merchantName.toLocaleLowerCase() !== resourceName.toLocaleLowerCase();
   const sources = useMemo(() => providerImageSources({
-    iconUrl: resource?.icon_url,
-    resourceUrl: resource?.resource_url || refUrl,
-  }), [resource?.icon_url, resource?.resource_url, refUrl]);
+    iconUrl: identity?.merchant.logoUrl || resource?.icon_url,
+    resourceUrl: refUrl,
+  }), [identity?.merchant.logoUrl, resource?.icon_url, refUrl]);
   const sourceKey = sources.join('\n');
   const [loadState, setLoadState] = useState({
     sourceKey: '',
@@ -67,33 +71,13 @@ export function ResourceIdentity({ resource, fallbackUrl, resourceRef }: Props) 
         </div>
       ) : null}
       <div className="dx-pricing__identity-text">
-        <h1 className="dx-pricing__identity-name">{name}</h1>
-        {meta ? <p className="dx-pricing__identity-meta">{meta}</p> : null}
+        {showMerchant ? (
+          <p className="dx-pricing__identity-merchant">{merchantName}</p>
+        ) : null}
+        <h1 className="dx-pricing__identity-name">{resourceName}</h1>
       </div>
     </div>
   );
-}
-
-function buildMetaLine(resource: EnrichedResource | null, refUrl: string | null): string {
-  const parts: string[] = [];
-  if (resource?.category) parts.push(resource.category);
-  const host = resource?.host || hostFromUrl(refUrl);
-  if (host) parts.push(host);
-  if (typeof resource?.hit_count === 'number' && resource.hit_count > 0) {
-    parts.push(`${formatHitCount(resource.hit_count)} calls`);
-  }
-  return parts.join(' · ');
-}
-
-/** Pull a URL out of the 402 `resource` field (string, or object with url). */
-function resourceUrlFrom(ref: unknown): string | null {
-  if (typeof ref === 'string') return ref.trim() || null;
-  if (ref && typeof ref === 'object') {
-    const o = ref as Record<string, unknown>;
-    if (typeof o.url === 'string' && o.url.trim()) return o.url.trim();
-    if (typeof o.resource === 'string' && o.resource.trim()) return o.resource.trim();
-  }
-  return null;
 }
 
 /** Pull a human description out of the 402 `resource` field, if present. */

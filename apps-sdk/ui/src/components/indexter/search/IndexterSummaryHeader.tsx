@@ -19,8 +19,7 @@ export function IndexterSummaryHeader({
   showViewControl: boolean;
   onViewControl: () => void;
 }) {
-  const tierLabel =
-    `${resultCount.toLocaleString()} service${resultCount !== 1 ? 's' : ''} reviewed`;
+  const tierLabel = `${resultCount.toLocaleString()} match${resultCount === 1 ? '' : 'es'}`;
   return (
     <div className="dx-search-header">
       <div className="dx-search-header__brand">

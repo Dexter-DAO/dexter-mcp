@@ -39,13 +39,15 @@ test('classifies a paid quote without implying that payment occurred', () => {
   assert.equal(state.intentId, 'intent-bound-1');
   assert.equal(state.quoteOnly, false);
   assert.equal(state.title, 'Payment required');
-  assert.equal(state.summary, 'Current quote: $0.01 on eip155:8453. This check made no payment.');
+  assert.equal(state.summary, 'Current quote: $0.01 on eip155:8453.');
   assert.equal(state.nextStep, 'review-payment');
   assert.equal(state.paymentStatus, 'not_attempted');
   assert.equal(state.paymentOccurred, false);
   assert.equal('purchaseOptions' in state, false);
   assert.deepEqual(state.checkedRequest, {
+    targetKind: 'direct_url',
     url: 'https://merchant.example/quote',
+    resourceId: null,
     method: 'GET',
     body: null,
     requestBound: true,
@@ -73,6 +75,86 @@ test('missing-intent or malformed check output remains quote-only', () => {
   assert.equal(explicitQuoteOnly.quoteOnly, true);
   assert.equal(missingIntent.intentId, null);
   assert.equal(missingIntent.quoteOnly, true);
+});
+
+test('preserves a managed resource target without inventing or exposing a URL', () => {
+  const resourceId = 'f617448d-62b1-44f1-a27f-80cff197d855';
+  const state = normalizeX402CheckResult({
+    ok: true,
+    requiresPayment: true,
+    intentId: 'intent-managed-1',
+    statusCode: 402,
+    authMode: 'paid',
+    paymentOptions: [baseRoute],
+    checkedRequest: {
+      resourceId,
+      method: 'POST',
+      body: '{"query":"AAPL"}',
+      requestBound: true,
+    },
+    resourceIdentity: {
+      kind: 'endpoint',
+      resourceId,
+      displayName: 'Ticker details',
+      description: 'Current company and listing details.',
+      merchant: {
+        providerKey: 'massive',
+        providerSlug: 'massive',
+        displayName: 'Massive',
+        logoUrl: 'https://assets.example/massive.svg',
+        technicalHost: null,
+      },
+    },
+  });
+
+  assert.deepEqual(state.checkedRequest, {
+    targetKind: 'managed_resource',
+    url: null,
+    resourceId,
+    method: 'POST',
+    body: '{"query":"AAPL"}',
+    requestBound: true,
+  });
+  assert.equal(state.resourceIdentity?.merchant.displayName, 'Massive');
+  assert.equal(state.resourceIdentity?.displayName, 'Ticker details');
+  assert.equal(JSON.stringify(state).includes('assets.example'), true);
+  assert.equal(JSON.stringify(state).includes('paysponge'), false);
+});
+
+test('rejects ambiguous targets and mismatched managed identity', () => {
+  const resourceId = 'f617448d-62b1-44f1-a27f-80cff197d855';
+  const ambiguous = normalizeX402CheckResult({
+    checkedRequest: {
+      url: 'https://merchant.example/quote',
+      resourceId,
+      method: 'GET',
+      requestBound: true,
+    },
+  });
+  const mismatched = normalizeX402CheckResult({
+    checkedRequest: {
+      resourceId,
+      method: 'GET',
+      requestBound: true,
+    },
+    resourceIdentity: {
+      kind: 'endpoint',
+      resourceId: '37f59863-9170-442f-97e0-4464ce949042',
+      displayName: 'Wrong resource',
+      description: null,
+      merchant: {
+        providerKey: null,
+        providerSlug: null,
+        displayName: 'Wrong merchant',
+        logoUrl: null,
+        technicalHost: null,
+      },
+    },
+  });
+
+  assert.equal(ambiguous.checkedRequest, null);
+  assert.equal(mismatched.checkedRequest?.targetKind, 'managed_resource');
+  assert.equal(mismatched.resourceIdentity, null);
 });
 
 test('search checks bind GET URLs but require a body before binding non-GET requests', () => {
@@ -163,7 +245,7 @@ test('classifies free and unprotected results', () => {
   assert.equal(state.classification, 'free');
   assert.equal(state.requiresPayment, false);
   assert.equal(state.nextStep, 'use-without-payment');
-  assert.match(state.summary, /no payment/i);
+  assert.equal(state.summary, 'Available without payment.');
 });
 
 test('classifies SIWX identity gating separately from payment', () => {
@@ -177,7 +259,7 @@ test('classifies SIWX identity gating separately from payment', () => {
   assert.equal(state.classification, 'siwx');
   assert.equal(state.requiresPayment, false);
   assert.equal(state.nextStep, 'sign-in');
-  assert.match(state.summary, /wallet identity/i);
+  assert.equal(state.summary, 'Sign in with a compatible wallet to continue.');
 });
 
 test('classifies API-key gating even though the canonical result sets error true', () => {
@@ -217,7 +299,7 @@ test('classifies API-key plus paid access as hybrid', () => {
   assert.equal(state.nextStep, 'authenticate-then-review-payment');
   assert.equal(
     state.summary,
-    'Authenticate first; the current quote is 2 payment routes from $0.01 to $0.05. This check made no payment.',
+    'Authenticate to use the 2 payment routes from $0.01 to $0.05 quote.',
   );
 });
 
@@ -244,11 +326,11 @@ test('maps unknown, malformed, and route-less paid probes to a safe error state'
     assert.equal(state.requiresPayment, null);
     assert.equal(state.nextStep, 'retry-check');
     assert.equal(state.paymentOccurred, false);
-    assert.match(state.summary, /made no payment/i);
+    assert.doesNotMatch(state.summary, /made no payment/i);
   }
 });
 
-test('every reader-facing classification explicitly remains pre-payment', () => {
+test('pre-payment truth remains structured without repetitive reader copy', () => {
   const inputs = [
     { authMode: 'paid', requiresPayment: true, statusCode: 402, paymentOptions: [baseRoute] },
     { authMode: 'unprotected', requiresPayment: false, statusCode: 200, free: true },
@@ -262,7 +344,7 @@ test('every reader-facing classification explicitly remains pre-payment', () => 
     const state = normalizeX402CheckResult(input);
     assert.equal(state.paymentStatus, 'not_attempted');
     assert.equal(state.paymentOccurred, false);
-    assert.match(state.summary, /made no payment/i);
+    assert.doesNotMatch(state.summary, /made no payment/i);
     assert.doesNotMatch(
       state.summary,
       /\b(?:you paid|payment (?:was|has been) (?:sent|settled|completed))\b/i,

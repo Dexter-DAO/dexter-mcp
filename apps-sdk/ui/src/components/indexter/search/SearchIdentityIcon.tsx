@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { SearchResource } from './types';
-import { providerImageSources } from '../../x402/providerImage';
+import { resourceImageSources } from './utils';
 
 /**
  * Identity icon fallback order: Dexter-proxied provider art, Dexter favicon proxy,
@@ -9,11 +9,7 @@ import { providerImageSources } from '../../x402/providerImage';
  */
 export function SearchIdentityIcon({ resource, size = 44 }: { resource: SearchResource; size?: number }) {
   const sources = useMemo(() => {
-    return providerImageSources({
-      iconUrl: resource.iconUrl,
-      logoUrl: resource.sellerMeta?.logoUrl,
-      resourceUrl: resource.url,
-    });
+    return resourceImageSources(resource);
   }, [resource]);
 
   const sourceKey = sources.join('\n');
