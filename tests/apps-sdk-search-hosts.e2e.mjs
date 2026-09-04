@@ -1966,14 +1966,10 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
       await atlasCard.getByText('Evidence', { exact: true }).waitFor();
       await atlasCard.getByText('Delivered recently', { exact: true }).waitFor();
       await atlasCard.getByText('Jul 25', { exact: true }).waitFor();
-      await atlasCard.getByText('Required', { exact: true }).waitFor();
-      await atlasCard.getByText('None', { exact: true }).waitFor();
-      await atlasCard.getByText('Payment', { exact: true }).waitFor();
-      assert.equal(
-        await atlasCard.locator('.dx-search-compare__payment .x4-chain-logo')
-          .getAttribute('src'),
-        'https://dexter.cash/assets/chains/base.svg',
-      );
+      assert.equal(await atlasCard.getByText('Required', { exact: true }).count(), 0);
+      assert.equal(await atlasCard.getByText('None', { exact: true }).count(), 0);
+      assert.equal(await atlasCard.getByText('Payment', { exact: true }).count(), 0);
+      assert.equal(await atlasCard.getByText(/USDC \+1 route/i).count(), 0);
 
       const beaconCard = comparison
         .locator('.dx-search-compare__card')
@@ -2036,6 +2032,23 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
         await page.locator('.dxs-root').screenshot({
           path: path.join(SCREENSHOT_DIR, 'chatgpt-fullscreen-comparison.png'),
         });
+        await page.evaluate(() => {
+          window.openai.theme = 'dark';
+          window.dispatchEvent(new CustomEvent('openai:set_globals', {
+            detail: { globals: { theme: 'dark' } },
+          }));
+        });
+        await page.locator('html[data-theme="dark"]').waitFor();
+        await page.locator('.dxs-root').screenshot({
+          path: path.join(SCREENSHOT_DIR, 'chatgpt-fullscreen-comparison-dark.png'),
+        });
+        await details.click();
+        await page.getByRole('complementary', {
+          name: 'Beacon Price Feed details',
+        }).waitFor();
+        await page.locator('.dxs-root').screenshot({
+          path: path.join(SCREENSHOT_DIR, 'chatgpt-fullscreen-detail-dark.png'),
+        });
       }
       await page.close();
     });
@@ -2053,6 +2066,20 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
       let comparison = page.getByRole('region', { name: 'Compare services' });
       await comparison.waitFor();
       assert.equal(await page.locator('.dx-search-experience__decision').count(), 0);
+      const singleFactGeometry = await comparison.locator('.dx-search-compare__facts')
+        .first()
+        .evaluate((facts) => {
+          const item = facts.firstElementChild;
+          return item ? {
+            factsWidth: facts.getBoundingClientRect().width,
+            itemWidth: item.getBoundingClientRect().width,
+          } : null;
+        });
+      assert.ok(singleFactGeometry);
+      assert.ok(
+        singleFactGeometry.itemWidth >= singleFactGeometry.factsWidth - 1,
+        'a lone mobile comparison fact must use the full row',
+      );
 
       const details = comparison.getByRole('button', {
         name: 'View Beacon Price Feed details from Beacon Systems',
@@ -2073,6 +2100,16 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
         await page.locator('.dxs-root').screenshot({
           path: path.join(SCREENSHOT_DIR, 'chatgpt-mobile-fullscreen-detail.png'),
         });
+        await page.evaluate(() => {
+          window.openai.theme = 'dark';
+          window.dispatchEvent(new CustomEvent('openai:set_globals', {
+            detail: { globals: { theme: 'dark' } },
+          }));
+        });
+        await page.locator('html[data-theme="dark"]').waitFor();
+        await page.locator('.dxs-root').screenshot({
+          path: path.join(SCREENSHOT_DIR, 'chatgpt-mobile-fullscreen-detail-dark.png'),
+        });
       }
 
       await detail.getByRole('button', {
@@ -2091,6 +2128,11 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
         'closing mobile detail must restore its comparison trigger',
       );
       assert.equal(await page.locator('.dx-search-drawer').count(), 0);
+      if (process.env.DEXTER_SEARCH_SCREENSHOTS === '1') {
+        await page.locator('.dxs-root').screenshot({
+          path: path.join(SCREENSHOT_DIR, 'chatgpt-mobile-fullscreen-comparison-dark.png'),
+        });
+      }
       await page.close();
     });
 

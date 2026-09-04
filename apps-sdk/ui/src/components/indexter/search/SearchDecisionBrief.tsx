@@ -59,10 +59,6 @@ function visibleActionLabel(
   return action.kind === 'provide_details' ? 'Add details' : 'Check terms';
 }
 
-function evidenceLabel(resource: SearchResource): string {
-  return compactEvidenceLabel(resource);
-}
-
 export function SearchDecisionBrief({
   resources,
   selectedOrdinal,
@@ -104,6 +100,7 @@ export function SearchDecisionBrief({
   const { actionTarget, alternatives } = decision;
   const actionTargetOrdinal = resources.indexOf(actionTarget) + 1;
   const summary = summarizeSearchResource(actionTarget);
+  const evidence = compactEvidenceLabel(actionTarget);
   const action = summary.action;
   const currentState = !checkState.resultOrdinal || checkState.resultOrdinal === actionTargetOrdinal
     ? checkState
@@ -151,10 +148,12 @@ export function SearchDecisionBrief({
         ) : null}
 
         <div className="dx-search-result-primary__footer">
-          <span className="dx-search-result-evidence" data-basis={summary.evidenceBasis || 'none'}>
-            <span aria-hidden="true" />
-            {evidenceLabel(actionTarget)}
-          </span>
+          {evidence ? (
+            <span className="dx-search-result-evidence" data-basis={summary.evidenceBasis || 'none'}>
+              <span aria-hidden="true" />
+              {evidence}
+            </span>
+          ) : null}
           {currentState.status !== 'checked' ? (
             <button
               type="button"

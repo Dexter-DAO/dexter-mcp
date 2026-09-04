@@ -27,8 +27,9 @@ export function SearchInlineDetail({
   const summary = summarizeSearchResource(resource);
   const action = summary.action;
   const description = resource.description.trim();
-  const showDescription = description.length > 0 && description !== summary.why.trim();
+  const detailSummary = description || summary.why.trim();
   const showRequiredInputs = summary.requiredInputsLabel !== 'None';
+  const evidence = compactEvidenceLabel(resource);
   const price = formatListedPrice(
     summary.priceLabel,
     summary.priceUsdc,
@@ -57,15 +58,9 @@ export function SearchInlineDetail({
         <strong>{price}</strong>
       </div>
 
-      <p className="dx-search-inline-detail__why" title={summary.why}>
-        {summary.why}
+      <p className="dx-search-inline-detail__why" title={detailSummary}>
+        {detailSummary}
       </p>
-
-      {showDescription ? (
-        <p className="dx-search-inline-detail__description" title={description}>
-          {description}
-        </p>
-      ) : null}
 
       {showRequiredInputs ? (
         <p className="dx-search-inline-detail__needs">
@@ -80,10 +75,12 @@ export function SearchInlineDetail({
       ) : null}
 
       <div className="dx-search-inline-detail__action">
-        <span className="dx-search-result-evidence" data-basis={summary.evidenceBasis || 'none'}>
-          <span aria-hidden="true" />
-          {compactEvidenceLabel(resource)}
-        </span>
+        {evidence ? (
+          <span className="dx-search-result-evidence" data-basis={summary.evidenceBasis || 'none'}>
+            <span aria-hidden="true" />
+            {evidence}
+          </span>
+        ) : null}
         <button
           type="button"
           className="dx-search-primary-action"

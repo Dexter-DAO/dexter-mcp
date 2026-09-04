@@ -99,6 +99,26 @@ describe('x402 pricing presentation', () => {
     expect(markup).not.toContain('spoofed.example');
   });
 
+  it('uses a merchant initial when no logo source is available', () => {
+    const markup = renderToStaticMarkup(
+      <ResourceIdentity
+        identity={{
+          ...identity,
+          merchant: {
+            ...identity.merchant,
+            logoUrl: null,
+          },
+        }}
+        resource={null}
+        fallbackUrl={null}
+      />,
+    );
+
+    expect(markup).toContain('dx-pricing__identity-icon-fallback');
+    expect(markup).toContain('>M<');
+    expect(markup).not.toContain('<img');
+  });
+
   it('keeps one payment rail visual and hides chain plumbing', () => {
     const markup = renderToStaticMarkup(<PaymentRoutes options={[baseRoute]} />);
 
@@ -132,5 +152,62 @@ describe('x402 pricing presentation', () => {
     expect(markup).toContain('$0.02');
     expect(markup).not.toContain(baseRoute.payTo!);
     expect(markup).not.toContain('base units');
+  });
+
+  it('collapses equal-price rails without repeating the headline price', () => {
+    const markup = renderToStaticMarkup(
+      <PaymentRoutes options={[
+        baseRoute,
+        {
+          ...baseRoute,
+          routeKey: 'solana-usdc',
+          network: 'solana:mainnet',
+        },
+      ]} />,
+    );
+
+    expect(markup).toContain('/assets/chains/base.svg');
+    expect(markup).toContain('/assets/chains/solana.svg');
+    expect(markup.match(/\/assets\/chains\/usdc\.svg/g)).toHaveLength(1);
+    expect(markup).not.toContain('Payment options');
+    expect(markup).not.toContain('$0.01');
+  });
+
+  it('keeps heterogeneous equal-price terms in separate rows', () => {
+    const markup = renderToStaticMarkup(
+      <PaymentRoutes options={[
+        baseRoute,
+        {
+          ...baseRoute,
+          routeKey: 'solana-usdt-upto',
+          network: 'solana:mainnet',
+          asset: 'USDT',
+          scheme: 'upto',
+        },
+      ]} />,
+    );
+
+    expect(markup.match(/class="dx-pricing__route"/g)).toHaveLength(2);
+    expect(markup).toContain('Payment options');
+    expect(markup).toContain('USDT');
+    expect(markup).toContain('Metered');
+    expect(markup.match(/class="dx-pricing__route-price">\$0\.01/g)).toHaveLength(2);
+  });
+
+  it('does not hide distinct alternatives on the same network', () => {
+    const markup = renderToStaticMarkup(
+      <PaymentRoutes options={[
+        baseRoute,
+        {
+          ...baseRoute,
+          routeKey: 'base-usdc-alternate-recipient',
+          payTo: '0x2222222222222222222222222222222222222222',
+        },
+      ]} />,
+    );
+
+    expect(markup.match(/class="dx-pricing__route"/g)).toHaveLength(2);
+    expect(markup).toContain('Payment options');
+    expect(markup.match(/class="dx-pricing__route-price">\$0\.01/g)).toHaveLength(2);
   });
 });

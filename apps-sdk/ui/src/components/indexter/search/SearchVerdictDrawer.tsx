@@ -30,8 +30,9 @@ export function SearchVerdictDrawer({ resource, onClose, onUseService }: Props) 
   const summary = summarizeSearchResource(resource);
   const action = summary.action;
   const description = resource.description.trim();
-  const showDescription = description.length > 0 && description !== summary.why.trim();
+  const detailSummary = description || summary.why.trim();
   const showRequiredInputs = summary.requiredInputsLabel !== 'None';
+  const evidence = compactEvidenceLabel(resource);
   const price = formatListedPrice(
     summary.priceLabel,
     summary.priceUsdc,
@@ -83,11 +84,7 @@ export function SearchVerdictDrawer({ resource, onClose, onUseService }: Props) 
         </button>
       </div>
 
-      <p className="dx-search-drawer__why">{summary.why}</p>
-
-      {showDescription ? (
-        <p className="dx-search-drawer__description">{description}</p>
-      ) : null}
+      <p className="dx-search-drawer__why">{detailSummary}</p>
 
       {showRequiredInputs ? (
         <dl className="dx-search-drawer__request">
@@ -103,10 +100,12 @@ export function SearchVerdictDrawer({ resource, onClose, onUseService }: Props) 
       ) : null}
 
       <div className="dx-search-drawer__footer">
-        <span className="dx-search-result-evidence" data-basis={summary.evidenceBasis || 'none'}>
-          <span aria-hidden="true" />
-          {compactEvidenceLabel(resource)}
-        </span>
+        {evidence ? (
+          <span className="dx-search-result-evidence" data-basis={summary.evidenceBasis || 'none'}>
+            <span aria-hidden="true" />
+            {evidence}
+          </span>
+        ) : null}
         <button
           type="button"
           className="dx-search-primary-action"

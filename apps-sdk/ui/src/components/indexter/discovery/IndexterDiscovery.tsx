@@ -95,6 +95,8 @@ function ProviderMark({
 }
 
 function EvidenceLabel({ evidence }: { evidence: IndexterEvidence }) {
+  if (evidence.state === 'no_current_confirmation') return null;
+
   return (
     <span className="dx-discovery-evidence" data-state={evidence.state}>
       <span aria-hidden="true" />
@@ -223,9 +225,11 @@ function ResourceRow({
           <span>{formatDiscoveryPrice(resource)}</span>
         </div>
         {resource.description ? <p>{resource.description}</p> : null}
-        <div className="dx-discovery-resource__meta">
-          <EvidenceLabel evidence={resource.evidence} />
-        </div>
+        {resource.evidence.state !== 'no_current_confirmation' ? (
+          <div className="dx-discovery-resource__meta">
+            <EvidenceLabel evidence={resource.evidence} />
+          </div>
+        ) : null}
       </div>
       <button
         type="button"

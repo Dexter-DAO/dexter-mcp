@@ -128,7 +128,7 @@ test('comparison disclosures share one bounded, ordinal-safe region', () => {
   assert.match(inlineDetail, /<span>\{ordinal\} of \{resultCount\}<\/span>/);
 });
 
-test('inline copy is bounded while full labels remain available', () => {
+test('inline copy is bounded and detail keeps one concise summary', () => {
   assert.match(entry, /<h1 title=\{loadingTitle\}>\{loadingTitle\}<\/h1>/);
   assert.match(entry, /<h1 title=\{emptyTitle\}>\{emptyTitle\}<\/h1>/);
   assert.match(entry, /<h1 title=\{queryHeading\}>\{queryHeading\}<\/h1>/);
@@ -137,8 +137,8 @@ test('inline copy is bounded while full labels remain available', () => {
   assert.match(css, /\.dx-search-shell--inline \.dx-search-state p[\s\S]*?-webkit-line-clamp: 3/);
   assert.match(css, /\.dx-search-inline-detail__why,[\s\S]*?\.dx-search-inline-detail__safety[\s\S]*?-webkit-line-clamp: 2/);
   assert.match(inlineDetail, /const description = resource\.description\.trim\(\)/);
-  assert.match(inlineDetail, /className="dx-search-inline-detail__description"/);
-  assert.match(css, /\.dx-search-inline-detail__description[\s\S]*?-webkit-line-clamp: 2/);
+  assert.match(inlineDetail, /const detailSummary = description \|\| summary\.why\.trim\(\)/);
+  assert.doesNotMatch(inlineDetail, /className="dx-search-inline-detail__description"/);
 });
 
 test('needs labels remain sentence case', () => {
@@ -155,9 +155,9 @@ test('needs labels remain sentence case', () => {
   assert.doesNotMatch(drawerNeedsRule, /text-transform\s*:\s*uppercase/i);
 });
 
-test('comparison identifies the displayed network as the primary payment route', () => {
-  assert.match(comparison, /summary\.paymentRouteCount > 1/);
-  assert.match(comparison, /primary route on/);
+test('comparison omits empty requirements and payment-rail plumbing', () => {
+  assert.match(comparison, /const showRequiredInputs = summary\.requiredInputsLabel !== 'None'/);
+  assert.doesNotMatch(comparison, /ChainIcon|paymentAssetLabel|paymentRouteCount|networkLabel|<dt>Payment<\/dt>/);
 });
 
 test('late fullscreen responses are corrected to the latest requested mode', () => {

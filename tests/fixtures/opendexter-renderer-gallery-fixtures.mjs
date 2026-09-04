@@ -192,6 +192,13 @@ export const MCP_APPS_HOST_TOKENS = Object.freeze({
 });
 
 export const TOOL_RENDERER_BEHAVIORS = Object.freeze({
+  indexter_discover: Object.freeze({
+    family: 'indexter-search',
+    galleryFamilies: Object.freeze(['indexter-discovery', 'indexter-provider']),
+    resourceToken: 'INDEXTER_WIDGET_URIS.search',
+    resourceUri: INDEXTER_WIDGET_URIS.search,
+    metadataName: 'DISCOVERY_META',
+  }),
   indexter_search: Object.freeze({
     family: 'indexter-search',
     resourceToken: 'INDEXTER_WIDGET_URIS.search',
@@ -699,17 +706,30 @@ function accessTermsOutput() {
       body: null,
       requestBound: true,
     },
-    paymentOptions: [{
-      price: 0.008,
-      priceFormatted: '$0.008',
-      network: 'eip155:8453',
-      scheme: 'exact',
-      asset: 'USDC',
-      payTo: '0x1111111111111111111111111111111111111111',
-      amountAtomic: '8000',
-      decimals: 6,
-      expiresAt: '2026-09-03T12:05:00.000Z',
-    }],
+    paymentOptions: [
+      {
+        price: 0.008,
+        priceFormatted: '$0.008',
+        network: 'eip155:8453',
+        scheme: 'exact',
+        asset: 'USDC',
+        payTo: '0x1111111111111111111111111111111111111111',
+        amountAtomic: '8000',
+        decimals: 6,
+        expiresAt: '2026-09-03T12:05:00.000Z',
+      },
+      {
+        price: 0.008,
+        priceFormatted: '$0.008',
+        network: 'solana:mainnet',
+        scheme: 'upto',
+        asset: 'USDT',
+        payTo: '11111111111111111111111111111111',
+        amountAtomic: '8000',
+        decimals: 6,
+        expiresAt: '2026-09-03T12:05:00.000Z',
+      },
+    ],
     resourceIdentity: {
       kind: 'endpoint',
       resourceId: '77777777-7777-4777-8777-777777777777',

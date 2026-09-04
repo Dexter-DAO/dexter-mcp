@@ -147,6 +147,19 @@ describe('search resource action truth', () => {
     );
   });
 
+  it('omits missing or negative evidence from the visible presentation', () => {
+    expect(compactEvidenceLabel(resource({
+      trustBasis: 'none',
+      trustLabel: 'No independent paid quality test',
+    }))).toBeNull();
+    expect(compactEvidenceLabel(resource({
+      trustBasis: undefined,
+      trustLabel: 'No current confirmation',
+      verified: false,
+      paidQualityTestPassed: false,
+    }))).toBeNull();
+  });
+
   it('checks live terms for a complete GET request', () => {
     expect(getSearchResourceAction(resource({ method: 'GET' }))).toMatchObject({
       kind: 'check_live_terms',

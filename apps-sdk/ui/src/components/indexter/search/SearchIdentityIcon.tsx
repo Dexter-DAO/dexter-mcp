@@ -21,9 +21,15 @@ export function SearchIdentityIcon({ resource, size = 44 }: { resource: SearchRe
     loadState.sourceKey === sourceKey ? loadState.attempt : 0;
   const currentSrc = sources[attempt];
   const allFailed = attempt >= sources.length;
+  const initial = (
+    resource.merchant?.displayName?.trim()
+    || resource.sellerMeta?.displayName?.trim()
+    || resource.seller?.trim()
+    || resource.name.trim()
+  ).slice(0, 1).toUpperCase() || '·';
 
   if (!currentSrc || allFailed) {
-    return <UnsignedMark size={size} />;
+    return <UnsignedMark size={size} initial={initial} />;
   }
 
   return (
@@ -51,14 +57,14 @@ export function SearchIdentityIcon({ resource, size = 44 }: { resource: SearchRe
 /**
  * An intentionally plain marker for a provider with no usable image.
  */
-function UnsignedMark({ size }: { size: number }) {
+function UnsignedMark({ size, initial }: { size: number; initial: string }) {
   return (
     <div
       className="dx-search-identity__unsigned"
       style={{ width: size, height: size }}
       aria-hidden="true"
     >
-      <span className="dx-search-identity__unsigned-dot" />
+      {initial}
     </div>
   );
 }

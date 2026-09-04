@@ -72,7 +72,8 @@ test('every current OpenDexter tool has one explicit renderer behavior', () => {
     assert.ok(behavior.family, `${toolName} has no renderer family`);
   }
 
-  assert.equal(OPEN_TOOL_NAMES.length, 12);
+  assert.equal(OPEN_TOOL_NAMES.length, 13);
+  const discoveryBehavior = TOOL_RENDERER_BEHAVIORS.indexter_discover;
   const indexterBehavior = TOOL_RENDERER_BEHAVIORS.indexter_search;
   const indexterResource = ACTIVE_RENDERER_RESOURCES.find(
     ({ family }) => family === 'indexter-search',
@@ -80,6 +81,13 @@ test('every current OpenDexter tool has one explicit renderer behavior', () => {
   assert.equal(indexterBehavior.resourceToken, 'INDEXTER_WIDGET_URIS.search');
   assert.equal(indexterBehavior.metadataName, 'SEARCH_META');
   assert.equal(indexterBehavior.resourceUri, indexterResource?.resourceUri);
+  assert.equal(discoveryBehavior.resourceToken, 'INDEXTER_WIDGET_URIS.search');
+  assert.equal(discoveryBehavior.metadataName, 'DISCOVERY_META');
+  assert.equal(discoveryBehavior.resourceUri, indexterResource?.resourceUri);
+  assert.deepEqual(
+    discoveryBehavior.galleryFamilies,
+    ['indexter-discovery', 'indexter-provider'],
+  );
   assert.equal(indexterResource?.file, 'indexter-search.html');
   assert.match(
     indexterBehavior.resourceUri,

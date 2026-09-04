@@ -31,7 +31,14 @@ const DEVICE_FILTER = String(process.env.DEXTER_RENDERER_GALLERY_DEVICE || '').t
 const THEME_FILTER = String(process.env.DEXTER_RENDERER_GALLERY_THEME || '').trim();
 const LIVE_IMAGES = process.env.DEXTER_RENDERER_GALLERY_LIVE_IMAGES === '1';
 const BASE_CHAIN_MARK = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 111 111" fill="none"><circle cx="55.5" cy="55.5" r="55.5" fill="#0052FF"/><path d="M55.4912 94.222C77.1578 94.222 94.7217 76.881 94.7217 55.4897C94.7217 34.0984 77.1578 16.7573 55.4912 16.7573C34.908 16.7573 17.9917 32.5547 16.3311 52.5543H67.4656V58.425H16.3311C17.9917 78.4247 34.908 94.222 55.4912 94.222Z" fill="white"/></svg>';
+const SOLANA_CHAIN_MARK = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 398 312"><defs><linearGradient id="s" x1="1" y1="0" x2="0" y2="1"><stop stop-color="#00ffa3"/><stop offset="1" stop-color="#dc1fff"/></linearGradient></defs><path fill="url(#s)" d="M65 238c2-2 5-4 9-4h317c6 0 9 7 5 11l-63 63c-2 2-6 4-9 4H7c-6 0-9-7-5-11zM65 4c2-3 5-4 9-4h317c6 0 9 7 5 11l-63 63c-2 2-6 4-9 4H7c-6 0-9-7-5-11zm268 116c-2-2-6-4-9-4H7c-6 0-9 7-5 11l63 63c2 2 5 4 9 4h317c6 0 9-7 5-11z"/></svg>';
+const USDC_ASSET_MARK = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="50" fill="#2775ca"/><path fill="#fff" d="M63.8 57.9c0-7.3-4.4-9.8-13.1-10.8-6.3-.9-7.5-2.5-7.5-5.4s2.1-4.8 6.2-4.8c3.8 0 5.9 1.3 6.9 4.4.2.6.8 1 1.5 1h3.3c.8 0 1.5-.6 1.5-1.5v-.2c-.9-4.6-4.6-8.1-9.4-8.5v-5c0-.9-.6-1.5-1.7-1.7h-3.1c-.8 0-1.5.6-1.7 1.7v4.8c-6.2.8-10.2 5-10.2 10.2 0 6.9 4.2 9.6 12.9 10.6 5.8 1 7.7 2.3 7.7 5.6 0 3.4-2.9 5.7-6.9 5.7-5.4 0-7.3-2.3-7.9-5.4-.2-.8-.8-1.2-1.4-1.2h-3.6c-.8 0-1.4.6-1.4 1.4v.2c.8 5.2 4.2 9 11 10v5c0 .8.6 1.5 1.7 1.7h3.1c.8 0 1.5-.7 1.7-1.7v-5c6.2-1.1 10.4-5.5 10.4-11.1z"/></svg>';
 const GENERIC_IMAGE_MARK = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><circle cx="20" cy="20" r="14" fill="#918677" /></svg>';
+const FIXED_CHAIN_MARKS = new Map([
+  ['https://dexter.cash/assets/chains/base.svg', BASE_CHAIN_MARK],
+  ['https://dexter.cash/assets/chains/solana.svg', SOLANA_CHAIN_MARK],
+  ['https://dexter.cash/assets/chains/usdc.svg', USDC_ASSET_MARK],
+]);
 
 const VIEWPORTS = Object.freeze({
   desktop: Object.freeze({ width: 1180, height: 980, maxHeight: 880 }),
@@ -401,9 +408,7 @@ async function renderVariant({ browser, baseUrl, surface, device, theme }) {
       await route.fulfill({
         status: 200,
         contentType: 'image/svg+xml',
-        body: requestUrl.href === 'https://dexter.cash/assets/chains/base.svg'
-          ? BASE_CHAIN_MARK
-          : GENERIC_IMAGE_MARK,
+        body: FIXED_CHAIN_MARKS.get(requestUrl.href) ?? GENERIC_IMAGE_MARK,
       });
       return;
     }
@@ -712,7 +717,7 @@ async function renderVariant({ browser, baseUrl, surface, device, theme }) {
 
   if (surface.id === 'access-free-result') {
     const bodyText = await frame.locator('body').innerText();
-    assert.match(bodyText, /No payment required/i);
+    assert.match(bodyText, /Available without payment/i);
     assert.match(bodyText, /Provider response/i);
     assert.match(bodyText, /Brooklyn, NY/i);
     assert.match(bodyText, /Clear/i);
@@ -760,7 +765,7 @@ async function renderVariant({ browser, baseUrl, surface, device, theme }) {
 
   if (surface.id === 'access-free-empty-result') {
     const bodyText = await frame.locator('body').innerText();
-    assert.match(bodyText, /No payment required/i);
+    assert.match(bodyText, /Available without payment/i);
     assert.match(bodyText, /Provider response/i);
     assert.match(bodyText, /The provider returned an empty result/i);
     assert.equal(
@@ -779,9 +784,13 @@ async function renderVariant({ browser, baseUrl, surface, device, theme }) {
   if (surface.id === 'access-siwx-required') {
     const bodyText = await frame.locator('body').innerText();
     assert.match(bodyText, /Wallet sign-in required/i);
-    assert.match(bodyText, /identity, not a payment quote/i);
-    assert.match(bodyText, /no compatible signer is available/i);
-    assert.match(bodyText, /made no payment/i);
+    assert.match(bodyText, /Sign in with a compatible wallet to continue/i);
+    assert.match(bodyText, /A compatible wallet signer is unavailable here/i);
+    assert.equal(
+      await frame.getByRole('button', { name: /review|pay|purchase/i }).count(),
+      0,
+      'A wallet-sign-in requirement exposed a purchase action',
+    );
   }
 
   if (surface.id === 'access-api-key-required') {
@@ -792,20 +801,19 @@ async function renderVariant({ browser, baseUrl, surface, device, theme }) {
 
   if (surface.id === 'access-hybrid-api-key-paid') {
     const bodyText = await frame.locator('body').innerText();
-    assert.match(bodyText, /Provider authentication must be completed/i);
-    assert.match(bodyText, /No payment has been made/i);
+    assert.match(bodyText, /Authenticate with the provider to use this quote/i);
   }
 
   if (surface.id === 'access-error') {
     const bodyText = await frame.locator('body').innerText();
-    assert.match(bodyText, /Pricing unavailable/i);
-    assert.match(bodyText, /This check made no payment/i);
+    assert.match(bodyText, /Price unavailable/i);
+    assert.match(bodyText, /Server error/i);
   }
 
   if (surface.id === 'access-paid-quote-only') {
     const bodyText = await frame.locator('body').innerText();
-    assert.match(bodyText, /informational/i);
-    assert.match(bodyText, /No payment can continue from this result/i);
+    assert.match(bodyText, /This quote cannot open a payment review/i);
+    assert.match(bodyText, /Check the service again/i);
     assert.equal(
       await frame.getByRole('button', { name: /review|pay|purchase/i }).count(),
       0,
@@ -936,7 +944,11 @@ galleryTest('current OpenDexter renderers fill one deterministic host-frame gall
     for (const surface of surfaces) {
       for (const toolName of surface.tools) {
         const behavior = TOOL_RENDERER_BEHAVIORS[toolName];
-        assert.equal(surface.id, behavior.family);
+        const galleryFamilies = behavior.galleryFamilies ?? [behavior.family];
+        assert.ok(
+          galleryFamilies.includes(surface.id),
+          `${toolName} is not assigned to the ${surface.id} gallery surface`,
+        );
         assert.equal(surface.resourceUri, behavior.resourceUri);
       }
     }

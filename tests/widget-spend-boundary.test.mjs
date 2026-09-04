@@ -120,13 +120,11 @@ test('x402 protocol renderers leave framing and height to the host', async () =>
     assert.match(entry, /useIntrinsicHeight/);
     assert.match(entry, /data-host-max-height/);
     assert.doesNotMatch(entry, /style=\{\{[^}]*maxHeight/);
-    assert.match(
-      entry,
-      /maxLines=\{(?:isFullscreen \? null : inlinePreviewLines|resultPreviewLines)\}/,
-    );
     assert.match(entry, /Ask in chat for the full result/);
     assert.doesNotMatch(entry, /isFullscreen \|\| !canToggleFullscreen \? null/);
   }
+  assert.match(pricing, /maxLines=\{returnedResultLineLimit\}/);
+  assert.match(fetchResult, /maxLines=\{resultPreviewLines\}/);
   for (const rootRule of [pricingRoot, resultFrame, resultRoot]) {
     assert.match(rootRule, /background:\s*transparent/);
     assert.doesNotMatch(rootRule, /\bmax-height\s*:/);
@@ -145,8 +143,8 @@ test('x402 protocol renderers leave framing and height to the host', async () =>
   );
   assert.ok(returnedResult.includes("value.split('\\n').length > maxLines"));
   assert.doesNotMatch(paymentRoutes, /shortRecipient/);
-  assert.match(paymentRoutes, /dx-pricing__route-payto-label">Recipient/);
-  assert.match(paymentRoutes, /dx-pricing__route-payto-addr">\{route\.payTo\}/);
+  assert.doesNotMatch(paymentRoutes, />\s*Recipient\s*<|\{route\.payTo\}|base units/i);
+  assert.match(paymentRoutes, /routePresentationKey/);
   assert.doesNotMatch(fetchResult, /displayIntent/);
   assert.match(fetchResult, /<dd>\{lifecycle\.intentId\}<\/dd>/);
 });
@@ -154,7 +152,7 @@ test('x402 protocol renderers leave framing and height to the host', async () =>
 test('presentation metadata helpers do not grant renderer tool authority', async () => {
   const server = await source('open-mcp-server.mjs');
   const start = server.indexOf('function widgetMeta(');
-  const end = server.indexOf('const SEARCH_META =');
+  const end = server.indexOf('const DISCOVERY_META_BASE =');
   assert.ok(start >= 0 && end > start);
   const presentationHelpers = server.slice(start, end);
   assert.doesNotMatch(presentationHelpers, /\bvisibility\s*:/);
@@ -162,20 +160,21 @@ test('presentation metadata helpers do not grant renderer tool authority', async
 });
 
 test('Indexter opens x402_check through chat instead of direct widget authority', async () => {
-  const [entry, contracts, continuation] = await Promise.all([
+  const [entry, continuation, { OPEN_TOOL_CONTRACTS }] = await Promise.all([
     source('apps-sdk/ui/src/entries/indexter-search.tsx'),
-    source('lib/open-tool-contracts.mjs'),
     source('apps-sdk/ui/src/components/indexter/search/indexter-continuation.ts'),
+    import(new URL('../lib/open-tool-contracts.mjs', import.meta.url)),
   ]);
   assert.doesNotMatch(entry, /callTool\(/);
   assert.match(entry, /sendFollowUp\(indexterCheckContinuationPrompt\(reference\)\)/);
   assert.match(continuation, /Call x402_check once/);
   assert.match(continuation, /do not make a payment/);
-  assert.doesNotMatch(
-    contracts,
-    /visibility:\s*\['model',\s*'app'\]/,
-  );
-  assert.doesNotMatch(contracts, /widgetAccessible:\s*true/);
+  assert.deepEqual([...OPEN_TOOL_CONTRACTS.indexter_discover.visibility], ['model', 'app']);
+  assert.equal(OPEN_TOOL_CONTRACTS.indexter_discover.widgetAccessible, true);
+  for (const name of ['indexter_search', 'x402_check', 'x402_fetch']) {
+    assert.deepEqual([...OPEN_TOOL_CONTRACTS[name].visibility], ['model']);
+    assert.equal(OPEN_TOOL_CONTRACTS[name].widgetAccessible, false);
+  }
 });
 
 test('funding widget requests a fresh approval in chat instead of retrying payment', async () => {

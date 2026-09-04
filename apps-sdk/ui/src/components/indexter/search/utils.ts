@@ -50,7 +50,7 @@ export function resourceImageSources(resource: SearchResource): string[] {
   return [...new Set([...canonicalMerchantSources, ...legacySources])];
 }
 
-export function compactEvidenceLabel(resource: SearchResource): string {
+export function compactEvidenceLabel(resource: SearchResource): string | null {
   if (resource.trustBasis === 'trusted_catalog') return 'Trusted catalog';
   const explicitLabel = resource.trustLabel?.trim();
   // Shorten only canonical labels whose meaning is unchanged. A catalog
@@ -59,7 +59,6 @@ export function compactEvidenceLabel(resource: SearchResource): string {
   if (explicitLabel === 'Paid quality test passed') return 'Paid test';
   if (explicitLabel === 'Quality test passed') return 'Quality test';
   if (explicitLabel === 'Current terms observed') return 'Terms checked';
-  if (explicitLabel) return explicitLabel;
 
   switch (resource.trustBasis) {
     case 'recent_paid_delivery':
@@ -69,9 +68,11 @@ export function compactEvidenceLabel(resource: SearchResource): string {
     case 'quality_test':
       return 'Quality test';
     case 'none':
-      return 'No independent paid quality test';
+      return null;
     default:
-      return 'No current confirmation';
+      if (resource.paidQualityTestPassed) return 'Paid test';
+      if (resource.verified) return 'Quality test';
+      return null;
   }
 }
 

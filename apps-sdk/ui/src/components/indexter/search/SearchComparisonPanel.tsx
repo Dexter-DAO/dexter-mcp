@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { SearchResource } from './types';
 import { SearchIdentityIcon } from './SearchIdentityIcon';
-import { ChainIcon } from '../../x402';
 import { summarizeSearchResource } from './SearchDecisionBrief.model';
 import {
   compactEvidenceLabel,
@@ -109,9 +108,8 @@ export function SearchComparisonPanel({
           );
           const selected = selectedOrdinal === ordinal;
           const evidenceDate = evidenceDateLabel(resource.lastVerifiedAt);
-          const paymentDescription = summary.paymentRouteCount > 1
-            ? `${summary.paymentAssetLabel}; primary route on ${summary.networkLabel}`
-            : `${summary.paymentAssetLabel} on ${summary.networkLabel}`;
+          const evidence = compactEvidenceLabel(resource);
+          const showRequiredInputs = summary.requiredInputsLabel !== 'None';
 
           return (
             <article
@@ -138,40 +136,32 @@ export function SearchComparisonPanel({
                 ) : null}
               </div>
 
-              <dl className="dx-search-compare__facts">
-                <div>
-                  <dt>Evidence</dt>
-                  <dd className="dx-search-compare__evidence">
-                    <span
-                      className="dx-search-compare__evidence-dot"
-                      data-basis={summary.evidenceBasis || 'none'}
-                      aria-hidden="true"
-                    />
-                    <span>{compactEvidenceLabel(resource)}</span>
-                    {evidenceDate ? (
-                      <time dateTime={resource.lastVerifiedAt ?? undefined}>{evidenceDate}</time>
-                    ) : null}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Required</dt>
-                  <dd>{summary.requiredInputsLabel}</dd>
-                </div>
-                <div>
-                  <dt>Payment</dt>
-                  <dd
-                    className="dx-search-compare__payment"
-                    title={paymentDescription}
-                  >
-                    <ChainIcon network={summary.paymentNetwork} size={16} />
-                    <span>{summary.paymentAssetLabel}</span>
-                    <span className="sr-only">
-                      {summary.paymentRouteCount > 1 ? '; primary route on ' : ' on '}
-                      {summary.networkLabel}
-                    </span>
-                  </dd>
-                </div>
-              </dl>
+              {evidence || showRequiredInputs ? (
+                <dl className="dx-search-compare__facts">
+                  {evidence ? (
+                    <div>
+                      <dt>Evidence</dt>
+                      <dd className="dx-search-compare__evidence">
+                        <span
+                          className="dx-search-compare__evidence-dot"
+                          data-basis={summary.evidenceBasis || 'none'}
+                          aria-hidden="true"
+                        />
+                        <span>{evidence}</span>
+                        {evidenceDate ? (
+                          <time dateTime={resource.lastVerifiedAt ?? undefined}>{evidenceDate}</time>
+                        ) : null}
+                      </dd>
+                    </div>
+                  ) : null}
+                  {showRequiredInputs ? (
+                    <div>
+                      <dt>Needs</dt>
+                      <dd>{summary.requiredInputsLabel}</dd>
+                    </div>
+                  ) : null}
+                </dl>
+              ) : null}
 
               <div className="dx-search-compare__footer">
                 <div className="dx-search-compare__actions">

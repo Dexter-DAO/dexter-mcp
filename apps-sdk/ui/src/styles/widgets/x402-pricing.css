@@ -76,6 +76,18 @@
   object-fit: contain;
 }
 
+.dx-pricing__identity-icon-fallback {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border-radius: var(--dx-radius-md);
+  color: var(--dx-ink-muted);
+  background: var(--dx-canvas-muted);
+  font-size: var(--dx-text-lg);
+  font-weight: var(--dx-weight-semibold);
+}
+
 .dx-pricing__identity-text {
   min-width: 0;
 }
@@ -270,6 +282,12 @@
   gap: var(--dx-space-2);
   color: var(--dx-ink-muted);
   font-size: var(--dx-text-sm);
+}
+
+.dx-pricing__route-chain {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
 }
 
 .dx-pricing__route-rail .x4-chain-logo,

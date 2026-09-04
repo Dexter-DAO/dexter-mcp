@@ -45,18 +45,18 @@ export function ResourceIdentity({ identity, resource, fallbackUrl, resourceRef 
   });
   const attempt = loadState.sourceKey === sourceKey ? loadState.attempt : 0;
   const icon = sources[attempt] || null;
+  const initial = (merchantName || resourceName).trim().slice(0, 1).toUpperCase() || '·';
 
   return (
     <div className="dx-pricing__identity">
-      {icon ? (
-        <div className="dx-pricing__identity-icon">
+      <div className="dx-pricing__identity-icon" aria-hidden="true">
+        {icon ? (
           <img
             src={icon}
             alt=""
             width={32}
             height={32}
             className="dx-pricing__identity-icon-img"
-            aria-hidden
             loading="lazy"
             onError={() => {
               setLoadState((current) => ({
@@ -68,8 +68,10 @@ export function ResourceIdentity({ identity, resource, fallbackUrl, resourceRef 
               }));
             }}
           />
-        </div>
-      ) : null}
+        ) : (
+          <span className="dx-pricing__identity-icon-fallback">{initial}</span>
+        )}
+      </div>
       <div className="dx-pricing__identity-text">
         {showMerchant ? (
           <p className="dx-pricing__identity-merchant">{merchantName}</p>
