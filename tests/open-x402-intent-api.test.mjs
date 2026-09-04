@@ -13,6 +13,7 @@ import {
 
 const SESSION = 'mcp-session_opaque-intent';
 const INTENT_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const RESOURCE_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const SERVICE_SECRET = 'native-exact-mcp-test-secret-at-least-32-bytes';
 const PROOF_NOW = 1_785_455_123_456;
 
@@ -60,6 +61,51 @@ test('check requires one bounded API-compatible request identity', () => {
       requestId: `r${'x'.repeat(128)}`,
     }),
     /invalid_x402_check_request_id/,
+  );
+});
+
+test('check accepts one stable Indexter resource ID without a public route', () => {
+  const request = buildOpenX402IntentRequest('check', {
+    sessionId: SESSION,
+    requestId: 'indexter-check-1',
+    resourceId: RESOURCE_ID,
+    method: 'post',
+    body: '{"city":"Lisbon"}',
+  });
+
+  assert.deepEqual(request, {
+    mcp_session_id: SESSION,
+    requestId: 'indexter-check-1',
+    resourceId: RESOURCE_ID,
+    method: 'POST',
+    body: '{"city":"Lisbon"}',
+  });
+  assert.equal(Object.hasOwn(request, 'url'), false);
+});
+
+test('check requires exactly one public URL or Indexter resource ID', () => {
+  const common = {
+    sessionId: SESSION,
+    requestId: 'indexter-check-target',
+  };
+  assert.throws(
+    () => buildOpenX402IntentRequest('check', common),
+    /exactly_one_x402_check_target_required/,
+  );
+  assert.throws(
+    () => buildOpenX402IntentRequest('check', {
+      ...common,
+      url: 'https://seller.example/resource',
+      resourceId: RESOURCE_ID,
+    }),
+    /exactly_one_x402_check_target_required/,
+  );
+  assert.throws(
+    () => buildOpenX402IntentRequest('check', {
+      ...common,
+      resourceId: 'not-a-resource-id',
+    }),
+    /invalid_indexter_resource_id/,
   );
 });
 
@@ -134,6 +180,36 @@ test('the API caller owns one centralized route map and exact JSON envelope', as
   );
   assert.equal(result.httpStatus, 202);
   assert.equal(result.data.intentId, INTENT_ID);
+});
+
+test('the check API forwards an Indexter resource ID without a public URL', async () => {
+  let observed = null;
+  const result = await callOpenX402IntentApi('check', {
+    sessionId: SESSION,
+    requestId: 'indexter-check-wire-1',
+    resourceId: RESOURCE_ID,
+    method: 'GET',
+  }, {
+    now: () => PROOF_NOW,
+    serviceSecret: SERVICE_SECRET,
+    fetchImpl: async (path, init) => {
+      observed = { path, init };
+      return {
+        status: 200,
+        json: async () => ({ ok: true, free: false }),
+      };
+    },
+  });
+
+  assert.equal(observed.path, OPEN_X402_INTENT_API_PATHS.check);
+  assert.deepEqual(JSON.parse(observed.init.body), {
+    mcp_session_id: SESSION,
+    requestId: 'indexter-check-wire-1',
+    resourceId: RESOURCE_ID,
+    method: 'GET',
+  });
+  assert.equal(Object.hasOwn(JSON.parse(observed.init.body), 'url'), false);
+  assert.equal(result.httpStatus, 200);
 });
 
 test('service proof binds exact path, method, and serialized request bytes', () => {

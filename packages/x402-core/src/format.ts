@@ -12,12 +12,20 @@
 
 import type {
   FormattedResource,
+  IndexterEndpointAccess,
+  IndexterEvidence,
   PricingMode,
   RawCapabilityResult,
   RawPricingChain,
   ResourceExecution,
   TrustBasis,
 } from './types.js';
+
+const INDEXTER_EVIDENCE_LABELS = {
+  delivered_recently: 'Delivered recently',
+  terms_checked: 'Terms checked',
+  no_current_confirmation: 'No current confirmation',
+} as const;
 
 /**
  * Format a price in USDC to a human-readable label.
@@ -138,6 +146,36 @@ function fallbackTrustLabel(basis: TrustBasis): string {
   }
 }
 
+function currentEvidence(
+  verification: RawCapabilityResult['verification'],
+): IndexterEvidence | undefined {
+  const state = verification.evidenceState;
+  if (!state || !(state in INDEXTER_EVIDENCE_LABELS)) return undefined;
+  const label = verification.evidenceLabel;
+  if (label !== INDEXTER_EVIDENCE_LABELS[state]) return undefined;
+  const observedAt = verification.evidenceAt;
+  if (observedAt !== null && typeof observedAt !== 'string') return undefined;
+  return { state, label, observedAt };
+}
+
+function currentEndpointAccess(
+  result: RawCapabilityResult,
+  resourceUrl: string | null,
+): IndexterEndpointAccess | undefined {
+  const access = result.access;
+  if (
+    !access
+    || !['direct_url', 'managed_resolvable'].includes(access.kind)
+    || typeof access.checkable !== 'boolean'
+    || access.requiresFreshCheck !== true
+  ) {
+    return undefined;
+  }
+  if (access.kind === 'direct_url' && resourceUrl === null) return undefined;
+  if (access.kind === 'managed_resolvable' && resourceUrl !== null) return undefined;
+  return { ...access };
+}
+
 /**
  * The ONE canonical resource formatter.
  *
@@ -163,12 +201,19 @@ export function formatResource(r: RawCapabilityResult): FormattedResource {
     ? r.safetyFlags
     : r.gaming?.flags ?? [];
   const primaryPriceLabel = chains[0]?.priceLabel?.trim();
+  const resourceUrl = typeof r.resourceUrl === 'string' ? r.resourceUrl : null;
+  const access = currentEndpointAccess(r, resourceUrl);
+  const evidence = currentEvidence(verification);
 
   return {
     // Identity
+    ...(r.kind === 'endpoint' ? { kind: 'endpoint' as const } : {}),
     resourceId: r.resourceId,
-    name: r.displayName ?? r.resourceUrl,
-    url: r.resourceUrl,
+    name: r.displayName ?? resourceUrl ?? r.resourceId,
+    resourceUrl,
+    url: resourceUrl,
+    ...(access ? { access } : {}),
+    ...(evidence ? { evidence } : {}),
     method: r.method || 'GET',
 
     // Pricing

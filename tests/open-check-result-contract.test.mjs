@@ -80,6 +80,35 @@ test('canonical authenticated API success publishes its durable purchase intent'
   );
 });
 
+test('server-resolved Indexter checks expose only the stable resource ID', () => {
+  const resourceId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+  const structuredContent = buildHostedCheckModelResult({
+    checkResult: {
+      ok: true,
+      paymentRequired: true,
+      intentId: 'intent-canonical-api-2',
+      statusCode: 200,
+      amountAtomic: '10000',
+      network: 'solana:mainnet',
+    },
+    resourceId,
+    method: 'GET',
+    enrichmentSource: 'server_resolved_resource',
+  });
+
+  assert.deepEqual(structuredContent.checkedRequest, {
+    resourceId,
+    method: 'GET',
+    body: null,
+    requestBound: true,
+  });
+  assert.equal(JSON.stringify(structuredContent).includes('paysponge'), false);
+  assert.equal(
+    OPEN_TOOL_CONTRACTS.x402_check.outputSchema.safeParse(structuredContent).success,
+    true,
+  );
+});
+
 test('failed or ambiguous checks never publish a provisional claim as an intent', () => {
   const structuredContent = buildHostedCheckModelResult({
     checkResult: {

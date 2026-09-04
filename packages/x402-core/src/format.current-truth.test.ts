@@ -113,6 +113,56 @@ describe('current capability truth projection', () => {
     });
   });
 
+  it('preserves current endpoint access and evidence without exposing a managed route', () => {
+    const formatted = formatResource(rawResource({
+      kind: 'endpoint',
+      resourceUrl: null,
+      host: null,
+      access: {
+        kind: 'managed_resolvable',
+        checkable: true,
+        requiresFreshCheck: true,
+      },
+      verification: {
+        status: 'unverified',
+        paid: false,
+        qualityScore: null,
+        lastVerifiedAt: null,
+        evidenceState: 'delivered_recently',
+        evidenceLabel: 'Delivered recently',
+        evidenceAt: '2026-09-04T02:30:00.000Z',
+      },
+    }));
+
+    expect(formatted).toMatchObject({
+      kind: 'endpoint',
+      resourceId: 'resource-1',
+      resourceUrl: null,
+      url: null,
+      access: {
+        kind: 'managed_resolvable',
+        checkable: true,
+        requiresFreshCheck: true,
+      },
+      evidence: {
+        state: 'delivered_recently',
+        label: 'Delivered recently',
+        observedAt: '2026-09-04T02:30:00.000Z',
+      },
+    });
+    expect(JSON.stringify(formatted)).not.toContain('indexter-managed.invalid');
+  });
+
+  it('does not invent endpoint metadata for legacy search rows', () => {
+    const formatted = formatResource(rawResource());
+
+    expect(formatted.resourceUrl).toBe('https://merchant.example/buy');
+    expect(formatted.url).toBe('https://merchant.example/buy');
+    expect(formatted).not.toHaveProperty('kind');
+    expect(formatted).not.toHaveProperty('access');
+    expect(formatted).not.toHaveProperty('evidence');
+  });
+
   it('tells agents to gather exact request details before checking a POST', () => {
     const formatted = formatResource(rawResource());
     const result: CapabilitySearchResult = {

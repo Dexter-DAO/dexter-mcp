@@ -173,6 +173,67 @@ test('hosted indexter_search sends and returns typed price, paid, and ordering c
   );
 });
 
+test('search preserves managed endpoint selection and current evidence without a route', async (t) => {
+  const previousFetch = globalThis.fetch;
+  const managedResource = rawResource({
+    resourceId: '33333333-3333-4333-8333-333333333333',
+    tier: 'strong',
+    network: 'eip155:8453',
+    similarity: 0.96,
+  });
+  managedResource.kind = 'endpoint';
+  managedResource.resourceUrl = null;
+  managedResource.host = null;
+  managedResource.access = {
+    kind: 'managed_resolvable',
+    checkable: true,
+    requiresFreshCheck: true,
+  };
+  managedResource.verification = {
+    ...managedResource.verification,
+    trustBasis: 'recent_paid_delivery',
+    trustLabel: 'Delivered recently',
+    evidenceState: 'delivered_recently',
+    evidenceLabel: 'Delivered recently',
+    evidenceAt: '2026-09-04T02:30:00.000Z',
+  };
+  globalThis.fetch = async () => new Response(JSON.stringify(capabilityPayload({
+    strongResults: [managedResource],
+    strongCount: 1,
+    topSimilarity: 0.96,
+    noMatchReason: null,
+  })), {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  });
+  t.after(() => {
+    globalThis.fetch = previousFetch;
+  });
+
+  const client = await connectedOpenClient(t, 'managed-search-contract-test');
+  const result = await client.callTool({
+    name: 'indexter_search',
+    arguments: { query: 'fixture data' },
+  });
+  const selected = result.structuredContent.strongResults[0];
+
+  assert.notEqual(result.isError, true);
+  assert.equal(selected.kind, 'endpoint');
+  assert.equal(selected.resourceUrl, null);
+  assert.equal(selected.url, null);
+  assert.deepEqual(selected.access, {
+    kind: 'managed_resolvable',
+    checkable: true,
+    requiresFreshCheck: true,
+  });
+  assert.deepEqual(selected.evidence, {
+    state: 'delivered_recently',
+    label: 'Delivered recently',
+    observedAt: '2026-09-04T02:30:00.000Z',
+  });
+  assert.doesNotMatch(JSON.stringify(selected), /indexter-managed\.invalid/);
+});
+
 test('network filtering preserves API order and confirmed search metadata', async (t) => {
   const previousFetch = globalThis.fetch;
   const solanaHigh = rawResource({

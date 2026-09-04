@@ -65,6 +65,25 @@ test('a binding outage stays distinct from a missing-intent quote', () => {
   );
 });
 
+test('a managed Indexter binding outage keeps only the stable resource ID', () => {
+  const resourceId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+  const result = buildX402CheckBindingUnavailable({
+    resourceId,
+    method: 'GET',
+  });
+
+  assert.deepEqual(result.checkedRequest, {
+    resourceId,
+    method: 'GET',
+    body: null,
+    requestBound: true,
+  });
+  assert.equal(
+    OPEN_TOOL_CONTRACTS.x402_check.outputSchema.safeParse(result).success,
+    true,
+  );
+});
+
 test('x402_check and x402_access refuse to downgrade a failed binding lookup', async () => {
   const source = await readFile(
     new URL('../open-mcp-server.mjs', import.meta.url),

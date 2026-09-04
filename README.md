@@ -92,7 +92,7 @@ that also authenticates the provenance bytes. It replaces only
 `dexter-open-mcp`, while proving the separate legacy `dexter-mcp` PID, path,
 configuration, and restart counters remain unchanged. It verifies the new
 public process's PM2 and kernel paths, health, authorization challenge,
-authenticated twelve-tool roster, and release
+authenticated thirteen-tool roster, and release
 identity before `pm2 save`. Any mismatch independently restores and re-verifies
 the prior public OpenDexter process without restarting the private service. It
 never reloads or updates an existing process in place. This is still activation,
@@ -113,25 +113,35 @@ or bounded policy authority described below.
 
 The authorized roster is:
 
-1) `indexter_search`
-2) `x402_check`
-3) `x402_fetch`
-4) `x402_status`
-5) `x402_access`
-6) `dexter_wallet`
-7) `dexter_wallet_portfolio`
-8) `dexter_prepare_asset_action`
-9) `dexter_execute_asset_action`
-10) `dexter_asset_action_status`
-11) `dexter_reconcile_asset_action`
-12) `dexter_wallet_history`
+1) `indexter_discover`
+2) `indexter_search`
+3) `x402_check`
+4) `x402_fetch`
+5) `x402_status`
+6) `x402_access`
+7) `dexter_wallet`
+8) `dexter_wallet_portfolio`
+9) `dexter_prepare_asset_action`
+10) `dexter_execute_asset_action`
+11) `dexter_asset_action_status`
+12) `dexter_reconcile_asset_action`
+13) `dexter_wallet_history`
 
 Every tool in this roster carries the OAuth security scheme and requires the
 current vault Bearer on each invocation. Compatibility aliases,
 composed-skill, passkey-probe, and card tools stay outside this hosted roster.
 
-`x402_check` accepts the endpoint URL, method, and optional exact raw
-request-body string. A check asks Dexter to custody the request and seller
+`indexter_discover` answers broad catalog and provider questions in one call;
+`indexter_search` handles one concrete job or outcome. Discovery separates
+editorial placement, catalog coverage, and current evidence. Its continuation
+cursor is opaque and must be copied unchanged. Neither tool requires a wallet
+read.
+
+`x402_check` accepts exactly one target: a public endpoint URL or a stable
+`resourceId` from the current Indexter result. Dexter resolves managed
+resources server-side without exposing their private routes. The tool also
+accepts a method and optional exact raw request-body string. A check asks
+Dexter to custody the request and seller
 terms. A purchasable result carries `quoteOnly=false` and one opaque
 `intentId`; `quoteOnly=true` carries no executable intent. `x402_fetch` accepts
 that `intentId` plus an explicit user- or policy-approved `maxAmountAtomic`
@@ -230,7 +240,7 @@ and the exact Prepare response remains authoritative.
 versioned local stdio package for Codex, Claude Code, and other agents. It uses
 a user-controlled local signer instead of the hosted connector's OAuth and
 session binding. This hosted source contract does not assert that a published
-npm version has adopted the twelve-tool hosted boundary. Its package,
+npm version has adopted the thirteen-tool hosted boundary. Its package,
 install guidance, and seller-side `opendexter audition <url>` command live in
 [Dexter-DAO/opendexter-ide](https://github.com/Dexter-DAO/opendexter-ide).
 
@@ -239,7 +249,7 @@ install guidance, and seller-side `opendexter audition <url>` command live in
 | Transport | Hosted HTTP MCP | Local stdio MCP |
 | Authorization | OAuth required before discovery and use | Local process and signer |
 | Wallet identity | Durable passkey wallet bound to the authenticated MCP session | User-controlled local signer |
-| Executable roster | Twelve tools on one authorized connection | Independently versioned; verify the installed package |
+| Executable roster | Thirteen tools on one authorized connection | Independently versioned; verify the installed package |
 | Seller onboarding | Not exposed as a hosted tool | `opendexter audition <url>` |
 | Best for | ChatGPT, Claude, hosted agents | Codex, Claude Code, CLI agents |
 

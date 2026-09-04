@@ -29,6 +29,7 @@ import {
 } from '../lib/session-portfolio.mjs';
 
 const EXPECTED_TOOLS = [
+  'indexter_discover',
   'indexter_search',
   'x402_check',
   'x402_fetch',
@@ -68,7 +69,7 @@ function outputUnknownKeys(schema) {
   return undefined;
 }
 
-test('contract is exactly the canonical hosted twelve', () => {
+test('contract is exactly the canonical hosted thirteen', () => {
   assert.deepEqual(OPEN_TOOL_NAMES, EXPECTED_TOOLS);
   assert.deepEqual(Object.keys(OPEN_TOOL_CONTRACTS).sort(), [...EXPECTED_TOOLS].sort());
   assert.doesNotMatch(OPEN_TOOL_NAMES.join(','), /card_/);
@@ -76,6 +77,7 @@ test('contract is exactly the canonical hosted twelve', () => {
     assert.equal(
       outputUnknownKeys(toolContract.outputSchema),
       [
+        'indexter_discover',
         'indexter_search',
         'x402_check',
         'x402_fetch',
@@ -168,9 +170,18 @@ test('fetch and status declare the route-neutral dispatch evidence contract', ()
   }
 });
 
-test('search and wallet contracts expose current truth without route claims', () => {
+test('discovery, search, and wallet contracts expose current truth without route claims', () => {
+  const discovery = OPEN_TOOL_CONTRACTS.indexter_discover;
   const search = OPEN_TOOL_CONTRACTS.indexter_search;
   const wallet = OPEN_TOOL_CONTRACTS.dexter_wallet;
+
+  assert.match(discovery.description, /what is available/i);
+  assert.match(discovery.description, /named provider/);
+  assert.match(discovery.description, /Use indexter_search for a concrete task/);
+  assert.match(discovery.description, /no wallet-read prerequisite/);
+  assert.match(discovery.description, /resourceId/);
+  assert.equal(Object.hasOwn(discovery.outputSchema.shape, 'providers'), true);
+  assert.equal(Object.hasOwn(discovery.outputSchema.shape, 'mode'), true);
 
   assert.match(search.description, /rankingMode=degraded/);
   assert.match(search.description, /maxPriceUsdc/);
@@ -695,7 +706,13 @@ test('both supported registration APIs close after finalization', () => {
   );
 });
 
-test('behavior annotations reflect the canonical twelve operations', () => {
+test('behavior annotations reflect the canonical thirteen operations', () => {
+  assert.deepEqual(OPEN_TOOL_CONTRACTS.indexter_discover.annotations, {
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  });
   assert.deepEqual(OPEN_TOOL_CONTRACTS.indexter_search.annotations, {
     readOnlyHint: true,
     destructiveHint: false,
@@ -1078,6 +1095,7 @@ test('real SDK tools/list exposes executable schemas, OAuth, annotations, and me
     assert.equal(
       listed.outputSchema.additionalProperties,
       [
+        'indexter_discover',
         'indexter_search',
         'x402_check',
         'x402_fetch',
@@ -1115,6 +1133,14 @@ test('real SDK tools/list exposes executable schemas, OAuth, annotations, and me
         true,
       );
     }
+    if (listed.name === 'indexter_discover') {
+      const page = listed.outputSchema.properties?.page;
+      assert.equal(Object.hasOwn(page?.properties ?? {}, 'nextCursor'), true);
+      assert.equal(Object.hasOwn(page?.properties ?? {}, 'nextOffset'), false);
+      const endpoint = listed.outputSchema.properties?.providers
+        ?.items?.properties?.capabilityGroups?.items?.properties?.resources?.items;
+      assert.equal(endpoint?.properties?.kind?.const, 'endpoint');
+    }
     if (listed.name === 'x402_check') {
       assert.equal(
         Object.hasOwn(listed.outputSchema.properties ?? {}, 'inputSchemaSource'),
@@ -1151,7 +1177,7 @@ test('real SDK tools/list exposes executable schemas, OAuth, annotations, and me
 });
 
 for (const clientName of ['Generic MCP', 'ChatGPT', 'Claude']) {
-  test(`${clientName} connected discovery receives the same raw twelve and no retired calls`, async () => {
+  test(`${clientName} connected discovery receives the same raw thirteen and no retired calls`, async () => {
     const server = new McpServer({
       name: 'host-discovery-test',
       version: '0.4.0',
@@ -1299,7 +1325,7 @@ test('vault-bound hosted discovery retains the exact protected roster', async ()
   assert.deepEqual(OPEN_OAUTH_PROMOTED_TOOL_NAMES, OPEN_TOOL_NAMES);
 });
 
-test('the contract exposes zero tools anonymously and all twelve after OAuth', () => {
+test('the contract exposes zero tools anonymously and all thirteen after OAuth', () => {
   assert.deepEqual(OPEN_ANONYMOUS_TOOL_NAMES, []);
   assert.deepEqual(OPEN_OAUTH_PROMOTED_TOOL_NAMES, OPEN_TOOL_NAMES);
   for (const name of OPEN_TOOL_NAMES) {

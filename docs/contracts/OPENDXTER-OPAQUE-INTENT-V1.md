@@ -15,8 +15,9 @@ The canonical `https://open.dexter.cash/mcp` resource requires OAuth
 `scope=vault` before MCP initialization, tool discovery, or invocation. One
 successful authorization covers discovery and search, exact request checks,
 wallet and portfolio reads, identity-gated access, payment, and governed
-actions. The authorized roster has twelve tools:
+actions. The authorized roster has thirteen tools:
 
+- `indexter_discover`
 - `indexter_search`
 - `x402_check`
 - `x402_fetch`
@@ -40,17 +41,44 @@ public `dexter_authorize_asset_action` tool.
 
 ## Public purchase wire contract
 
+### `indexter_discover` and `indexter_search`
+
+Use `indexter_discover` once for broad catalog questions and questions about
+one named provider. Use `indexter_search` once for a concrete job, outcome, or
+constraint. Neither operation depends on a wallet read. Both still require the
+connector's OAuth grant because every tool on this hosted surface is protected.
+
+Discovery returns providers, grouped capabilities, and current evidence. An
+endpoint record carries `kind="endpoint"`. A direct endpoint exposes its exact
+public `resourceUrl`; a managed endpoint exposes only its stable `resourceId`
+and is resolved inside Dexter. Editorial placement, catalog counts, and
+operational evidence are separate facts. The only evidence states are
+`delivered_recently`, `terms_checked`, and `no_current_confirmation`.
+Endpoint totals live under `summary.endpointCatalog`; the separate
+`summary.returnedProviderCount` reports only the providers in that response.
+
+Overview pagination uses an opaque `cursor`. A continuation call copies the
+prior `page.nextCursor` exactly. Callers must not decode, alter, or replace it
+with a numeric offset. The endpoint discriminator is not a contract for future
+non-endpoint results; a later result kind must define its own identity fields.
+
 ### `x402_check`
 
 Input:
 
 ```ts
-{
-  url: string;
+(
+  | { url: string; resourceId?: never }
+  | { resourceId: string; url?: never }
+) & {
   method?: "GET" | "POST" | "PUT" | "DELETE"; // default GET
   body?: string; // exact raw request body
 }
 ```
+
+The `resourceId` form is accepted only for the stable ID returned by current
+Indexter discovery or search. The API resolves that ID to its stored request
+target. The private route never enters the MCP input or result.
 
 `body` is a string, not parsed JSON. For a non-GET request, OpenDexter passes
 the exact string to the check boundary and asks the API to retain that request

@@ -38,6 +38,10 @@ async function inspectEndpoint(endpointUrl) {
 
 Search and check utilities inspect, discover, and format information. They do not authorize or execute payment. `checkEndpointPricing` sends a live guarded HTTPS request, so a non-GET check may still have provider-side effects.
 
+Current endpoint search rows preserve `kind`, `resourceUrl`, `access`, and
+`evidence`. Managed rows keep both `resourceUrl` and the legacy `url` alias
+null; callers select them by `resourceId` and let OpenDexter resolve the route.
+
 ## Exports
 
 - **Formats and types:** `formatResource`, `formatPrice`, `roundSimilarity`, `formatVolume`, plus raw capability, formatted resource, search, pricing, verification, usage, gaming, and enrichment types.

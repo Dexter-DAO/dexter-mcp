@@ -32,6 +32,7 @@ import {
 } from '../lib/open-tool-auth.mjs';
 
 const TOOL_ROSTER = [
+  'indexter_discover',
   'indexter_search',
   'x402_check',
   'x402_fetch',
@@ -109,6 +110,10 @@ test('protected-call classification follows the per-tool auth declaration', () =
   });
   assert.deepEqual(findVaultProtectedToolCall(call('indexter_search')), {
     name: 'indexter_search',
+    id: 1,
+  });
+  assert.deepEqual(findVaultProtectedToolCall(call('indexter_discover')), {
+    name: 'indexter_discover',
     id: 1,
   });
   assert.equal(findVaultProtectedToolCall(call('x402_pay')), null);
