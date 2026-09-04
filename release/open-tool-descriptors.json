@@ -111,7 +111,7 @@
     {
       "name": "indexter_discover",
       "title": "Explore Indexter",
-      "description": "Use this when the user asks what OpenDexter or Indexter can do, asks what is available, wants to browse providers, or asks what a named provider offers. Call it once with no provider for the curated overview, or pass the user's provider name for that provider. If the user asks for more overview results, call it once with the prior page.nextCursor copied exactly; never invent or decode a cursor. Use indexter_search for a concrete task or outcome. Featured is editorial; evidence.state reports delivery or terms evidence. Results never authorize payment. A checkable direct resource proceeds to x402_check with its exact resourceUrl. A checkable managed resource proceeds with only its resourceId so OpenDexter can resolve the private route server-side. Indexter discovery has no wallet-read prerequisite.",
+      "description": "Use this when the user asks what OpenDexter or Indexter can do, asks what is available, wants to browse providers, or asks what a named provider offers. Call it once with no provider for the curated overview, or pass the user's provider name for that provider. Copy page.nextCursor exactly to continue: overview cursors omit provider, while provider capability cursors retain the same providerKey. Never invent or decode a cursor. Use indexter_search for a concrete task or outcome. Featured is editorial; provider evidence is aggregate coverage and endpoint evidence applies only to that endpoint. Results never authorize payment. A checkable direct resource proceeds to x402_check with its exact resourceUrl. A checkable managed resource proceeds with only its resourceId so OpenDexter can resolve the private route server-side. Indexter discovery has no wallet-read prerequisite.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -125,20 +125,19 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 25,
-            "default": 8,
-            "description": "Maximum providers to return (1-25, default 8)."
+            "description": "Overview provider page size (1-25, default 8). Leave unset in provider mode."
           },
-          "capabilityLimit": {
+          "capabilityPageSize": {
             "type": "integer",
             "minimum": 1,
-            "maximum": 8,
-            "description": "Maximum endpoint examples in each capability group (1-8). Omit for the mode-specific default."
+            "maximum": 24,
+            "description": "Provider capability page size (1-24, default 16). Use only with provider."
           },
           "cursor": {
             "type": "string",
             "minLength": 1,
             "maxLength": 2048,
-            "description": "Opaque overview continuation cursor copied exactly from page.nextCursor in the previous discovery result. Do not construct or alter it, and do not use it with provider."
+            "description": "Opaque continuation cursor copied exactly from page.nextCursor. Keep provider set to the same providerKey for provider capability pages; leave provider unset for overview pages."
           }
         },
         "additionalProperties": false,
@@ -272,11 +271,23 @@
                           "type": "null"
                         }
                       ]
+                    },
+                    "evidenceResourceId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
                     "featured",
-                    "order"
+                    "order",
+                    "evidenceResourceId"
                   ],
                   "additionalProperties": false
                 },
@@ -291,42 +302,41 @@
                       "type": "integer",
                       "minimum": 0
                     },
-                    "scannedResourceCount": {
-                      "type": "integer",
-                      "minimum": 0
-                    },
-                    "complete": {
+                    "countsComplete": {
                       "type": "boolean"
                     }
                   },
                   "required": [
                     "resourceCount",
                     "capabilityGroupCount",
-                    "scannedResourceCount",
-                    "complete"
+                    "countsComplete"
                   ],
                   "additionalProperties": false
                 },
                 "evidence": {
                   "type": "object",
                   "properties": {
-                    "state": {
-                      "type": "string",
-                      "enum": [
-                        "delivered_recently",
-                        "terms_checked",
-                        "no_current_confirmation"
-                      ]
+                    "totalResourceCount": {
+                      "type": "integer",
+                      "minimum": 0
                     },
-                    "label": {
-                      "type": "string",
-                      "enum": [
-                        "Delivered recently",
-                        "Terms checked",
-                        "No current confirmation"
-                      ]
+                    "evaluatedResourceCount": {
+                      "type": "integer",
+                      "minimum": 0
                     },
-                    "observedAt": {
+                    "deliveredRecentlyCount": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "termsCheckedCount": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "noCurrentConfirmationCount": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "latestObservedAt": {
                       "anyOf": [
                         {
                           "type": "string",
@@ -336,12 +346,19 @@
                           "type": "null"
                         }
                       ]
+                    },
+                    "coverageComplete": {
+                      "type": "boolean"
                     }
                   },
                   "required": [
-                    "state",
-                    "label",
-                    "observedAt"
+                    "totalResourceCount",
+                    "evaluatedResourceCount",
+                    "deliveredRecentlyCount",
+                    "termsCheckedCount",
+                    "noCurrentConfirmationCount",
+                    "latestObservedAt",
+                    "coverageComplete"
                   ],
                   "additionalProperties": false
                 },
@@ -357,6 +374,10 @@
                         "type": "string"
                       },
                       "resourceCount": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "returnedResourceCount": {
                         "type": "integer",
                         "minimum": 0
                       },
@@ -495,7 +516,42 @@
                               "additionalProperties": false
                             },
                             "evidence": {
-                              "$ref": "#/properties/providers/items/properties/evidence"
+                              "type": "object",
+                              "properties": {
+                                "state": {
+                                  "type": "string",
+                                  "enum": [
+                                    "delivered_recently",
+                                    "terms_checked",
+                                    "no_current_confirmation"
+                                  ]
+                                },
+                                "label": {
+                                  "type": "string",
+                                  "enum": [
+                                    "Delivered recently",
+                                    "Terms checked",
+                                    "No current confirmation"
+                                  ]
+                                },
+                                "observedAt": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "format": "date-time"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "state",
+                                "label",
+                                "observedAt"
+                              ],
+                              "additionalProperties": false
                             }
                           },
                           "required": [
@@ -521,6 +577,7 @@
                       "id",
                       "label",
                       "resourceCount",
+                      "returnedResourceCount",
                       "resources"
                     ],
                     "additionalProperties": false
@@ -549,15 +606,36 @@
             "properties": {
               "version": {
                 "type": "number",
-                "const": 1
+                "const": 2
+              },
+              "namespace": {
+                "type": "string",
+                "enum": [
+                  "indexter.endpoint.providers.v1",
+                  "indexter.endpoint.provider-capabilities.v1"
+                ]
+              },
+              "scope": {
+                "type": "string",
+                "enum": [
+                  "providers",
+                  "provider_capabilities"
+                ]
               },
               "order": {
                 "type": "string",
-                "const": "featured_provider_curation_v1"
+                "enum": [
+                  "featured_provider_curation_v1",
+                  "curated_capability_breadth_v1"
+                ]
               },
               "limit": {
                 "type": "integer",
                 "exclusiveMinimum": 0
+              },
+              "returned": {
+                "type": "integer",
+                "minimum": 0
               },
               "hasMore": {
                 "type": "boolean"
@@ -577,8 +655,11 @@
             },
             "required": [
               "version",
+              "namespace",
+              "scope",
               "order",
               "limit",
+              "returned",
               "hasMore",
               "nextCursor"
             ],
@@ -671,7 +752,8 @@
           "domain": "https://dexter.cash",
           "prefersBorder": false,
           "visibility": [
-            "model"
+            "model",
+            "app"
           ]
         },
         "ui/resourceUri": "ui://dexter/indexter-search-1263b42f",
@@ -695,6 +777,7 @@
         "openai/toolInvocation/invoking": "Exploring Indexter…",
         "openai/toolInvocation/invoked": "Indexter overview ready",
         "openai/widgetDescription": "Shows the curated Indexter provider catalog, grouped capabilities, and current evidence labels. It makes no payment and reads no wallet data.",
+        "openai/widgetAccessible": true,
         "securitySchemes": [
           {
             "type": "oauth2",
@@ -702,8 +785,7 @@
               "vault"
             ]
           }
-        ],
-        "openai/widgetAccessible": false
+        ]
       }
     },
     {
