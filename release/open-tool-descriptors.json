@@ -16,15 +16,15 @@
     },
     "integratedApiRelease": {
       "repository": "https://github.com/Dexter-DAO/dexter-api",
-      "commit": "20eaef3c392b27b47693b4e6974a4f6fc3d00eda",
-      "tree": "f04759c25d067650050df1685a7836157c047e92",
+      "commit": "c81145da3d529b4f6336e1e71f0f73569f9689ce",
+      "tree": "babaaeea0655edcb8a5be721eeaa58eab8a0b12e",
       "governedContractCommit": "fa0701b67625911b8ec97a5399f62ec97a69f976",
       "governedContractTree": "dcee95df1d92018b8fcd8b43645fe63211383274"
     },
     "portfolioProjection": {
       "repository": "https://github.com/Dexter-DAO/dexter-api",
-      "commit": "20eaef3c392b27b47693b4e6974a4f6fc3d00eda",
-      "tree": "f04759c25d067650050df1685a7836157c047e92",
+      "commit": "c81145da3d529b4f6336e1e71f0f73569f9689ce",
+      "tree": "babaaeea0655edcb8a5be721eeaa58eab8a0b12e",
       "sourcePaths": [
         "src/portfolio/approvedActionTargets.ts",
         "src/routes/passkeyMcpBinding.ts",
@@ -118,7 +118,7 @@
           "provider": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 160,
+            "maxLength": 255,
             "description": "Optional provider name, slug, key, or host copied from the user's request. Leave unset for the broad curated overview."
           },
           "limit": {
@@ -213,16 +213,27 @@
               "type": "object",
               "properties": {
                 "id": {
-                  "type": "string"
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9._:-]{0,254}$"
                 },
                 "providerKey": {
-                  "type": "string"
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9._:-]{0,254}$"
                 },
                 "providerSlug": {
                   "type": "string"
                 },
                 "technicalHost": {
-                  "type": "string"
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 253
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
                 "displayName": {
                   "type": "string"
@@ -247,8 +258,7 @@
                 "docsUrl": {
                   "anyOf": [
                     {
-                      "type": "string",
-                      "format": "uri"
+                      "$ref": "#/properties/providers/items/properties/logoUrl/anyOf/0"
                     },
                     {
                       "type": "null"
@@ -401,8 +411,7 @@
                             "resourceUrl": {
                               "anyOf": [
                                 {
-                                  "type": "string",
-                                  "format": "uri"
+                                  "$ref": "#/properties/providers/items/properties/logoUrl/anyOf/0"
                                 },
                                 {
                                   "type": "null"
@@ -462,8 +471,7 @@
                             "iconUrl": {
                               "anyOf": [
                                 {
-                                  "type": "string",
-                                  "format": "uri"
+                                  "$ref": "#/properties/providers/items/properties/logoUrl/anyOf/0"
                                 },
                                 {
                                   "type": "null"
@@ -473,8 +481,7 @@
                             "docsUrl": {
                               "anyOf": [
                                 {
-                                  "type": "string",
-                                  "format": "uri"
+                                  "$ref": "#/properties/providers/items/properties/logoUrl/anyOf/0"
                                 },
                                 {
                                   "type": "null"
@@ -737,7 +744,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/indexter-search-1263b42f",
+          "resourceUri": "ui://dexter/indexter-search-2d3cd02b",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash",
@@ -756,8 +763,8 @@
             "app"
           ]
         },
-        "ui/resourceUri": "ui://dexter/indexter-search-1263b42f",
-        "openai/outputTemplate": "ui://dexter/indexter-search-1263b42f",
+        "ui/resourceUri": "ui://dexter/indexter-search-2d3cd02b",
+        "openai/outputTemplate": "ui://dexter/indexter-search-2d3cd02b",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -885,14 +892,230 @@
             "type": "array",
             "items": {
               "type": "object",
-              "additionalProperties": {}
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "endpoint"
+                },
+                "resourceId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "resourceUrl": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "url": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/properties/strongResults/items/properties/resourceUrl/anyOf/0"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "access": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "direct_url",
+                        "managed_resolvable"
+                      ]
+                    },
+                    "checkable": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "requiresFreshCheck": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "checkable",
+                    "requiresFreshCheck"
+                  ],
+                  "additionalProperties": false
+                },
+                "merchant": {
+                  "type": "object",
+                  "properties": {
+                    "providerKey": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "providerSlug": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "displayName": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "logoUrl": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/properties/strongResults/items/properties/resourceUrl/anyOf/0"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "technicalHost": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 253
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "providerKey",
+                    "providerSlug",
+                    "displayName",
+                    "logoUrl",
+                    "technicalHost"
+                  ],
+                  "additionalProperties": false
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "method": {
+                  "type": "string",
+                  "enum": [
+                    "GET",
+                    "POST",
+                    "PUT",
+                    "DELETE"
+                  ]
+                },
+                "description": {
+                  "type": "string"
+                },
+                "category": {
+                  "type": "string"
+                },
+                "price": {
+                  "type": "string"
+                },
+                "priceUsdc": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "iconUrl": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/properties/strongResults/items/properties/resourceUrl/anyOf/0"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "ogImageUrl": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/properties/strongResults/items/properties/resourceUrl/anyOf/0"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "docsUrl": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/properties/strongResults/items/properties/resourceUrl/anyOf/0"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "openapiSpecUrl": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/properties/strongResults/items/properties/resourceUrl/anyOf/0"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "host": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/properties/strongResults/items/properties/merchant/properties/technicalHost/anyOf/0"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "why": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "resourceId",
+                "resourceUrl",
+                "url",
+                "access",
+                "merchant",
+                "name",
+                "method",
+                "description",
+                "category",
+                "price",
+                "priceUsdc",
+                "iconUrl",
+                "ogImageUrl",
+                "docsUrl",
+                "openapiSpecUrl",
+                "host",
+                "why"
+              ],
+              "additionalProperties": true
             }
           },
           "relatedResults": {
             "type": "array",
             "items": {
-              "type": "object",
-              "additionalProperties": {}
+              "$ref": "#/properties/strongResults/items"
             }
           },
           "strongCount": {
@@ -1177,7 +1400,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/indexter-search-1263b42f",
+          "resourceUri": "ui://dexter/indexter-search-2d3cd02b",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash",
@@ -1195,8 +1418,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/indexter-search-1263b42f",
-        "openai/outputTemplate": "ui://dexter/indexter-search-1263b42f",
+        "ui/resourceUri": "ui://dexter/indexter-search-2d3cd02b",
+        "openai/outputTemplate": "ui://dexter/indexter-search-2d3cd02b",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -1230,7 +1453,7 @@
     {
       "name": "x402_check",
       "title": "Check Access Terms",
-      "description": "Inspect one exact request before paying. Supply either a public URL or a stable resourceId from the current Indexter discovery or search result, never both. OpenDexter resolves a resourceId server-side without exposing its private route. Supply body as the exact raw JSON string for a non-GET request; it is never parsed and reserialized. Dexter custodies the checked request and seller terms. A purchasable quote carries quoteOnly=false and an opaque intentId; quoteOnly=true has no executable purchase intent. A check never authorizes payment, and a non-GET probe may mutate the provider.",
+      "description": "Inspect one exact request before paying. Supply either a public URL or a stable resourceId from the current Indexter discovery or search result, never both. With resourceId, copy the canonical method from that same current result; OpenDexter resolves the private route server-side and rejects method drift before probing. Supply body as the exact raw JSON string for a non-GET request; it is never parsed and reserialized. Dexter custodies the checked request and seller terms. A purchasable quote carries quoteOnly=false and an opaque intentId; quoteOnly=true has no executable purchase intent. A check never authorizes payment, and a non-GET probe may mutate the provider.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1252,8 +1475,7 @@
               "PUT",
               "DELETE"
             ],
-            "default": "GET",
-            "description": "HTTP method to probe with"
+            "description": "Exact HTTP method. A direct URL defaults to GET. For resourceId, copy the canonical method from the same current Indexter result; OpenDexter rejects catalog drift before probing."
           },
           "body": {
             "type": "string",
@@ -1328,6 +1550,106 @@
               "method",
               "body",
               "requestBound"
+            ],
+            "additionalProperties": false
+          },
+          "resourceIdentity": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "endpoint"
+              },
+              "resourceId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "displayName": {
+                "type": "string",
+                "minLength": 1
+              },
+              "description": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "merchant": {
+                "type": "object",
+                "properties": {
+                  "providerKey": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "providerSlug": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "displayName": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "logoUrl": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "uri"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "technicalHost": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 253
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "providerKey",
+                  "providerSlug",
+                  "displayName",
+                  "logoUrl",
+                  "technicalHost"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "kind",
+              "resourceId",
+              "displayName",
+              "description",
+              "merchant"
             ],
             "additionalProperties": false
           },
@@ -1464,7 +1786,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-pricing-86e26009",
+          "resourceUri": "ui://dexter/x402-pricing-6dbbb691",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash",
@@ -1481,8 +1803,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/x402-pricing-86e26009",
-        "openai/outputTemplate": "ui://dexter/x402-pricing-86e26009",
+        "ui/resourceUri": "ui://dexter/x402-pricing-6dbbb691",
+        "openai/outputTemplate": "ui://dexter/x402-pricing-6dbbb691",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -1644,7 +1966,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-fetch-result-1ffffc00",
+          "resourceUri": "ui://dexter/x402-fetch-result-fd07778d",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash",
@@ -1661,8 +1983,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/x402-fetch-result-1ffffc00",
-        "openai/outputTemplate": "ui://dexter/x402-fetch-result-1ffffc00",
+        "ui/resourceUri": "ui://dexter/x402-fetch-result-fd07778d",
+        "openai/outputTemplate": "ui://dexter/x402-fetch-result-fd07778d",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -1831,7 +2153,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-fetch-result-1ffffc00",
+          "resourceUri": "ui://dexter/x402-fetch-result-fd07778d",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash",
@@ -1848,8 +2170,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/x402-fetch-result-1ffffc00",
-        "openai/outputTemplate": "ui://dexter/x402-fetch-result-1ffffc00",
+        "ui/resourceUri": "ui://dexter/x402-fetch-result-fd07778d",
+        "openai/outputTemplate": "ui://dexter/x402-fetch-result-fd07778d",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -2107,7 +2429,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-pricing-86e26009",
+          "resourceUri": "ui://dexter/x402-pricing-6dbbb691",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash",
@@ -2124,8 +2446,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/x402-pricing-86e26009",
-        "openai/outputTemplate": "ui://dexter/x402-pricing-86e26009",
+        "ui/resourceUri": "ui://dexter/x402-pricing-6dbbb691",
+        "openai/outputTemplate": "ui://dexter/x402-pricing-6dbbb691",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -2397,7 +2719,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/dexter-wallet-bda0cb98",
+          "resourceUri": "ui://dexter/dexter-wallet-f5d0510a",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash",
@@ -2416,8 +2738,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/dexter-wallet-bda0cb98",
-        "openai/outputTemplate": "ui://dexter/dexter-wallet-bda0cb98",
+        "ui/resourceUri": "ui://dexter/dexter-wallet-f5d0510a",
+        "openai/outputTemplate": "ui://dexter/dexter-wallet-f5d0510a",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -2893,7 +3215,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/portfolio-a78c7a53",
+          "resourceUri": "ui://dexter/portfolio-ff57062a",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash"
@@ -2909,8 +3231,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/portfolio-a78c7a53",
-        "openai/outputTemplate": "ui://dexter/portfolio-a78c7a53",
+        "ui/resourceUri": "ui://dexter/portfolio-ff57062a",
+        "openai/outputTemplate": "ui://dexter/portfolio-ff57062a",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -4325,7 +4647,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/governed-action-71085b8d",
+          "resourceUri": "ui://dexter/governed-action-b2a36e59",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash"
@@ -4341,8 +4663,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/governed-action-71085b8d",
-        "openai/outputTemplate": "ui://dexter/governed-action-71085b8d",
+        "ui/resourceUri": "ui://dexter/governed-action-b2a36e59",
+        "openai/outputTemplate": "ui://dexter/governed-action-b2a36e59",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -5092,7 +5414,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/governed-action-71085b8d",
+          "resourceUri": "ui://dexter/governed-action-b2a36e59",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash"
@@ -5108,8 +5430,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/governed-action-71085b8d",
-        "openai/outputTemplate": "ui://dexter/governed-action-71085b8d",
+        "ui/resourceUri": "ui://dexter/governed-action-b2a36e59",
+        "openai/outputTemplate": "ui://dexter/governed-action-b2a36e59",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -6224,7 +6546,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/governed-action-71085b8d",
+          "resourceUri": "ui://dexter/governed-action-b2a36e59",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash"
@@ -6240,8 +6562,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/governed-action-71085b8d",
-        "openai/outputTemplate": "ui://dexter/governed-action-71085b8d",
+        "ui/resourceUri": "ui://dexter/governed-action-b2a36e59",
+        "openai/outputTemplate": "ui://dexter/governed-action-b2a36e59",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -7453,7 +7775,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/governed-action-71085b8d",
+          "resourceUri": "ui://dexter/governed-action-b2a36e59",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash"
@@ -7469,8 +7791,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/governed-action-71085b8d",
-        "openai/outputTemplate": "ui://dexter/governed-action-71085b8d",
+        "ui/resourceUri": "ui://dexter/governed-action-b2a36e59",
+        "openai/outputTemplate": "ui://dexter/governed-action-b2a36e59",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -8620,7 +8942,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/governed-history-28dd507f",
+          "resourceUri": "ui://dexter/governed-history-aab29411",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash"
@@ -8636,8 +8958,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/governed-history-28dd507f",
-        "openai/outputTemplate": "ui://dexter/governed-history-28dd507f",
+        "ui/resourceUri": "ui://dexter/governed-history-aab29411",
+        "openai/outputTemplate": "ui://dexter/governed-history-aab29411",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
