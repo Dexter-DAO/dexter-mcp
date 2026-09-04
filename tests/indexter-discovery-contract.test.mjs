@@ -8,6 +8,7 @@ import {
   OPEN_TOOL_CONTRACTS,
   OPEN_TOOL_NAMES,
 } from '../lib/open-tool-contracts.mjs';
+import { resolveInternalApiOrigin } from '../lib/internal-api-fetch.mjs';
 import { createOpenMcpServer } from '../open-mcp-server.mjs';
 
 const OBSERVED_AT = '2026-09-04T02:30:00.000Z';
@@ -145,9 +146,11 @@ async function connectedOpenClient(t, name) {
 test('broad discovery calls the overview endpoint exactly once without a wallet read', async (t) => {
   const previousFetch = globalThis.fetch;
   const requests = [];
-  globalThis.fetch = async (input) => {
+  const requestHeaders = [];
+  globalThis.fetch = async (input, init = {}) => {
     const url = new URL(String(input));
     requests.push(url);
+    requestHeaders.push(new Headers(init.headers));
     return new Response(JSON.stringify(discoveryPayload()), {
       status: 200,
       headers: { 'content-type': 'application/json' },
@@ -164,11 +167,14 @@ test('broad discovery calls the overview endpoint exactly once without a wallet 
   });
 
   assert.equal(requests.length, 1);
+  assert.equal(requests[0].origin, resolveInternalApiOrigin(process.env));
   assert.equal(requests[0].pathname, '/api/x402gle/indexter/discovery');
   assert.equal(requests[0].searchParams.get('mode'), 'overview');
   assert.equal(requests[0].searchParams.get('provider'), null);
   assert.equal(requests[0].searchParams.get('limit'), null);
   assert.equal(requests[0].searchParams.get('capabilityPageSize'), null);
+  assert.equal(requestHeaders[0].get('accept'), 'application/json');
+  assert.equal(requestHeaders[0].get('accept-encoding'), 'identity');
   assert.equal(requests.some(({ pathname }) => pathname.includes('wallet')), false);
   assert.notEqual(result.isError, true, JSON.stringify(result, null, 2));
   assert.match(result.structuredContent.discoveryResultSetId, /^[0-9a-f-]{36}$/i);
