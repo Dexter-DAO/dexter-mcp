@@ -24,13 +24,14 @@ actually ship.
 ## Product tools
 
 OpenDexter requires host-native OAuth before tool discovery or use. One
-successful authorization exposes all twelve tools on the same canonical
+successful authorization exposes all thirteen tools on the same canonical
 connection and covers discovery, search, wallet, portfolio, identity-gated
 access, payment, and governed actions.
 
 | Intent | Tool |
 | --- | --- |
-| Discover a service or resource with Indexter | `indexter_search` |
+| Explore what OpenDexter or one provider offers | `indexter_discover` |
+| Find a service for one concrete job or outcome | `indexter_search` |
 | Custody an exact endpoint request and current quote | `x402_check` |
 | Call one approved, API-custodied intent | `x402_fetch` |
 | Inspect one intent without redispatch | `x402_status` |
@@ -48,7 +49,16 @@ product tools. Do not select them for a new request.
 
 ## Indexter discovery and purchase
 
-1. Call `indexter_search` with the user's actual job. Leave its network filter unset
+1. For a broad question such as "What can I do?" or a question about one
+   provider, call `indexter_discover` once. Use no provider for the curated
+   overview; otherwise copy the provider name from the request. If the user
+   explicitly asks for more results, call it once with the prior
+   `page.nextCursor` copied exactly. Keep provider unset for an overview page;
+   for another provider-capability page, pass the same returned `providerKey`.
+   Never decode, alter, or replace the cursor with a numeric offset.
+2. For a concrete job, outcome, or constraint, call `indexter_search` once
+   with the user's actual job. Do not fan out into category searches or retry
+   with invented synonyms. Leave its network filter unset
    unless the user explicitly requires a seller on one network; compatible
    server-side settlement may make a seller on another network reachable from
    the Dexter account. Put a hard API invocation-price ceiling or floor in
@@ -62,28 +72,36 @@ product tools. Do not select them for a new request.
    invocation price; alternate entries in `chains[]` can quote a different
    amount. `x402_check` confirms the selected option before purchase. If
    `rankingMode` is `degraded`, surface the accompanying `degradedMessage`;
-   reduced ranking is not the same as no result.
-2. Call `x402_check` on the selected exact HTTPS endpoint and request shape.
+   reduced ranking is not the same as no result. Discovery and search do not
+   require a separate wallet call.
+3. Keep discovery claims precise: featured placement is editorial, while
+   catalog counts describe coverage. `delivered_recently`, `terms_checked`, and
+   `no_current_confirmation` describe different levels of current evidence.
+4. Call `x402_check` on the selected endpoint and request shape. For
+   `access.kind=direct_url`, pass its exact `resourceUrl`. For
+   `access.kind=managed_resolvable`, pass only its stable `resourceId`; Dexter
+   resolves the private route server-side. Never invent or expose that route.
    For a non-GET request, pass `body` as the exact raw JSON string. Do not parse,
    normalize, reformat, or reserialize it.
-3. Read `authMode`:
+5. Read `authMode`:
    - `paid`: present the selected seller, exact request, and current price.
    - `siwx`: use `x402_access`.
    - `unprotected`: explain that no payment is required.
    - API-key or unknown: explain the missing requirement; never invent a key.
-4. For a paid request, read the opaque `intentId` returned by the authorized
+6. For a paid request, read the opaque `intentId` returned by the authorized
    check. The check custodies the request and quote but grants no payment
    authority. Never invent or reconstruct an intent ID.
-5. Read current seller `paymentOptions`, including amount in integer base units,
+7. Read current seller `paymentOptions`, including amount in integer base units,
    asset, network, payee, and expiry when present.
-6. Confirm that the current instruction or bounded delegated policy covers the
-   exact seller, URL, method, body, and positive `maxAmountAtomic` ceiling. If
+8. Confirm that the current instruction or bounded delegated policy covers the
+   exact seller, selected endpoint, method, body, and positive
+   `maxAmountAtomic` ceiling. If
    it already does, do not ask for another approval; otherwise request only the
    missing authority.
-7. Call `x402_fetch` once with only the returned `intentId` and approved
+9. Call `x402_fetch` once with only the returned `intentId` and approved
    `maxAmountAtomic` ceiling. Never pass URL, method, body, seller terms, route,
    tab state, or prepared-purchase JSON.
-8. Report provider output separately from charge, merchant acknowledgment,
+10. Report provider output separately from charge, merchant acknowledgment,
    chain finality, ambiguity, and reconciliation state.
 
 Say the merchant request was dispatched only when the returned

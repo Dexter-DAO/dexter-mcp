@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { SearchResource } from './types';
-import { providerImageSources } from '../../x402/providerImage';
+import { resourceImageSources } from './utils';
 
 /**
  * Identity icon fallback order: Dexter-proxied provider art, Dexter favicon proxy,
@@ -9,11 +9,7 @@ import { providerImageSources } from '../../x402/providerImage';
  */
 export function SearchIdentityIcon({ resource, size = 44 }: { resource: SearchResource; size?: number }) {
   const sources = useMemo(() => {
-    return providerImageSources({
-      iconUrl: resource.iconUrl,
-      logoUrl: resource.sellerMeta?.logoUrl,
-      resourceUrl: resource.url,
-    });
+    return resourceImageSources(resource);
   }, [resource]);
 
   const sourceKey = sources.join('\n');
@@ -25,9 +21,15 @@ export function SearchIdentityIcon({ resource, size = 44 }: { resource: SearchRe
     loadState.sourceKey === sourceKey ? loadState.attempt : 0;
   const currentSrc = sources[attempt];
   const allFailed = attempt >= sources.length;
+  const initial = (
+    resource.merchant?.displayName?.trim()
+    || resource.sellerMeta?.displayName?.trim()
+    || resource.seller?.trim()
+    || resource.name.trim()
+  ).slice(0, 1).toUpperCase() || '·';
 
   if (!currentSrc || allFailed) {
-    return <UnsignedMark size={size} />;
+    return <UnsignedMark size={size} initial={initial} />;
   }
 
   return (
@@ -55,14 +57,14 @@ export function SearchIdentityIcon({ resource, size = 44 }: { resource: SearchRe
 /**
  * An intentionally plain marker for a provider with no usable image.
  */
-function UnsignedMark({ size }: { size: number }) {
+function UnsignedMark({ size, initial }: { size: number; initial: string }) {
   return (
     <div
       className="dx-search-identity__unsigned"
       style={{ width: size, height: size }}
       aria-hidden="true"
     >
-      <span className="dx-search-identity__unsigned-dot" />
+      {initial}
     </div>
   );
 }

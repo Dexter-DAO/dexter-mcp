@@ -5,7 +5,11 @@ import {
   buildSearchDecision,
   summarizeSearchResource,
 } from './SearchDecisionBrief.model';
-import { formatListedPrice, hostLabel } from './utils';
+import {
+  compactEvidenceLabel,
+  formatListedPrice,
+  merchantLabel,
+} from './utils';
 
 export type SearchDecisionBriefCheckState =
   | { status: 'idle'; resultOrdinal?: null; message?: null }
@@ -41,6 +45,20 @@ function listedPrice(resource: SearchResource): string {
   );
 }
 
+function visibleActionLabel(
+  resource: SearchResource,
+  status: SearchDecisionBriefCheckState['status'],
+  unavailableInHost: boolean,
+): string {
+  const action = summarizeSearchResource(resource).action;
+  if (action.disabled) return action.label;
+  if (unavailableInHost) return 'Unavailable';
+  if (status === 'checking') return 'Opening…';
+  if (status === 'details_sent') return 'Opened';
+  if (status === 'error') return 'Try again';
+  return action.kind === 'provide_details' ? 'Add details' : 'Check terms';
+}
+
 export function SearchDecisionBrief({
   resources,
   selectedOrdinal,
@@ -73,267 +91,136 @@ export function SearchDecisionBrief({
   if (!decision.recommended || !decision.actionTarget) {
     return (
       <section className="dx-search-brief dx-search-brief--empty" aria-labelledby={headingId}>
-        <h2 id={headingId}>No matching capabilities</h2>
-        <p>Describe the result you need in a different way.</p>
+        <h2 id={headingId}>No matching services</h2>
+        <p>Try describing the result you need another way.</p>
       </section>
     );
   }
 
-  const { recommended, recommendationKind, actionTarget, alternatives } = decision;
+  const { actionTarget, alternatives } = decision;
   const actionTargetOrdinal = resources.indexOf(actionTarget) + 1;
   const summary = summarizeSearchResource(actionTarget);
-  const price = listedPrice(actionTarget);
-  const isRecommended = actionTargetOrdinal === 1;
-  const relevantCheckState =
-    !checkState.resultOrdinal || checkState.resultOrdinal === actionTargetOrdinal
-      ? checkState
-      : { status: 'idle' as const };
-  const isChecking = relevantCheckState.status === 'checking';
-  const detailsSent = relevantCheckState.status === 'details_sent';
-  const hasCurrentTerms = relevantCheckState.status === 'checked';
-  const resourceAction = summary.action;
-  const canPerformAction = !resourceAction.disabled && (
-    resourceAction.kind === 'provide_details'
+  const evidence = compactEvidenceLabel(actionTarget);
+  const action = summary.action;
+  const currentState = !checkState.resultOrdinal || checkState.resultOrdinal === actionTargetOrdinal
+    ? checkState
+    : { status: 'idle' as const };
+  const unavailableInHost = !action.disabled && !(
+    action.kind === 'provide_details'
       ? canProvideDetailsInChat
-      : resourceAction.kind === 'check_live_terms'
+      : action.kind === 'check_live_terms'
         ? canCheckCurrentTerms
         : false
   );
-  const unavailableInHost = !resourceAction.disabled && !canPerformAction;
-  const selectionLabel = isRecommended && !selectedOrdinal
-    ? (recommendationKind === 'related' ? 'Closest match' : 'Recommended')
-    : 'Selected';
+  const actionDisabled = interactionLocked
+    || currentState.status === 'checking'
+    || currentState.status === 'details_sent'
+    || currentState.status === 'checked'
+    || action.disabled
+    || unavailableInHost;
+  const stateMessage = currentState.status === 'error'
+    ? currentState.message
+    : currentState.status === 'checking'
+      ? currentState.message || 'Opening in chat…'
+      : currentState.status === 'details_sent'
+        ? currentState.message || 'Continue in chat.'
+        : null;
 
-  const actionLabel = resourceAction.disabled
-    ? resourceAction.label
-    : unavailableInHost
-      ? 'Unavailable in this host'
-      : isChecking
-        ? resourceAction.kind === 'provide_details'
-          ? 'Opening chat…'
-          : 'Opening terms…'
-        : detailsSent
-          ? 'Opened in chat'
-          : relevantCheckState.status === 'error'
-            ? 'Try again'
-            : resourceAction.label;
-  const actionDisabled =
-    isChecking
-    || interactionLocked
-    || detailsSent
-    || resourceAction.disabled
-    || !canPerformAction;
-  const actionNote = resourceAction.disabled
-    ? resourceAction.helperText
-    : unavailableInHost
-      ? resourceAction.kind === 'provide_details'
-        ? "This host can't continue the request in chat."
-        : "This host can't open the current-terms check in chat."
-      : relevantCheckState.status === 'error'
-        ? relevantCheckState.message
-        : relevantCheckState.status === 'checking'
-          ? relevantCheckState.message || 'Opening the terms check in chat…'
-          : relevantCheckState.status === 'details_sent'
-            ? relevantCheckState.message || 'Continue in chat to provide the missing request details.'
-            : resourceAction.helperText;
-
-  if (compact) {
-    return (
-      <section className="dx-search-brief dx-search-brief--compact" aria-labelledby={headingId}>
-        <div className="dx-search-brief__identity">
-          <SearchIdentityIcon resource={actionTarget} size={36} />
-          <div className="dx-search-brief__identity-copy">
+  return (
+    <section
+      className={`dx-search-brief dx-search-brief--results${compact ? ' dx-search-brief--compact' : ''}`}
+      aria-labelledby={headingId}
+    >
+      <div className="dx-search-result-primary">
+        <div className="dx-search-result-primary__identity">
+          <SearchIdentityIcon resource={actionTarget} size={compact ? 42 : 48} />
+          <div className="dx-search-result-primary__copy">
+            <p className="dx-search-result-primary__merchant">{merchantLabel(actionTarget)}</p>
             <h2 id={headingId} className="dx-search-brief__title">{actionTarget.name}</h2>
-            <p className="dx-search-brief__host">
-              {selectionLabel} · {hostLabel(actionTarget.url)}
-            </p>
           </div>
-          <strong className="dx-search-brief__compact-price">{price}</strong>
+          <strong className="dx-search-result-primary__price">{listedPrice(actionTarget)}</strong>
         </div>
 
-        {!hasCurrentTerms ? (
-          <>
-            <p className="dx-search-brief__why">{summary.why}</p>
+        <p className="dx-search-brief__why">{summary.why}</p>
 
-            {summary.safetyWarning ? (
-              <p className="dx-search-safety-note" role="note">
-                {summary.safetyWarning}
-              </p>
-            ) : null}
+        {summary.safetyWarning ? (
+          <p className="dx-search-safety-note" role="note">{summary.safetyWarning}</p>
+        ) : null}
 
-            <div className="dx-search-brief__compact-footer">
-              <span>{summary.networkLabel} · {summary.evidenceBadgeLabel}</span>
-              <button
-                type="button"
-                className="dx-search-primary-action"
-                onClick={() => onUseService(actionTarget)}
-                aria-busy={isChecking}
-                aria-label={`${resourceAction.label} for ${actionTarget.name}`}
-                disabled={actionDisabled}
-              >
-                {actionLabel}
-              </button>
-            </div>
-
-            <p
-              className={`dx-search-brief__action-note${relevantCheckState.status === 'error' ? ' dx-search-brief__action-note--error' : ''}`}
-              aria-live="polite"
+        <div className="dx-search-result-primary__footer">
+          {evidence ? (
+            <span className="dx-search-result-evidence" data-basis={summary.evidenceBasis || 'none'}>
+              <span aria-hidden="true" />
+              {evidence}
+            </span>
+          ) : null}
+          {currentState.status !== 'checked' ? (
+            <button
+              type="button"
+              className="dx-search-primary-action"
+              onClick={() => onUseService(actionTarget)}
+              aria-busy={currentState.status === 'checking'}
+              aria-label={`${action.label} for ${actionTarget.name}`}
+              disabled={actionDisabled}
             >
-              {actionNote}
-            </p>
+              {visibleActionLabel(actionTarget, currentState.status, unavailableInHost)}
+            </button>
+          ) : null}
+        </div>
 
-            {alternatives.length > 0 ? (
-              <ul className="dx-search-brief__compact-alternatives" aria-label="Other ranked results">
-                {alternatives.map((resource) => (
-                  <li key={`${resource.resourceId || resource.url}:${resources.indexOf(resource)}`}>
-                    <button
-                      type="button"
-                      onClick={() => onSelect(resource)}
-                      disabled={interactionLocked}
-                    >
-                      <SearchIdentityIcon resource={resource} size={28} />
-                      <span>
-                        <strong>{resource.name}</strong>
-                        <small>{hostLabel(resource.url)}</small>
-                      </span>
-                      <b>{listedPrice(resource)}</b>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
+        {stateMessage ? (
+          <p
+            className={`dx-search-result-primary__state${currentState.status === 'error' ? ' dx-search-result-primary__state--error' : ''}`}
+            aria-live="polite"
+          >
+            {stateMessage}
+          </p>
+        ) : null}
+      </div>
 
-            {alternativeLimit > 0 && decision.hiddenAlternativeCount > 0 ? (
+      {alternatives.length > 0 ? (
+        <div className="dx-search-result-alternatives">
+          <ul aria-label="Other matches">
+            {alternatives.map((resource) => (
+              <li key={`${resource.resourceId || resource.url}:${resources.indexOf(resource)}`}>
+                <button
+                  type="button"
+                  onClick={() => onSelect(resource)}
+                  disabled={interactionLocked}
+                >
+                  <SearchIdentityIcon resource={resource} size={32} />
+                  <span className="dx-search-result-alternatives__copy">
+                    <small>{merchantLabel(resource)}</small>
+                    <strong>{resource.name}</strong>
+                  </span>
+                  <span className="dx-search-result-alternatives__price">{listedPrice(resource)}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+
+          {decision.hiddenAlternativeCount > 0 ? (
+            canCompare ? (
               <button
                 type="button"
-                className="dx-search-brief__compact-compare"
+                className="dx-search-result-alternatives__more"
                 onClick={onCompareAll}
                 aria-controls={comparisonId}
                 aria-expanded={comparisonOpen}
                 disabled={interactionLocked}
               >
-                Compare all {resources.length} results
+                Compare all {resources.length}
               </button>
-            ) : null}
-          </>
-        ) : null}
-      </section>
-    );
-  }
-
-  return (
-    <section
-      className={`dx-search-brief${hasCurrentTerms ? ' dx-search-brief--confirmed' : ''}`}
-      aria-labelledby={headingId}
-    >
-      <div className="dx-search-brief__recommendation">
-        <div className="dx-search-brief__identity">
-          <SearchIdentityIcon resource={actionTarget} size={44} />
-          <div className="dx-search-brief__identity-copy">
-            <h2 id={headingId} className="dx-search-brief__title">
-              {actionTarget.name}
-            </h2>
-            <div className="dx-search-brief__standing">
-              <span>{selectionLabel}</span>
-              <span>{summary.evidenceBadgeLabel}</span>
-            </div>
-            <p className="dx-search-brief__host">{hostLabel(actionTarget.url)}</p>
-          </div>
-        </div>
-
-        {!hasCurrentTerms ? (
-          <>
-            <p className="dx-search-brief__why">{summary.why}</p>
-
-            {summary.safetyWarning ? (
-              <p className="dx-search-safety-note" role="note">
-                {summary.safetyWarning}
-              </p>
-            ) : null}
-
-            <dl className="dx-search-brief__facts">
-              <div>
-                <dt>Price</dt>
-                <dd>{price}</dd>
-              </div>
-              <div>
-                <dt>Quality</dt>
-                <dd>{summary.qualityScore === null ? 'Not scored' : `${summary.qualityScore}/100`}</dd>
-              </div>
-              <div>
-                <dt>Network</dt>
-                <dd>{summary.networkLabel}</dd>
-              </div>
-              <div>
-                <dt>Evidence</dt>
-                <dd>{summary.evidenceLabel}</dd>
-              </div>
-            </dl>
-
-            <div className="dx-search-brief__actions">
+            ) : (
               <button
                 type="button"
-                className="dx-search-primary-action"
-                onClick={() => onUseService(actionTarget)}
-                aria-busy={isChecking}
-                aria-label={`${resourceAction.label} for ${actionTarget.name}`}
-                disabled={actionDisabled}
+                className="dx-search-result-alternatives__more"
+                onClick={() => setShowAllAlternatives(true)}
+                disabled={interactionLocked}
               >
-                {actionLabel}
-                <span aria-hidden>{price}</span>
+                Show {decision.hiddenAlternativeCount} more
               </button>
-            </div>
-
-            <p
-              className={`dx-search-brief__action-note${relevantCheckState.status === 'error' ? ' dx-search-brief__action-note--error' : ''}`}
-              aria-live="polite"
-            >
-              {actionNote}
-            </p>
-          </>
-        ) : null}
-      </div>
-
-      {!hasCurrentTerms && alternatives.length > 0 ? (
-        <div className="dx-search-brief__alternatives">
-          <p className="dx-search-brief__alternatives-title">Other results</p>
-          <ul className="dx-search-brief__alternative-list">
-            {alternatives.map((resource) => {
-              const alternativeSummary = summarizeSearchResource(resource);
-              const status = resource === recommended
-                ? recommendationKind === 'related' ? 'Closest match' : 'Recommended'
-                : resource.tier === 'related' ? 'Related' : null;
-
-              return (
-                <li key={`${resource.resourceId || resource.url}:${resources.indexOf(resource)}`}>
-                  <button
-                    type="button"
-                    onClick={() => onSelect(resource)}
-                    disabled={interactionLocked}
-                  >
-                    <SearchIdentityIcon resource={resource} size={32} />
-                    <span className="dx-search-brief__alternative-copy">
-                      <strong>{resource.name}</strong>
-                      <small>{status ? `${status} · ` : ''}{hostLabel(resource.url)}</small>
-                    </span>
-                    <span className="dx-search-brief__alternative-evidence">
-                      <strong>{listedPrice(resource)}</strong>
-                      <small>{alternativeSummary.qualityScore === null ? 'Unscored' : `${alternativeSummary.qualityScore}/100`}</small>
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-          {!canCompare && decision.hiddenAlternativeCount > 0 ? (
-            <button
-              type="button"
-              className="dx-search-brief__show-more"
-              onClick={() => setShowAllAlternatives(true)}
-              disabled={interactionLocked}
-            >
-              Show {decision.hiddenAlternativeCount} more
-            </button>
+            )
           ) : null}
         </div>
       ) : null}

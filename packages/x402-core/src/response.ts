@@ -71,6 +71,7 @@ function hasPublishedInput(value: unknown): boolean {
 function buildTip(result: CapabilitySearchResult): string {
   const top = result.strongResults[0] ?? result.relatedResults[0] ?? null;
   const method = top?.method?.toUpperCase() ?? 'GET';
+  const managedTarget = top?.access?.kind === 'managed_resolvable';
   if (top && !['GET', 'POST', 'PUT', 'DELETE'].includes(method)) {
     return `The leading result uses ${method}, which OpenDexter cannot currently check or execute. Choose a result using GET, POST, PUT, or DELETE; do not present this listing as callable.`;
   }
@@ -91,7 +92,9 @@ function buildTip(result: CapabilitySearchResult): string {
       || top.execution.quoteMayCreateProviderReservation
     )
   ) {
-    return 'The leading result requires a pre-check review. Form and show the exact URL, method, path parameters, raw body, stated effect, and any provider-reservation warning. If the user already authorized that exact request and possible check effect, do not ask twice; otherwise obtain confirmation before x402_check. That confirmation does not approve payment.';
+    return managedTarget
+      ? 'The leading result requires a pre-check review. Show its stable resourceId, method, path parameters, raw body, stated effect, and any provider-reservation warning. Never request, expose, or invent its private transport URL. If the user already authorized that exact request and possible check effect, do not ask twice; otherwise obtain confirmation before x402_check using the resourceId. That confirmation does not approve payment.'
+      : 'The leading result requires a pre-check review. Form and show the exact public URL, method, path parameters, raw body, stated effect, and any provider-reservation warning. If the user already authorized that exact request and possible check effect, do not ask twice; otherwise obtain confirmation before x402_check. That confirmation does not approve payment.';
   }
   if (
     top
@@ -102,7 +105,9 @@ function buildTip(result: CapabilitySearchResult): string {
       || method !== 'GET'
     )
   ) {
-    return 'The leading result needs exact request details before a live price check. Gather the required fields from inputSchema and pathParams, then run x402_check with the exact method, URL, and raw body. Search output does not authorize payment.';
+    return managedTarget
+      ? 'The leading result needs exact request details before a live price check. Gather the required fields from inputSchema and pathParams, then run x402_check with its stable resourceId, exact method, and raw body. Never request, expose, or invent its private transport URL. Search output does not authorize payment.'
+      : 'The leading result needs exact request details before a live price check. Gather the required fields from inputSchema and pathParams, then run x402_check with the exact method, public URL, and raw body. Search output does not authorize payment.';
   }
   // Triangulation tip — load-bearing. When the top match has no structured
   // input semantics AND profile-backed alternates exist, we need the agent to

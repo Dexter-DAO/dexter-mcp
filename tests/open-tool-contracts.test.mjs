@@ -29,6 +29,7 @@ import {
 } from '../lib/session-portfolio.mjs';
 
 const EXPECTED_TOOLS = [
+  'indexter_discover',
   'indexter_search',
   'x402_check',
   'x402_fetch',
@@ -68,7 +69,7 @@ function outputUnknownKeys(schema) {
   return undefined;
 }
 
-test('contract is exactly the canonical hosted twelve', () => {
+test('contract is exactly the canonical hosted thirteen', () => {
   assert.deepEqual(OPEN_TOOL_NAMES, EXPECTED_TOOLS);
   assert.deepEqual(Object.keys(OPEN_TOOL_CONTRACTS).sort(), [...EXPECTED_TOOLS].sort());
   assert.doesNotMatch(OPEN_TOOL_NAMES.join(','), /card_/);
@@ -76,6 +77,7 @@ test('contract is exactly the canonical hosted twelve', () => {
     assert.equal(
       outputUnknownKeys(toolContract.outputSchema),
       [
+        'indexter_discover',
         'indexter_search',
         'x402_check',
         'x402_fetch',
@@ -117,16 +119,17 @@ test('every governed result remains model-visible without granting the renderer 
   }
 });
 
-test('renderers cannot call server tools directly', () => {
+test('only read-only Indexter discovery is callable from its renderer', () => {
   for (const name of Object.keys(OPEN_TOOL_CONTRACTS)) {
+    const discovery = name === 'indexter_discover';
     assert.deepEqual(
       OPEN_TOOL_CONTRACTS[name].visibility,
-      ['model'],
+      discovery ? ['model', 'app'] : ['model'],
       `${name} native MCP Apps visibility`,
     );
     assert.equal(
       OPEN_TOOL_CONTRACTS[name].widgetAccessible,
-      false,
+      discovery,
       `${name} ChatGPT compatibility visibility`,
     );
   }
@@ -168,9 +171,18 @@ test('fetch and status declare the route-neutral dispatch evidence contract', ()
   }
 });
 
-test('search and wallet contracts expose current truth without route claims', () => {
+test('discovery, search, and wallet contracts expose current truth without route claims', () => {
+  const discovery = OPEN_TOOL_CONTRACTS.indexter_discover;
   const search = OPEN_TOOL_CONTRACTS.indexter_search;
   const wallet = OPEN_TOOL_CONTRACTS.dexter_wallet;
+
+  assert.match(discovery.description, /what is available/i);
+  assert.match(discovery.description, /named provider/);
+  assert.match(discovery.description, /Use indexter_search for a concrete task/);
+  assert.match(discovery.description, /no wallet-read prerequisite/);
+  assert.match(discovery.description, /resourceId/);
+  assert.equal(Object.hasOwn(discovery.registrationOutputSchema.shape, 'providers'), true);
+  assert.equal(Object.hasOwn(discovery.registrationOutputSchema.shape, 'mode'), true);
 
   assert.match(search.description, /rankingMode=degraded/);
   assert.match(search.description, /maxPriceUsdc/);
@@ -238,6 +250,77 @@ test('search and wallet contracts expose current truth without route claims', ()
     ...validSearchOutput,
     noMatchReason: 'no_results_with_price_controls',
   }).success, true);
+
+  const endpoint = {
+    kind: 'endpoint',
+    resourceId: '22222222-2222-4222-8222-222222222222',
+    resourceUrl: 'https://weather.example.test/current',
+    url: 'https://weather.example.test/current',
+    access: {
+      kind: 'direct_url',
+      checkable: true,
+      requiresFreshCheck: true,
+    },
+    merchant: {
+      providerKey: 'weather.example.test',
+      providerSlug: 'weather-co',
+      displayName: 'Weather Co',
+      logoUrl: 'https://weather.example.test/logo.png',
+      technicalHost: 'weather.example.test',
+    },
+    name: 'Current weather',
+    method: 'GET',
+    description: 'Current weather for a requested location.',
+    category: 'weather',
+    price: '$0.01',
+    priceUsdc: 0.01,
+    iconUrl: 'https://weather.example.test/icon.png',
+    ogImageUrl: null,
+    docsUrl: 'https://weather.example.test/docs',
+    openapiSpecUrl: null,
+    host: 'weather.example.test',
+    why: 'Matches the requested current weather data.',
+  };
+  const searchWithEndpoint = {
+    ...validSearchOutput,
+    count: 1,
+    strongResults: [endpoint],
+    strongCount: 1,
+    topSimilarity: 0.92,
+    noMatchReason: null,
+    searchMeta: {
+      ...validSearchOutput.searchMeta,
+      mode: 'direct',
+    },
+  };
+  assert.equal(search.outputSchema.safeParse(searchWithEndpoint).success, true);
+  for (const unsafeEndpoint of [
+    { ...endpoint, iconUrl: 'data:image/svg+xml;base64,PHN2Zy8+' },
+    { ...endpoint, docsUrl: 'javascript:alert(1)' },
+    { ...endpoint, resourceUrl: 'http://weather.example.test/current', url: 'http://weather.example.test/current' },
+    { ...endpoint, resourceUrl: 'https://user:secret@weather.example.test/current', url: 'https://user:secret@weather.example.test/current' },
+    { ...endpoint, host: '127.0.0.1', merchant: { ...endpoint.merchant, technicalHost: '127.0.0.1' } },
+  ]) {
+    assert.equal(search.outputSchema.safeParse({
+      ...searchWithEndpoint,
+      strongResults: [unsafeEndpoint],
+    }).success, false);
+  }
+  assert.equal(search.outputSchema.safeParse({
+    ...searchWithEndpoint,
+    strongResults: [{
+      ...endpoint,
+      resourceUrl: null,
+      url: null,
+      host: null,
+      access: { ...endpoint.access, kind: 'managed_resolvable' },
+      merchant: { ...endpoint.merchant, technicalHost: null },
+    }],
+  }).success, true);
+  assert.equal(search.outputSchema.safeParse({
+    ...searchWithEndpoint,
+    strongResults: [{ ...endpoint, kind: 'actor', actorId: 'apify/weather' }],
+  }).success, false);
 
   assert.match(wallet.description, /Cash, credit capacity, and exact-intent execution eligibility are distinct/);
   assert.match(wallet.description, /zero cash alone is not proof/i);
@@ -695,7 +778,13 @@ test('both supported registration APIs close after finalization', () => {
   );
 });
 
-test('behavior annotations reflect the canonical twelve operations', () => {
+test('behavior annotations reflect the canonical thirteen operations', () => {
+  assert.deepEqual(OPEN_TOOL_CONTRACTS.indexter_discover.annotations, {
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  });
   assert.deepEqual(OPEN_TOOL_CONTRACTS.indexter_search.annotations, {
     readOnlyHint: true,
     destructiveHint: false,
@@ -1078,6 +1167,7 @@ test('real SDK tools/list exposes executable schemas, OAuth, annotations, and me
     assert.equal(
       listed.outputSchema.additionalProperties,
       [
+        'indexter_discover',
         'indexter_search',
         'x402_check',
         'x402_fetch',
@@ -1115,6 +1205,14 @@ test('real SDK tools/list exposes executable schemas, OAuth, annotations, and me
         true,
       );
     }
+    if (listed.name === 'indexter_discover') {
+      const page = listed.outputSchema.properties?.page;
+      assert.equal(Object.hasOwn(page?.properties ?? {}, 'nextCursor'), true);
+      assert.equal(Object.hasOwn(page?.properties ?? {}, 'nextOffset'), false);
+      const endpoint = listed.outputSchema.properties?.providers
+        ?.items?.properties?.capabilityGroups?.items?.properties?.resources?.items;
+      assert.equal(endpoint?.properties?.kind?.const, 'endpoint');
+    }
     if (listed.name === 'x402_check') {
       assert.equal(
         Object.hasOwn(listed.outputSchema.properties ?? {}, 'inputSchemaSource'),
@@ -1151,7 +1249,7 @@ test('real SDK tools/list exposes executable schemas, OAuth, annotations, and me
 });
 
 for (const clientName of ['Generic MCP', 'ChatGPT', 'Claude']) {
-  test(`${clientName} connected discovery receives the same raw twelve and no retired calls`, async () => {
+  test(`${clientName} connected discovery receives the same raw thirteen and no retired calls`, async () => {
     const server = new McpServer({
       name: 'host-discovery-test',
       version: '0.4.0',
@@ -1299,7 +1397,7 @@ test('vault-bound hosted discovery retains the exact protected roster', async ()
   assert.deepEqual(OPEN_OAUTH_PROMOTED_TOOL_NAMES, OPEN_TOOL_NAMES);
 });
 
-test('the contract exposes zero tools anonymously and all twelve after OAuth', () => {
+test('the contract exposes zero tools anonymously and all thirteen after OAuth', () => {
   assert.deepEqual(OPEN_ANONYMOUS_TOOL_NAMES, []);
   assert.deepEqual(OPEN_OAUTH_PROMOTED_TOOL_NAMES, OPEN_TOOL_NAMES);
   for (const name of OPEN_TOOL_NAMES) {

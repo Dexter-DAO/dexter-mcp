@@ -62,6 +62,7 @@ import {
 import {
   OPEN_X402_INTENT_API_PATHS,
   OPEN_X402_INTENT_ID_RE,
+  OPEN_INDEXTER_RESOURCE_ID_RE,
   callOpenX402IntentApi,
   isOpenX402AuthorityRequired,
   projectOpenX402AuthorizationRequired,
@@ -200,7 +201,8 @@ const legacyIntentBridge = createLegacyIntentBridge();
  * server-side, so the local fuzzy-broad fallback + tokenize + levenshtein
  * scoring we used to need is gone.
  */
-const INDEXTER_DISCOVERY_PATH = '/api/x402gle/capability';
+const INDEXTER_SEARCH_PATH = '/api/x402gle/capability';
+const INDEXTER_DISCOVERY_PATH = '/api/x402gle/indexter/discovery';
 const WIDGET_DOMAIN = 'https://dexter.cash';
 // Tool and resource metadata share the same per-widget CSP builder. Cache by
 // exact template URI; one broad global allowlist would grant every widget the
@@ -266,7 +268,21 @@ function readOnlyResultWidgetMeta(templateUri, invoking, invoked, description) {
   });
 }
 
-const SEARCH_META = widgetMeta(INDEXTER_WIDGET_URIS.search, 'Searching Indexter…', 'Indexter results ready', 'Shows Indexter discovery results and can initiate a current-terms check in chat without authorizing a purchase.');
+const DISCOVERY_META_BASE = widgetMeta(
+  INDEXTER_WIDGET_URIS.search,
+  'Exploring Indexter…',
+  'Indexter overview ready',
+  'Shows the curated Indexter provider catalog, grouped capabilities, and current evidence labels. It makes no payment and reads no wallet data.',
+);
+const DISCOVERY_META = Object.freeze({
+  ...DISCOVERY_META_BASE,
+  ui: {
+    ...DISCOVERY_META_BASE.ui,
+    visibility: ['model', 'app'],
+  },
+  'openai/widgetAccessible': true,
+});
+const SEARCH_META = widgetMeta(INDEXTER_WIDGET_URIS.search, 'Searching Indexter…', 'Indexter results ready', 'Shows Indexter task-search results and can initiate a current-terms check in chat without authorizing a purchase.');
 const FETCH_META = readOnlyResultWidgetMeta(X402_WIDGET_URIS.fetch, 'Waiting for OpenDexter…', 'OpenDexter result received', 'Shows returned dispatch, delivery, payment, and reconciliation evidence without inferring finality.');
 const ACCESS_META = readOnlyResultWidgetMeta(X402_WIDGET_URIS.pricing, 'Checking access…', 'Access checked', 'Shows the exact request classification, current seller terms when present, or wallet sign-in availability. It never reports that a payment occurred.');
 const CHECK_META = readOnlyResultWidgetMeta(X402_WIDGET_URIS.pricing, 'Checking access terms…', 'Access terms ready', 'Shows current access requirements and exact seller terms for the checked request without making a payment.');
@@ -406,12 +422,161 @@ function buildMerchantSettlement(requirements) {
   }));
 }
 
-function logX402SearchDebug(stage, details = {}) {
+function logIndexterDebug(operation, stage, details = {}) {
   try {
-    console.log(`[indexter_search] ${stage} ${JSON.stringify(details)}`);
+    console.log(`[${operation}] ${stage} ${JSON.stringify(details)}`);
   } catch {
-    console.log(`[indexter_search] ${stage}`);
+    console.log(`[${operation}] ${stage}`);
   }
+}
+
+function logX402SearchDebug(stage, details = {}) {
+  logIndexterDebug('indexter_search', stage, details);
+}
+
+function buildIndexterDiscoveryError({
+  mode,
+  requestedProvider,
+  pageLimit,
+  error,
+  message,
+}) {
+  const providerMode = mode === 'provider';
+  return {
+    discoveryResultSetId: randomUUID(),
+    ok: false,
+    mode,
+    generatedAt: new Date().toISOString(),
+    requestedProvider,
+    summary: {
+      endpointCatalog: {
+        featuredProviderCount: 0,
+        providerCount: 0,
+        endpointCount: 0,
+      },
+      returnedProviderCount: 0,
+    },
+    providers: [],
+    page: {
+      version: 2,
+      namespace: providerMode
+        ? 'indexter.endpoint.provider-capabilities.v1'
+        : 'indexter.endpoint.providers.v1',
+      scope: providerMode ? 'provider_capabilities' : 'providers',
+      order: providerMode
+        ? 'curated_capability_breadth_v1'
+        : 'featured_provider_curation_v1',
+      limit: pageLimit,
+      returned: 0,
+      hasMore: false,
+      nextCursor: null,
+    },
+    error,
+    message,
+    source: 'Indexter',
+  };
+}
+
+async function indexterDiscover({
+  provider,
+  limit,
+  capabilityPageSize,
+  cursor,
+}) {
+  const requestedProvider = typeof provider === 'string'
+    ? provider.trim()
+    : '';
+  const mode = requestedProvider ? 'provider' : 'overview';
+  const searchParams = new URLSearchParams({ mode });
+  if (!requestedProvider && Number.isInteger(limit)) {
+    searchParams.set('limit', String(limit));
+  }
+  if (requestedProvider && Number.isInteger(capabilityPageSize)) {
+    searchParams.set('capabilityPageSize', String(capabilityPageSize));
+  }
+  if (requestedProvider) searchParams.set('provider', requestedProvider);
+  if (typeof cursor === 'string' && cursor.length > 0) {
+    searchParams.set('cursor', cursor);
+  }
+  logIndexterDebug('indexter_discover', 'start', {
+    mode,
+    providerRef: requestedProvider ? logRef(requestedProvider) : null,
+    limit: limit ?? null,
+    capabilityPageSize: capabilityPageSize ?? null,
+    continuing: typeof cursor === 'string' && cursor.length > 0,
+  });
+
+  let response;
+  let payload;
+  try {
+    response = await fetchInternalApi(
+      `${INDEXTER_DISCOVERY_PATH}?${searchParams.toString()}`,
+      {
+        headers: { accept: 'application/json' },
+        signal: AbortSignal.timeout(10_000),
+      },
+      { origin: DEXTER_API },
+    );
+    payload = await response.json();
+  } catch (error) {
+    logIndexterDebug('indexter_discover', 'failed', {
+      mode,
+      providerRef: requestedProvider ? logRef(requestedProvider) : null,
+      error: safeErrorLabel(error),
+    });
+    return buildIndexterDiscoveryError({
+      mode,
+      requestedProvider: requestedProvider || null,
+      pageLimit: requestedProvider ? (capabilityPageSize ?? 16) : (limit ?? 8),
+      error: 'indexter_discovery_unavailable',
+      message: 'Indexter discovery is unavailable right now.',
+    });
+  }
+
+  if (!response.ok || payload?.ok !== true || payload?.mode !== mode) {
+    const providerNotFound = response.status === 404
+      || payload?.error === 'provider_not_found';
+    const invalidCursor = response.status === 400
+      && payload?.error === 'invalid_discovery_cursor';
+    logIndexterDebug('indexter_discover', 'rejected', {
+      mode,
+      providerRef: requestedProvider ? logRef(requestedProvider) : null,
+      status: response.status,
+      error: typeof payload?.error === 'string' ? payload.error : null,
+    });
+    return buildIndexterDiscoveryError({
+      mode,
+      requestedProvider: requestedProvider || null,
+      pageLimit: requestedProvider ? (capabilityPageSize ?? 16) : (limit ?? 8),
+      error: providerNotFound
+        ? 'provider_not_found'
+        : invalidCursor
+          ? 'invalid_discovery_cursor'
+        : 'indexter_discovery_unavailable',
+      message: providerNotFound
+        ? `Indexter could not find a provider matching "${requestedProvider}".`
+        : invalidCursor
+          ? 'This Indexter page is no longer current. Open the provider again.'
+        : 'Indexter discovery is unavailable right now.',
+    });
+  }
+
+  const result = {
+    ...payload,
+    discoveryResultSetId: randomUUID(),
+    requestedProvider: requestedProvider || null,
+    error: null,
+    message: null,
+    source: 'Indexter',
+  };
+  logIndexterDebug('indexter_discover', 'result', {
+    mode,
+    providerRef: requestedProvider ? logRef(requestedProvider) : null,
+    providerCount: Array.isArray(result.providers) ? result.providers.length : null,
+    hasMore: result.page?.hasMore ?? null,
+    hasNextCursor: typeof result.page?.nextCursor === 'string',
+  });
+  return result;
 }
 
 // fetchCapabilitySearch + x402Search now use @dexterai/x402-core
@@ -519,7 +684,7 @@ async function x402Search({
     return empty;
   }
 
-  const endpoint = `${DEXTER_API}${INDEXTER_DISCOVERY_PATH}`;
+  const endpoint = `${DEXTER_API}${INDEXTER_SEARCH_PATH}`;
   const searchResult = await coreCapabilitySearch({
     query: rawQuery,
     limit,
@@ -1264,7 +1429,7 @@ async function runCanonicalX402Check(args, session) {
     const checked = await callOpenX402IntentApi('check', {
       sessionId: session.sessionId,
       requestId,
-      url: args.url,
+      ...(args.url ? { url: args.url } : { resourceId: args.resourceId }),
       method: args.method || 'GET',
       ...(Object.prototype.hasOwnProperty.call(args, 'body')
         ? { body: args.body }
@@ -1292,6 +1457,9 @@ async function runCanonicalX402Check(args, session) {
       }];
     }
   } else {
+    if (args.resourceId) {
+      throw new Error('indexter_resource_check_requires_authenticated_session');
+    }
     result = await checkEndpointPricing({
       url: args.url,
       method: args.method || 'GET',
@@ -1304,35 +1472,44 @@ async function runCanonicalX402Check(args, session) {
 
   const apiBase = API_BASE_FALLBACK;
   let enrichment = null;
-  let enrichmentSource = 'unavailable';
-  try {
-    const enrichUrl = `${apiBase}/api/x402/resource?url=${encodeURIComponent(args.url)}&history=3&full_previews=1`;
-    const enrichRes = await fetch(enrichUrl, {
-      headers: { Accept: 'application/json' },
-      signal: AbortSignal.timeout(2000),
-    });
-    if (enrichRes.ok) {
-      const enrichmentBody = await enrichRes.json();
-      if (enrichmentBody?.ok && enrichmentBody?.found) {
-        enrichment = {
-          resource: enrichmentBody.resource,
-          history: enrichmentBody.history,
-        };
-        enrichmentSource = 'live_db';
+  let enrichmentSource = args.resourceId
+    ? 'server_resolved_resource'
+    : 'unavailable';
+  if (args.url) {
+    try {
+      const enrichUrl = `${apiBase}/api/x402/resource?url=${encodeURIComponent(args.url)}&history=3&full_previews=1`;
+      const enrichRes = await fetch(enrichUrl, {
+        headers: { Accept: 'application/json' },
+        signal: AbortSignal.timeout(2000),
+      });
+      if (enrichRes.ok) {
+        const enrichmentBody = await enrichRes.json();
+        if (enrichmentBody?.ok && enrichmentBody?.found) {
+          enrichment = {
+            resource: enrichmentBody.resource,
+            history: enrichmentBody.history,
+          };
+          enrichmentSource = 'live_db';
+        } else {
+          enrichmentSource = 'not_found';
+        }
       } else {
-        enrichmentSource = 'not_found';
+        enrichmentSource = `http_${enrichRes.status}`;
       }
-    } else {
-      enrichmentSource = `http_${enrichRes.status}`;
+    } catch (enrichErr) {
+      enrichmentSource = `error:${enrichErr?.name || 'unknown'}`;
     }
-  } catch (enrichErr) {
-    enrichmentSource = `error:${enrichErr?.name || 'unknown'}`;
   }
 
   const modelResult = buildHostedCheckModelResult({
     checkResult: result,
     url: args.url,
-    method: args.method || 'GET',
+    resourceId: args.resourceId,
+    method:
+      result?.checkedRequest?.method
+      ?? result?.resolvedMethod
+      ?? args.method
+      ?? 'GET',
     rawBody: args.body,
     rawBodyProvided: Object.prototype.hasOwnProperty.call(args, 'body'),
     enrichment,
@@ -2089,11 +2266,47 @@ export function createOpenMcpServer({
     }
   }
 
+  registerOpenTool(server, 'indexter_discover', {
+    title: 'Explore Indexter',
+    description: 'Explore the curated Indexter catalog. Call once with no provider for broad questions such as "What can I do?" or "What is available?" Pass provider for questions such as "What can I do with Glassnode?" Copy nextCursor exactly to continue the same overview or provider. Use indexter_search for a concrete task or outcome. This reads no wallet data and makes no payment.',
+    inputSchema: z.object({
+      provider: z.string().trim().min(1).max(255).optional().describe("Optional provider name, slug, key, or host copied from the user's request. Leave unset for the broad curated overview."),
+      limit: z.number().int().min(1).max(25).optional().describe('Overview provider page size (1-25, default 8). Leave unset in provider mode.'),
+      capabilityPageSize: z.number().int().min(1).max(24).optional().describe('Provider capability page size (1-24, default 16). Use only with provider.'),
+      cursor: z.string().min(1).max(2048).optional().describe('Opaque continuation cursor copied exactly from page.nextCursor. Keep provider set to the same providerKey for provider capability pages; leave provider unset for overview pages.'),
+    }).strict().superRefine((value, context) => {
+      if (value.provider && value.limit !== undefined) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['limit'],
+          message: 'limit is available only for overview discovery',
+        });
+      }
+      if (!value.provider && value.capabilityPageSize !== undefined) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['capabilityPageSize'],
+          message: 'capabilityPageSize requires provider',
+        });
+      }
+    }),
+    annotations: { readOnlyHint: true },
+    _meta: DISCOVERY_META,
+  }, async (args) => {
+    const data = await indexterDiscover(args);
+    return {
+      content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
+      structuredContent: data,
+      isError: data.ok !== true,
+      _meta: DISCOVERY_META,
+    };
+  });
+
   registerOpenTool(server, 'indexter_search', {
     title: 'Indexter Search',
-    description: 'Search Indexter with a natural-language capability query. Results may describe resources, providers, and other available capabilities. Each response includes a server-issued searchResultSetId that disambiguates its result ordinals from every other search. maxPriceUsdc and minPriceUsdc set hard bounds on the primary USDC invocation price. paidOnly requires a known positive price. sortBy orders each relevance tier while strong results stay ahead of related results. A typed control is usable only when appliedConstraints or appliedOrdering confirms it. rankingMode and degradedMessage report reduced fallback ranking. searchMeta.mode distinguishes direct, related_only, empty, and error results. Each priced result exposes seller payment options in chains[]. Search results do not authorize payment.',
+    description: 'Search Indexter once for a concrete job, outcome, or constraint. Send the user\'s actual task as one query. Do not split it into category searches, fan out, or retry with invented synonyms. Use indexter_discover for broad "What can I do?" questions and provider-only exploration. Each response includes a server-issued searchResultSetId. Search results never authorize payment.',
     inputSchema: {
-      query: z.string().describe('Natural-language capability request, such as "check wallet balance on Base", "generate an image", "ETH spot price feed", or "translate text". Broad requests are valid; semantic ranking handles them directly.'),
+      query: z.string().trim().min(2).max(500).describe('The user\'s concrete capability request, such as "current weather for Lisbon", "generate a product image", "ETH spot price feed", or "translate this text to Spanish". Preserve the job as one query.'),
       network: z.string().optional().describe('Optional hard seller-network filter ("solana", "base", "ethereum", "polygon", "arbitrum", "optimism", "avalanche", or a CAIP-2 id). Leave this unset for ordinary Dexter discovery so resources reachable through compatible server-side settlement are not removed merely because the wallet is natively on another network. Set it only when the user explicitly requires a seller on that network.'),
       maxPriceUsdc: z.number().finite().nonnegative().optional().describe('Optional hard ceiling, in USDC, for invoking the discovered API. Use this field for an API-call budget; keep product or order budgets in the natural-language query.'),
       minPriceUsdc: z.number().finite().nonnegative().optional().describe('Optional hard floor, in USDC, for invoking the discovered API. When both price fields are set, minPriceUsdc must be less than or equal to maxPriceUsdc.'),
@@ -2211,12 +2424,30 @@ export function createOpenMcpServer({
 
   registerOpenTool(server, 'x402_check', {
     title: 'Check Access Terms',
-    description: 'Probe the exact endpoint and request shape before paying. For a non-GET request, pass body as the exact raw JSON string to preserve lexical bytes. A purchasable quote has quoteOnly=false and an opaque intentId for x402_fetch and x402_status. A quote with quoteOnly=true has no executable intent. A check never authorizes payment, and a non-GET probe may mutate the provider.',
-    inputSchema: {
-      url: z.string().url().describe('The URL to check'),
-      method: z.enum(['GET', 'POST', 'PUT', 'DELETE']).default('GET').describe('HTTP method to probe with'),
+    description: 'Check one exact request before paying. Supply either a public URL or a stable resourceId from the current Indexter result, never both. With resourceId, copy the canonical method from the same current result; OpenDexter resolves the private route server-side and rejects method drift before probing. For a non-GET request, pass body as the exact raw JSON string to preserve lexical bytes. A purchasable quote has quoteOnly=false and an opaque intentId for x402_fetch and x402_status. A quote with quoteOnly=true has no executable intent. A check never authorizes payment, and a non-GET probe may mutate the provider.',
+    inputSchema: z.object({
+      url: z.string().url().optional().describe('Exact public HTTPS URL to check. Omit when using an Indexter resourceId.'),
+      resourceId: z.string().regex(OPEN_INDEXTER_RESOURCE_ID_RE).optional().describe('Stable resourceId copied from the current Indexter discovery or search result. Omit url so OpenDexter can resolve the private route server-side.'),
+      method: z.enum(['GET', 'POST', 'PUT', 'DELETE']).optional().describe('Exact HTTP method. A direct URL defaults to GET. For resourceId, copy the canonical method from the same current Indexter result; OpenDexter rejects catalog drift before probing.'),
       body: z.string().optional().describe('Exact raw JSON request-body string for POST, PUT, or DELETE. OpenDexter does not parse, canonicalize, or reserialize this string before intent custody.'),
-    },
+    }).strict().superRefine((value, context) => {
+      const hasUrl = typeof value.url === 'string';
+      const hasResourceId = typeof value.resourceId === 'string';
+      if (hasUrl === hasResourceId) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['url'],
+          message: 'Supply exactly one of url or resourceId',
+        });
+      }
+      if (hasResourceId && value.method === undefined) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['method'],
+          message: 'resourceId requires the canonical method from the current Indexter result',
+        });
+      }
+    }),
     annotations: {
       readOnlyHint: false,
       destructiveHint: true,
@@ -2230,6 +2461,7 @@ export function createOpenMcpServer({
       if (session.lookupFailed) {
         const unavailable = buildX402CheckBindingUnavailable({
           url: args.url,
+          resourceId: args.resourceId,
           method: args.method || 'GET',
           body: args.body,
           bodyProvided: Object.prototype.hasOwnProperty.call(args, 'body'),

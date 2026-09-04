@@ -5,6 +5,14 @@ export type SearchSeller = {
   twitterHandle?: string | null;
 };
 
+export type SearchMerchant = {
+  providerKey?: string | null;
+  providerSlug?: string | null;
+  displayName?: string | null;
+  logoUrl?: string | null;
+  technicalHost?: string | null;
+};
+
 export type SearchChainOption = {
   network: string | null;
   networkLabel?: string | null;
@@ -41,9 +49,15 @@ export type SearchResourceExecution = {
 };
 
 export type SearchResource = {
+  kind: 'endpoint';
   resourceId: string;
   name: string;
-  url: string;
+  url: string | null;
+  access: {
+    kind: 'direct_url' | 'managed_resolvable';
+    checkable: true;
+    requiresFreshCheck: true;
+  };
   method: string;
   price: string;
   priceAtomic?: string | null;
@@ -70,6 +84,7 @@ export type SearchResource = {
   totalVolume?: string | null;
   totalVolumeUsdc?: number | null;
   iconUrl?: string | null;
+  merchant?: SearchMerchant | null;
   seller: string | null;
   sellerMeta: SearchSeller;
   sellerReputation?: number | null;

@@ -12,6 +12,7 @@ const PROTOCOL = readFileSync(join(ROOT, 'skills/x402-protocol/SKILL.md'), 'utf8
 const DEBUGGING = readFileSync(join(ROOT, 'skills/x402-debugging/SKILL.md'), 'utf8');
 
 const EXPECTED_TOOLS = [
+  'indexter_discover',
   'indexter_search',
   'x402_fetch',
   'x402_status',
@@ -42,7 +43,7 @@ test('hosted skill resources are loaded from this release checkout', () => {
   assert.doesNotMatch(SERVER, /opendexter-ide.*opendexter-plugin.*skills/s);
 });
 
-test('hosted workflow names only the twelve connected product tools', () => {
+test('hosted workflow names only the thirteen connected product tools', () => {
   for (const name of EXPECTED_TOOLS) {
     assert.match(WORKFLOW, new RegExp(`\\\`${name}\\\``));
   }
@@ -69,9 +70,10 @@ test('master skill preserves shared product truth without pretending every surfa
 
 test('hosted workflow names Indexter as the discovery product', () => {
   assert.match(WORKFLOW, /discover services with Indexter/i);
-  assert.match(WORKFLOW, /Discover a service or resource with Indexter/);
+  assert.match(WORKFLOW, /Explore what OpenDexter or one provider offers/);
+  assert.match(WORKFLOW, /Find a service for one concrete job or outcome/);
   assert.match(WORKFLOW, /Indexter discovery and purchase/);
-  assert.match(WORKFLOW, /Call `indexter_search` with the user's actual job/);
+  assert.match(WORKFLOW, /call `indexter_search` once[\s\S]*user's actual job/i);
   assert.match(SERVER, /OpenDexter guide for Indexter discovery/);
 });
 
@@ -150,7 +152,7 @@ test('generated runtime instructions put the complete safety boundary first', ()
   assert.match(SERVER, /const SERVER_INSTRUCTIONS = buildOpenServerInstructions\(\)/);
 });
 
-test('generated runtime instructions route the complete twelve-tool product', () => {
+test('generated runtime instructions route the complete thirteen-tool product', () => {
   const runtime = buildOpenServerInstructions();
 
   assert.deepEqual(mentionedOpenDexterTools(runtime), [...EXPECTED_TOOLS].sort());
@@ -158,8 +160,10 @@ test('generated runtime instructions route the complete twelve-tool product', ()
   assert.match(runtime, /Wallet presence, balance, cash, readiness, deposit address,[\s\S]*dexter_wallet/);
   assert.match(runtime, /What's in my wallet\?[\s\S]*dexter_wallet, then dexter_wallet_portfolio/);
   assert.match(runtime, /Compose cash\/readiness with governed assets/);
+  assert.match(runtime, /Broad questions[\s\S]*indexter_discover once with no provider/);
+  assert.match(runtime, /Questions about one provider[\s\S]*indexter_discover once with provider/);
   assert.match(runtime, /Find an API or service[\s\S]*Indexter[\s\S]*indexter_search/);
-  assert.match(runtime, /known endpoint, current price,[\s\S]*x402_check/);
+  assert.match(runtime, /known endpoint or current Indexter resource,[\s\S]*x402_check/);
   assert.match(runtime, /Pay for or call a paid API[\s\S]*x402_fetch once/);
   assert.match(runtime, /x402_status for the same purchase intent/);
   assert.match(runtime, /wallet-proof or Sign-In-With-X[\s\S]*x402_access/);
@@ -179,7 +183,7 @@ test('generated runtime instructions preserve exact consequence and recovery bou
   assert.match(runtime, /second non-GET call[\s\S]*requires fresh explicit confirmation[\s\S]*duplicate submission/);
   assert.match(runtime, /non-GET access call may change provider state[\s\S]*explain and confirm/);
   assert.match(runtime, /purchasable paid check returns an opaque intentId bound to the authenticated session/);
-  assert.match(runtime, /current instruction or existing bounded policy covers the exact seller, URL, method, body,[\s\S]*maxAmountAtomic/);
+  assert.match(runtime, /current instruction or existing bounded policy covers the exact seller, selected endpoint, method, body,[\s\S]*maxAmountAtomic/);
   assert.match(runtime, /If it already does, do not ask for another payment approval/);
   assert.match(runtime, /x402_fetch once with only intentId and maxAmountAtomic/);
   assert.match(runtime, /Say the merchant request crossed the dispatch boundary only when structuredContent\.dispatch\.boundary is exactly "crossed"/);
@@ -206,7 +210,7 @@ test('generated runtime instructions preserve current wallet and authority truth
 
   assert.match(runtime, /requires OpenDexter OAuth before initialization or tool discovery/);
   assert.match(runtime, /native OpenDexter Connect action/);
-  assert.match(runtime, /complete twelve-tool roster/);
+  assert.match(runtime, /complete thirteen-tool roster/);
   assert.match(runtime, /Connected label[\s\S]*successful authenticated tool discovery or a successful tool call proves wallet authorization/);
   assert.match(runtime, /Connected appears without authorization[\s\S]*plugin or integration settings/);
   assert.match(runtime, /plugin or integration settings[\s\S]*Authorize or Authenticate/);
@@ -215,8 +219,8 @@ test('generated runtime instructions preserve current wallet and authority truth
   assert.match(runtime, /Zero cash does not prove that funding is required/);
   assert.match(runtime, /reported credit does not prove that a particular purchase can use it/);
   assert.match(runtime, /search backend error is not evidence that no matching service exists/);
-  assert.match(runtime, /triangulate[\s\S]*alternate result's actual HTTPS endpoint/);
-  assert.match(runtime, /Never pass a resource ID as though it were a URL or tool argument/);
+  assert.match(runtime, /triangulate[\s\S]*compare the corresponding alternate result/);
+  assert.match(runtime, /managed resourceId is an opaque x402_check argument/);
   assert.match(runtime, /hosted wallet is Solana-based/);
   assert.match(runtime, /only dexter_wallet\.receiveAddress is a deposit address/);
   assert.match(runtime, /non-null canonical assetId/);
@@ -248,7 +252,8 @@ test('generated runtime instructions contain one coherent hosted contract withou
   for (const heading of [
     '# Route the user\'s request',
     '# Connect and identity',
-    '# Discover with Indexter and use x402 services',
+    '# Discover and search with Indexter',
+    '# Use x402 services',
     '# Wallet and governed assets',
     '# Finality and global safety',
   ]) {

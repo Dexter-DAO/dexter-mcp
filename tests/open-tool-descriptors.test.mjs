@@ -37,6 +37,7 @@ import {
 const execFileAsync = promisify(execFile);
 
 const CONNECTED = [
+  'indexter_discover',
   'indexter_search',
   'x402_check',
   'x402_fetch',
@@ -207,10 +208,52 @@ test('--emit-json emits exactly one descriptor document and exits', () => {
   assert.equal(indexter._meta.ui.resourceUri, INDEXTER_WIDGET_URIS.search);
   assert.equal(indexter._meta['openai/widgetAccessible'], false);
   assert.deepEqual(indexter._meta.ui.visibility, ['model']);
+  const indexterDiscovery = descriptor.tools.find((candidate) =>
+    candidate.name === 'indexter_discover');
+  assert.equal(indexterDiscovery._meta.ui.resourceUri, INDEXTER_WIDGET_URIS.search);
+  assert.match(
+    indexterDiscovery._meta.ui.resourceUri,
+    /^ui:\/\/dexter\/indexter-search-[a-f0-9]{8}$/,
+  );
+  assert.equal(indexterDiscovery._meta['openai/outputTemplate'], INDEXTER_WIDGET_URIS.search);
+  assert.equal(indexterDiscovery._meta['openai/widgetAccessible'], true);
+  assert.deepEqual(indexterDiscovery._meta.ui.visibility, ['model', 'app']);
+  assert.equal(
+    Object.hasOwn(indexterDiscovery.inputSchema.properties, 'cursor'),
+    true,
+  );
+  assert.equal(
+    Object.hasOwn(indexterDiscovery.inputSchema.properties, 'offset'),
+    false,
+  );
+  const discoveryPage = indexterDiscovery.outputSchema.properties.page;
+  assert.equal(Object.hasOwn(discoveryPage.properties, 'nextCursor'), true);
+  assert.equal(Object.hasOwn(discoveryPage.properties, 'nextOffset'), false);
+  assert.equal(Object.hasOwn(discoveryPage.properties, 'offset'), false);
+  const discoverySummary = indexterDiscovery.outputSchema.properties.summary;
+  assert.deepEqual(
+    Object.keys(discoverySummary.properties).sort(),
+    ['endpointCatalog', 'returnedProviderCount'],
+  );
+  assert.deepEqual(
+    Object.keys(discoverySummary.properties.endpointCatalog.properties).sort(),
+    ['endpointCount', 'featuredProviderCount', 'providerCount'],
+  );
+  const discoveryEndpoint = indexterDiscovery.outputSchema.properties.providers
+    .items.properties.capabilityGroups.items.properties.resources.items;
+  assert.equal(discoveryEndpoint.properties.kind.const, 'endpoint');
+  assert.deepEqual(discoveryEndpoint.properties.method.enum, [
+    'GET',
+    'POST',
+    'PUT',
+    'DELETE',
+  ]);
   const accessCheck = descriptor.tools.find((candidate) =>
     candidate.name === 'x402_check');
   assert.equal(accessCheck._meta['openai/widgetAccessible'], false);
   assert.deepEqual(accessCheck._meta.ui.visibility, ['model']);
+  assert.equal(Object.hasOwn(accessCheck.inputSchema.properties, 'url'), true);
+  assert.equal(Object.hasOwn(accessCheck.inputSchema.properties, 'resourceId'), true);
 
   const wallet = descriptor.tools.find((candidate) =>
     candidate.name === 'dexter_wallet');

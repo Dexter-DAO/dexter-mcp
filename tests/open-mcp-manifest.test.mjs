@@ -16,7 +16,7 @@ import {
   buildOpenMcpAuthorizationServerMetadata,
 } from '../lib/open-tool-auth.mjs';
 
-test('well-known manifest advertises the required twelve-tool OAuth contract', () => {
+test('well-known manifest advertises the required thirteen-tool OAuth contract', () => {
   const manifest = buildOpenMcpManifest();
   assert.equal(manifest.name, 'OpenDexter');
   assert.equal(manifest.namespace, 'opendexter');
@@ -39,7 +39,7 @@ test('well-known manifest advertises the required twelve-tool OAuth contract', (
   assert.equal(manifest.rosters.anonymous.length, 0);
   assert.deepEqual(manifest.rosters.oauthPromotes, OPEN_TOOL_NAMES);
   assert.deepEqual(manifest.tools.map((tool) => tool.name), OPEN_TOOL_NAMES);
-  assert.equal(manifest.tools.length, 12);
+  assert.equal(manifest.tools.length, 13);
   assert.match(manifest.description, /autonomous governed Buy and Sell/);
   assert.match(manifest.description, /preserved Send input fails closed at Prepare/);
   assert.match(manifest.description, /exact Prepare response is authoritative/);
@@ -119,9 +119,10 @@ test('hosted source documentation states the current opaque-intent product contr
   for (const name of OPEN_TOOL_NAMES) {
     assert.ok(currentContract.includes(`\`${name}\``), name);
   }
-  assert.match(currentContract, /twelve(?:-tool| tools)/i);
+  assert.match(currentContract, /thirteen(?:-tool| tools)/i);
 
   for (const name of [
+    'indexter_discover',
     'indexter_search',
     'x402_fetch',
     'x402_status',
@@ -137,7 +138,7 @@ test('hosted source documentation states the current opaque-intent product contr
   ]) {
     assert.ok(readme.includes(`\`${name}\``), name);
   }
-  assert.match(readme, /authenticated twelve-tool roster/i);
+  assert.match(readme, /authenticated thirteen-tool roster/i);
   assert.match(readme, /replaces only\s+`dexter-open-mcp`/i);
   assert.match(readme, /legacy `dexter-mcp` PID, path,\s+configuration, and restart counters remain unchanged/i);
   assert.doesNotMatch(readme, /deletes both named PM2\s+processes/i);

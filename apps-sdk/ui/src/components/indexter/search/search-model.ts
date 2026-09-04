@@ -6,7 +6,7 @@ import type {
   SearchResource,
 } from './types.ts';
 
-export const SEARCH_WIDGET_BUILD = '2026-09-03.3';
+export const SEARCH_WIDGET_BUILD = '2026-09-04.1';
 
 export type SearchPayload = {
   searchResultSetId?: string;
@@ -81,6 +81,9 @@ function normalizeSearchResource(
     const sellerObj = sellerValue as Record<string, unknown>;
     return {
       ...resource,
+      url: typeof resource.url === 'string' && resource.url.trim()
+        ? resource.url
+        : null,
       tier: resource.tier ?? fallbackTier,
       seller: typeof sellerObj.displayName === 'string' ? sellerObj.displayName : null,
       sellerMeta: {
@@ -94,6 +97,9 @@ function normalizeSearchResource(
 
   return {
     ...resource,
+    url: typeof resource.url === 'string' && resource.url.trim()
+      ? resource.url
+      : null,
     tier: resource.tier ?? fallbackTier,
     seller: typeof sellerValue === 'string' ? sellerValue : null,
     sellerMeta,

@@ -12,12 +12,21 @@
 
 import type {
   FormattedResource,
+  IndexterEndpointAccess,
+  IndexterEvidence,
+  IndexterMerchantIdentity,
   PricingMode,
   RawCapabilityResult,
   RawPricingChain,
   ResourceExecution,
   TrustBasis,
 } from './types.js';
+
+const INDEXTER_EVIDENCE_LABELS = {
+  delivered_recently: 'Delivered recently',
+  terms_checked: 'Terms checked',
+  no_current_confirmation: 'No current confirmation',
+} as const;
 
 /**
  * Format a price in USDC to a human-readable label.
@@ -132,10 +141,77 @@ function fallbackTrustLabel(basis: TrustBasis): string {
     case 'recent_paid_delivery':
       return 'Recent paid delivery succeeded';
     case 'trusted_catalog':
-      return 'Trusted catalog listing; live payment offer confirmed';
+      return 'Trusted catalog listing';
     case 'none':
       return 'No independent paid quality test';
   }
+}
+
+function currentEvidence(
+  verification: RawCapabilityResult['verification'],
+): IndexterEvidence | undefined {
+  const state = verification.evidenceState;
+  if (!state || !(state in INDEXTER_EVIDENCE_LABELS)) return undefined;
+  const label = verification.evidenceLabel;
+  if (label !== INDEXTER_EVIDENCE_LABELS[state]) return undefined;
+  const observedAt = verification.evidenceAt;
+  if (observedAt !== null && typeof observedAt !== 'string') return undefined;
+  return { state, label, observedAt };
+}
+
+function currentEndpointAccess(
+  result: RawCapabilityResult,
+  resourceUrl: string | null,
+): IndexterEndpointAccess | undefined {
+  const access = result.access;
+  if (
+    !access
+    || !['direct_url', 'managed_resolvable'].includes(access.kind)
+    || typeof access.checkable !== 'boolean'
+    || access.requiresFreshCheck !== true
+  ) {
+    return undefined;
+  }
+  if (access.kind === 'direct_url' && resourceUrl === null) return undefined;
+  if (access.kind === 'managed_resolvable' && resourceUrl !== null) return undefined;
+  return { ...access };
+}
+
+function cleanIdentityText(value: unknown): string | null {
+  return typeof value === 'string' && value.trim().length > 0
+    ? value.trim()
+    : null;
+}
+
+function directHost(resourceUrl: string | null): string | null {
+  if (!resourceUrl) return null;
+  try {
+    return new URL(resourceUrl).hostname.toLowerCase() || null;
+  } catch {
+    return null;
+  }
+}
+
+function currentMerchantIdentity(
+  result: RawCapabilityResult,
+  resourceUrl: string | null,
+): IndexterMerchantIdentity {
+  const supplied = result.merchant;
+  // A managed resource intentionally has no public route. Never revive an
+  // internal transport host from legacy or malformed rows when its URL is null.
+  const technicalHost = resourceUrl === null
+    ? null
+    : directHost(resourceUrl);
+  const providerKey = cleanIdentityText(supplied?.providerKey)
+    ?? technicalHost
+    ?? `resource:${result.resourceId}`;
+  return {
+    providerKey,
+    providerSlug: cleanIdentityText(supplied?.providerSlug) ?? providerKey,
+    displayName: cleanIdentityText(supplied?.displayName),
+    logoUrl: cleanIdentityText(supplied?.logoUrl),
+    technicalHost,
+  };
 }
 
 /**
@@ -163,12 +239,21 @@ export function formatResource(r: RawCapabilityResult): FormattedResource {
     ? r.safetyFlags
     : r.gaming?.flags ?? [];
   const primaryPriceLabel = chains[0]?.priceLabel?.trim();
+  const resourceUrl = typeof r.resourceUrl === 'string' ? r.resourceUrl : null;
+  const access = currentEndpointAccess(r, resourceUrl);
+  const evidence = currentEvidence(verification);
+  const merchant = currentMerchantIdentity(r, resourceUrl);
 
   return {
     // Identity
+    ...(r.kind === 'endpoint' ? { kind: 'endpoint' as const } : {}),
     resourceId: r.resourceId,
-    name: r.displayName ?? r.resourceUrl,
-    url: r.resourceUrl,
+    name: r.displayName ?? resourceUrl ?? r.resourceId,
+    resourceUrl,
+    url: resourceUrl,
+    ...(access ? { access } : {}),
+    ...(evidence ? { evidence } : {}),
+    merchant,
     method: r.method || 'GET',
 
     // Pricing
@@ -192,7 +277,9 @@ export function formatResource(r: RawCapabilityResult): FormattedResource {
     verificationStatus: verification.status,
     paidQualityTestPassed,
     trustBasis,
-    trustLabel: verification.trustLabel?.trim() || fallbackTrustLabel(trustBasis),
+    trustLabel: trustBasis === 'trusted_catalog'
+      ? fallbackTrustLabel(trustBasis)
+      : verification.trustLabel?.trim() || fallbackTrustLabel(trustBasis),
     lastVerifiedAt: verification.lastVerifiedAt ?? null,
 
     // Usage
@@ -203,7 +290,9 @@ export function formatResource(r: RawCapabilityResult): FormattedResource {
 
     // Identity / visual
     iconUrl: r.icon ?? null,
-    host: r.host ?? null,
+    host: resourceUrl === null
+      ? null
+      : directHost(resourceUrl),
 
     // Gaming — `gaming` may be absent on a raw row (e.g. a result that
     // predates gaming analysis); guard it like every other optional field

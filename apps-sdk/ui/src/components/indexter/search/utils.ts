@@ -18,7 +18,8 @@ export function shortenUrl(url: string): string {
   }
 }
 
-export function hostLabel(url: string): string {
+export function hostLabel(url: string | null | undefined): string {
+  if (typeof url !== 'string' || url.trim().length === 0) return '';
   try {
     return new URL(url).hostname.replace(/^www\./, '');
   } catch {
@@ -26,12 +27,57 @@ export function hostLabel(url: string): string {
   }
 }
 
-export function resourceIconUrl(resource: SearchResource): string {
-  return providerImageSources({
+export function merchantLabel(resource: SearchResource): string {
+  const transportHost = resource.access.kind === 'direct_url'
+    ? hostLabel(resource.url)
+    : resource.merchant?.technicalHost?.trim();
+  return resource.merchant?.displayName?.trim()
+    || resource.sellerMeta?.displayName?.trim()
+    || resource.seller?.trim()
+    || transportHost
+    || 'Merchant not listed';
+}
+
+export function resourceImageSources(resource: SearchResource): string[] {
+  const canonicalMerchantSources = providerImageSources({
+    iconUrl: resource.merchant?.logoUrl,
+  });
+  const legacySources = providerImageSources({
     iconUrl: resource.iconUrl,
     logoUrl: resource.sellerMeta?.logoUrl,
     resourceUrl: resource.url,
-  })[0] || '';
+  });
+  return [...new Set([...canonicalMerchantSources, ...legacySources])];
+}
+
+export function compactEvidenceLabel(resource: SearchResource): string | null {
+  if (resource.trustBasis === 'trusted_catalog') return 'Trusted catalog';
+  const explicitLabel = resource.trustLabel?.trim();
+  // Shorten only canonical labels whose meaning is unchanged. A catalog
+  // listing alone must never be promoted into a live check.
+  if (explicitLabel === 'Recent paid delivery succeeded') return 'Delivered recently';
+  if (explicitLabel === 'Paid quality test passed') return 'Paid test';
+  if (explicitLabel === 'Quality test passed') return 'Quality test';
+  if (explicitLabel === 'Current terms observed') return 'Terms checked';
+
+  switch (resource.trustBasis) {
+    case 'recent_paid_delivery':
+      return 'Delivered recently';
+    case 'paid_test':
+      return 'Paid test';
+    case 'quality_test':
+      return 'Quality test';
+    case 'none':
+      return null;
+    default:
+      if (resource.paidQualityTestPassed) return 'Paid test';
+      if (resource.verified) return 'Quality test';
+      return null;
+  }
+}
+
+export function resourceIconUrl(resource: SearchResource): string {
+  return resourceImageSources(resource)[0] || '';
 }
 
 export function formatListedPrice(

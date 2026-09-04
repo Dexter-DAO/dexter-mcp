@@ -100,12 +100,16 @@ function hostDocument() {
 
 function installInteractiveMcpHost({
   checkToolResult,
+  displayModeBehaviors = [],
   displayModeResponseDelays = [],
   dimensions,
   initResult,
   initialDisplayMode = 'inline',
+  messageBehavior = 'resolve',
+  toolCallResponses = {},
   toolInput,
   toolResult,
+  updateModelContextBehavior = 'resolve',
   widgetUrl,
 }) {
   const iframe = document.getElementById('widget');
@@ -114,8 +118,11 @@ function installInteractiveMcpHost({
     calls: [],
     mode: initialDisplayMode,
     dimensions,
+    displayModeBehaviors,
     displayModeResponseDelays: displayModeResponseDelays ?? [],
     displayModeRequestIndex: 0,
+    toolCallResponses,
+    toolCallResponseIndexes: {},
     lastReportedHeight: null,
     appliedHeight: null,
   };
@@ -182,6 +189,17 @@ function installInteractiveMcpHost({
         const responseDelay = Number(
           state.displayModeResponseDelays[state.displayModeRequestIndex++] ?? 0,
         );
+        const behavior = state.displayModeBehaviors[state.displayModeRequestIndex - 1]
+          ?? 'resolve';
+        if (behavior === 'hang') break;
+        if (behavior === 'reject') {
+          child.postMessage({
+            jsonrpc: '2.0',
+            id: message.id,
+            error: { code: -32000, message: 'Display mode denied by fixture host' },
+          }, '*');
+          break;
+        }
         setTimeout(() => {
           state.mode = mode;
           state.lastReportedHeight = null;
@@ -194,11 +212,56 @@ function installInteractiveMcpHost({
         }, Number.isFinite(responseDelay) ? Math.max(0, responseDelay) : 0);
         break;
       }
-      case 'tools/call':
-        respond(checkToolResult);
+      case 'tools/call': {
+        const name = typeof message.params?.name === 'string'
+          ? message.params.name
+          : '';
+        const configured = Array.isArray(state.toolCallResponses?.[name])
+          ? state.toolCallResponses[name]
+          : null;
+        const responseIndex = Number(state.toolCallResponseIndexes[name] ?? 0);
+        state.toolCallResponseIndexes[name] = responseIndex + 1;
+        if (configured && responseIndex < configured.length) {
+          respond(configured[responseIndex]);
+          break;
+        }
+        if (name === 'x402_check') {
+          respond(checkToolResult);
+          break;
+        }
+        respond({
+          content: [{
+            type: 'text',
+            text: `No fixture response configured for ${name || 'an unnamed tool'}.`,
+          }],
+          isError: true,
+        });
         break;
+      }
       case 'ui/update-model-context':
+        if (updateModelContextBehavior === 'hang') break;
+        if (updateModelContextBehavior === 'reject') {
+          child.postMessage({
+            jsonrpc: '2.0',
+            id: message.id,
+            error: { code: -32000, message: 'Context update denied by fixture host' },
+          }, '*');
+          break;
+        }
+        respond({ isError: false });
+        break;
       case 'ui/message':
+        if (messageBehavior === 'hang') break;
+        if (messageBehavior === 'reject') {
+          child.postMessage({
+            jsonrpc: '2.0',
+            id: message.id,
+            error: { code: -32000, message: 'Message denied by fixture host' },
+          }, '*');
+          break;
+        }
+        respond({ isError: false });
+        break;
       case 'ui/open-link':
       case 'ui/download-file':
         respond({ isError: false });
@@ -251,6 +314,15 @@ function rendererToolResult(surface) {
   };
 }
 
+function discoveryToolResult(structuredContent) {
+  return {
+    structuredContent,
+    content: [{ type: 'text', text: 'Deterministic Indexter discovery fixture.' }],
+    _meta: { fixture: true },
+    isError: false,
+  };
+}
+
 function installFixedClock(fixedNow) {
   const RealDate = Date;
   const fixedTimestamp = new RealDate(fixedNow).getTime();
@@ -276,13 +348,18 @@ function isLocalRequest(url, baseUrl) {
 }
 
 async function openRenderer({
+  callToolAvailable = true,
   context,
   baseUrl,
   surface,
   availableDisplayModes,
+  displayModeBehaviors,
   displayModeResponseDelays,
   inlineMaxHeight,
   initialDisplayMode = 'inline',
+  messageBehavior,
+  toolCallResponses,
+  updateModelContextBehavior,
 }) {
   const page = await context.newPage();
   const pageErrors = [];
@@ -300,16 +377,23 @@ async function openRenderer({
   if (availableDisplayModes) {
     initialization.hostContext.availableDisplayModes = availableDisplayModes;
   }
+  if (!callToolAvailable) {
+    delete initialization.hostCapabilities.serverTools;
+  }
   initialization.hostContext.displayMode = initialDisplayMode;
   initialization.hostContext.containerDimensions = dimensions[initialDisplayMode];
   await page.evaluate(installInteractiveMcpHost, {
     checkToolResult: CHECK_TOOL_RESULT,
+    displayModeBehaviors: displayModeBehaviors ?? [],
     displayModeResponseDelays: displayModeResponseDelays ?? [],
     dimensions,
     initResult: initialization,
     initialDisplayMode,
+    messageBehavior: messageBehavior ?? 'resolve',
+    toolCallResponses: toolCallResponses ?? {},
     toolInput: surface.input,
     toolResult: rendererToolResult(surface),
+    updateModelContextBehavior: updateModelContextBehavior ?? 'resolve',
     widgetUrl: `${baseUrl}/${surface.file}`,
   });
 
@@ -545,7 +629,13 @@ async function exerciseWalletSheet({
 test('current OpenDexter renderers use MCP Apps interactions without clipped inner viewports', async (t) => {
   const surfaces = await buildRendererGallerySurfaces();
   const byId = new Map(surfaces.map((surface) => [surface.id, surface]));
-  for (const id of ['portfolio', 'dexter-wallet', 'indexter-search']) {
+  for (const id of [
+    'portfolio',
+    'dexter-wallet',
+    'indexter-search',
+    'indexter-discovery',
+    'indexter-provider',
+  ]) {
     assert.ok(byId.has(id), `Missing ${id} fixture`);
   }
 
@@ -904,6 +994,688 @@ test('current OpenDexter renderers use MCP Apps interactions without clipped inn
     await page.close();
   });
 
+  await t.test('Indexter discovery enters fullscreen before one provider tool call and restores keyboard focus', async () => {
+    const providerSurface = byId.get('indexter-provider');
+    const { frame, page, pageErrors } = await openRenderer({
+      context,
+      baseUrl,
+      surface: byId.get('indexter-discovery'),
+      toolCallResponses: {
+        indexter_discover: [discoveryToolResult(providerSurface.output)],
+      },
+    });
+    const providerTrigger = frame.getByRole('button', {
+      name: 'Explore Massive',
+      exact: true,
+    });
+    await providerTrigger.waitFor();
+    await resetHostCalls(page);
+    await providerTrigger.focus();
+    await page.keyboard.press('Enter');
+
+    await waitForRendererMode(frame, '.dx-discovery', 'fullscreen');
+    await waitForStableHostSize(page, 'fullscreen');
+    const providerHeading = frame.getByRole('heading', {
+      level: 1,
+      name: 'Massive',
+      exact: true,
+    });
+    await providerHeading.waitFor();
+    await frame.locator('.dx-discovery-provider-hero h1:focus').waitFor();
+    assert.equal(
+      await providerHeading.evaluate((element) => document.activeElement === element),
+      true,
+      'provider drill-in must focus the provider heading',
+    );
+
+    const providerRequests = await hostRequests(page, [
+      'ui/request-display-mode',
+      'tools/call',
+    ]);
+    assert.deepEqual(providerRequests, [
+      {
+        method: 'ui/request-display-mode',
+        params: { mode: 'fullscreen' },
+      },
+      {
+        method: 'tools/call',
+        params: {
+          name: 'indexter_discover',
+          arguments: {
+            provider: 'massive.com',
+            capabilityPageSize: 16,
+          },
+        },
+      },
+    ]);
+
+    await frame.getByRole('button', { name: 'All providers', exact: true }).click();
+    const restoredTrigger = frame.getByRole('button', {
+      name: 'Explore Massive',
+      exact: true,
+    });
+    await restoredTrigger.waitFor();
+    await frame.locator('.dx-discovery-provider[aria-label="Explore Massive"]:focus').waitFor();
+    assert.equal(
+      await restoredTrigger.evaluate((element) => document.activeElement === element),
+      true,
+      'Back must restore focus to the provider that opened the detail view',
+    );
+    assert.deepEqual(pageErrors, []);
+    await page.close();
+  });
+
+  await t.test('Indexter discovery opens providers directly when fullscreen is unavailable', async () => {
+    const providerSurface = byId.get('indexter-provider');
+    const { frame, page, pageErrors } = await openRenderer({
+      context,
+      baseUrl,
+      surface: byId.get('indexter-discovery'),
+      availableDisplayModes: ['inline'],
+      toolCallResponses: {
+        indexter_discover: [discoveryToolResult(providerSurface.output)],
+      },
+    });
+    const providerTrigger = frame.getByRole('button', {
+      name: 'Explore Massive',
+      exact: true,
+    });
+    await providerTrigger.waitFor();
+    await resetHostCalls(page);
+    await providerTrigger.focus();
+    await page.keyboard.press('Enter');
+    const providerHeading = frame.getByRole('heading', {
+      level: 1,
+      name: 'Massive',
+      exact: true,
+    });
+    await providerHeading.waitFor();
+    await frame.locator('.dx-discovery-provider-hero h1:focus').waitFor();
+
+    const actionCalls = await hostRequests(page, [
+      'ui/request-display-mode',
+      'tools/call',
+      'ui/message',
+    ]);
+    assert.equal(actionCalls.length, 1);
+    assert.deepEqual(actionCalls[0], {
+      method: 'tools/call',
+      params: {
+        name: 'indexter_discover',
+        arguments: {
+          provider: 'massive.com',
+          capabilityPageSize: 16,
+        },
+      },
+    });
+    assert.equal(
+      await providerHeading.evaluate((element) => document.activeElement === element),
+      true,
+      'inline provider drill-in must focus the provider heading',
+    );
+    await waitForRendererMode(frame, '.dx-discovery', 'inline');
+    assert.deepEqual(pageErrors, []);
+    await page.close();
+  });
+
+  await t.test('Indexter provider drill-in does not wait for hung host presentation calls', async () => {
+    const providerSurface = byId.get('indexter-provider');
+    const { frame, page, pageErrors } = await openRenderer({
+      context,
+      baseUrl,
+      surface: byId.get('indexter-discovery'),
+      displayModeBehaviors: ['hang'],
+      updateModelContextBehavior: 'hang',
+      toolCallResponses: {
+        indexter_discover: [discoveryToolResult(providerSurface.output)],
+      },
+    });
+    const providerTrigger = frame.getByRole('button', {
+      name: 'Explore Massive',
+      exact: true,
+    });
+    await providerTrigger.waitFor();
+    await resetHostCalls(page);
+    await providerTrigger.click();
+
+    await frame.getByRole('heading', { level: 1, name: 'Massive', exact: true }).waitFor();
+    await frame.locator('.dx-discovery-resource').nth(3).waitFor();
+    await page.waitForFunction(() => (
+      window.__appsHost.calls.filter((call) => [
+        'ui/request-display-mode',
+        'tools/call',
+        'ui/update-model-context',
+      ].includes(call.method)).length === 3
+    ));
+    assert.equal(await frame.getByRole('status').count(), 0, 'loading must clear');
+    assert.equal(await frame.locator('.dx-discovery-resource').count(), 4);
+    assert.equal(await page.evaluate(() => window.__appsHost.mode), 'inline');
+    assert.deepEqual(
+      (await hostRequests(page, [
+        'ui/request-display-mode',
+        'tools/call',
+        'ui/update-model-context',
+      ])).map((call) => call.method),
+      ['ui/request-display-mode', 'tools/call', 'ui/update-model-context'],
+    );
+    assert.deepEqual(pageErrors, []);
+    await page.close();
+  });
+
+  await t.test('Indexter browse expands inline when fullscreen is denied', async () => {
+    const { frame, page, pageErrors } = await openRenderer({
+      context,
+      baseUrl,
+      surface: byId.get('indexter-discovery'),
+      displayModeBehaviors: ['reject'],
+    });
+    await frame.locator('.dx-discovery-providers').waitFor();
+    assert.equal(await frame.locator('.dx-discovery-provider').count(), 5);
+    await frame.getByRole('button', { name: 'Browse providers', exact: true }).click();
+    await frame.locator('.dx-discovery-provider').nth(5).waitFor();
+    assert.equal(await frame.locator('.dx-discovery-provider').count(), 6);
+    assert.equal(await page.evaluate(() => window.__appsHost.mode), 'inline');
+    assert.deepEqual(pageErrors, []);
+    await page.close();
+  });
+
+  await t.test('Indexter reports a rejected chat fallback without an unhandled error', async () => {
+    const { frame, page, pageErrors } = await openRenderer({
+      context,
+      baseUrl,
+      surface: byId.get('indexter-discovery'),
+      callToolAvailable: false,
+      messageBehavior: 'reject',
+    });
+    await resetHostCalls(page);
+    await frame.getByRole('button', { name: 'Explore Massive', exact: true }).click();
+    await frame.getByRole('alert').getByText(
+      "Couldn't open Massive. Try again.",
+      { exact: true },
+    ).waitFor();
+    assert.deepEqual(
+      (await hostRequests(page, ['tools/call', 'ui/message'])).map((call) => call.method),
+      ['ui/message'],
+    );
+    assert.deepEqual(pageErrors, []);
+    await page.close();
+  });
+
+  await t.test('Indexter discovery forwards one opaque cursor, dedupes pages, and preserves paginated focus', async () => {
+    const initialSurface = structuredClone(byId.get('indexter-discovery'));
+    const opaqueCursor = 'rev-17.eyJhZnRlciI6ImJpdHJlZmlsbC5jb20ifQ.sig';
+    initialSurface.output.page.nextCursor = opaqueCursor;
+
+    const nextPage = structuredClone(initialSurface.output);
+    const overlappingProvider = structuredClone(initialSurface.output.providers.at(-1));
+    const appendedProvider = structuredClone(initialSurface.output.providers[0]);
+    Object.assign(appendedProvider, {
+      id: 'you.com',
+      providerKey: 'you.com',
+      providerSlug: 'api.you.com',
+      technicalHost: 'api.you.com',
+      displayName: 'You.com',
+      description: 'Web search and current-source retrieval.',
+      logoUrl: 'https://you.com/favicon.ico',
+      docsUrl: 'https://documentation.you.com',
+      editorial: { featured: true, order: 6, evidenceResourceId: null },
+      catalog: {
+        resourceCount: 1,
+        capabilityGroupCount: 1,
+        countsComplete: true,
+      },
+      evidence: {
+        totalResourceCount: 1,
+        evaluatedResourceCount: 1,
+        deliveredRecentlyCount: 0,
+        termsCheckedCount: 1,
+        noCurrentConfirmationCount: 0,
+        latestObservedAt: GALLERY_FIXED_NOW,
+        coverageComplete: true,
+      },
+      capabilityGroups: [{
+        id: 'web-search',
+        label: 'Web search',
+        resourceCount: 1,
+        returnedResourceCount: 0,
+        resources: [],
+      }],
+    });
+    nextPage.providers = [overlappingProvider, appendedProvider];
+    nextPage.summary.returnedProviderCount = 2;
+    nextPage.page = {
+      version: 2,
+      namespace: 'indexter.endpoint.providers.v1',
+      scope: 'providers',
+      order: 'featured_provider_curation_v1',
+      limit: 6,
+      returned: 2,
+      hasMore: false,
+      nextCursor: null,
+    };
+
+    const appendedProviderDetail = structuredClone(byId.get('indexter-provider').output);
+    appendedProviderDetail.requestedProvider = 'you.com';
+    Object.assign(appendedProviderDetail.providers[0], {
+      id: appendedProvider.id,
+      providerKey: appendedProvider.providerKey,
+      providerSlug: appendedProvider.providerSlug,
+      technicalHost: appendedProvider.technicalHost,
+      displayName: appendedProvider.displayName,
+      description: appendedProvider.description,
+      logoUrl: appendedProvider.logoUrl,
+      docsUrl: appendedProvider.docsUrl,
+      editorial: appendedProvider.editorial,
+    });
+    appendedProviderDetail.summary.returnedProviderCount = 1;
+
+    const { frame, page, pageErrors } = await openRenderer({
+      context,
+      baseUrl,
+      surface: initialSurface,
+      toolCallResponses: {
+        indexter_discover: [
+          discoveryToolResult(nextPage),
+          discoveryToolResult(appendedProviderDetail),
+        ],
+      },
+    });
+    await frame.getByRole('button', { name: 'Browse providers', exact: true }).click();
+    await waitForRendererMode(frame, '.dx-discovery', 'fullscreen');
+    await waitForStableHostSize(page, 'fullscreen');
+    const moreProviders = frame.getByRole('button', {
+      name: 'More providers',
+      exact: true,
+    });
+    await moreProviders.waitFor();
+    await resetHostCalls(page);
+    await moreProviders.click();
+
+    const appendedTrigger = frame.getByRole('button', {
+      name: 'Explore You.com',
+      exact: true,
+    });
+    await appendedTrigger.waitFor();
+    await frame.locator('.dx-discovery-provider[aria-label="Explore You.com"]:focus').waitFor();
+    assert.equal(
+      await frame.getByRole('button', { name: 'Explore Bitrefill', exact: true }).count(),
+      1,
+      'a provider repeated across pages must remain unique',
+    );
+    assert.equal(await appendedTrigger.count(), 1, 'the appended provider must render once');
+    assert.equal(
+      await frame.locator('.dx-discovery-provider').count(),
+      7,
+      'pagination must append only the novel provider',
+    );
+
+    let toolCalls = await hostRequests(page, ['tools/call']);
+    assert.deepEqual(toolCalls, [{
+      method: 'tools/call',
+      params: {
+        name: 'indexter_discover',
+        arguments: {
+          limit: 6,
+          cursor: opaqueCursor,
+        },
+      },
+    }]);
+    assert.equal(
+      Object.hasOwn(toolCalls[0].params.arguments, 'offset'),
+      false,
+      'the widget must forward the opaque cursor without creating an offset',
+    );
+
+    await page.keyboard.press('Enter');
+    const appendedHeading = frame.getByRole('heading', {
+      level: 1,
+      name: 'You.com',
+      exact: true,
+    });
+    await appendedHeading.waitFor();
+    await frame.locator('.dx-discovery-provider-hero h1:focus').waitFor();
+    await frame.getByRole('button', { name: 'All providers', exact: true }).click();
+    const restoredAppendedTrigger = frame.getByRole('button', {
+      name: 'Explore You.com',
+      exact: true,
+    });
+    await restoredAppendedTrigger.waitFor();
+    await frame.locator('.dx-discovery-provider[aria-label="Explore You.com"]:focus').waitFor();
+    assert.equal(
+      await restoredAppendedTrigger.evaluate((element) => document.activeElement === element),
+      true,
+      'Back must restore focus to a provider appended by cursor pagination',
+    );
+
+    toolCalls = await hostRequests(page, ['tools/call']);
+    assert.deepEqual(toolCalls[1], {
+      method: 'tools/call',
+      params: {
+        name: 'indexter_discover',
+        arguments: {
+          provider: 'you.com',
+          capabilityPageSize: 16,
+        },
+      },
+    });
+    assert.equal(toolCalls.length, 2);
+    assert.ok(toolCalls.every((call) => call.params.name === 'indexter_discover'));
+    assert.deepEqual(pageErrors, []);
+    await page.close();
+  });
+
+  await t.test('Indexter provider replaces capability pages, returns locally, and rejects actor pages', async () => {
+    const initialSurface = structuredClone(byId.get('indexter-provider'));
+    const capabilityCursor = 'cap-v2.eyJwcm92aWRlciI6Im1hc3NpdmUuY29tIn0.sig';
+    initialSurface.output.page.hasMore = true;
+    initialSurface.output.page.nextCursor = capabilityCursor;
+
+    const nextResource = structuredClone(
+      initialSurface.output.providers[0].capabilityGroups[0].resources[0],
+    );
+    Object.assign(nextResource, {
+      id: '77777777-7777-4777-8777-777777777777',
+      resourceId: '77777777-7777-4777-8777-777777777777',
+      resourceUrl: 'https://agent.massive.com/v2/reference/news',
+      displayName: 'Market news',
+      description: 'Recent market news for one ticker.',
+    });
+    const nextPage = structuredClone(initialSurface.output);
+    nextPage.providers[0].capabilityGroups = [{
+      id: 'market-news',
+      label: 'Market news',
+      resourceCount: 1,
+      returnedResourceCount: 1,
+      resources: [nextResource],
+    }];
+    nextPage.page = {
+      version: 2,
+      namespace: 'indexter.endpoint.provider-capabilities.v1',
+      scope: 'provider_capabilities',
+      order: 'curated_capability_breadth_v1',
+      limit: 4,
+      returned: 1,
+      hasMore: false,
+      nextCursor: null,
+    };
+    const actorPage = structuredClone(nextPage);
+    actorPage.page.namespace = 'indexter.actor.catalog.v1';
+
+    const { frame, page, pageErrors } = await openRenderer({
+      context,
+      baseUrl,
+      surface: initialSurface,
+      toolCallResponses: {
+        indexter_discover: [
+          discoveryToolResult(nextPage),
+          discoveryToolResult(actorPage),
+        ],
+      },
+    });
+    await frame.getByRole('button', { name: 'Open full view', exact: true }).click();
+    await waitForRendererMode(frame, '.dx-discovery', 'fullscreen');
+    const next = frame.getByRole('button', { name: 'Next', exact: true });
+    await next.waitFor();
+    await resetHostCalls(page);
+    await next.click();
+
+    const nextHeading = frame.getByRole('heading', {
+      level: 2,
+      name: 'Market news',
+      exact: true,
+    });
+    await nextHeading.waitFor();
+    assert.equal(
+      await nextHeading.evaluate((element) => document.activeElement === element),
+      true,
+      'the first group heading must receive focus after Next',
+    );
+    assert.equal(
+      await frame.getByText('Ticker details', { exact: true }).count(),
+      0,
+      'the next capability page must replace the previous resources',
+    );
+    assert.equal(await frame.locator('.dx-discovery-resource').count(), 1);
+    assert.deepEqual(await hostRequests(page, ['tools/call']), [{
+      method: 'tools/call',
+      params: {
+        name: 'indexter_discover',
+        arguments: {
+          provider: 'massive.com',
+          cursor: capabilityCursor,
+          capabilityPageSize: 4,
+        },
+      },
+    }]);
+
+    await frame.getByRole('button', { name: 'Previous', exact: true }).click();
+    await frame.getByText('Ticker details', { exact: true }).waitFor();
+    assert.equal(await frame.locator('.dx-discovery-resource').count(), 4);
+    assert.equal(
+      await next.evaluate((element) => document.activeElement === element),
+      true,
+      'Previous must restore focus to the Next trigger',
+    );
+    assert.equal(
+      (await hostRequests(page, ['tools/call'])).length,
+      1,
+      'Previous must restore the local page without another tool call',
+    );
+
+    await next.click();
+    await frame.getByRole('alert').getByText(
+      "Couldn't load more services. Try again.",
+      { exact: true },
+    ).waitFor();
+    assert.equal(
+      await frame.getByText('Ticker details', { exact: true }).count(),
+      1,
+      'an actor catalog page must not replace endpoint capability state',
+    );
+    assert.equal(await frame.locator('.dx-discovery-resource').count(), 4);
+    assert.deepEqual(pageErrors, []);
+    await page.close();
+  });
+
+  await t.test('Indexter provider Check emits one resource-bound chat handoff and no direct action', async () => {
+    const { frame, page, pageErrors } = await openRenderer({
+      context,
+      baseUrl,
+      surface: byId.get('indexter-provider'),
+    });
+    const check = frame.getByRole('button', {
+      name: 'Check current terms for Ticker details from Massive',
+      exact: true,
+    });
+    await check.waitFor();
+    await resetHostCalls(page);
+    await check.evaluate((element) => {
+      element.click();
+      element.click();
+    });
+    await page.waitForFunction(() => (
+      window.__appsHost.calls.filter((call) => call.method === 'ui/message').length === 1
+    ));
+    await page.waitForTimeout(80);
+
+    const actionCalls = await hostRequests(page, [
+      'tools/call',
+      'ui/message',
+      'ui/request-display-mode',
+      'ui/update-model-context',
+    ]);
+    assert.equal(actionCalls.length, 1);
+    assert.equal(actionCalls[0].method, 'ui/message');
+    const prompt = actionCalls[0].params?.content?.find(
+      (item) => item.type === 'text',
+    )?.text ?? '';
+    assert.match(prompt, /Call x402_check with resourceId 33333333-3333-4333-8333-333333333333 and method GET/);
+    assert.match(prompt, /do not search again/i);
+    assert.match(prompt, /do not pay/i);
+    assert.doesNotMatch(
+      prompt,
+      /agent\.massive\.com|indexter_search|x402_fetch|dexter_wallet/i,
+    );
+    assert.deepEqual(pageErrors, []);
+    await page.close();
+  });
+
+  await t.test('managed access terms preserve identity and open one payment review without a URL', async () => {
+    const surface = structuredClone(byId.get('access-terms'));
+    const resourceId = '77777777-7777-4777-8777-777777777777';
+    surface.input = { resourceId, method: 'GET' };
+    surface.output.checkedRequest = {
+      resourceId,
+      method: 'GET',
+      body: null,
+      requestBound: true,
+    };
+    surface.output.resourceIdentity = {
+      kind: 'endpoint',
+      resourceId,
+      displayName: 'Live market prices',
+      description: 'Current market prices with source timestamps.',
+      merchant: {
+        providerKey: 'atlas-labs',
+        providerSlug: 'atlas-labs',
+        displayName: 'Atlas Labs',
+        logoUrl: 'https://atlas.fixture.example/logo.svg',
+        technicalHost: null,
+      },
+    };
+    surface.output.enrichment = null;
+    delete surface.output.resource;
+
+    const { frame, page, pageErrors } = await openRenderer({
+      context,
+      baseUrl,
+      surface,
+    });
+    await frame.getByText('Atlas Labs', { exact: true }).waitFor();
+    await frame.getByRole('heading', { name: 'Live market prices', exact: true }).waitFor();
+    await frame.getByText('$0.008', { exact: true }).first().waitFor();
+    assert.equal(await frame.getByText(resourceId, { exact: false }).count(), 0);
+    assert.equal(await frame.getByText('10000', { exact: false }).count(), 0);
+    assert.equal(await frame.getByText('Recipient', { exact: true }).count(), 0);
+    assert.equal(await frame.getByText('No payment has been made.', { exact: false }).count(), 0);
+
+    const review = frame.getByRole('button', { name: 'Review payment', exact: true });
+    await review.waitFor();
+    await resetHostCalls(page);
+    await review.evaluate((element) => {
+      element.click();
+      element.click();
+    });
+    await page.waitForFunction(() => (
+      window.__appsHost.calls.filter((call) => call.method === 'ui/message').length === 1
+    ));
+    const calls = await hostRequests(page, ['ui/message', 'tools/call']);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].method, 'ui/message');
+    const prompt = calls[0].params?.content?.find((item) => item.type === 'text')?.text ?? '';
+    assert.match(prompt, /"intentId":"[0-9a-f-]+"/);
+    assert.match(prompt, /"maxAmountAtomic":"8000"/);
+    assert.doesNotMatch(prompt, /atlas\.fixture\.example|resourceId|payTo/);
+    assert.deepEqual(pageErrors, []);
+    await page.close();
+  });
+
+  await t.test('Indexter discovery uses reversible fullscreen and fails closed on malformed discovery', async () => {
+    const fullscreen = await openRenderer({
+      context,
+      baseUrl,
+      surface: byId.get('indexter-discovery'),
+    });
+    const expand = fullscreen.frame.getByRole('button', {
+      name: 'Open full view',
+      exact: true,
+    });
+    await expand.waitFor();
+    await resetHostCalls(fullscreen.page);
+    await expand.focus();
+    await fullscreen.page.keyboard.press('Enter');
+    await waitForRendererMode(fullscreen.frame, '.dx-discovery', 'fullscreen');
+    await waitForStableHostSize(fullscreen.page, 'fullscreen');
+    const close = fullscreen.frame.getByRole('button', {
+      name: 'Close full view',
+      exact: true,
+    });
+    await close.waitFor();
+    assert.equal(
+      await close.evaluate((element) => document.activeElement === element),
+      true,
+      'fullscreen entry must preserve focus on the reversible view control',
+    );
+    await fullscreen.page.keyboard.press('Enter');
+    await waitForRendererMode(fullscreen.frame, '.dx-discovery', 'inline');
+    await waitForStableHostSize(fullscreen.page, 'inline');
+    assert.deepEqual(
+      await hostRequests(fullscreen.page, [
+        'ui/request-display-mode',
+        'tools/call',
+        'ui/message',
+        'ui/update-model-context',
+      ]),
+      [
+        { method: 'ui/request-display-mode', params: { mode: 'fullscreen' } },
+        { method: 'ui/request-display-mode', params: { mode: 'inline' } },
+      ],
+    );
+    assert.deepEqual(fullscreen.pageErrors, []);
+    await fullscreen.page.close();
+
+    const invalidSurface = structuredClone(byId.get('indexter-discovery'));
+    invalidSurface.output.page.nextCursor = 7;
+    const malformed = await openRenderer({
+      context,
+      baseUrl,
+      surface: invalidSurface,
+    });
+    const alert = malformed.frame.getByRole('alert');
+    await alert.getByRole('heading', {
+      name: 'Discovery unavailable',
+      exact: true,
+    }).waitFor();
+    assert.match(
+      await alert.innerText(),
+      /Indexter couldn't display this result\. Try again\./,
+    );
+    assert.equal(await malformed.frame.locator('.dx-discovery-provider').count(), 0);
+    assert.equal(await malformed.frame.locator('.dx-discovery-check').count(), 0);
+    assert.deepEqual(
+      await hostRequests(malformed.page, [
+        'ui/request-display-mode',
+        'tools/call',
+        'ui/message',
+        'ui/update-model-context',
+      ]),
+      [],
+      'malformed discovery must not start a host action',
+    );
+    assert.deepEqual(malformed.pageErrors, []);
+    await malformed.page.close();
+
+    const privateHostSurface = structuredClone(byId.get('indexter-discovery'));
+    privateHostSurface.output.providers[0].technicalHost = '127.0.0.1';
+    const privateHost = await openRenderer({
+      context,
+      baseUrl,
+      surface: privateHostSurface,
+    });
+    await privateHost.frame.getByRole('heading', {
+      name: 'Discovery unavailable',
+      exact: true,
+    }).waitFor();
+    const imageRequests = await privateHost.frame.locator('html').evaluate(() => (
+      performance.getEntriesByType('resource')
+        .map((entry) => entry.name)
+        .filter((url) => url.includes('/api/favicon') || url.includes('/api/img'))
+    ));
+    assert.deepEqual(imageRequests, [], 'unsafe provider data must never reach an image proxy');
+    assert.deepEqual(privateHost.pageErrors, []);
+    await privateHost.page.close();
+  });
+
   await t.test('Indexter comparison and live terms use presentation and chat APIs in order', async () => {
     const { frame, page, pageErrors } = await openRenderer({
       context,
@@ -970,7 +1742,7 @@ test('current OpenDexter renderers use MCP Apps interactions without clipped inn
     await assertNoInternalClippedViewport(
       frame,
       '.dxs-root',
-      '.dx-search-brief__action-note',
+      '.dx-search-result-alternatives',
       'Indexter current-terms handoff',
     );
     assert.deepEqual(pageErrors, []);

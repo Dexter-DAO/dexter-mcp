@@ -44,6 +44,37 @@ export type TrustBasis =
   | 'trusted_catalog'
   | 'none';
 
+export type IndexterEvidenceState =
+  | 'delivered_recently'
+  | 'terms_checked'
+  | 'no_current_confirmation';
+
+export interface IndexterEvidence {
+  state: IndexterEvidenceState;
+  label:
+    | 'Delivered recently'
+    | 'Terms checked'
+    | 'No current confirmation';
+  observedAt: string | null;
+}
+
+export interface IndexterEndpointAccess {
+  kind: 'direct_url' | 'managed_resolvable';
+  checkable: boolean;
+  requiresFreshCheck: true;
+}
+
+export interface IndexterMerchantIdentity {
+  /** Stable provider-level grouping key supplied by Indexter. */
+  providerKey: string;
+  providerSlug: string;
+  /** Public merchant name and mark; transport hosts are not merchant identity. */
+  displayName: string | null;
+  logoUrl: string | null;
+  /** Public direct-route host when one exists; null for managed resources. */
+  technicalHost: string | null;
+}
+
 export interface RawVerification {
   status: string;
   paid: boolean;
@@ -53,6 +84,9 @@ export interface RawVerification {
   qualityScore: number | null;
   lastVerifiedAt: string | null;
   responseStatus?: number | null;
+  evidenceState?: IndexterEvidenceState;
+  evidenceLabel?: IndexterEvidence['label'];
+  evidenceAt?: string | null;
 }
 
 export interface ResourceExecution {
@@ -106,8 +140,12 @@ export interface ServiceProfile {
 }
 
 export interface RawCapabilityResult {
+  /** Present on current endpoint results. Leave absent for untyped legacy rows. */
+  kind?: 'endpoint';
   resourceId: string;
-  resourceUrl: string;
+  resourceUrl: string | null;
+  access?: IndexterEndpointAccess;
+  merchant?: IndexterMerchantIdentity;
   displayName: string | null;
   description: string | null;
   category: string | null;
@@ -256,9 +294,16 @@ export interface SearchTriangulate {
  * here and in formatResource() is the ONLY place a new field needs to land.
  */
 export interface FormattedResource {
+  /** Preserved only when the API supplied the endpoint discriminator. */
+  kind?: 'endpoint';
   resourceId: string;
   name: string;
-  url: string;
+  /** Exact API field plus its legacy consumer alias. Both are null for managed rows. */
+  resourceUrl: string | null;
+  url: string | null;
+  access?: IndexterEndpointAccess;
+  evidence?: IndexterEvidence;
+  merchant: IndexterMerchantIdentity;
   method: string;
 
   // Pricing

@@ -113,6 +113,24 @@ export type Enrichment = {
   };
 };
 
+/**
+ * Public, display-only identity pinned to the resource that x402_check
+ * resolved. Managed transport URLs never belong in this object.
+ */
+export type CheckResourceIdentity = {
+  kind: 'endpoint';
+  resourceId: string | null;
+  displayName: string;
+  description: string | null;
+  merchant: {
+    providerKey: string | null;
+    providerSlug: string | null;
+    displayName: string | null;
+    logoUrl: string | null;
+    technicalHost: string | null;
+  };
+};
+
 export type PricingPayload = {
   intentId?: string | null;
   quoteOnly?: boolean;
@@ -123,6 +141,7 @@ export type PricingPayload = {
   paymentOptions?: PaymentOption[];
   checkedRequest?: {
     url?: string;
+    resourceId?: string;
     method?: string;
     body?: string | null;
     requestBound?: boolean;
@@ -140,12 +159,14 @@ export type PricingPayload = {
   schema?: unknown;
   inputSchema?: unknown;
   outputSchema?: unknown;
+  resourceIdentity?: CheckResourceIdentity | null;
   enrichment?: Enrichment | null;
   enrichment_source?: string;
 };
 
 export type PricingInput = {
   url?: string;
+  resourceId?: string;
   method?: string;
   /** Exact request bytes represented as a UTF-8 string. Never reserialize it. */
   body?: string;
