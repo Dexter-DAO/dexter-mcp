@@ -10,6 +10,13 @@ function rawResource(overrides: Partial<RawCapabilityResult> = {}): RawCapabilit
   return {
     resourceId: 'resource-1',
     resourceUrl: 'https://merchant.example/buy',
+    merchant: {
+      providerKey: 'example-merchant',
+      providerSlug: 'example-merchant',
+      displayName: 'Example Merchant',
+      logoUrl: 'https://merchant.example/logo.png',
+      technicalHost: 'merchant.example',
+    },
     displayName: 'Example purchase',
     description: 'Buys and ships a physical product.',
     category: 'Tools',
@@ -98,6 +105,11 @@ describe('current capability truth projection', () => {
       paidQualityTestPassed: false,
       trustBasis: 'recent_paid_delivery',
       trustLabel: 'Recent paid delivery succeeded',
+      merchant: {
+        providerKey: 'example-merchant',
+        displayName: 'Example Merchant',
+        logoUrl: 'https://merchant.example/logo.png',
+      },
       safetyFlags: ['seller_claim_only'],
       schemaSource: 'bazaar',
       execution: {
@@ -118,6 +130,13 @@ describe('current capability truth projection', () => {
       kind: 'endpoint',
       resourceUrl: null,
       host: null,
+      merchant: {
+        providerKey: 'apollo',
+        providerSlug: 'apollo',
+        displayName: 'Apollo',
+        logoUrl: 'https://assets.example.test/apollo.png',
+        technicalHost: null,
+      },
       access: {
         kind: 'managed_resolvable',
         checkable: true,
@@ -148,6 +167,13 @@ describe('current capability truth projection', () => {
         state: 'delivered_recently',
         label: 'Delivered recently',
         observedAt: '2026-09-04T02:30:00.000Z',
+      },
+      merchant: {
+        providerKey: 'apollo',
+        providerSlug: 'apollo',
+        displayName: 'Apollo',
+        logoUrl: 'https://assets.example.test/apollo.png',
+        technicalHost: null,
       },
     });
     expect(JSON.stringify(formatted)).not.toContain('indexter-managed.invalid');

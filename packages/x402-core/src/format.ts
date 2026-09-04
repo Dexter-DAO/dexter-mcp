@@ -14,6 +14,7 @@ import type {
   FormattedResource,
   IndexterEndpointAccess,
   IndexterEvidence,
+  IndexterMerchantIdentity,
   PricingMode,
   RawCapabilityResult,
   RawPricingChain,
@@ -176,6 +177,41 @@ function currentEndpointAccess(
   return { ...access };
 }
 
+function cleanIdentityText(value: unknown): string | null {
+  return typeof value === 'string' && value.trim().length > 0
+    ? value.trim()
+    : null;
+}
+
+function directHost(resourceUrl: string | null): string | null {
+  if (!resourceUrl) return null;
+  try {
+    return new URL(resourceUrl).hostname.toLowerCase() || null;
+  } catch {
+    return null;
+  }
+}
+
+function currentMerchantIdentity(
+  result: RawCapabilityResult,
+  resourceUrl: string | null,
+): IndexterMerchantIdentity {
+  const supplied = result.merchant;
+  const technicalHost = cleanIdentityText(supplied?.technicalHost)
+    ?? cleanIdentityText(result.host)?.toLowerCase()
+    ?? directHost(resourceUrl);
+  const providerKey = cleanIdentityText(supplied?.providerKey)
+    ?? technicalHost
+    ?? `resource:${result.resourceId}`;
+  return {
+    providerKey,
+    providerSlug: cleanIdentityText(supplied?.providerSlug) ?? providerKey,
+    displayName: cleanIdentityText(supplied?.displayName),
+    logoUrl: cleanIdentityText(supplied?.logoUrl),
+    technicalHost,
+  };
+}
+
 /**
  * The ONE canonical resource formatter.
  *
@@ -204,6 +240,7 @@ export function formatResource(r: RawCapabilityResult): FormattedResource {
   const resourceUrl = typeof r.resourceUrl === 'string' ? r.resourceUrl : null;
   const access = currentEndpointAccess(r, resourceUrl);
   const evidence = currentEvidence(verification);
+  const merchant = currentMerchantIdentity(r, resourceUrl);
 
   return {
     // Identity
@@ -214,6 +251,7 @@ export function formatResource(r: RawCapabilityResult): FormattedResource {
     url: resourceUrl,
     ...(access ? { access } : {}),
     ...(evidence ? { evidence } : {}),
+    merchant,
     method: r.method || 'GET',
 
     // Pricing

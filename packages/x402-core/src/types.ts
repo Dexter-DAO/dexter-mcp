@@ -64,6 +64,17 @@ export interface IndexterEndpointAccess {
   requiresFreshCheck: true;
 }
 
+export interface IndexterMerchantIdentity {
+  /** Stable provider-level grouping key supplied by Indexter. */
+  providerKey: string;
+  providerSlug: string;
+  /** Public merchant name and mark; transport hosts are not merchant identity. */
+  displayName: string | null;
+  logoUrl: string | null;
+  /** Public direct-route host when one exists; null for managed resources. */
+  technicalHost: string | null;
+}
+
 export interface RawVerification {
   status: string;
   paid: boolean;
@@ -134,6 +145,7 @@ export interface RawCapabilityResult {
   resourceId: string;
   resourceUrl: string | null;
   access?: IndexterEndpointAccess;
+  merchant?: IndexterMerchantIdentity;
   displayName: string | null;
   description: string | null;
   category: string | null;
@@ -291,6 +303,7 @@ export interface FormattedResource {
   url: string | null;
   access?: IndexterEndpointAccess;
   evidence?: IndexterEvidence;
+  merchant: IndexterMerchantIdentity;
   method: string;
 
   // Pricing
