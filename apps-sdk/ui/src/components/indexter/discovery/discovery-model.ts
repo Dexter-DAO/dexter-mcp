@@ -445,26 +445,20 @@ export function providerResourceCountLabel(
 
 export function providerEvidenceLabel(
   provider: IndexterDiscoveryProvider,
-): string {
+): string | null {
   const evidence = provider.evidence;
   const signals: string[] = [];
   if (evidence.deliveredRecentlyCount > 0) {
-    signals.push(`${evidence.deliveredRecentlyCount.toLocaleString()} delivered recently`);
+    signals.push(evidence.deliveredRecentlyCount === 1
+      ? 'Delivered recently'
+      : `${evidence.deliveredRecentlyCount.toLocaleString()} delivered recently`);
   }
   if (evidence.termsCheckedCount > 0) {
-    signals.push(`${evidence.termsCheckedCount.toLocaleString()} terms checked`);
+    signals.push(evidence.termsCheckedCount === 1
+      ? 'Terms checked'
+      : `${evidence.termsCheckedCount.toLocaleString()} terms checked`);
   }
-  if (evidence.noCurrentConfirmationCount > 0) {
-    signals.push(`${evidence.noCurrentConfirmationCount.toLocaleString()} unconfirmed`);
-  }
-  const notEvaluated = Math.max(
-    0,
-    evidence.totalResourceCount - evidence.evaluatedResourceCount,
-  );
-  if (notEvaluated > 0) {
-    signals.push(`${notEvaluated.toLocaleString()} not evaluated`);
-  }
-  return signals.length > 0 ? signals.join(' · ') : 'No evidence yet';
+  return signals.length > 0 ? signals.join(' · ') : null;
 }
 
 export function discoverySummaryLabel(payload: IndexterDiscoveryPayload): string {

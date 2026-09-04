@@ -149,6 +149,7 @@ function ProviderRow({
 }) {
   const capabilities = providerCapabilityLabels(provider);
   const providerUrl = providerBrandUrl(provider);
+  const evidence = providerEvidenceLabel(provider);
 
   return (
     <li>
@@ -180,9 +181,11 @@ function ProviderRow({
             <span className="dx-discovery-provider__capabilities">
               {capabilities.join(' · ') || 'Explore capabilities'}
             </span>
-            <span className="dx-discovery-provider__evidence">
-              {providerEvidenceLabel(provider)}
-            </span>
+            {evidence ? (
+              <span className="dx-discovery-provider__evidence">
+                {evidence}
+              </span>
+            ) : null}
           </span>
         </span>
         <Arrow />
@@ -657,6 +660,7 @@ export function IndexterDiscovery({
   }, [loadingProviderPage, providerPageHistory]);
 
   const provider = payload.mode === 'provider' ? payload.providers[0] ?? null : null;
+  const providerEvidence = provider ? providerEvidenceLabel(provider) : null;
   const showCompleteProviderPage = isFullscreen || !canToggleFullscreen || showAllInline;
   const providerGroups = provider
     ? showCompleteProviderPage
@@ -723,7 +727,7 @@ export function IndexterDiscovery({
               {provider.description ? <p>{provider.description}</p> : null}
               <div className="dx-discovery-provider-hero__meta">
                 <span>{providerResourceCountLabel(provider)}</span>
-                <span>{providerEvidenceLabel(provider)}</span>
+                {providerEvidence ? <span>{providerEvidence}</span> : null}
               </div>
             </div>
           </section>

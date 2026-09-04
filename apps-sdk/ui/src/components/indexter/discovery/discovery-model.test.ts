@@ -286,7 +286,7 @@ describe('Indexter discovery model', () => {
     expect(isIndexterDiscoveryPayload(badPageCount)).toBe(false);
   });
 
-  it('reports each aggregate evidence signal without calling evaluation a check', () => {
+  it('shows positive evidence without advertising missing confirmation', () => {
     const payload = endpointPayload();
     const provider = payload.providers[0];
     provider.evidence.deliveredRecentlyCount = 2;
@@ -294,18 +294,24 @@ describe('Indexter discovery model', () => {
     provider.evidence.noCurrentConfirmationCount = 8;
 
     expect(providerEvidenceLabel(provider)).toBe(
-      '2 delivered recently · 3 terms checked · 8 unconfirmed',
+      '2 delivered recently · 3 terms checked',
+    );
+
+    provider.evidence.deliveredRecentlyCount = 1;
+    provider.evidence.termsCheckedCount = 1;
+    expect(providerEvidenceLabel(provider)).toBe(
+      'Delivered recently · Terms checked',
     );
 
     provider.evidence.deliveredRecentlyCount = 0;
     provider.evidence.termsCheckedCount = 0;
     provider.evidence.noCurrentConfirmationCount = 13;
-    expect(providerEvidenceLabel(provider)).toBe('13 unconfirmed');
+    expect(providerEvidenceLabel(provider)).toBeNull();
 
     provider.evidence.evaluatedResourceCount = 0;
     provider.evidence.noCurrentConfirmationCount = 0;
     provider.evidence.coverageComplete = false;
-    expect(providerEvidenceLabel(provider)).toBe('13 not evaluated');
+    expect(providerEvidenceLabel(provider)).toBeNull();
   });
 
   it('rejects duplicate provider and endpoint identities', () => {

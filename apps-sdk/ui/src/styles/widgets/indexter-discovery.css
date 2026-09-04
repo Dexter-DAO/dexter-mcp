@@ -384,22 +384,23 @@
 }
 
 .dx-discovery-check {
-  min-width: 92px;
+  min-width: 84px;
   min-height: 44px;
   border: 0;
-  border-radius: var(--dx-radius-sm);
-  padding: 8px 11px;
-  color: var(--dx-on-orange);
-  background: var(--dx-orange);
+  border-radius: 0;
+  padding: 8px 2px;
+  color: var(--dx-orange-deep);
+  background: transparent;
   cursor: pointer;
   font: inherit;
   font-size: var(--dx-text-sm);
   font-weight: var(--dx-weight-semibold);
-  transition: background-color 100ms ease-out, transform 100ms ease-out;
+  text-align: right;
+  transition: color 100ms ease-out, transform 100ms ease-out;
 }
 
 .dx-discovery-check:hover:not(:disabled) {
-  background: var(--dx-orange-hover);
+  color: var(--dx-ink);
 }
 
 .dx-discovery-view:focus-visible,
