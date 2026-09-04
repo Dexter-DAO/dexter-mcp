@@ -512,10 +512,17 @@ async function indexterDiscover({
     response = await fetchInternalApi(
       `${INDEXTER_DISCOVERY_PATH}?${searchParams.toString()}`,
       {
-        headers: { accept: 'application/json' },
+        // The x402 edge has emitted a malformed gzip representation for this
+        // JSON route: headers arrive, but Node cannot finish decoding the body.
+        // Discovery needs deterministic bounded reads, so request the original
+        // bytes instead of negotiating compression.
+        headers: {
+          accept: 'application/json',
+          'accept-encoding': 'identity',
+        },
         signal: AbortSignal.timeout(10_000),
       },
-      { origin: DEXTER_API },
+      { origin: API_BASE_FALLBACK },
     );
     payload = await response.json();
   } catch (error) {
