@@ -11,7 +11,6 @@ const entry = read('apps-sdk/ui/src/entries/indexter-search.tsx');
 const summaryHeader = read('apps-sdk/ui/src/components/indexter/search/IndexterSummaryHeader.tsx');
 const brief = read('apps-sdk/ui/src/components/indexter/search/SearchDecisionBrief.tsx');
 const briefModel = read('apps-sdk/ui/src/components/indexter/search/SearchDecisionBrief.model.ts');
-const quote = read('apps-sdk/ui/src/components/indexter/search/SearchQuotePanel.tsx');
 const comparison = read('apps-sdk/ui/src/components/indexter/search/SearchComparisonPanel.tsx');
 const inlineDetail = read('apps-sdk/ui/src/components/indexter/search/SearchInlineDetail.tsx');
 const drawer = read('apps-sdk/ui/src/components/indexter/search/SearchVerdictDrawer.tsx');
@@ -25,7 +24,7 @@ const indexterHtml = read('apps-sdk/ui/indexter-search.html');
 const compatibilityHtml = read('apps-sdk/ui/x402-marketplace-search.html');
 const continuation = read('apps-sdk/ui/src/components/x402/purchase-review-continuation.ts');
 const indexterContinuation = read('apps-sdk/ui/src/components/indexter/search/indexter-continuation.ts');
-const actionSources = `${entry}\n${brief}\n${quote}\n${drawer}\n${continuation}\n${indexterContinuation}`;
+const actionSources = `${entry}\n${brief}\n${drawer}\n${continuation}\n${indexterContinuation}`;
 
 test('error rendering precedes the genuine-empty branch', () => {
   assert.ok(entry.indexOf('if (searchError)') >= 0);
@@ -75,7 +74,6 @@ test('search can only open a safe next step before payment', () => {
     actionSources,
     /preparedPurchase|purchaseOptions|purchase mode|omit purchase/i,
   );
-  assert.match(quote, /Nothing has been charged/);
   assert.doesNotMatch(response, /Use x402_fetch/);
   assert.match(response, /run x402_check/);
   assert.match(response, /current instruction or delegated policy/);
@@ -100,8 +98,9 @@ test('comparison disclosures share one bounded, ordinal-safe region', () => {
   );
   assert.match(
     entry,
-    /\{\(!comparisonOpen \|\| isFullscreen\) && \(/,
+    /\{!comparisonOpen && \(/,
   );
+  assert.doesNotMatch(entry, /\{\(!comparisonOpen \|\| isFullscreen\) && \(/);
   assert.match(summaryHeader, /aria-controls=\{comparisonId\}/);
   assert.match(summaryHeader, /aria-expanded=\{comparisonOpen\}/);
   assert.match(brief, /aria-controls=\{comparisonId\}/);
@@ -121,12 +120,12 @@ test('comparison disclosures share one bounded, ordinal-safe region', () => {
     entry,
     /comparisonOpen && detailOpen && !isFullscreen[\s\S]*?id=\{comparisonRegionId\}[\s\S]*?id=\{detailRegionId\}/,
   );
-  assert.match(entry, /comparisonOpen \? \([\s\S]*?<SearchComparisonPanel/);
-  assert.match(entry, /!isMobile && isFullscreen && detailOpen/);
-  assert.match(entry, /isMobile && isFullscreen && detailOpen/);
+  assert.match(entry, /showComparison \? \([\s\S]*?<SearchComparisonPanel/);
+  assert.match(entry, /comparisonOpen && detailOpen && !isMobile && isFullscreen/);
+  assert.match(entry, /comparisonOpen && detailOpen && isMobile && isFullscreen/);
   assert.doesNotMatch(inlineDetail, /SearchVerdictDrawer|\bfetch\s*\(/);
-  assert.match(inlineDetail, />Back to comparison</);
-  assert.match(inlineDetail, /Result \{ordinal\} of \{resultCount\}/);
+  assert.match(inlineDetail, />Back</);
+  assert.match(inlineDetail, /<span>\{ordinal\} of \{resultCount\}<\/span>/);
 });
 
 test('inline copy is bounded while full labels remain available', () => {
@@ -136,7 +135,29 @@ test('inline copy is bounded while full labels remain available', () => {
   assert.match(css, /\.dx-search-shell--inline \.dx-search-query h1[\s\S]*?-webkit-line-clamp: 2/);
   assert.match(css, /\.dx-search-shell--inline \.dx-search-state h1[\s\S]*?-webkit-line-clamp: 2/);
   assert.match(css, /\.dx-search-shell--inline \.dx-search-state p[\s\S]*?-webkit-line-clamp: 3/);
-  assert.match(css, /\.dx-search-inline-detail__description,[\s\S]*?-webkit-line-clamp: 2/);
+  assert.match(css, /\.dx-search-inline-detail__why,[\s\S]*?\.dx-search-inline-detail__safety[\s\S]*?-webkit-line-clamp: 2/);
+  assert.match(inlineDetail, /const description = resource\.description\.trim\(\)/);
+  assert.match(inlineDetail, /className="dx-search-inline-detail__description"/);
+  assert.match(css, /\.dx-search-inline-detail__description[\s\S]*?-webkit-line-clamp: 2/);
+});
+
+test('needs labels remain sentence case', () => {
+  const inlineNeedsRule = css.match(
+    /\.dx-search-inline-detail__needs span\s*\{([^}]*)\}/,
+  )?.[1] ?? '';
+  const drawerNeedsRule = css.match(
+    /\.dx-search-drawer__request dt\s*\{([^}]*)\}/,
+  )?.[1] ?? '';
+
+  assert.ok(inlineNeedsRule);
+  assert.ok(drawerNeedsRule);
+  assert.doesNotMatch(inlineNeedsRule, /text-transform\s*:\s*uppercase/i);
+  assert.doesNotMatch(drawerNeedsRule, /text-transform\s*:\s*uppercase/i);
+});
+
+test('comparison identifies the displayed network as the primary payment route', () => {
+  assert.match(comparison, /summary\.paymentRouteCount > 1/);
+  assert.match(comparison, /primary route on/);
 });
 
 test('late fullscreen responses are corrected to the latest requested mode', () => {
@@ -161,7 +182,7 @@ test('condensed comparison and detail use bounded content, not clipping or scrol
   assert.match(css, /\.dx-search-shell--condensed \.dx-search-inline-detail[\s\S]*?gap: 6px/);
   assert.match(
     css,
-    /\.dx-search-shell--condensed \.dx-search-inline-detail__description,[\s\S]*?\.dx-search-shell--condensed \.dx-search-inline-detail__why,[\s\S]*?display: none/,
+    /\.dx-search-shell--condensed \.dx-search-inline-detail__why,[\s\S]*?\.dx-search-shell--condensed \.dx-search-inline-detail__safety[\s\S]*?display: none/,
   );
   assert.doesNotMatch(css, /\.dx-search-shell--condensed[^}]*overflow-y:\s*(?:auto|scroll)/);
 });
@@ -187,8 +208,8 @@ test('dual-host adapters and capability-driven fullscreen are wired locally', ()
   assert.doesNotMatch(entry, /window\.openai/);
 });
 
-test('current build stamp, result evidence, tokens, and dead-code removals are pinned', () => {
-  assert.match(model, /SEARCH_WIDGET_BUILD = '2026-09-03\.3'/);
+test('current build stamp, merchant hierarchy, evidence, and dead-code removals are pinned', () => {
+  assert.match(model, /SEARCH_WIDGET_BUILD = '2026-09-04\.1'/);
   assert.doesNotMatch(entry, /2026-04-16\.1/);
   assert.match(briefModel, /resource\.why/);
   assert.match(briefModel, /resource\.qualityScore/);
@@ -198,17 +219,19 @@ test('current build stamp, result evidence, tokens, and dead-code removals are p
   assert.match(brief, /dx-search-safety-note/);
   assert.match(comparison, /dx-search-safety-note/);
   assert.match(drawer, /dx-search-safety-note/);
-  assert.match(quote, /formatAssetLabel\(route\.asset\)/);
-  assert.match(quote, /route\.routeKey/);
-  assert.match(drawer, /assetLabel: formatAssetLabel\(chain\.asset\)/);
-  assert.match(drawer, /dx-search-drawer__chains-list/);
-  assert.match(drawer, /<small>\{route\.assetLabel\}<\/small>/);
+  assert.match(brief, /merchantLabel\(actionTarget\)/);
+  assert.match(comparison, /merchantLabel\(resource\)/);
+  assert.match(drawer, /merchantLabel\(resource\)/);
+  assert.match(brief, /compactEvidenceLabel/);
+  assert.match(comparison, /compactEvidenceLabel/);
+  assert.match(drawer, /compactEvidenceLabel/);
+  assert.doesNotMatch(drawer, /formatAssetLabel|ChainIcon|resource\.method|resource\.url|payTo|chains-list/);
   assert.match(comparison, /Compare services/);
   assert.match(css, /\.dxs-root/);
   assert.match(css, /--dxs-page: var\(--dx-canvas\)/);
   assert.match(baseCss, /--color-background-primary/);
   assert.match(css, /\.dx-search-brief/);
-  assert.match(css, /\.dx-search-quote/);
+  assert.doesNotMatch(css, /\.dx-search-quote/);
   assert.match(css, /\.dx-search-compare/);
   assert.doesNotMatch(css, /\.dx-search-loading/);
 
@@ -217,6 +240,7 @@ test('current build stamp, result evidence, tokens, and dead-code removals are p
     'apps-sdk/ui/src/components/indexter/search/SearchResultCard.tsx',
     'apps-sdk/ui/src/components/indexter/search/SearchResourceDetail.tsx',
     'apps-sdk/ui/src/components/indexter/search/SearchScoreBadge.tsx',
+    'apps-sdk/ui/src/components/indexter/search/SearchQuotePanel.tsx',
   ]) {
     assert.equal(existsSync(path.join(repoRoot, orphan)), false, `${orphan} should be removed`);
   }

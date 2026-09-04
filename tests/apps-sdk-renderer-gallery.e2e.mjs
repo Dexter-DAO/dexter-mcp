@@ -29,6 +29,7 @@ const GALLERY_ENABLED = process.env.DEXTER_RENDERER_GALLERY === '1';
 const SURFACE_FILTER = String(process.env.DEXTER_RENDERER_GALLERY_SURFACE || '').trim();
 const DEVICE_FILTER = String(process.env.DEXTER_RENDERER_GALLERY_DEVICE || '').trim();
 const THEME_FILTER = String(process.env.DEXTER_RENDERER_GALLERY_THEME || '').trim();
+const LIVE_IMAGES = process.env.DEXTER_RENDERER_GALLERY_LIVE_IMAGES === '1';
 const BASE_CHAIN_MARK = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 111 111" fill="none"><circle cx="55.5" cy="55.5" r="55.5" fill="#0052FF"/><path d="M55.4912 94.222C77.1578 94.222 94.7217 76.881 94.7217 55.4897C94.7217 34.0984 77.1578 16.7573 55.4912 16.7573C34.908 16.7573 17.9917 32.5547 16.3311 52.5543H67.4656V58.425H16.3311C17.9917 78.4247 34.908 94.222 55.4912 94.222Z" fill="white"/></svg>';
 const GENERIC_IMAGE_MARK = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><circle cx="20" cy="20" r="14" fill="#918677" /></svg>';
 
@@ -41,6 +42,18 @@ const THEMES = Object.freeze(['light', 'dark']);
 const DEVICES = Object.freeze(['desktop', 'mobile']);
 const BRAND_CONTRACTS = Object.freeze({
   'indexter-search': Object.freeze({
+    selector: '.dx-indexter-lockup img[alt="Indexter"]',
+    expectedCount: 1,
+    expectedVisibleCount: 1,
+    forbiddenText: /\bx402\b/i,
+  }),
+  'indexter-discovery': Object.freeze({
+    selector: '.dx-indexter-lockup img[alt="Indexter"]',
+    expectedCount: 1,
+    expectedVisibleCount: 1,
+    forbiddenText: /\bx402\b/i,
+  }),
+  'indexter-provider': Object.freeze({
     selector: '.dx-indexter-lockup img[alt="Indexter"]',
     expectedCount: 1,
     expectedVisibleCount: 1,
@@ -369,6 +382,16 @@ async function renderVariant({ browser, baseUrl, surface, device, theme }) {
     if (request.resourceType() === 'image') {
       const requestUrl = new URL(request.url());
       if (
+        LIVE_IMAGES
+        && (
+          requestUrl.origin === 'https://api.dexter.cash'
+          || requestUrl.origin === 'https://dexter.cash'
+        )
+      ) {
+        await route.continue();
+        return;
+      }
+      if (
         requestUrl.origin === 'https://dexter.cash'
         && requestUrl.pathname === '/api/favicon'
       ) {
@@ -423,9 +446,17 @@ async function renderVariant({ browser, baseUrl, surface, device, theme }) {
     );
   }
   await page.waitForFunction(() => window.__rendererGallerySize !== null);
-  await page.waitForTimeout(80);
   const childFrame = page.frames().find((candidate) => candidate.url() === widgetUrl);
   assert.ok(childFrame, `${surface.id} did not load its source document`);
+  if (LIVE_IMAGES) {
+    await childFrame.waitForFunction(() => (
+      [...document.querySelectorAll('.dx-discovery-mark')].every((element) => (
+        !(element instanceof HTMLImageElement)
+        || (element.complete && element.naturalWidth > 0)
+      ))
+    ), undefined, { timeout: 8_000 });
+  }
+  await page.waitForTimeout(80);
   await childFrame.addStyleTag({
     content: '*, *::before, *::after { animation: none !important; transition: none !important; caret-color: transparent !important; }',
   });
@@ -558,6 +589,102 @@ async function renderVariant({ browser, baseUrl, surface, device, theme }) {
     [],
     `${surface.id} trapped vertically clipped content in a nested scroller`,
   );
+
+  if (
+    device === 'mobile'
+    && (surface.id === 'indexter-discovery' || surface.id === 'indexter-provider')
+  ) {
+    const mobileInteractionGeometry = await frame.locator(surface.outerSelector).evaluate((root) => {
+      const rootBounds = root.getBoundingClientRect();
+      const controls = [...root.querySelectorAll('button, a[href], [role="button"]')]
+        .filter((element) => {
+          const style = getComputedStyle(element);
+          const bounds = element.getBoundingClientRect();
+          return style.display !== 'none'
+            && style.visibility !== 'hidden'
+            && bounds.width > 0
+            && bounds.height > 0;
+        })
+        .map((element) => {
+          const bounds = element.getBoundingClientRect();
+          return {
+            name: element.getAttribute('aria-label')
+              || element.textContent?.replace(/\s+/g, ' ').trim()
+              || element.className
+              || element.tagName,
+            width: bounds.width,
+            height: bounds.height,
+            top: bounds.top,
+            right: bounds.right,
+            bottom: bounds.bottom,
+            left: bounds.left,
+          };
+        });
+      const terminalResource = root.querySelector('.dx-discovery-resource:last-of-type');
+      const terminalCheck = terminalResource?.querySelector('.dx-discovery-check') ?? null;
+      const boundsFor = (element) => {
+        if (!element) return null;
+        const bounds = element.getBoundingClientRect();
+        return {
+          top: bounds.top,
+          right: bounds.right,
+          bottom: bounds.bottom,
+          left: bounds.left,
+        };
+      };
+      return {
+        root: {
+          top: rootBounds.top,
+          right: rootBounds.right,
+          bottom: rootBounds.bottom,
+          left: rootBounds.left,
+        },
+        controls,
+        terminalResource: boundsFor(terminalResource),
+        terminalCheck: boundsFor(terminalCheck),
+      };
+    });
+
+    assert.ok(
+      mobileInteractionGeometry.controls.length > 0,
+      `${surface.id} exposed no mobile interaction controls`,
+    );
+    for (const control of mobileInteractionGeometry.controls) {
+      assert.ok(
+        control.width >= 43.5 && control.height >= 43.5,
+        `${surface.id} mobile control "${control.name}" measured ${control.width.toFixed(1)}x${control.height.toFixed(1)} instead of at least 44x44`,
+      );
+      assert.ok(
+        control.left >= mobileInteractionGeometry.root.left - 1
+          && control.right <= mobileInteractionGeometry.root.right + 1
+          && control.top >= mobileInteractionGeometry.root.top - 1
+          && control.bottom <= mobileInteractionGeometry.root.bottom + 1,
+        `${surface.id} mobile control "${control.name}" escaped the renderer bounds`,
+      );
+    }
+
+    if (surface.id === 'indexter-provider') {
+      assert.ok(
+        mobileInteractionGeometry.terminalResource,
+        'indexter-provider mobile fixture is missing its terminal resource row',
+      );
+      assert.ok(
+        mobileInteractionGeometry.terminalCheck,
+        'indexter-provider mobile fixture is missing its terminal Check action',
+      );
+      for (const [name, bounds] of [
+        ['terminal resource row', mobileInteractionGeometry.terminalResource],
+        ['terminal Check action', mobileInteractionGeometry.terminalCheck],
+      ]) {
+        assert.ok(
+          bounds.left >= mobileInteractionGeometry.root.left - 1
+            && bounds.right <= mobileInteractionGeometry.root.right + 1
+            && bounds.bottom <= mobileInteractionGeometry.root.bottom + 1,
+          `indexter-provider ${name} was clipped outside the mobile renderer`,
+        );
+      }
+    }
+  }
 
   if (surface.id === 'purchase-loading') {
     const loadingText = await frame.locator('.dx-result--loading').innerText();

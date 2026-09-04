@@ -55,7 +55,7 @@
 .dx-pricing__identity {
   display: flex;
   min-width: 0;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--dx-space-3);
 }
 
@@ -83,29 +83,37 @@
 .dx-pricing__identity-name {
   margin: 0;
   color: var(--dx-ink);
-  font-size: clamp(20px, 4vw, 26px);
+  font-size: clamp(22px, 4vw, 28px);
   font-weight: var(--dx-weight-semibold);
   letter-spacing: var(--dx-tracking-tight);
   line-height: var(--dx-leading-tight);
   overflow-wrap: anywhere;
 }
 
-.dx-pricing__identity-meta {
-  margin: 5px 0 0;
+.dx-pricing__identity-merchant {
+  margin: 0 0 var(--dx-space-1);
   color: var(--dx-ink-muted);
   font-size: var(--dx-text-sm);
+  font-weight: var(--dx-weight-medium);
   line-height: var(--dx-leading-snug);
 }
 
 .dx-pricing__description {
   max-width: 64ch;
-  margin: -10px 0 0;
+  margin: calc(-1 * var(--dx-space-3)) 0 0;
   color: var(--dx-ink-muted);
   font-size: var(--dx-text-md);
   line-height: var(--dx-leading-normal);
 }
 
-.dx-pricing__quote,
+.dx-pricing__offer {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--dx-space-5);
+}
+
 .dx-pricing__status {
   display: flex;
   min-width: 0;
@@ -116,14 +124,13 @@
 .dx-pricing__price {
   margin: 0;
   color: var(--dx-ink);
-  font-size: clamp(44px, 12vw, 68px);
+  font-size: clamp(34px, 8vw, 50px);
   font-variant-numeric: tabular-nums lining-nums;
   font-weight: var(--dx-weight-semibold);
   letter-spacing: -0.055em;
   line-height: 0.95;
 }
 
-.dx-pricing__quote-copy,
 .dx-pricing__status-copy {
   max-width: 55ch;
   margin: 0;
@@ -220,7 +227,13 @@
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: var(--dx-space-3);
+  gap: var(--dx-space-2);
+}
+
+.dx-pricing__routes--single {
+  width: max-content;
+  max-width: 100%;
+  color: var(--dx-ink-muted);
 }
 
 .dx-pricing__routes-title {
@@ -236,7 +249,7 @@
   margin: 0;
   padding: 0;
   flex-direction: column;
-  gap: var(--dx-space-4);
+  gap: var(--dx-space-2);
   list-style: none;
 }
 
@@ -244,70 +257,26 @@
   display: grid;
   min-width: 0;
   grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-areas:
-    "chain price"
-    "payto price";
+  grid-template-areas: "rail price";
   align-items: center;
-  column-gap: var(--dx-space-5);
-  row-gap: 3px;
+  column-gap: var(--dx-space-4);
 }
 
-.dx-pricing__route-chain {
+.dx-pricing__route-rail {
   display: flex;
   min-width: 0;
-  grid-area: chain;
+  grid-area: rail;
   align-items: center;
-  gap: 10px;
+  gap: var(--dx-space-2);
+  color: var(--dx-ink-muted);
+  font-size: var(--dx-text-sm);
 }
 
-.dx-pricing__route-chain .x4-chain-logo,
-.dx-pricing__route-chain .x4-chain-icon {
+.dx-pricing__route-rail .x4-chain-logo,
+.dx-pricing__route-rail .x4-chain-icon {
   width: 20px;
   height: 20px;
   flex: 0 0 20px;
-}
-
-.dx-pricing__route-chain-text {
-  min-width: 0;
-}
-
-.dx-pricing__route-chain-line {
-  display: flex;
-  align-items: baseline;
-}
-
-.dx-pricing__route-chain-name {
-  color: var(--dx-ink);
-  font-weight: var(--dx-weight-medium);
-}
-
-.dx-pricing__route-chain-asset,
-.dx-pricing__route-payto {
-  display: block;
-  margin-top: 2px;
-  color: var(--dx-ink-muted);
-  font-size: var(--dx-text-sm);
-  line-height: var(--dx-leading-snug);
-}
-
-.dx-pricing__route-payto {
-  display: flex;
-  min-width: 0;
-  grid-area: payto;
-  align-items: baseline;
-  gap: var(--dx-space-2);
-  padding-left: 30px;
-}
-
-.dx-pricing__route-payto-label {
-  flex: 0 0 auto;
-  font-family: var(--dx-font-sans);
-}
-
-.dx-pricing__route-payto-addr {
-  min-width: 0;
-  font-family: var(--dx-font-mono);
-  overflow-wrap: anywhere;
 }
 
 .dx-pricing__route-price {
@@ -337,20 +306,23 @@
 
 .dx-pricing__action {
   display: inline-flex;
-  width: 100%;
-  min-height: 48px;
+  width: max-content;
+  min-width: 148px;
+  max-width: 100%;
+  min-height: 44px;
+  align-self: flex-start;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   gap: var(--dx-space-4);
   padding: 12px 16px;
   border: 0;
-  border-radius: var(--dx-radius-md);
+  border-radius: var(--dx-radius-sm);
   background: var(--dx-orange);
   color: var(--dx-on-orange);
   cursor: pointer;
   font-weight: var(--dx-weight-semibold);
   line-height: 1.2;
-  text-align: left;
+  text-align: center;
   transition:
     background-color var(--dx-duration-fast) var(--dx-ease-standard),
     transform var(--dx-duration-fast) var(--dx-ease-standard);
@@ -360,6 +332,11 @@
   background: var(--dx-orange-hover);
 }
 
+.dx-pricing__action:focus-visible {
+  outline: 2px solid var(--dx-orange-deep);
+  outline-offset: 3px;
+}
+
 .dx-pricing__action:active:not(:disabled) {
   transform: translateY(1px);
 }
@@ -367,11 +344,6 @@
 .dx-pricing__action:disabled {
   cursor: default;
   opacity: 0.55;
-}
-
-.dx-pricing__action-price {
-  flex: 0 0 auto;
-  font-variant-numeric: tabular-nums lining-nums;
 }
 
 @media (max-width: 430px) {
@@ -386,36 +358,19 @@
     padding: var(--dx-space-4);
   }
 
-  .dx-pricing__route {
-    grid-template-areas:
-      "chain price"
-      "payto payto";
-    column-gap: var(--dx-space-3);
-  }
-
-  .dx-pricing__route-chain-asset {
-    max-width: 25ch;
-  }
-
-  .dx-pricing__route-payto {
-    display: grid;
-    gap: 2px;
-    padding-left: 0;
+  .dx-pricing__offer {
+    align-items: end;
+    gap: var(--dx-space-3);
   }
 }
 
 @media (max-width: 340px) {
-  .dx-pricing__route {
+  .dx-pricing__offer {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-areas:
-      "chain"
-      "payto"
-      "price";
   }
 
-  .dx-pricing__route-price {
-    margin-top: var(--dx-space-1);
-    padding-left: 30px;
+  .dx-pricing__price {
+    font-size: 36px;
   }
 }
 

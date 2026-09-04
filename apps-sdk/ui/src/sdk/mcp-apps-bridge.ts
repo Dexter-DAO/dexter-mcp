@@ -346,6 +346,13 @@ function startSizeChangedNotifications(): void {
   const observer = new ResizeObserver(measure);
   observer.observe(document.documentElement);
   if (document.body) observer.observe(document.body);
+  onNotification('ui/notifications/host-context-changed', () => {
+    // Hosts may reset their intrinsic-size state when presentation changes
+    // even when the document's measured height happens to stay identical.
+    lastWidth = -1;
+    lastHeight = -1;
+    measure();
+  });
 }
 
 export function getInitResult(): McpAppsInitResult | null {

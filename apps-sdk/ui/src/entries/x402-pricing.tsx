@@ -15,7 +15,6 @@ import {
   useAdaptiveSendFollowUp,
 } from '../sdk';
 import { captureWidgetException } from '../sdk/init-sentry';
-import { useToolInput as useAdaptiveToolInput } from '../sdk/adapter';
 import { useIntrinsicHeight } from '../components/x402';
 import {
   normalizeX402CheckResult,
@@ -23,6 +22,7 @@ import {
 } from '../components/x402/check-result-model';
 import type {
   X402CheckClassification,
+  X402CheckedRequest,
   X402PaymentRoute,
 } from '../components/x402/check-result-model';
 import {
@@ -31,7 +31,7 @@ import {
   PaymentRoutes,
   FetchAction,
 } from '../components/pricing';
-import type { PricingPayload, PricingInput } from '../components/pricing';
+import type { PricingPayload } from '../components/pricing';
 import {
   purchaseReviewContinuationPrompt,
   purchaseReviewData,
@@ -43,38 +43,6 @@ import {
 } from '../components/x402/ReturnedResult';
 
 const POSITIVE_ATOMIC_AMOUNT = /^[1-9]\d{0,19}$/;
-
-function canonicalMethod(method: string | null | undefined): string {
-  return String(method || 'GET').toUpperCase();
-}
-
-type CheckedPaymentRequest = Readonly<{
-  url: string;
-  method: string;
-  body: string | null;
-  requestBound: boolean;
-}>;
-
-function checkedPaymentRequest(
-  payload: PricingPayload,
-  input: PricingInput | null | undefined,
-): CheckedPaymentRequest {
-  const method = canonicalMethod(payload.checkedRequest?.method ?? input?.method);
-  const rawBodyProvided = typeof input?.body === 'string';
-  let body: string | null = null;
-  if (method !== 'GET') {
-    body = payload.checkedRequest?.body ?? (rawBodyProvided ? input.body! : null);
-  }
-
-  return {
-    url: payload.checkedRequest?.url || input?.url || '',
-    method,
-    body,
-    requestBound:
-      payload.checkedRequest?.requestBound
-      ?? (method === 'GET' || rawBodyProvided),
-  };
-}
 
 function exactCeilingRoute(
   routes: readonly X402PaymentRoute[],
@@ -171,12 +139,10 @@ function StatusCopy({
   classification,
   title,
   summary,
-  errorMessage,
 }: {
   classification: X402CheckClassification;
   title: string;
   summary: string;
-  errorMessage?: string | null;
 }) {
   const isError = classification === 'error';
   return (
@@ -189,17 +155,12 @@ function StatusCopy({
     >
       <h2 className="dx-pricing__status-title">{title}</h2>
       <p className="dx-pricing__status-copy">{summary}</p>
-      {isError && errorMessage ? (
-        <p className="dx-pricing__consequence dx-pricing__consequence--error">
-          {errorMessage}
-        </p>
-      ) : null}
     </section>
   );
 }
 
-function RequestDetails({ request }: { request: CheckedPaymentRequest }) {
-  if (!request.url) return null;
+function RequestDetails({ request }: { request: X402CheckedRequest }) {
+  if (request.targetKind !== 'direct_url') return null;
 
   return (
     <div className="dx-pricing__request" aria-label="Checked request">
@@ -220,8 +181,8 @@ function AccessExplanation({
     return (
       <p className="dx-pricing__consequence">
         {signerAvailable === false
-          ? 'OpenDexter recognized the wallet sign-in request, but no compatible signer is available here.'
-          : 'The provider wants a wallet signature to establish identity. It requests no funds.'}
+          ? 'A compatible wallet signer is unavailable here.'
+          : 'Sign in with a compatible wallet to continue.'}
       </p>
     );
   }
@@ -229,7 +190,7 @@ function AccessExplanation({
   if (classification === 'apiKey') {
     return (
       <p className="dx-pricing__consequence">
-        Provider credentials are required before access or payment terms can be verified.
+        Provider credentials are required to continue.
       </p>
     );
   }
@@ -237,7 +198,7 @@ function AccessExplanation({
   if (classification === 'hybrid') {
     return (
       <p className="dx-pricing__consequence">
-        Provider authentication must be completed before these payment terms can be used.
+        Authenticate with the provider to use this quote.
       </p>
     );
   }
@@ -247,7 +208,6 @@ function AccessExplanation({
 
 function PricingCheck() {
   const toolOutput = useToolOutput<PricingPayload>();
-  const toolInput = useAdaptiveToolInput<PricingInput>();
   const sendFollowUp = useAdaptiveSendFollowUp();
   const theme = useAdaptiveTheme();
   const maxHeight = useAdaptiveMaxHeight();
@@ -270,10 +230,7 @@ function PricingCheck() {
     () => normalizeX402PaymentRoutes(toolOutput?.paymentOptions),
     [toolOutput?.paymentOptions],
   );
-  const checkedRequest = useMemo(
-    () => toolOutput ? checkedPaymentRequest(toolOutput, toolInput) : null,
-    [toolInput, toolOutput],
-  );
+  const checkedRequest = state.checkedRequest;
   const isFullscreen = displayMode === 'fullscreen';
   const condensed = !isFullscreen && maxHeight !== null && maxHeight <= 720;
   const canToggleFullscreen = Boolean(
@@ -365,6 +322,16 @@ function PricingCheck() {
   const signerAvailable = typeof toolOutput.siwx?.signerAvailable === 'boolean'
     ? toolOutput.siwx.signerAvailable
     : null;
+  let returnedResultCharacterLimit: number | null = inlinePreviewLimit;
+  let returnedResultLineLimit: number | null = inlinePreviewLines;
+  if (isFullscreen) {
+    returnedResultCharacterLimit = null;
+    returnedResultLineLimit = null;
+  }
+  let returnedResultPreviewMessage = 'Showing a preview. Open the full result to see the rest.';
+  if (!canToggleFullscreen) {
+    returnedResultPreviewMessage = 'Showing a preview. Ask in chat for the full result.';
+  }
 
   const handleContinue = async () => {
     if (
@@ -383,7 +350,7 @@ function PricingCheck() {
     try {
       await sendFollowUp(
         paidContinuationPrompt(
-          checkedRequest.requestBound,
+          requestBound,
           quoteOnly,
           reviewData,
         ),
@@ -393,7 +360,7 @@ function PricingCheck() {
       continuationInFlight.current = false;
       setContinueState({
         status: 'error',
-        message: 'The payment review could not be opened in chat. No payment was made.',
+        message: 'Couldn\'t open the review. Try again.',
       });
     }
   };
@@ -408,28 +375,28 @@ function PricingCheck() {
       condensed={condensed}
       style={rootStyle}
     >
-      <ResourceIdentity
-        resource={enrichment?.resource ?? null}
-        fallbackUrl={checkedRequest?.url || toolInput?.url || null}
-        resourceRef={toolOutput.resource}
-      />
-      <ResourceDescription description={enrichment?.resource?.description ?? null} />
-
-      {isPaidState && displayedPrice ? (
-        <section className="dx-pricing__quote" aria-label="Current price">
+      <section className="dx-pricing__offer" aria-label="Checked service">
+        <ResourceIdentity
+          identity={state.resourceIdentity}
+          resource={enrichment?.resource ?? null}
+          fallbackUrl={checkedRequest?.targetKind === 'direct_url' ? checkedRequest.url : null}
+          resourceRef={toolOutput.resource}
+        />
+        {isPaidState && displayedPrice ? (
           <p className="dx-pricing__price">{displayedPrice}</p>
-          <p className="dx-pricing__quote-copy">
-            Current price for this exact request. No payment has been made.
-          </p>
-        </section>
-      ) : (
+        ) : null}
+      </section>
+      <ResourceDescription
+        description={state.resourceIdentity?.description ?? enrichment?.resource?.description ?? null}
+      />
+
+      {!isPaidState || !displayedPrice ? (
         <StatusCopy
           classification={state.classification}
           title={state.title}
           summary={state.summary}
-          errorMessage={state.errorMessage}
         />
-      )}
+      ) : null}
 
       {hasReturnedResult ? (
         <section className="dx-pricing__result" aria-labelledby="dx-pricing-result-title">
@@ -446,16 +413,14 @@ function PricingCheck() {
           </div>
           <ReturnedResult
             data={returnedResult}
-            maxCharacters={isFullscreen ? null : inlinePreviewLimit}
-            maxLines={isFullscreen ? null : inlinePreviewLines}
-            previewMessage={canToggleFullscreen
-              ? 'Showing a preview. Open the full result to see the rest.'
-              : 'Showing a preview. Ask in chat for the full result.'}
+            maxCharacters={returnedResultCharacterLimit}
+            maxLines={returnedResultLineLimit}
+            previewMessage={returnedResultPreviewMessage}
           />
         </section>
       ) : null}
 
-      {checkedRequest ? <RequestDetails request={checkedRequest} /> : null}
+      {isFullscreen && checkedRequest ? <RequestDetails request={checkedRequest} /> : null}
 
       <AccessExplanation
         classification={state.classification}
@@ -466,10 +431,9 @@ function PricingCheck() {
         <PaymentRoutes options={paymentOptions} />
       ) : null}
 
-      {state.classification === 'paid' && checkedRequest?.url && sendFollowUp ? (
+      {state.classification === 'paid' && checkedRequest && sendFollowUp ? (
         intentReady || !requestBound ? (
           <FetchAction
-            price={displayedPrice}
             intentReady={intentReady}
             status={continueState.status}
             disabled={
@@ -480,7 +444,7 @@ function PricingCheck() {
           />
         ) : (
           <p className="dx-pricing__consequence dx-pricing__consequence--warning">
-            These terms are informational because this check did not return an executable purchase intent. No payment can continue from this result.
+            This quote cannot open a payment review. Check the service again.
           </p>
         )
       ) : null}
@@ -497,7 +461,7 @@ function PricingCheck() {
 
 const root = document.getElementById('x402-pricing-root');
 if (root) {
-  root.setAttribute('data-widget-build', '2026-09-03.intrinsic');
+  root.setAttribute('data-widget-build', '2026-09-04.identity');
   createRoot(root).render(<PricingCheck />);
 }
 

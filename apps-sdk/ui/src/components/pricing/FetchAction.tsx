@@ -1,5 +1,4 @@
 interface Props {
-  price: string | null;
   intentReady: boolean;
   disabled?: boolean;
   status?: 'idle' | 'sending' | 'sent' | 'error';
@@ -7,7 +6,6 @@ interface Props {
 }
 
 export function FetchAction({
-  price,
   intentReady,
   disabled = false,
   status = 'idle',
@@ -26,13 +24,11 @@ export function FetchAction({
       type="button"
       className="dx-pricing__action"
       aria-label={label}
+      aria-busy={status === 'sending'}
       onClick={onFetch}
       disabled={disabled}
     >
-      <span>{label}</span>
-      {price && status !== 'sent' ? (
-        <span className="dx-pricing__action-price" aria-hidden>{price}</span>
-      ) : null}
+      {label}
     </button>
   );
 }

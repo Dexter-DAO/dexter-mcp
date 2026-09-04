@@ -29,6 +29,7 @@ const faviconUrl = (url) =>
 const FIXED_WIDGET_IMAGE_URLS = new Set([
   'https://dexter.cash/assets/chains/base.svg',
   'https://dexter.cash/assets/chains/solana.svg',
+  'https://dexter.cash/assets/chains/usdc.svg',
 ]);
 
 const SEARCH_OUTPUT = {
@@ -39,18 +40,33 @@ const SEARCH_OUTPUT = {
   relatedCount: 0,
   strongResults: [
     {
-      resourceId: 'atlas-price-feed',
+      kind: 'endpoint',
+      resourceId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
       name: 'Atlas Price Feed',
       url: 'https://fixture.example/atlas',
+      access: {
+        kind: 'direct_url',
+        checkable: true,
+        requiresFreshCheck: true,
+      },
+      merchant: {
+        providerKey: 'atlas-labs',
+        providerSlug: 'atlas-labs',
+        displayName: 'Atlas Labs',
+        logoUrl: null,
+        technicalHost: 'fixture.example',
+      },
       method: 'GET',
       price: '$0.008',
       priceAtomic: '8000',
       priceUsdc: 0.008,
       priceAsset: 'USDC',
       network: 'eip155:8453',
+      networkLabel: 'Base',
       chains: [
         {
           network: 'eip155:8453',
+          networkLabel: 'Base',
           asset: 'USDC',
           priceAtomic: '8000',
           priceUsdc: 0.008,
@@ -61,6 +77,9 @@ const SEARCH_OUTPUT = {
       category: 'market-data',
       qualityScore: 97,
       verified: true,
+      trustBasis: 'recent_paid_delivery',
+      trustLabel: 'Recent paid delivery succeeded',
+      lastVerifiedAt: FIXED_NOW,
       totalCalls: 2401,
       iconUrl: ATLAS_ICON_URL,
       seller: 'Atlas Labs',
@@ -86,18 +105,33 @@ const SEARCH_OUTPUT = {
       score: 0.97,
     },
     {
-      resourceId: 'beacon-price-feed',
+      kind: 'endpoint',
+      resourceId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2',
       name: 'Beacon Price Feed',
       url: 'https://fixture.example/beacon',
+      access: {
+        kind: 'direct_url',
+        checkable: true,
+        requiresFreshCheck: true,
+      },
+      merchant: {
+        providerKey: 'beacon-systems',
+        providerSlug: 'beacon-systems',
+        displayName: 'Beacon Systems',
+        logoUrl: BEACON_ICON_URL,
+        technicalHost: 'fixture.example',
+      },
       method: 'POST',
       price: '$0.01',
       priceAtomic: '10000',
       priceUsdc: 0.01,
       priceAsset: 'USDC',
       network: 'eip155:8453',
+      networkLabel: 'Base',
       chains: [
         {
           network: 'eip155:8453',
+          networkLabel: 'Base',
           asset: 'USDC',
           priceAtomic: '10000',
           priceUsdc: 0.01,
@@ -105,6 +139,7 @@ const SEARCH_OUTPUT = {
         },
         {
           network: 'eip155:8453',
+          networkLabel: 'Base',
           asset: 'PYUSD',
           priceAtomic: '10000',
           priceUsdc: 0.01,
@@ -115,6 +150,9 @@ const SEARCH_OUTPUT = {
       category: 'market-data',
       qualityScore: 93,
       verified: true,
+      trustBasis: 'trusted_catalog',
+      trustLabel: 'Current terms observed',
+      lastVerifiedAt: '2026-07-24T10:00:00.000Z',
       totalCalls: 1904,
       iconUrl: BEACON_ICON_URL,
       seller: 'Beacon Systems',
@@ -197,6 +235,19 @@ const PRICING_TOOL_RESULT = {
       method: 'GET',
       body: null,
       requestBound: true,
+    },
+    resourceIdentity: {
+      kind: 'endpoint',
+      resourceId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+      displayName: 'Atlas Price Feed',
+      description: 'Fast market snapshots with source timestamps.',
+      merchant: {
+        providerKey: 'atlas-labs',
+        providerSlug: 'atlas-labs',
+        displayName: 'Atlas Labs',
+        logoUrl: ATLAS_ICON_URL,
+        technicalHost: 'fixture.example',
+      },
     },
     enrichment: {
       resource: {
@@ -576,7 +627,7 @@ async function assertInitialPresentation(surface, hostName) {
     name: 'Check live terms for Atlas Price Feed',
   }).waitFor();
   await surface.getByRole('heading', { name: 'Atlas Price Feed' }).waitFor();
-  await surface.getByText(/Recommended · fixture\.example/).waitFor();
+  await surface.getByText('Atlas Labs', { exact: true }).waitFor();
   await surface.getByRole('button', { name: /Beacon Price Feed/ }).waitFor();
   await surface.getByText(
     'Best fit for fresh market prices with a predictable response shape.',
@@ -667,7 +718,7 @@ async function assertInitialPresentation(surface, hostName) {
 async function selectAlternative(surface) {
   await surface.getByRole('button', { name: /Beacon Price Feed/ }).click();
   await surface.getByRole('heading', { name: 'Beacon Price Feed' }).waitFor();
-  await surface.getByText(/Selected · fixture\.example/).waitFor();
+  await surface.getByText('Beacon Systems', { exact: true }).waitFor();
   await surface.getByText(
     'Strong fallback with two asset routes on the same network.',
     { exact: true },
@@ -701,12 +752,13 @@ async function exerciseSearchFlow({
   const checkAction = surface.getByRole('button', {
     name: 'Check live terms for Atlas Price Feed',
   });
+  assert.equal(await checkAction.innerText(), 'Check terms');
   await checkAction.click();
   await surface.getByText(
     'Continue in chat for the current access terms.',
     { exact: true },
   ).waitFor();
-  assert.match(await checkAction.innerText(), /^Opened in chat/);
+  assert.equal(await checkAction.innerText(), 'Opened');
   assert.equal(
     await checkAction.isDisabled(),
     true,
@@ -732,6 +784,11 @@ async function exerciseSearchFlow({
     'heading',
     { name: 'Compare services' },
   ).waitFor();
+  assert.equal(
+    await surface.locator('.dx-search-experience__decision').count(),
+    0,
+    `${hostName}: comparison must replace the recommendation`,
+  );
   await surface.getByRole(
     'button',
     { name: 'Close comparison', exact: true },
@@ -751,7 +808,7 @@ async function exerciseSearchFlow({
     .locator('article')
     .filter({ hasText: 'Beacon Price Feed' });
   const comparisonChoices = comparison.getByRole('button', {
-    name: /^Choose /,
+    name: /^Select /,
   });
   assert.equal(
     await comparisonChoices.count(),
@@ -759,11 +816,11 @@ async function exerciseSearchFlow({
     `${hostName}: exactly one non-current comparison card must be selectable`,
   );
   await comparisonChoices.first().click();
-  await comparison.getByText('Current choice', { exact: true }).waitFor();
+  await comparison.getByText('Selected', { exact: true }).waitFor();
 
   if (exerciseDetailAction) {
     const detailOpener = beaconCard.getByRole('button', {
-      name: 'View details for Beacon Price Feed',
+      name: 'View Beacon Price Feed details from Beacon Systems',
     });
     const detailsId = await detailOpener.getAttribute('aria-controls');
     assert.ok(detailsId, `${hostName}: detail disclosure must name its region`);
@@ -782,7 +839,12 @@ async function exerciseSearchFlow({
       0,
       `${hostName}: in-flow detail must not add a modal click-away layer`,
     );
-    assert.equal(await detailOpener.getAttribute('aria-expanded'), 'true');
+    assert.equal(
+      await surface.locator('.dx-search-compare').count(),
+      0,
+      `${hostName}: mobile detail must replace the comparison list`,
+    );
+    assert.equal(await surface.locator('.dx-search-drawer').count(), 1);
     await detailRegion.press('Escape');
     await detailRegion.waitFor({ state: 'detached' });
     await surface.locator('body').evaluate(() => new Promise(requestAnimationFrame));
@@ -796,22 +858,18 @@ async function exerciseSearchFlow({
     detailRegion = surface.locator(`[id="${detailsId}"]`);
     await detailRegion.waitFor();
     const drawer = detailRegion.locator('.dx-search-drawer');
-    await drawer.getByRole('button', { name: 'Copy URL' }).click();
-    await drawer.getByRole('button', { name: 'Copied' }).waitFor();
     const drawerAction = drawer.getByRole('button', {
-      name: 'Provide details in chat for Beacon Price Feed',
+      name: 'Provide details in chat for Beacon Price Feed from Beacon Systems',
     });
     assert.ok(
       (await buttonPresentation(drawerAction)).height >= 44,
       `${hostName}: drawer action must be at least 44px tall`,
     );
+    assert.equal(await drawerAction.innerText(), 'Add details');
     await drawerAction.click();
     await detailRegion.waitFor({ state: 'detached' });
-    const detailsSent = surface.getByRole('button', {
-      name: 'Provide details in chat for Beacon Price Feed',
-    });
-    await detailsSent.waitFor();
-    assert.equal(await detailsSent.isDisabled(), true);
+    await comparison.waitFor();
+    await comparison.getByText('Selected', { exact: true }).waitFor();
   }
 
   const rootMetrics = await surface.locator('.dxs-root').evaluate((element) => ({
@@ -1368,6 +1426,22 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
         await pricingIcon.getAttribute('src'),
         proxiedIconUrl(ATLAS_ICON_URL),
       );
+      if (process.env.DEXTER_SEARCH_SCREENSHOTS === '1') {
+        await mkdir(SCREENSHOT_DIR, { recursive: true });
+        await page.locator('.dx-pricing').screenshot({
+          path: path.join(SCREENSHOT_DIR, 'chatgpt-access-terms.png'),
+        });
+        await page.evaluate(() => {
+          window.openai.theme = 'dark';
+          window.dispatchEvent(new CustomEvent('openai:set_globals', {
+            detail: { globals: { theme: 'dark' } },
+          }));
+        });
+        await page.locator('html[data-theme="dark"]').waitFor();
+        await page.locator('.dx-pricing').screenshot({
+          path: path.join(SCREENSHOT_DIR, 'chatgpt-access-terms-dark.png'),
+        });
+      }
 
       const continueButton = page.getByRole(
         'button',
@@ -1471,6 +1545,22 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
         await page.locator('html').getAttribute('data-theme'),
         'dark',
       );
+      const identityCanvas = await page.locator('.dx-search-identity__img').first()
+        .evaluate((element) => {
+          const style = getComputedStyle(element);
+          return {
+            backgroundColor: style.backgroundColor,
+            borderWidth: style.borderWidth,
+            boxSizing: style.boxSizing,
+            paddingTop: style.paddingTop,
+          };
+        });
+      assert.deepEqual(identityCanvas, {
+        backgroundColor: 'rgb(255, 255, 255)',
+        borderWidth: '0px',
+        boxSizing: 'border-box',
+        paddingTop: '4px',
+      });
       if (process.env.DEXTER_SEARCH_SCREENSHOTS === '1') {
         await mkdir(SCREENSHOT_DIR, { recursive: true });
         await page.locator('.dxs-root').screenshot({
@@ -1528,7 +1618,7 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
         name: 'Check live terms for Atlas Price Feed',
       });
       await check.click();
-      await page.getByText('Opened in chat', { exact: true }).waitFor();
+      await page.getByText('Opened', { exact: true }).waitFor();
       const calls = await page.evaluate(() => window.__hostCalls);
       assert.equal(
         calls.filter((call) => call.kind === 'callTool').length,
@@ -1557,10 +1647,7 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
       });
       await unavailable.waitFor();
       assert.equal(await unavailable.isDisabled(), true);
-      await page.getByText(
-        "This host can't open the current-terms check in chat.",
-        { exact: true },
-      ).waitFor();
+      assert.equal(await unavailable.innerText(), 'Unavailable');
       const calls = await page.evaluate(() => window.__hostCalls);
       assert.equal(
         calls.filter((call) => (
@@ -1595,7 +1682,7 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
       await page.goto(widgetUrl);
 
       const headerCompare = page.getByRole('button', { name: 'Compare', exact: true });
-      const compareAll = page.getByRole('button', { name: 'Compare all 5 results' });
+      const compareAll = page.getByRole('button', { name: 'Compare all 5' });
       await headerCompare.waitFor();
       await compareAll.waitFor();
       assert.ok((await buttonPresentation(compareAll)).height >= 44);
@@ -1641,7 +1728,7 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
         .filter({ hasText: 'Related Service 3' });
       await fifthResult.getByText('Result 5 of 5', { exact: true }).waitFor();
       const details = fifthResult.getByRole('button', {
-        name: 'View details for Related Service 3',
+        name: 'View Related Service 3 details from Beacon Systems',
       });
       const detailsId = await details.getAttribute('aria-controls');
       assert.ok(detailsId);
@@ -1662,7 +1749,7 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
       );
       assert.equal(await page.locator('.dx-search-drawer').count(), 0);
       await inlineDetail.getByRole('heading', { name: 'Related Service 3' }).waitFor();
-      await inlineDetail.getByText('Result 5 of 5', { exact: true }).waitFor();
+      await inlineDetail.getByText('5 of 5', { exact: true }).waitFor();
       if (process.env.DEXTER_SEARCH_SCREENSHOTS === '1') {
         await mkdir(SCREENSHOT_DIR, { recursive: true });
         await page.locator('.dxs-root').screenshot({
@@ -1677,9 +1764,9 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
       const restoredFifthResult = comparison
         .locator('.dx-search-compare__card')
         .filter({ hasText: 'Related Service 3' });
-      await restoredFifthResult.getByText('Current choice', { exact: true }).waitFor();
+      await restoredFifthResult.getByText('Selected', { exact: true }).waitFor();
       const restoredDetails = restoredFifthResult.getByRole('button', {
-        name: 'View details for Related Service 3',
+        name: 'View Related Service 3 details from Beacon Systems',
       });
       assert.equal(await restoredDetails.getAttribute('aria-expanded'), 'false');
       await page.locator('body').evaluate(() => new Promise(requestAnimationFrame));
@@ -1782,7 +1869,7 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
         });
       }
       await comparison.getByRole('button', {
-        name: 'View details for Beacon Price Feed',
+        name: 'View Beacon Price Feed details from Beacon Systems',
       }).click();
       const detail = page.getByRole('region', { name: 'Beacon Price Feed details' });
       await detail.waitFor();
@@ -1863,16 +1950,147 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
       await page.locator('.dxs-root[data-display-mode="fullscreen"]').waitFor();
       const comparison = page.locator(`[id="${comparisonId}"]`);
       await comparison.waitFor();
+      assert.equal(
+        await page.locator('.dx-search-experience__decision').count(),
+        0,
+        'fullscreen comparison must remove the recommendation surface',
+      );
       assert.equal(await comparison.locator('.dx-search-compare__card').count(), 5);
       assert.equal(await comparison.getByRole('button', { name: 'Next', exact: true }).count(), 0);
       assert.equal(await comparison.getByRole('button', { name: 'Previous', exact: true }).count(), 0);
       await comparison.getByText('Fullscreen Service 3', { exact: true }).waitFor();
+
+      const atlasCard = comparison
+        .locator('.dx-search-compare__card')
+        .filter({ hasText: 'Atlas Price Feed' });
+      await atlasCard.getByText('Evidence', { exact: true }).waitFor();
+      await atlasCard.getByText('Delivered recently', { exact: true }).waitFor();
+      await atlasCard.getByText('Jul 25', { exact: true }).waitFor();
+      await atlasCard.getByText('Required', { exact: true }).waitFor();
+      await atlasCard.getByText('None', { exact: true }).waitFor();
+      await atlasCard.getByText('Payment', { exact: true }).waitFor();
+      assert.equal(
+        await atlasCard.locator('.dx-search-compare__payment .x4-chain-logo')
+          .getAttribute('src'),
+        'https://dexter.cash/assets/chains/base.svg',
+      );
+
+      const beaconCard = comparison
+        .locator('.dx-search-compare__card')
+        .filter({ hasText: 'Beacon Price Feed' });
+      const details = beaconCard.getByRole('button', {
+        name: 'View Beacon Price Feed details from Beacon Systems',
+      });
+      await details.focus();
+      await details.click();
+      const detail = page.getByRole('complementary', {
+        name: 'Beacon Price Feed details',
+      });
+      await detail.waitFor();
+      const experience = page.locator('.dx-search-experience');
+      assert.match(await experience.getAttribute('class'), /dx-search-experience--detail-open/);
+      assert.equal(await comparison.locator('.dx-search-compare__card').count(), 5);
+      assert.equal(await page.locator('.dx-search-result-primary').count(), 0);
+      const splitLayout = await page.evaluate(() => {
+        const compare = document.querySelector('.dx-search-compare')?.getBoundingClientRect();
+        const drawer = document.querySelector('.dx-search-experience__detail')?.getBoundingClientRect();
+        return compare && drawer ? {
+          compareRight: compare.right,
+          compareWidth: compare.width,
+          drawerLeft: drawer.left,
+        } : null;
+      });
+      assert.ok(splitLayout);
+      assert.ok(
+        splitLayout.compareRight < splitLayout.drawerLeft,
+        'desktop detail must sit to the right of comparison',
+      );
+      if (process.env.DEXTER_SEARCH_SCREENSHOTS === '1') {
+        await mkdir(SCREENSHOT_DIR, { recursive: true });
+        await page.locator('.dxs-root').screenshot({
+          path: path.join(SCREENSHOT_DIR, 'chatgpt-fullscreen-detail.png'),
+        });
+      }
+      await detail.getByRole('button', {
+        name: 'Close Beacon Price Feed details',
+      }).click();
+      await detail.waitFor({ state: 'detached' });
+      await page.locator('body').evaluate(() => new Promise(requestAnimationFrame));
+      assert.doesNotMatch(
+        await experience.getAttribute('class'),
+        /dx-search-experience--detail-open/,
+      );
+      assert.ok(
+        await comparison.evaluate((element, detailWidth) => (
+          element.getBoundingClientRect().width > detailWidth + 100
+        ), splitLayout.compareWidth),
+        'comparison must reclaim the full content width after detail closes',
+      );
+      assert.equal(
+        await details.evaluate((element) => document.activeElement === element),
+        true,
+        'closing desktop detail must restore its trigger',
+      );
       if (process.env.DEXTER_SEARCH_SCREENSHOTS === '1') {
         await mkdir(SCREENSHOT_DIR, { recursive: true });
         await page.locator('.dxs-root').screenshot({
           path: path.join(SCREENSHOT_DIR, 'chatgpt-fullscreen-comparison.png'),
         });
       }
+      await page.close();
+    });
+
+    await t.test('ChatGPT mobile fullscreen detail replaces comparison and restores focus', async () => {
+      const page = await context.newPage();
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.addInitScript(installChatGptHost, {
+        searchOutput: SEARCH_OUTPUT,
+      });
+      await page.goto(widgetUrl);
+
+      await page.getByRole('button', { name: 'Compare', exact: true }).click();
+      await page.locator('.dxs-root[data-display-mode="fullscreen"]').waitFor();
+      let comparison = page.getByRole('region', { name: 'Compare services' });
+      await comparison.waitFor();
+      assert.equal(await page.locator('.dx-search-experience__decision').count(), 0);
+
+      const details = comparison.getByRole('button', {
+        name: 'View Beacon Price Feed details from Beacon Systems',
+      });
+      await details.focus();
+      await details.click();
+      const detail = page.getByRole('region', { name: 'Beacon Price Feed details' });
+      await detail.waitFor();
+      assert.equal(await page.locator('.dx-search-compare').count(), 0);
+      assert.equal(await page.locator('.dx-search-drawer').count(), 1);
+      assert.equal(
+        await page.getByText('Beacon Systems', { exact: true }).count(),
+        1,
+        'mobile detail must not leave a second Beacon result mounted below it',
+      );
+      if (process.env.DEXTER_SEARCH_SCREENSHOTS === '1') {
+        await mkdir(SCREENSHOT_DIR, { recursive: true });
+        await page.locator('.dxs-root').screenshot({
+          path: path.join(SCREENSHOT_DIR, 'chatgpt-mobile-fullscreen-detail.png'),
+        });
+      }
+
+      await detail.getByRole('button', {
+        name: 'Close Beacon Price Feed details',
+      }).click();
+      await detail.waitFor({ state: 'detached' });
+      comparison = page.getByRole('region', { name: 'Compare services' });
+      await comparison.waitFor();
+      const restoredDetails = comparison.getByRole('button', {
+        name: 'View Beacon Price Feed details from Beacon Systems',
+      });
+      await page.locator('body').evaluate(() => new Promise(requestAnimationFrame));
+      assert.equal(
+        await restoredDetails.evaluate((element) => document.activeElement === element),
+        true,
+        'closing mobile detail must restore its comparison trigger',
+      );
+      assert.equal(await page.locator('.dx-search-drawer').count(), 0);
       await page.close();
     });
 
@@ -1970,7 +2188,7 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
       await page.goto(widgetUrl);
 
       await page.locator(
-        '.dx-search-brief__identity .dx-search-identity__unsigned',
+        '.dx-search-result-primary__identity .dx-search-identity__unsigned',
       ).waitFor();
       for (const expectedFailure of [
         proxiedIconUrl(BROKEN_ICON_URL),
@@ -1984,7 +2202,7 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
       }
       await page.getByRole('button', { name: /Beacon Price Feed/ }).click();
       const heroIcon = page.locator(
-        '.dx-search-brief__identity .dx-search-identity__img',
+        '.dx-search-result-primary__identity .dx-search-identity__img',
       );
       await heroIcon.waitFor();
       assert.equal(
@@ -2093,6 +2311,7 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
         background: getComputedStyle(element).backgroundColor,
         borderRadius: getComputedStyle(element).borderRadius,
         boxShadow: getComputedStyle(element).boxShadow,
+        intrinsicHeight: Math.ceil(element.getBoundingClientRect().height),
         clientHeight: element.clientHeight,
         scrollHeight: element.scrollHeight,
       }));
@@ -2101,39 +2320,31 @@ test('search widget completes the fresh-check flow in ChatGPT and MCP Apps hosts
       assert.equal(metrics.background, 'rgba(0, 0, 0, 0)');
       assert.equal(metrics.borderRadius, '0px');
       assert.equal(metrics.boxShadow, 'none');
-      assert.ok(metrics.clientHeight > 300);
+      assert.ok(
+        metrics.clientHeight <= 300,
+        `compact Access Terms must fit the 300px inline surface (got ${metrics.clientHeight}px)`,
+      );
       assert.equal(metrics.scrollHeight, metrics.clientHeight);
 
-      await page.waitForFunction(() => (
-        window.__hostCalls.some(
-          (call) => call.method === 'ui/notifications/size-changed'
-            && Number(call.params?.height) > 300,
-        )
-      ));
-
-      const requestBackground = await frame
-        .locator('.dx-pricing__request')
-        .evaluate((element) => getComputedStyle(element).backgroundColor);
-      assert.equal(
-        requestBackground,
-        'rgb(232, 225, 215)',
-        'Access Terms contrast must be measured against the exact light gallery tertiary',
+      await page.waitForTimeout(250);
+      const reportedHeights = await page.evaluate(() => window.__hostCalls
+        .filter((call) => call.method === 'ui/notifications/size-changed')
+        .map((call) => Number(call.params?.height)));
+      assert.ok(
+        reportedHeights.includes(metrics.intrinsicHeight),
+        `host must receive the exact ${metrics.intrinsicHeight}px intrinsic height `
+          + `(reported ${reportedHeights.join(', ')})`,
       );
-      for (const selector of [
-        '.dx-pricing__request-method',
-        '.dx-pricing__request-url',
-      ]) {
-        const sample = await frame.locator(selector).evaluate((element) => ({
-          color: getComputedStyle(element).color,
-          fontSize: Number.parseFloat(getComputedStyle(element).fontSize),
-          text: element.textContent?.trim(),
-        }));
-        const ratio = await contrastRatio(frame, sample.color, requestBackground);
-        assert.ok(
-          ratio !== null && ratio >= 4.5,
-          `Access Terms ${selector} must meet 4.5:1 on the exact light fixture `
-            + `(text ${sample.text}, ${sample.fontSize}px, ratio ${ratio})`,
-        );
+      assert.equal(
+        await frame.locator('.dx-pricing__request').count(),
+        0,
+        'raw request plumbing must stay out of the compact inline presentation',
+      );
+      if (process.env.DEXTER_SEARCH_SCREENSHOTS === '1') {
+        await mkdir(SCREENSHOT_DIR, { recursive: true });
+        await root.screenshot({
+          path: path.join(SCREENSHOT_DIR, 'mcp-apps-access-terms-mobile.png'),
+        });
       }
       await page.close();
     });
