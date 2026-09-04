@@ -80,7 +80,7 @@ test('canonical authenticated API success publishes its durable purchase intent'
   );
 });
 
-test('server-resolved Indexter checks expose only the stable resource ID', () => {
+test('server-resolved Indexter checks expose stable merchant identity without a route', () => {
   const resourceId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
   const structuredContent = buildHostedCheckModelResult({
     checkResult: {
@@ -90,6 +90,19 @@ test('server-resolved Indexter checks expose only the stable resource ID', () =>
       statusCode: 200,
       amountAtomic: '10000',
       network: 'solana:mainnet',
+      resourceIdentity: {
+        kind: 'endpoint',
+        resourceId,
+        displayName: 'People match',
+        description: 'Match one person record.',
+        merchant: {
+          providerKey: 'people-data',
+          providerSlug: 'people-data',
+          displayName: 'People Data',
+          logoUrl: 'https://people.example/logo.png',
+          technicalHost: null,
+        },
+      },
     },
     resourceId,
     method: 'GET',
@@ -102,11 +115,50 @@ test('server-resolved Indexter checks expose only the stable resource ID', () =>
     body: null,
     requestBound: true,
   });
+  assert.deepEqual(structuredContent.resourceIdentity, {
+    kind: 'endpoint',
+    resourceId,
+    displayName: 'People match',
+    description: 'Match one person record.',
+    merchant: {
+      providerKey: 'people-data',
+      providerSlug: 'people-data',
+      displayName: 'People Data',
+      logoUrl: 'https://people.example/logo.png',
+      technicalHost: null,
+    },
+  });
   assert.equal(JSON.stringify(structuredContent).includes('paysponge'), false);
   assert.equal(
     OPEN_TOOL_CONTRACTS.x402_check.outputSchema.safeParse(structuredContent).success,
     true,
   );
+});
+
+test('server-resolved identity is dropped when it does not match the checked resource', () => {
+  const structuredContent = buildHostedCheckModelResult({
+    checkResult: {
+      ok: true,
+      paymentRequired: true,
+      resourceIdentity: {
+        kind: 'endpoint',
+        resourceId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+        displayName: 'Wrong resource',
+        description: null,
+        merchant: {
+          providerKey: null,
+          providerSlug: null,
+          displayName: null,
+          logoUrl: null,
+          technicalHost: null,
+        },
+      },
+    },
+    resourceId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    method: 'GET',
+  });
+
+  assert.equal(Object.hasOwn(structuredContent, 'resourceIdentity'), false);
 });
 
 test('failed or ambiguous checks never publish a provisional claim as an intent', () => {

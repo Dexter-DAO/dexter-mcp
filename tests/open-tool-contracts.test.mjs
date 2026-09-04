@@ -181,8 +181,8 @@ test('discovery, search, and wallet contracts expose current truth without route
   assert.match(discovery.description, /Use indexter_search for a concrete task/);
   assert.match(discovery.description, /no wallet-read prerequisite/);
   assert.match(discovery.description, /resourceId/);
-  assert.equal(Object.hasOwn(discovery.outputSchema.shape, 'providers'), true);
-  assert.equal(Object.hasOwn(discovery.outputSchema.shape, 'mode'), true);
+  assert.equal(Object.hasOwn(discovery.registrationOutputSchema.shape, 'providers'), true);
+  assert.equal(Object.hasOwn(discovery.registrationOutputSchema.shape, 'mode'), true);
 
   assert.match(search.description, /rankingMode=degraded/);
   assert.match(search.description, /maxPriceUsdc/);
@@ -250,6 +250,77 @@ test('discovery, search, and wallet contracts expose current truth without route
     ...validSearchOutput,
     noMatchReason: 'no_results_with_price_controls',
   }).success, true);
+
+  const endpoint = {
+    kind: 'endpoint',
+    resourceId: '22222222-2222-4222-8222-222222222222',
+    resourceUrl: 'https://weather.example.test/current',
+    url: 'https://weather.example.test/current',
+    access: {
+      kind: 'direct_url',
+      checkable: true,
+      requiresFreshCheck: true,
+    },
+    merchant: {
+      providerKey: 'weather.example.test',
+      providerSlug: 'weather-co',
+      displayName: 'Weather Co',
+      logoUrl: 'https://weather.example.test/logo.png',
+      technicalHost: 'weather.example.test',
+    },
+    name: 'Current weather',
+    method: 'GET',
+    description: 'Current weather for a requested location.',
+    category: 'weather',
+    price: '$0.01',
+    priceUsdc: 0.01,
+    iconUrl: 'https://weather.example.test/icon.png',
+    ogImageUrl: null,
+    docsUrl: 'https://weather.example.test/docs',
+    openapiSpecUrl: null,
+    host: 'weather.example.test',
+    why: 'Matches the requested current weather data.',
+  };
+  const searchWithEndpoint = {
+    ...validSearchOutput,
+    count: 1,
+    strongResults: [endpoint],
+    strongCount: 1,
+    topSimilarity: 0.92,
+    noMatchReason: null,
+    searchMeta: {
+      ...validSearchOutput.searchMeta,
+      mode: 'direct',
+    },
+  };
+  assert.equal(search.outputSchema.safeParse(searchWithEndpoint).success, true);
+  for (const unsafeEndpoint of [
+    { ...endpoint, iconUrl: 'data:image/svg+xml;base64,PHN2Zy8+' },
+    { ...endpoint, docsUrl: 'javascript:alert(1)' },
+    { ...endpoint, resourceUrl: 'http://weather.example.test/current', url: 'http://weather.example.test/current' },
+    { ...endpoint, resourceUrl: 'https://user:secret@weather.example.test/current', url: 'https://user:secret@weather.example.test/current' },
+    { ...endpoint, host: '127.0.0.1', merchant: { ...endpoint.merchant, technicalHost: '127.0.0.1' } },
+  ]) {
+    assert.equal(search.outputSchema.safeParse({
+      ...searchWithEndpoint,
+      strongResults: [unsafeEndpoint],
+    }).success, false);
+  }
+  assert.equal(search.outputSchema.safeParse({
+    ...searchWithEndpoint,
+    strongResults: [{
+      ...endpoint,
+      resourceUrl: null,
+      url: null,
+      host: null,
+      access: { ...endpoint.access, kind: 'managed_resolvable' },
+      merchant: { ...endpoint.merchant, technicalHost: null },
+    }],
+  }).success, true);
+  assert.equal(search.outputSchema.safeParse({
+    ...searchWithEndpoint,
+    strongResults: [{ ...endpoint, kind: 'actor', actorId: 'apify/weather' }],
+  }).success, false);
 
   assert.match(wallet.description, /Cash, credit capacity, and exact-intent execution eligibility are distinct/);
   assert.match(wallet.description, /zero cash alone is not proof/i);

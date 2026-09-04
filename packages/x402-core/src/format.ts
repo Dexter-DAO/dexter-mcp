@@ -141,7 +141,7 @@ function fallbackTrustLabel(basis: TrustBasis): string {
     case 'recent_paid_delivery':
       return 'Recent paid delivery succeeded';
     case 'trusted_catalog':
-      return 'Trusted catalog listing; live payment offer confirmed';
+      return 'Trusted catalog listing';
     case 'none':
       return 'No independent paid quality test';
   }
@@ -201,9 +201,7 @@ function currentMerchantIdentity(
   // internal transport host from legacy or malformed rows when its URL is null.
   const technicalHost = resourceUrl === null
     ? null
-    : cleanIdentityText(supplied?.technicalHost)
-      ?? cleanIdentityText(result.host)?.toLowerCase()
-      ?? directHost(resourceUrl);
+    : directHost(resourceUrl);
   const providerKey = cleanIdentityText(supplied?.providerKey)
     ?? technicalHost
     ?? `resource:${result.resourceId}`;
@@ -279,7 +277,9 @@ export function formatResource(r: RawCapabilityResult): FormattedResource {
     verificationStatus: verification.status,
     paidQualityTestPassed,
     trustBasis,
-    trustLabel: verification.trustLabel?.trim() || fallbackTrustLabel(trustBasis),
+    trustLabel: trustBasis === 'trusted_catalog'
+      ? fallbackTrustLabel(trustBasis)
+      : verification.trustLabel?.trim() || fallbackTrustLabel(trustBasis),
     lastVerifiedAt: verification.lastVerifiedAt ?? null,
 
     // Usage
@@ -292,7 +292,7 @@ export function formatResource(r: RawCapabilityResult): FormattedResource {
     iconUrl: r.icon ?? null,
     host: resourceUrl === null
       ? null
-      : cleanIdentityText(r.host)?.toLowerCase() ?? directHost(resourceUrl),
+      : directHost(resourceUrl),
 
     // Gaming — `gaming` may be absent on a raw row (e.g. a result that
     // predates gaming analysis); guard it like every other optional field

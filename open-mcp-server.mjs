@@ -1505,7 +1505,11 @@ async function runCanonicalX402Check(args, session) {
     checkResult: result,
     url: args.url,
     resourceId: args.resourceId,
-    method: args.method || 'GET',
+    method:
+      result?.checkedRequest?.method
+      ?? result?.resolvedMethod
+      ?? args.method
+      ?? 'GET',
     rawBody: args.body,
     rawBodyProvided: Object.prototype.hasOwnProperty.call(args, 'body'),
     enrichment,
@@ -2266,7 +2270,7 @@ export function createOpenMcpServer({
     title: 'Explore Indexter',
     description: 'Explore the curated Indexter catalog. Call once with no provider for broad questions such as "What can I do?" or "What is available?" Pass provider for questions such as "What can I do with Glassnode?" Copy nextCursor exactly to continue the same overview or provider. Use indexter_search for a concrete task or outcome. This reads no wallet data and makes no payment.',
     inputSchema: z.object({
-      provider: z.string().trim().min(1).max(160).optional().describe("Optional provider name, slug, key, or host copied from the user's request. Leave unset for the broad curated overview."),
+      provider: z.string().trim().min(1).max(255).optional().describe("Optional provider name, slug, key, or host copied from the user's request. Leave unset for the broad curated overview."),
       limit: z.number().int().min(1).max(25).optional().describe('Overview provider page size (1-25, default 8). Leave unset in provider mode.'),
       capabilityPageSize: z.number().int().min(1).max(24).optional().describe('Provider capability page size (1-24, default 16). Use only with provider.'),
       cursor: z.string().min(1).max(2048).optional().describe('Opaque continuation cursor copied exactly from page.nextCursor. Keep provider set to the same providerKey for provider capability pages; leave provider unset for overview pages.'),
@@ -2420,11 +2424,11 @@ export function createOpenMcpServer({
 
   registerOpenTool(server, 'x402_check', {
     title: 'Check Access Terms',
-    description: 'Check one exact request before paying. Supply either a public URL or a stable resourceId from the current Indexter result, never both. OpenDexter resolves resourceId privately. For a non-GET request, pass body as the exact raw JSON string to preserve lexical bytes. A purchasable quote has quoteOnly=false and an opaque intentId for x402_fetch and x402_status. A quote with quoteOnly=true has no executable intent. A check never authorizes payment, and a non-GET probe may mutate the provider.',
+    description: 'Check one exact request before paying. Supply either a public URL or a stable resourceId from the current Indexter result, never both. With resourceId, copy the canonical method from the same current result; OpenDexter resolves the private route server-side and rejects method drift before probing. For a non-GET request, pass body as the exact raw JSON string to preserve lexical bytes. A purchasable quote has quoteOnly=false and an opaque intentId for x402_fetch and x402_status. A quote with quoteOnly=true has no executable intent. A check never authorizes payment, and a non-GET probe may mutate the provider.',
     inputSchema: z.object({
       url: z.string().url().optional().describe('Exact public HTTPS URL to check. Omit when using an Indexter resourceId.'),
       resourceId: z.string().regex(OPEN_INDEXTER_RESOURCE_ID_RE).optional().describe('Stable resourceId copied from the current Indexter discovery or search result. Omit url so OpenDexter can resolve the private route server-side.'),
-      method: z.enum(['GET', 'POST', 'PUT', 'DELETE']).default('GET').describe('HTTP method to probe with'),
+      method: z.enum(['GET', 'POST', 'PUT', 'DELETE']).optional().describe('Exact HTTP method. A direct URL defaults to GET. For resourceId, copy the canonical method from the same current Indexter result; OpenDexter rejects catalog drift before probing.'),
       body: z.string().optional().describe('Exact raw JSON request-body string for POST, PUT, or DELETE. OpenDexter does not parse, canonicalize, or reserialize this string before intent custody.'),
     }).strict().superRefine((value, context) => {
       const hasUrl = typeof value.url === 'string';
@@ -2434,6 +2438,13 @@ export function createOpenMcpServer({
           code: z.ZodIssueCode.custom,
           path: ['url'],
           message: 'Supply exactly one of url or resourceId',
+        });
+      }
+      if (hasResourceId && value.method === undefined) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['method'],
+          message: 'resourceId requires the canonical method from the current Indexter result',
         });
       }
     }),

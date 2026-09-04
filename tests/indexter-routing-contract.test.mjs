@@ -62,7 +62,7 @@ test('discovery continuation is opaque and exposes no numeric offset contract', 
   const instructions = buildOpenServerInstructions();
   const discover = OPEN_TOOL_CONTRACTS.indexter_discover.description;
 
-  assert.match(discover, /page\.nextCursor copied exactly/);
+  assert.match(discover, /copy page\.nextCursor exactly/i);
   assert.match(instructions, /Never construct, decode, or modify a cursor/);
   assert.doesNotMatch(`${discover}\n${instructions}`, /nextOffset|numeric page offset/i);
 });

@@ -190,6 +190,23 @@ describe('current capability truth projection', () => {
     expect(formatted).not.toHaveProperty('evidence');
   });
 
+  it('derives a direct merchant host only from the callable resource URL', () => {
+    const formatted = formatResource(rawResource({
+      resourceUrl: 'https://actual-merchant.example/buy',
+      host: 'spoofed-host.example',
+      merchant: {
+        providerKey: 'example-merchant',
+        providerSlug: 'example-merchant',
+        displayName: 'Example Merchant',
+        logoUrl: 'https://merchant.example/logo.png',
+        technicalHost: 'spoofed-merchant.example',
+      },
+    }));
+
+    expect(formatted.host).toBe('actual-merchant.example');
+    expect(formatted.merchant.technicalHost).toBe('actual-merchant.example');
+  });
+
   it('tells agents to gather exact request details before checking a POST', () => {
     const formatted = formatResource(rawResource());
     const result: CapabilitySearchResult = {
@@ -210,6 +227,44 @@ describe('current capability truth projection', () => {
     expect(buildSearchResponse(result).tip).toContain('provider-reservation warning');
     expect(buildSearchResponse(result).tip).toContain('do not ask twice');
     expect(buildSearchResponse(result).source).toBe('Indexter');
+  });
+
+  it('keeps managed POST checks resource-bound without asking for a private URL', () => {
+    const formatted = formatResource(rawResource({
+      kind: 'endpoint',
+      resourceUrl: null,
+      host: null,
+      access: {
+        kind: 'managed_resolvable',
+        checkable: true,
+        requiresFreshCheck: true,
+      },
+      merchant: {
+        providerKey: 'managed-provider',
+        providerSlug: 'managed-provider',
+        displayName: 'Managed Provider',
+        logoUrl: null,
+        technicalHost: null,
+      },
+    }));
+    const result: CapabilitySearchResult = {
+      query: 'run a managed POST service',
+      strongResults: [formatted],
+      relatedResults: [],
+      strongCount: 1,
+      relatedCount: 0,
+      topSimilarity: 0.9,
+      noMatchReason: null,
+      rerank: { enabled: true, applied: true },
+      intent: { capabilityText: 'run a managed POST service' },
+      appliedConstraints: { maxPriceUsdc: null, minPriceUsdc: null },
+      durationMs: 20,
+    };
+
+    const tip = buildSearchResponse(result).tip;
+    expect(tip).toContain('stable resourceId');
+    expect(tip).toContain('Never request, expose, or invent its private transport URL');
+    expect(tip).not.toContain('exact URL');
   });
 
   it('keeps raw search diagnostics out of model-visible errors', () => {
@@ -286,6 +341,7 @@ describe('current capability truth projection', () => {
 
     expect(formatted.verified).toBe(false);
     expect(formatted.trustBasis).toBe('trusted_catalog');
+    expect(formatted.trustLabel).toBe('Trusted catalog listing');
     expect(formatted.execution.availability).toBe('catalog_only');
   });
 

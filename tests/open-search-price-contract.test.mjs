@@ -42,8 +42,14 @@ function capabilityPayload(overrides = {}) {
 
 function rawResource({ resourceId, tier, network, similarity, priceUsdc = 0.005 }) {
   return {
+    kind: 'endpoint',
     resourceId,
     resourceUrl: `https://${resourceId}.example.test/data`,
+    access: {
+      kind: 'direct_url',
+      checkable: true,
+      requiresFreshCheck: true,
+    },
     displayName: resourceId,
     method: 'GET',
     pricing: {
@@ -237,21 +243,21 @@ test('search preserves managed endpoint selection and current evidence without a
 test('network filtering preserves API order and confirmed search metadata', async (t) => {
   const previousFetch = globalThis.fetch;
   const solanaHigh = rawResource({
-    resourceId: 'solana-high',
+    resourceId: '00000000-0000-4000-8000-000000000001',
     tier: 'strong',
     network: 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp',
     similarity: 0.93,
     priceUsdc: 0.009,
   });
   const baseMiddle = rawResource({
-    resourceId: 'base-middle',
+    resourceId: '00000000-0000-4000-8000-000000000002',
     tier: 'strong',
     network: 'eip155:8453',
     similarity: 0.96,
     priceUsdc: 0.006,
   });
   const solanaLow = rawResource({
-    resourceId: 'solana-low',
+    resourceId: '00000000-0000-4000-8000-000000000003',
     tier: 'strong',
     network: 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp',
     similarity: 0.91,
@@ -292,7 +298,10 @@ test('network filtering preserves API order and confirmed search metadata', asyn
   assert.notEqual(result.isError, true);
   assert.deepEqual(
     output.strongResults.map(({ resourceId }) => resourceId),
-    ['solana-high', 'solana-low'],
+    [
+      '00000000-0000-4000-8000-000000000001',
+      '00000000-0000-4000-8000-000000000003',
+    ],
   );
   assert.deepEqual(
     output.strongResults.map(({ priceUsdc }) => priceUsdc),
@@ -360,13 +369,13 @@ test('real SDK search keeps its strict output shape after credential scrubbing',
 test('network filtering rebuilds every visible search fact', async (t) => {
   const previousFetch = globalThis.fetch;
   const baseStrong = rawResource({
-    resourceId: 'base-strong',
+    resourceId: '00000000-0000-4000-8000-000000000004',
     tier: 'strong',
     network: 'eip155:8453',
     similarity: 0.97,
   });
   const solanaRelated = rawResource({
-    resourceId: 'solana-related',
+    resourceId: '00000000-0000-4000-8000-000000000005',
     tier: 'related',
     network: 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp',
     similarity: 0.61,
@@ -387,11 +396,11 @@ test('network filtering rebuilds every visible search fact', async (t) => {
     confidence: {
       profileCoverage: 0,
       topMatchProfileBacked: false,
-      triangulatableAlternates: ['base-strong'],
+      triangulatableAlternates: ['00000000-0000-4000-8000-000000000004'],
     },
     triangulate: {
       reason: 'Pre-filter reason.',
-      alternateResourceIds: ['base-strong'],
+      alternateResourceIds: ['00000000-0000-4000-8000-000000000004'],
     },
   })), {
     status: 200,
@@ -417,7 +426,7 @@ test('network filtering rebuilds every visible search fact', async (t) => {
   assert.deepEqual(output.strongResults, []);
   assert.deepEqual(
     output.relatedResults.map(({ resourceId }) => resourceId),
-    ['solana-related'],
+    ['00000000-0000-4000-8000-000000000005'],
   );
   assert.equal(output.count, 1);
   assert.equal(output.strongCount, 0);
@@ -441,7 +450,7 @@ test('network filtering rebuilds every visible search fact', async (t) => {
 test('network filtering reports an empty payable set without a false similarity reason', async (t) => {
   const previousFetch = globalThis.fetch;
   const baseStrong = rawResource({
-    resourceId: 'base-only',
+    resourceId: '00000000-0000-4000-8000-000000000006',
     tier: 'strong',
     network: 'eip155:8453',
     similarity: 0.94,

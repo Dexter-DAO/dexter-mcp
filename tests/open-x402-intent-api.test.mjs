@@ -83,6 +83,18 @@ test('check accepts one stable Indexter resource ID without a public route', () 
   assert.equal(Object.hasOwn(request, 'url'), false);
 });
 
+test('managed checks require the canonical method from the current Indexter result', () => {
+  assert.throws(
+    () => buildOpenX402IntentRequest('check', {
+      sessionId: SESSION,
+      requestId: 'indexter-check-canonical-method',
+      resourceId: RESOURCE_ID,
+      body: '{"city":"Lisbon"}',
+    }),
+    /indexter_resource_method_required/,
+  );
+});
+
 test('check requires exactly one public URL or Indexter resource ID', () => {
   const common = {
     sessionId: SESSION,
