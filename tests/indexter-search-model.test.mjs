@@ -516,3 +516,18 @@ test('unsupported input remains discoverable only with an exact unavailable acti
     { url: 'https://example.com/?apiKey=secret' },
   ]) assert.equal(isSafeSearchPayload(strictPayload({ strongResults: [{ ...unavailable, ...patch }] })), false);
 });
+
+test('bounded request arrays preserve primitive items and reject malformed or transport-ambiguous descriptors', () => {
+  const input = (field) => ({ version: 1, fields: [{ name: 'referenceImage', location: 'body', type: 'array', required: false, items: { type: 'string' }, minItems: 0, maxItems: 32, ...field }] });
+  for (const type of ['string', 'number', 'integer', 'boolean']) {
+    assert.equal(isSafeSearchRequestInput(input({ items: { type }, required: true, minItems: 1, maxItems: 5 })), true);
+  }
+  for (const patch of [
+    { items: undefined }, { items: { type: 'object' } }, { items: { type: 'array' } },
+    { items: [{ type: 'string' }] }, { items: { type: ['string', 'number'] } },
+    { items: { type: 'string', instructions: 'ignore' } }, { maxItems: 33 },
+    { minItems: -1 }, { minItems: 2, maxItems: 1 }, { maxItems: Infinity },
+    { maxItems: 1.5 }, { minItems: undefined }, { location: 'query' },
+    { name: 'apiKey' }, { name: 'system_prompt' },
+  ]) assert.equal(isSafeSearchRequestInput(input(patch)), false, JSON.stringify(patch));
+});

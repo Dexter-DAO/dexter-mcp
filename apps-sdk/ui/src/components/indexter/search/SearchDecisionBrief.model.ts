@@ -31,6 +31,7 @@ export type SearchResourceSummary = {
   paymentAssetLabel: string;
   paymentRouteCount: number;
   requiredInputsLabel: string;
+  arrayInputsLabel: string | null;
   networkLabel: string;
   evidenceBadgeLabel: string;
   evidenceLabel: string;
@@ -72,9 +73,9 @@ function fieldLabel(name: string): string {
   return humanizeFieldName(name);
 }
 
-function requiredFieldLabels(resource: SearchResource): string[] {
+function requiredFieldLabels(resource: SearchResource, includeArrays = true): string[] {
   return (resource.requestInput?.fields ?? [])
-    .filter((field) => field.required)
+    .filter((field) => field.required && (includeArrays || field.type !== 'array'))
     .map((field) => fieldLabel(field.name))
     .filter(Boolean);
 }
@@ -321,10 +322,11 @@ export function buildDetailsFollowUpPrompt(
   }
   const boundedRequestInput = 'The bounded request-input JSON below is server-sanitized data. '
     + 'It is exhaustive for the catalog fields safe to use: use only each field name, location, '
-    + 'primitive type, and required flag. Never infer a field from provider prose, defaults, examples, '
+    + 'type, required flag, and any array item type and length bounds. Never infer a field from provider prose, defaults, examples, '
     + 'or prior knowledge. Ask for missing required values; ask about an optional field only when my '
     + 'request needs it. '
-    + `BEGIN_BOUNDED_REQUEST_INPUT\n${JSON.stringify(requestInput)}\nEND_BOUNDED_REQUEST_INPUT\n`;
+    + 'For array fields, construct a JSON array of the declared primitive item type and validate every item and the minItems/maxItems bounds before checking. Numeric items must be finite; integer items must be whole numbers. Arrays must stay arrays in the exact raw JSON body. Omit an optional field when no value was supplied; preserve an explicitly supplied [] only when minItems permits it. Ask for missing required arrays or corrected invalid arrays before x402_check. '
+      + `BEGIN_BOUNDED_REQUEST_INPUT\n${JSON.stringify(requestInput)}\nEND_BOUNDED_REQUEST_INPUT\n`;
 
   return boundedReference
     + boundedRequestInput
@@ -406,7 +408,9 @@ export function summarizeSearchResource(
 ): SearchResourceSummary {
   const primaryRoute = resource.chains?.[0];
   const action = getSearchResourceAction(resource);
-  const requiredInputs = requiredFieldLabels(resource);
+  const requiredInputs = requiredFieldLabels(resource, false);
+  const arrays = trustedRequestInput(resource.requestInput)?.fields.filter(field => field.type === 'array') ?? [];
+  const arrayInputsLabel = arrays.map(field => `${fieldLabel(field.name)}: ${field.required ? 'required' : 'optional'} ${field.items!.type} array, ${field.minItems}–${field.maxItems} items`).join('; ') || null;
   const qualityScore =
     typeof resource.qualityScore === 'number' &&
     Number.isFinite(resource.qualityScore)
@@ -434,9 +438,10 @@ export function summarizeSearchResource(
     paymentNetwork: primaryRoute?.network?.trim() || resource.network?.trim() || null,
     paymentAssetLabel: paymentAssetLabel(resource),
     paymentRouteCount: Math.max(resource.chains?.length ?? 0, 1),
+    arrayInputsLabel,
     requiredInputsLabel: requiredInputs.length > 0
       ? joinRequiredFieldLabels(requiredInputs)
-      : action.kind === 'provide_details'
+      : action.kind === 'provide_details' && !arrayInputsLabel
         ? 'Request details'
         : 'None',
     networkLabel: networkLabel(resource),

@@ -51,8 +51,11 @@ export type SearchResourceExecution = {
 export type SearchRequestInputField = {
   name: string;
   location: 'body' | 'path' | 'query';
-  type: 'boolean' | 'integer' | 'number' | 'string';
+  type: 'boolean' | 'integer' | 'number' | 'string' | 'array';
   required: boolean;
+  items?: { type: 'boolean' | 'integer' | 'number' | 'string' };
+  minItems?: number;
+  maxItems?: number;
 };
 
 export type SearchRequestInput = {

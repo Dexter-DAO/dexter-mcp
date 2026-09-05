@@ -431,6 +431,32 @@ describe('Indexter discovery model', () => {
     }
   });
 
+  it('retains bounded body arrays and guides exact JSON body construction', () => {
+    for (const required of [false, true]) {
+      const payload = endpointPayload();
+      const provider = payload.providers[0];
+      const endpoint = provider.capabilityGroups[0].resources[0];
+      endpoint.method = 'POST';
+      endpoint.requestInput = { version: 1, fields: [{ name: 'referenceImage', location: 'body', type: 'array', required,
+        items: { type: 'string' }, minItems: 0, maxItems: 5 }] };
+      setReviewAction(endpoint);
+      expect(isIndexterDiscoveryPayload(payload)).toBe(true);
+      const followUp = buildResourceCheckFollowUp(provider, endpoint)!;
+      const bounded = JSON.parse(followUp.split('BEGIN_BOUNDED_ENDPOINT\n')[1].split('\nEND_BOUNDED_ENDPOINT')[0]);
+      expect(bounded.requestInput).toEqual(endpoint.requestInput);
+      expect(followUp).toContain('Arrays must stay arrays in the exact raw JSON body');
+      expect(followUp).toContain('Omit an optional field when no value was supplied');
+      expect(followUp).toContain('preserve an explicitly supplied [] only when minItems permits it');
+      expect(followUp).toContain('Ask for missing required arrays or corrected invalid arrays before x402_check');
+      for (const patch of [{ items: { type: 'object' } }, { maxItems: 33 }, { minItems: -1 },
+        { minItems: 6, maxItems: 5 }, { items: { type: ['string', 'number'] } }, { location: 'query' }, { name: 'apiKey' }]) {
+        const invalid = structuredClone(payload);
+        Object.assign(invalid.providers[0].capabilityGroups[0].resources[0].requestInput!.fields[0], patch);
+        expect(isIndexterDiscoveryPayload(invalid)).toBe(false);
+      }
+    }
+  });
+
   it('accepts only bounded inert request-input contracts and never raw input schemas', () => {
     const valid = endpointPayload();
     const endpoint = valid.providers[0].capabilityGroups[0].resources[0];

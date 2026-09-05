@@ -95,6 +95,12 @@ export function SearchVerdictDrawer({ resource, onClose, onUseService }: Props) 
         </dl>
       ) : null}
 
+      {summary.arrayInputsLabel ? (
+        <dl className="dx-search-drawer__request">
+          <div><dt>List inputs</dt><dd>{summary.arrayInputsLabel}</dd></div>
+        </dl>
+      ) : null}
+
       {summary.safetyWarning ? (
         <p className="dx-search-safety-note" role="note">{summary.safetyWarning}</p>
       ) : null}

@@ -68,6 +68,12 @@ export function SearchInlineDetail({
         </p>
       ) : null}
 
+      {summary.arrayInputsLabel ? (
+        <p className="dx-search-inline-detail__needs">
+          <span>List inputs</span> {summary.arrayInputsLabel}
+        </p>
+      ) : null}
+
       {summary.safetyWarning ? (
         <p className="dx-search-inline-detail__safety" role="note" title={summary.safetyWarning}>
           {summary.safetyWarning}
