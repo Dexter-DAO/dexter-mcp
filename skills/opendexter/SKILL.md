@@ -70,12 +70,24 @@ product tools. Do not select them for a new request.
    `no_current_confirmation` describe different levels of current evidence.
    Keep provider, endpoint, and Actor results distinct. Actors are catalog-only;
    listing one does not make execution or payment available.
-3. Call `x402_check` on the selected endpoint and request shape. For
-   `access.kind=direct_url`, pass its exact `resourceUrl`. For
-   `access.kind=managed_resolvable`, pass only its stable `resourceId`; Dexter
-   resolves the private route server-side. Never invent or expose that route.
-   For a non-GET request, pass `body` as the exact raw JSON string. Do not parse,
-   normalize, reformat, or reserialize it.
+3. Read the selected endpoint's `action.kind` and sanitized `requestInput`.
+   `endpoint_unavailable` stops the continuation. `check_endpoint` permits an
+   exact check; `review_endpoint` requires review of the request fields and
+   `action.safety` first, including for GET. Obtain missing required values
+   without inventing them. If `checkMayAffectProvider`,
+   `checkMayCreateProviderReservation`, or `confirmationRequired` is true,
+   explain the consequence and obtain explicit confirmation before checking.
+   Every non-GET check requires that confirmation too.
+
+   Bind the check to the exact `action.resourceId` and method. When
+   `action.resourceUrl` is non-null, use that public URL as the endpoint base
+   and apply only the query or path inputs declared by `requestInput`. When
+   the URL is null, pass only the stable `action.resourceId` as endpoint
+   identity; Dexter resolves the private route server-side. Never invent or
+   expose that route. Construct the request from the declared field names,
+   types, locations, and requiredness using the user's values. Pass any body
+   as the exact raw JSON string; preserve existing request bytes without
+   parsing, normalizing, reformatting, or reserializing them.
 5. Read `authMode`:
    - `paid`: present the selected seller, exact request, and current price.
    - `siwx`: use `x402_access`.
