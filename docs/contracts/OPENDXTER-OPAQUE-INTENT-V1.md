@@ -15,7 +15,8 @@ The canonical `https://open.dexter.cash/mcp` resource requires OAuth
 `scope=vault` before MCP initialization, tool discovery, or invocation. One
 successful authorization covers discovery and search, exact request checks,
 wallet and portfolio reads, identity-gated access, payment, and governed
-actions. The authorized roster has thirteen tools:
+actions. The authorized roster has thirteen tools. Twelve are model-visible;
+`indexter_discover` is app-only:
 
 - `indexter_discover`
 - `indexter_search`
@@ -41,26 +42,31 @@ public `dexter_authorize_asset_action` tool.
 
 ## Public purchase wire contract
 
-### `indexter_discover` and `indexter_search`
+### `indexter_search` and app-only `indexter_discover`
 
-Use `indexter_discover` once for broad catalog questions and questions about
-one named provider. Use `indexter_search` once for a concrete job, outcome, or
-constraint. Neither operation depends on a wallet read. Both still require the
-connector's OAuth grant because every tool on this hosted surface is protected.
+Use `indexter_search` once for every model-led Indexter request. Pass the
+user's complete natural-language query. The server deterministically routes
+broad, malformed, or ambiguous prompts to an overview, named-provider
+questions to that provider, and concrete requests to task search. Do not fan
+out into multiple searches or call `indexter_discover` from the model.
+Neither operation depends on a wallet read. Both still require the connector's
+OAuth grant because every tool on this hosted surface is protected.
 
-Discovery returns providers, grouped capabilities, and current evidence. An
-endpoint record carries `kind="endpoint"`. A direct endpoint exposes its exact
-public `resourceUrl`; a managed endpoint exposes only its stable `resourceId`
-and is resolved inside Dexter. Editorial placement, catalog counts, and
-operational evidence are separate facts. The only evidence states are
+The model-visible result keeps provider, endpoint, and Actor records distinct
+and returns at most twelve items. A direct endpoint exposes its exact public
+`resourceUrl`; a managed endpoint exposes only its stable `resourceId` and is
+resolved inside Dexter. An Actor retains stable provider and publisher
+identity, remains `catalogOnly=true`, and is not executable or purchasable.
+Editorial placement, catalog counts, and operational evidence are separate
+facts. The endpoint evidence states are
 `delivered_recently`, `terms_checked`, and `no_current_confirmation`.
 Endpoint totals live under `summary.endpointCatalog`; the separate
 `summary.returnedProviderCount` reports only the providers in that response.
 
-Overview pagination uses an opaque `cursor`. A continuation call copies the
-prior `page.nextCursor` exactly. Callers must not decode, alter, or replace it
-with a numeric offset. The endpoint discriminator is not a contract for future
-non-endpoint results; a later result kind must define its own identity fields.
+`indexter_discover` remains available only to the app for browsing. Endpoint
+and Actor pagination use separate opaque cursors. A continuation call copies
+the relevant `page.nextCursor` exactly; callers must not decode, alter, or
+replace it with a numeric offset. Task search is capped and does not paginate.
 
 ### `x402_check`
 

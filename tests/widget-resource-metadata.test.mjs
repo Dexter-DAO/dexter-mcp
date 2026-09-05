@@ -32,45 +32,49 @@ const SELECTED_URIS = [
   GOVERNED_ASSET_WIDGET_URIS.history,
 ];
 
-const ROLLOUT_RESOURCES = [
+const ROLLOUT_RESOURCE_GROUPS = [
   {
-    uri: OPENDEXTER_ROLLOUT_WIDGET_URIS.indexterSearch[0],
+    uris: OPENDEXTER_ROLLOUT_WIDGET_URIS.indexterSearch,
     currentUri: INDEXTER_WIDGET_URIS.search,
     rootId: 'indexter-search-root',
     clipboardWrite: true,
   },
   {
-    uri: OPENDEXTER_ROLLOUT_WIDGET_URIS.fetch[0],
+    uris: OPENDEXTER_ROLLOUT_WIDGET_URIS.fetch,
     currentUri: X402_WIDGET_URIS.fetch,
     rootId: 'x402-fetch-result-root',
   },
   {
-    uri: OPENDEXTER_ROLLOUT_WIDGET_URIS.pricing[0],
+    uris: OPENDEXTER_ROLLOUT_WIDGET_URIS.pricing,
     currentUri: X402_WIDGET_URIS.pricing,
     rootId: 'x402-pricing-root',
   },
   {
-    uri: OPENDEXTER_ROLLOUT_WIDGET_URIS.wallet[0],
+    uris: OPENDEXTER_ROLLOUT_WIDGET_URIS.wallet,
     currentUri: DEXTER_WALLET_WIDGET_URIS.wallet,
     rootId: 'dexter-wallet-root',
     clipboardWrite: true,
   },
   {
-    uri: OPENDEXTER_ROLLOUT_WIDGET_URIS.portfolio[0],
+    uris: OPENDEXTER_ROLLOUT_WIDGET_URIS.portfolio,
     currentUri: PORTFOLIO_WIDGET_URIS.overview,
     rootId: 'dexter-portfolio-root',
   },
   {
-    uri: OPENDEXTER_ROLLOUT_WIDGET_URIS.governedAction[0],
+    uris: OPENDEXTER_ROLLOUT_WIDGET_URIS.governedAction,
     currentUri: GOVERNED_ASSET_WIDGET_URIS.action,
     rootId: 'governed-action-root',
   },
   {
-    uri: OPENDEXTER_ROLLOUT_WIDGET_URIS.governedHistory[0],
+    uris: OPENDEXTER_ROLLOUT_WIDGET_URIS.governedHistory,
     currentUri: GOVERNED_ASSET_WIDGET_URIS.history,
     rootId: 'governed-history-root',
   },
 ];
+
+const ROLLOUT_RESOURCES = ROLLOUT_RESOURCE_GROUPS.flatMap(({ uris, ...resource }) => (
+  uris.map((uri) => ({ uri, ...resource }))
+));
 
 const ROLLOUT_URIS = ROLLOUT_RESOURCES.map(({ uri }) => uri);
 
@@ -102,13 +106,9 @@ test('wallet resource metadata describes the current Dexter Wallet view', async 
     allowedTemplateUris: [DEXTER_WALLET_WIDGET_URIS.wallet],
   });
 
-  assert.equal(registrations.length, 2);
+  assert.equal(registrations.length, 1 + OPENDEXTER_ROLLOUT_WIDGET_URIS.wallet.length);
   const wallet = registrations.find(({ uri }) => uri === DEXTER_WALLET_WIDGET_URIS.wallet);
-  const rolloutWallet = registrations.find(
-    ({ uri }) => uri === OPENDEXTER_ROLLOUT_WIDGET_URIS.wallet[0],
-  );
   assert.ok(wallet);
-  assert.ok(rolloutWallet);
   const expected = 'Shows Dexter Wallet cash, reported credit, assets, Solana receive address, and recent activity.';
   assert.equal(wallet.name, 'dexter_wallet');
   assert.equal(wallet.uri, DEXTER_WALLET_WIDGET_URIS.wallet);
@@ -122,15 +122,19 @@ test('wallet resource metadata describes the current Dexter Wallet view', async 
   assert.equal(result.contents[0]._meta['openai/widgetDescription'], expected);
   assert.deepEqual(result.contents[0]._meta.ui.permissions, { clipboardWrite: {} });
 
-  const rolloutResult = await rolloutWallet.readCallback();
-  assert.equal(rolloutResult.contents[0].uri, OPENDEXTER_ROLLOUT_WIDGET_URIS.wallet[0]);
-  assert.equal(rolloutResult.contents[0].mimeType, 'text/html;profile=mcp-app');
-  assert.match(rolloutResult.contents[0].text, /id="dexter-wallet-root"/);
-  assert.ok(
-    rolloutResult.contents[0].text.includes(
-      `\"templateUri\":\"${OPENDEXTER_ROLLOUT_WIDGET_URIS.wallet[0]}\"`,
-    ),
-  );
+  for (const rolloutUri of OPENDEXTER_ROLLOUT_WIDGET_URIS.wallet) {
+    const rolloutWallet = registrations.find(({ uri }) => uri === rolloutUri);
+    assert.ok(rolloutWallet, rolloutUri);
+    const rolloutResult = await rolloutWallet.readCallback();
+    assert.equal(rolloutResult.contents[0].uri, rolloutUri);
+    assert.equal(rolloutResult.contents[0].mimeType, 'text/html;profile=mcp-app');
+    assert.match(rolloutResult.contents[0].text, /id="dexter-wallet-root"/);
+    assert.ok(
+      rolloutResult.contents[0].text.includes(
+        `\"templateUri\":\"${rolloutUri}\"`,
+      ),
+    );
+  }
 });
 
 test('every public resource exposes its user-facing title', (t) => {
@@ -168,13 +172,13 @@ test('every public resource exposes its user-facing title', (t) => {
     [PASSKEY_WIDGET_URIS.onboard, 'Dexter passkey wallet'],
     [GOVERNED_ASSET_WIDGET_URIS.action, 'Dexter Wallet Governed Action'],
     [GOVERNED_ASSET_WIDGET_URIS.history, 'Dexter Wallet History'],
-    [OPENDEXTER_ROLLOUT_WIDGET_URIS.indexterSearch[0], 'Indexter Search'],
-    [OPENDEXTER_ROLLOUT_WIDGET_URIS.fetch[0], 'OpenDexter Result'],
-    [OPENDEXTER_ROLLOUT_WIDGET_URIS.pricing[0], 'Access Terms'],
-    [OPENDEXTER_ROLLOUT_WIDGET_URIS.wallet[0], 'Dexter Wallet'],
-    [OPENDEXTER_ROLLOUT_WIDGET_URIS.portfolio[0], 'Dexter Wallet Portfolio'],
-    [OPENDEXTER_ROLLOUT_WIDGET_URIS.governedAction[0], 'Dexter Wallet Governed Action'],
-    [OPENDEXTER_ROLLOUT_WIDGET_URIS.governedHistory[0], 'Dexter Wallet History'],
+    ...OPENDEXTER_ROLLOUT_WIDGET_URIS.indexterSearch.map((uri) => [uri, 'Indexter Search']),
+    ...OPENDEXTER_ROLLOUT_WIDGET_URIS.fetch.map((uri) => [uri, 'OpenDexter Result']),
+    ...OPENDEXTER_ROLLOUT_WIDGET_URIS.pricing.map((uri) => [uri, 'Access Terms']),
+    ...OPENDEXTER_ROLLOUT_WIDGET_URIS.wallet.map((uri) => [uri, 'Dexter Wallet']),
+    ...OPENDEXTER_ROLLOUT_WIDGET_URIS.portfolio.map((uri) => [uri, 'Dexter Wallet Portfolio']),
+    ...OPENDEXTER_ROLLOUT_WIDGET_URIS.governedAction.map((uri) => [uri, 'Dexter Wallet Governed Action']),
+    ...OPENDEXTER_ROLLOUT_WIDGET_URIS.governedHistory.map((uri) => [uri, 'Dexter Wallet History']),
   ]);
 
   assert.equal(registrations.length, expectedTitles.size);
@@ -382,9 +386,13 @@ test('current governed resources register action and history as separate read-on
     registrations.map(({ name }) => name),
     [
       'dexter_governed_action',
-      'dexter_governed_action_rollout_1',
+      ...OPENDEXTER_ROLLOUT_WIDGET_URIS.governedAction.map(
+        (_, index) => `dexter_governed_action_rollout_${index + 1}`,
+      ),
       'dexter_governed_history',
-      'dexter_governed_history_rollout_1',
+      ...OPENDEXTER_ROLLOUT_WIDGET_URIS.governedHistory.map(
+        (_, index) => `dexter_governed_history_rollout_${index + 1}`,
+      ),
     ],
   );
   const action = registrations.find(({ uri }) => uri === GOVERNED_ASSET_WIDGET_URIS.action);

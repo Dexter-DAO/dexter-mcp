@@ -438,3 +438,25 @@ test('unknown future ranking modes become explicit degraded output', async (t) =
   assert.equal(directBuilderOutput.rankingMode, 'degraded');
   assert.match(directBuilderOutput.degradedMessage ?? '', /cannot interpret/);
 });
+
+test('capability search rejects oversized success and error bodies while streaming', async (t) => {
+  const previousFetch = globalThis.fetch;
+  t.after(() => {
+    globalThis.fetch = previousFetch;
+  });
+
+  for (const status of [200, 502]) {
+    globalThis.fetch = async () => new Response('x'.repeat(300 * 1_024), {
+      status,
+      headers: { 'content-type': 'application/json' },
+    });
+    await assert.rejects(
+      () => capabilitySearch({
+        query: 'weather data',
+        endpoint: 'https://api.example.test/search',
+      }),
+      /response exceeds the 262144-byte limit/,
+      `status ${status}`,
+    );
+  }
+});

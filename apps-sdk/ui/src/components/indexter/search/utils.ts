@@ -38,6 +38,11 @@ export function merchantLabel(resource: SearchResource): string {
     || 'Merchant not listed';
 }
 
+export function merchantCaption(resource: SearchResource): string | null {
+  const merchant = merchantLabel(resource);
+  return merchant.toLowerCase() === resource.name.trim().toLowerCase() ? null : merchant;
+}
+
 export function resourceImageSources(resource: SearchResource): string[] {
   const canonicalMerchantSources = providerImageSources({
     iconUrl: resource.merchant?.logoUrl,

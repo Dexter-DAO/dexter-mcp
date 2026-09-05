@@ -48,6 +48,18 @@ export type SearchResourceExecution = {
   quoteMayCreateProviderReservation: boolean;
 };
 
+export type SearchRequestInputField = {
+  name: string;
+  location: 'body' | 'path' | 'query';
+  type: 'boolean' | 'integer' | 'number' | 'string';
+  required: boolean;
+};
+
+export type SearchRequestInput = {
+  version: 1;
+  fields: SearchRequestInputField[];
+};
+
 export type SearchResource = {
   kind: 'endpoint';
   resourceId: string;
@@ -69,6 +81,15 @@ export type SearchResource = {
   quoteRequired?: boolean;
   chains?: SearchChainOption[];
   execution?: SearchResourceExecution;
+  requestInput: SearchRequestInput | null;
+  action?: {
+    kind: 'endpoint_unavailable';
+    label: 'Unavailable';
+    state: 'unavailable';
+    reason: 'input_contract_unavailable';
+    resourceId: string;
+    resourceUrl: string | null;
+  };
   description: string;
   category: string;
   qualityScore: number | null;
@@ -100,9 +121,7 @@ export type SearchResource = {
   gamingFlags?: string[];
   gamingSuspicious?: boolean;
   safetyFlags?: string[];
-  inputSchema?: unknown | null;
   outputSchema?: unknown | null;
-  pathParams?: unknown | null;
   schemaSource?: 'bazaar' | 'openapi' | 'profile' | 'none';
 };
 
@@ -126,10 +145,13 @@ export type SearchMeta = {
 export type SearchNoMatchReason =
   | 'below_similarity_threshold'
   | 'below_strong_threshold'
+  | 'no_results_with_price_controls'
   | null;
 
 export type SearchWidgetState = {
   selectedOrdinal?: number;
+  selectedResourceId?: string;
   detailOpen?: boolean;
+  comparisonOpen?: boolean;
   searchQuery?: string;
 };

@@ -18,8 +18,8 @@ function registration(name, nextName) {
 }
 
 function inputSchema(source) {
-  const start = source.indexOf('inputSchema: {');
-  const end = source.indexOf('\n    },\n    annotations:', start);
+  const start = source.indexOf('inputSchema:');
+  const end = source.indexOf('\n    annotations:', start);
   assert.ok(start >= 0 && end > start, 'input schema boundary missing');
   return source.slice(start, end);
 }

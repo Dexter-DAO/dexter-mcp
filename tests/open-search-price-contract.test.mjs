@@ -143,7 +143,7 @@ test('hosted indexter_search sends and returns typed price, paid, and ordering c
   const result = await client.callTool({
     name: 'indexter_search',
     arguments: {
-      query: 'weather data',
+      query: 'Find weather data',
       maxPriceUsdc: 0.01,
       paidOnly: true,
       sortBy: 'price_asc',
@@ -151,16 +151,16 @@ test('hosted indexter_search sends and returns typed price, paid, and ordering c
   });
 
   assert.notEqual(result.isError, true);
-  assert.match(result.structuredContent.searchResultSetId, /^[0-9a-f-]{36}$/i);
+  assert.equal(result.structuredContent.route, 'task');
   assert.equal(captured.requestedUrl?.searchParams.get('maxPriceUsdc'), '0.01');
   assert.equal(captured.requestedUrl?.searchParams.get('paidOnly'), 'true');
   assert.equal(captured.requestedUrl?.searchParams.get('sortBy'), 'price_asc');
-  assert.deepEqual(result.structuredContent.appliedConstraints, {
+  assert.deepEqual(result._meta.indexterPayload.data.appliedConstraints, {
     maxPriceUsdc: 0.01,
     minPriceUsdc: null,
     paidOnly: true,
   });
-  assert.deepEqual(result.structuredContent.appliedOrdering, {
+  assert.deepEqual(result._meta.indexterPayload.data.appliedOrdering, {
     sortBy: 'price_asc',
   });
   assert.equal(
@@ -170,12 +170,12 @@ test('hosted indexter_search sends and returns typed price, paid, and ordering c
 
   const secondResult = await client.callTool({
     name: 'indexter_search',
-    arguments: { query: 'weather data' },
+    arguments: { query: 'Find weather data' },
   });
-  assert.notEqual(
-    secondResult.structuredContent.searchResultSetId,
-    result.structuredContent.searchResultSetId,
-    'each search invocation must receive a collision-resistant result-set binding',
+  assert.equal(secondResult.structuredContent.route, 'task');
+  assert.equal(
+    Object.hasOwn(result._meta.indexterPayload.data, 'searchResultSetId'),
+    false,
   );
 });
 
@@ -219,9 +219,10 @@ test('search preserves managed endpoint selection and current evidence without a
   const client = await connectedOpenClient(t, 'managed-search-contract-test');
   const result = await client.callTool({
     name: 'indexter_search',
-    arguments: { query: 'fixture data' },
+    arguments: { query: 'Find fixture data' },
   });
-  const selected = result.structuredContent.strongResults[0];
+  const selected = result._meta.indexterPayload.data.strongResults[0];
+  const modelSelected = result.structuredContent.results[0];
 
   assert.notEqual(result.isError, true);
   assert.equal(selected.kind, 'endpoint');
@@ -237,6 +238,8 @@ test('search preserves managed endpoint selection and current evidence without a
     label: 'Delivered recently',
     observedAt: '2026-09-04T02:30:00.000Z',
   });
+  assert.equal(modelSelected.resourceId, selected.resourceId);
+  assert.equal(modelSelected.action.resourceUrl, null);
   assert.doesNotMatch(JSON.stringify(selected), /indexter-managed\.invalid/);
 });
 
@@ -286,14 +289,14 @@ test('network filtering preserves API order and confirmed search metadata', asyn
   const result = await client.callTool({
     name: 'indexter_search',
     arguments: {
-      query: 'fixture data',
+      query: 'Find fixture data',
       network: 'solana',
       maxPriceUsdc: 0.01,
       paidOnly: true,
       sortBy: 'price_desc',
     },
   });
-  const output = result.structuredContent;
+  const output = result._meta.indexterPayload.data;
 
   assert.notEqual(result.isError, true);
   assert.deepEqual(
@@ -319,7 +322,7 @@ test('network filtering preserves API order and confirmed search metadata', asyn
 
 test('real SDK search keeps its strict output shape after credential scrubbing', async (t) => {
   const previousFetch = globalThis.fetch;
-  const credentialShapedQuery = 'open_abcdefghijklmnop';
+  const credentialShapedQuery = 'Find open_abcdefghijklmnop';
   globalThis.fetch = async () => new Response(JSON.stringify(capabilityPayload({
     query: credentialShapedQuery,
     intent: {
@@ -346,16 +349,12 @@ test('real SDK search keeps its strict output shape after credential scrubbing',
 
   assert.notEqual(result.isError, true);
   assert.doesNotMatch(JSON.stringify(result), /open_abcdefghijklmnop/);
-  assert.equal(
-    result.structuredContent.intent.capabilityText,
-    'Credential-like text was removed.',
-  );
-  assert.deepEqual(result.structuredContent.appliedConstraints, {
+  assert.deepEqual(result._meta.indexterPayload.data.appliedConstraints, {
     maxPriceUsdc: 0.01,
     minPriceUsdc: null,
     paidOnly: false,
   });
-  assert.deepEqual(result.structuredContent.appliedOrdering, {
+  assert.deepEqual(result._meta.indexterPayload.data.appliedOrdering, {
     sortBy: 'relevance',
   });
   assert.equal(
@@ -414,13 +413,13 @@ test('network filtering rebuilds every visible search fact', async (t) => {
   const result = await client.callTool({
     name: 'indexter_search',
     arguments: {
-      query: 'fixture data',
+      query: 'Find fixture data',
       network: 'solana',
       paidOnly: true,
       sortBy: 'price_desc',
     },
   });
-  const output = result.structuredContent;
+  const output = result._meta.indexterPayload.data;
 
   assert.notEqual(result.isError, true);
   assert.deepEqual(output.strongResults, []);
@@ -442,7 +441,9 @@ test('network filtering rebuilds every visible search fact', async (t) => {
   assert.equal(output.appliedConstraints.paidOnly, true);
   assert.deepEqual(output.appliedOrdering, { sortBy: 'price_desc' });
   assert.equal(
-    OPEN_TOOL_CONTRACTS.indexter_search.outputSchema.safeParse(output).success,
+    OPEN_TOOL_CONTRACTS.indexter_search.outputSchema.safeParse(
+      result.structuredContent,
+    ).success,
     true,
   );
 });
@@ -474,11 +475,11 @@ test('network filtering reports an empty payable set without a false similarity 
   const result = await client.callTool({
     name: 'indexter_search',
     arguments: {
-      query: 'fixture data',
+      query: 'Find fixture data',
       network: 'solana',
     },
   });
-  const output = result.structuredContent;
+  const output = result._meta.indexterPayload.data;
 
   assert.notEqual(result.isError, true);
   assert.equal(output.count, 0);
@@ -493,7 +494,9 @@ test('network filtering reports an empty payable set without a false similarity 
   );
   assert.match(output.tip, /Retry without the network filter/);
   assert.equal(
-    OPEN_TOOL_CONTRACTS.indexter_search.outputSchema.safeParse(output).success,
+    OPEN_TOOL_CONTRACTS.indexter_search.outputSchema.safeParse(
+      result.structuredContent,
+    ).success,
     true,
   );
 });
@@ -513,13 +516,17 @@ test('unknown API ranking modes stay schema-safe through the real SDK', async (t
   const client = await connectedOpenClient(t, 'ranking-mode-contract-test');
   const result = await client.callTool({
     name: 'indexter_search',
-    arguments: { query: 'weather data' },
+    arguments: { query: 'Find weather data' },
   });
 
   assert.notEqual(result.isError, true);
-  assert.equal(result.structuredContent.rankingMode, 'degraded');
-  assert.equal(result.structuredContent.searchMeta.rankingMode, 'degraded');
-  assert.match(result.structuredContent.degradedMessage, /cannot interpret/);
+  assert.equal(result._meta.indexterPayload.data.rankingMode, 'degraded');
+  assert.equal(result._meta.indexterPayload.data.searchMeta.rankingMode, 'degraded');
+  assert.match(result._meta.indexterPayload.data.degradedMessage, /cannot interpret/);
+  assert.equal(
+    result.structuredContent.warnings.some(({ code }) => code === 'degraded_ranking'),
+    true,
+  );
   assert.equal(
     OPEN_TOOL_CONTRACTS.indexter_search.outputSchema.safeParse(
       result.structuredContent,
@@ -546,12 +553,13 @@ test('hosted indexter_search fails closed when paidOnly is not confirmed', async
   const client = await connectedOpenClient(t, 'paid-only-fail-closed-test');
   const result = await client.callTool({
     name: 'indexter_search',
-    arguments: { query: 'weather data', paidOnly: true },
+    arguments: { query: 'Find weather data', paidOnly: true },
   });
 
   assert.equal(result.isError, true);
-  assert.equal(result.structuredContent.success, false);
-  assert.equal(result.structuredContent.searchMeta.mode, 'error');
+  assert.equal(result.structuredContent.ok, false);
+  assert.equal(result._meta.indexterPayload.data.success, false);
+  assert.equal(result._meta.indexterPayload.data.searchMeta.mode, 'error');
 });
 
 test('hosted indexter_search fails closed when typed sortBy is not echoed', async (t) => {
@@ -569,10 +577,11 @@ test('hosted indexter_search fails closed when typed sortBy is not echoed', asyn
   const client = await connectedOpenClient(t, 'sort-fail-closed-test');
   const result = await client.callTool({
     name: 'indexter_search',
-    arguments: { query: 'weather data', sortBy: 'price_asc' },
+    arguments: { query: 'Find weather data', sortBy: 'price_asc' },
   });
 
   assert.equal(result.isError, true);
-  assert.equal(result.structuredContent.success, false);
-  assert.equal(result.structuredContent.searchMeta.mode, 'error');
+  assert.equal(result.structuredContent.ok, false);
+  assert.equal(result._meta.indexterPayload.data.success, false);
+  assert.equal(result._meta.indexterPayload.data.searchMeta.mode, 'error');
 });

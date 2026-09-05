@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import react from '@vitejs/plugin-react';
-import { chromium } from 'playwright';
+import { chromium, webkit } from 'playwright';
 import { createServer } from 'vite';
 
 import { OPEN_TOOL_NAMES } from '../lib/open-tool-contracts.mjs';
@@ -19,21 +19,23 @@ import {
 const TEST_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(TEST_DIR, '..');
 const UI_ROOT = path.join(REPO_ROOT, 'apps-sdk', 'ui');
-const OUTPUT_DIR = path.join(
-  REPO_ROOT,
-  'output',
-  'playwright',
-  'opendexter-renderers',
-);
+const OUTPUT_DIR = process.env.DEXTER_RENDERER_GALLERY_OUTPUT_DIR
+  ? path.resolve(REPO_ROOT, process.env.DEXTER_RENDERER_GALLERY_OUTPUT_DIR)
+  : path.join(REPO_ROOT, 'output', 'playwright', 'opendexter-renderers');
 const GALLERY_ENABLED = process.env.DEXTER_RENDERER_GALLERY === '1';
 const SURFACE_FILTER = String(process.env.DEXTER_RENDERER_GALLERY_SURFACE || '').trim();
 const DEVICE_FILTER = String(process.env.DEXTER_RENDERER_GALLERY_DEVICE || '').trim();
 const THEME_FILTER = String(process.env.DEXTER_RENDERER_GALLERY_THEME || '').trim();
+const BROWSER_ENGINE = String(
+  process.env.DEXTER_RENDERER_GALLERY_BROWSER || 'chromium',
+).trim().toLowerCase();
 const LIVE_IMAGES = process.env.DEXTER_RENDERER_GALLERY_LIVE_IMAGES === '1';
+const ACTOR_DETAIL = process.env.DEXTER_RENDERER_GALLERY_ACTOR_DETAIL === '1';
+const TOOL_RESULT_FILE = process.env.DEXTER_RENDERER_GALLERY_TOOL_RESULT_FILE;
+const SEARCH_VIEW = process.env.DEXTER_RENDERER_GALLERY_SEARCH_VIEW || 'initial';
 const BASE_CHAIN_MARK = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 111 111" fill="none"><circle cx="55.5" cy="55.5" r="55.5" fill="#0052FF"/><path d="M55.4912 94.222C77.1578 94.222 94.7217 76.881 94.7217 55.4897C94.7217 34.0984 77.1578 16.7573 55.4912 16.7573C34.908 16.7573 17.9917 32.5547 16.3311 52.5543H67.4656V58.425H16.3311C17.9917 78.4247 34.908 94.222 55.4912 94.222Z" fill="white"/></svg>';
 const SOLANA_CHAIN_MARK = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 398 312"><defs><linearGradient id="s" x1="1" y1="0" x2="0" y2="1"><stop stop-color="#00ffa3"/><stop offset="1" stop-color="#dc1fff"/></linearGradient></defs><path fill="url(#s)" d="M65 238c2-2 5-4 9-4h317c6 0 9 7 5 11l-63 63c-2 2-6 4-9 4H7c-6 0-9-7-5-11zM65 4c2-3 5-4 9-4h317c6 0 9 7 5 11l-63 63c-2 2-6 4-9 4H7c-6 0-9-7-5-11zm268 116c-2-2-6-4-9-4H7c-6 0-9 7-5 11l63 63c2 2 5 4 9 4h317c6 0 9-7 5-11z"/></svg>';
 const USDC_ASSET_MARK = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="50" fill="#2775ca"/><path fill="#fff" d="M63.8 57.9c0-7.3-4.4-9.8-13.1-10.8-6.3-.9-7.5-2.5-7.5-5.4s2.1-4.8 6.2-4.8c3.8 0 5.9 1.3 6.9 4.4.2.6.8 1 1.5 1h3.3c.8 0 1.5-.6 1.5-1.5v-.2c-.9-4.6-4.6-8.1-9.4-8.5v-5c0-.9-.6-1.5-1.7-1.7h-3.1c-.8 0-1.5.6-1.7 1.7v4.8c-6.2.8-10.2 5-10.2 10.2 0 6.9 4.2 9.6 12.9 10.6 5.8 1 7.7 2.3 7.7 5.6 0 3.4-2.9 5.7-6.9 5.7-5.4 0-7.3-2.3-7.9-5.4-.2-.8-.8-1.2-1.4-1.2h-3.6c-.8 0-1.4.6-1.4 1.4v.2c.8 5.2 4.2 9 11 10v5c0 .8.6 1.5 1.7 1.7h3.1c.8 0 1.5-.7 1.7-1.7v-5c6.2-1.1 10.4-5.5 10.4-11.1z"/></svg>';
-const GENERIC_IMAGE_MARK = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><circle cx="20" cy="20" r="14" fill="#918677" /></svg>';
 const FIXED_CHAIN_MARKS = new Map([
   ['https://dexter.cash/assets/chains/base.svg', BASE_CHAIN_MARK],
   ['https://dexter.cash/assets/chains/solana.svg', SOLANA_CHAIN_MARK],
@@ -284,7 +286,9 @@ function installFixtureHost({
   iframe.src = widgetUrl;
 }
 
-function mcpInitResult({ theme, mobile, viewport }) {
+function mcpInitResult({ theme, mobile, viewport, surface }) {
+  const toolName = surface.tools[0] ?? 'indexter_search';
+  const requestId = `gallery-${surface.id}`;
   return {
     protocolVersion: '2026-01-26',
     hostInfo: { name: 'OpenDexter Renderer Gallery', version: '1.0.0' },
@@ -296,6 +300,11 @@ function mcpInitResult({ theme, mobile, viewport }) {
       updateModelContext: { text: {}, structuredContent: {} },
     },
     hostContext: {
+      toolInfo: {
+        id: requestId,
+        tool: { name: toolName, inputSchema: { type: 'object' } },
+      },
+      'openai/widgetSessionId': `gallery-widget-${surface.id}`,
       theme,
       displayMode: 'inline',
       availableDisplayModes: ['inline', 'fullscreen'],
@@ -315,10 +324,18 @@ function mcpInitResult({ theme, mobile, viewport }) {
 }
 
 function toolResult(surface) {
+  const toolName = surface.tools[0] ?? 'indexter_search';
   return {
     structuredContent: surface.output,
     content: [{ type: 'text', text: 'Deterministic renderer gallery fixture.' }],
-    _meta: surface.metadata,
+    _meta: {
+      ...surface.metadata,
+      'dexter/toolInvocation': {
+        toolName,
+        requestId: `gallery-${surface.id}`,
+      },
+      'openai/widgetSessionId': `gallery-widget-${surface.id}`,
+    },
     isError: false,
   };
 }
@@ -405,10 +422,15 @@ async function renderVariant({ browser, baseUrl, surface, device, theme }) {
         await route.fulfill({ status: 204, body: '' });
         return;
       }
+      const fixedImage = FIXED_CHAIN_MARKS.get(requestUrl.href);
+      if (!fixedImage) {
+        await route.fulfill({ status: 204, body: '' });
+        return;
+      }
       await route.fulfill({
         status: 200,
         contentType: 'image/svg+xml',
-        body: FIXED_CHAIN_MARKS.get(requestUrl.href) ?? GENERIC_IMAGE_MARK,
+        body: fixedImage,
       });
       return;
     }
@@ -427,7 +449,7 @@ async function renderVariant({ browser, baseUrl, surface, device, theme }) {
   }));
   const widgetUrl = `${baseUrl}/${surface.file}`;
   await page.evaluate(installFixtureHost, {
-    initResult: mcpInitResult({ theme, mobile, viewport }),
+    initResult: mcpInitResult({ theme, mobile, viewport, surface }),
     toolInput: surface.input,
     toolResult: toolResult(surface),
     omitToolResult: surface.omitToolResult === true,
@@ -455,7 +477,7 @@ async function renderVariant({ browser, baseUrl, surface, device, theme }) {
   assert.ok(childFrame, `${surface.id} did not load its source document`);
   if (LIVE_IMAGES) {
     await childFrame.waitForFunction(() => (
-      [...document.querySelectorAll('.dx-discovery-mark')].every((element) => (
+      [...document.querySelectorAll('.dx-discovery-mark, .dx-search-identity__img')].every((element) => (
         !(element instanceof HTMLImageElement)
         || (element.complete && element.naturalWidth > 0)
       ))
@@ -899,7 +921,41 @@ async function renderVariant({ browser, baseUrl, surface, device, theme }) {
     assert.match(await frame.locator('body').innerText(), /Wallet history unavailable/i);
   }
 
-  const screenshotName = `${surface.id}--${device}--${theme}.png`;
+  if (ACTOR_DETAIL) {
+    assert.equal(surface.id, 'indexter-discovery', 'Actor detail capture requires the discovery surface');
+    await frame.getByRole('button', { name: 'Inspect Google Maps Scraper from Apify', exact: true }).click();
+    const actorDetail = frame.getByRole('region', { name: 'Google Maps Scraper details', exact: true });
+    await actorDetail.waitFor();
+    await actorDetail.getByRole('button', { name: 'Discuss in chat', exact: true }).waitFor();
+    if (LIVE_IMAGES) {
+      await childFrame.waitForFunction(() => [...document.querySelectorAll('.dx-discovery-mark, .dx-search-identity__img')].every((element) => (
+        !(element instanceof HTMLImageElement) || (element.complete && element.naturalWidth > 0)
+      )));
+    }
+    await page.waitForTimeout(100);
+    assert.equal(await actorDetail.evaluate((element) => element.scrollWidth <= element.clientWidth + 1), true,
+      'Actor detail must fit the host width');
+  }
+
+  if (SEARCH_VIEW !== 'initial') {
+    assert.equal(surface.id, 'indexter-search', 'Search interactions require the search surface');
+    assert.ok(['compare', 'detail'].includes(SEARCH_VIEW), 'Unknown Search gallery view');
+    await frame.getByRole('button', { name: /^Compare all/ }).click();
+    await frame.getByRole('heading', { name: 'Compare services', exact: true }).waitFor();
+    if (SEARCH_VIEW === 'detail') {
+      await frame.getByRole('button', { name: /^View .+ details from / }).first().click();
+      await frame.locator('.dx-search-inline-detail, .dx-search-drawer').first().waitFor();
+    }
+    if (LIVE_IMAGES) {
+      await childFrame.waitForFunction(() => [...document.querySelectorAll('.dx-search-identity__img')].every((element) => (
+        !(element instanceof HTMLImageElement) || (element.complete && element.naturalWidth > 0)
+      )), undefined, { timeout: 8_000 });
+    }
+    await page.waitForTimeout(100);
+  }
+
+  const engineSuffix = BROWSER_ENGINE === 'chromium' ? '' : `--${BROWSER_ENGINE}`;
+  const screenshotName = `${surface.id}${ACTOR_DETAIL ? '--actor-detail' : SEARCH_VIEW !== 'initial' ? `--${SEARCH_VIEW}` : ''}--${device}--${theme}${engineSuffix}.png`;
   await page.screenshot({
     path: path.join(OUTPUT_DIR, screenshotName),
     fullPage: true,
@@ -915,6 +971,7 @@ async function renderVariant({ browser, baseUrl, surface, device, theme }) {
   await context.close();
   return {
     surface: surface.id,
+    interaction: ACTOR_DETAIL ? 'actor-detail' : SEARCH_VIEW !== 'initial' ? SEARCH_VIEW : null,
     resourceUri: surface.resourceUri,
     tools: surface.tools,
     compatibility: surface.compatibility === true,
@@ -929,7 +986,23 @@ async function renderVariant({ browser, baseUrl, surface, device, theme }) {
 const galleryTest = GALLERY_ENABLED ? test : test.skip;
 
 galleryTest('current OpenDexter renderers fill one deterministic host-frame gallery', async (t) => {
+  const browserType = BROWSER_ENGINE === 'chromium'
+    ? chromium
+    : BROWSER_ENGINE === 'webkit'
+      ? webkit
+      : null;
+  assert.ok(browserType, `Unknown gallery browser: ${BROWSER_ENGINE}`);
   const allSurfaces = await buildRendererGallerySurfaces();
+  if (TOOL_RESULT_FILE) {
+    assert.equal(SURFACE_FILTER, 'indexter-search', 'Recorded task results require the Search surface filter');
+    const recorded = JSON.parse(await readFile(path.resolve(REPO_ROOT, TOOL_RESULT_FILE), 'utf8'));
+    assert.equal(recorded.structuredContent?.route, 'task');
+    assert.ok(recorded._meta?.indexterPayload?.data, 'Recorded result lacks its widget payload');
+    const searchSurface = allSurfaces.find(({ id }) => id === 'indexter-search');
+    searchSurface.output = recorded.structuredContent;
+    searchSurface.metadata = recorded._meta;
+    searchSurface.input = { query: process.env.DEXTER_RENDERER_GALLERY_QUERY || 'Find current weather and forecast APIs' };
+  }
   const surfaces = SURFACE_FILTER
     ? allSurfaces.filter(({ id }) => id === SURFACE_FILTER)
     : allSurfaces;
@@ -977,8 +1050,10 @@ galleryTest('current OpenDexter renderers fill one deterministic host-frame gall
   const address = vite.httpServer?.address();
   assert.ok(address && typeof address === 'object');
   const baseUrl = `http://127.0.0.1:${address.port}`;
-  const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE;
-  const browser = await chromium.launch({
+  const executablePath = BROWSER_ENGINE === 'chromium'
+    ? process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE
+    : undefined;
+  const browser = await browserType.launch({
     headless: true,
     ...(executablePath ? { executablePath } : {}),
   });
@@ -1011,6 +1086,7 @@ galleryTest('current OpenDexter renderers fill one deterministic host-frame gall
   const manifest = {
     schemaVersion: 1,
     generatedAt: GALLERY_FIXED_NOW,
+    browser: BROWSER_ENGINE,
     roster: [...OPEN_TOOL_NAMES],
     surfaces: surfaces.map(({ id, title, file, resourceUri, tools, compatibility }) => ({
       id,
@@ -1023,7 +1099,10 @@ galleryTest('current OpenDexter renderers fill one deterministic host-frame gall
     variants: rendered,
   };
   await writeFile(
-    path.join(OUTPUT_DIR, 'manifest.json'),
+    path.join(
+      OUTPUT_DIR,
+      BROWSER_ENGINE === 'chromium' ? 'manifest.json' : `manifest--${BROWSER_ENGINE}.json`,
+    ),
     `${JSON.stringify(manifest, null, 2)}\n`,
     'utf8',
   );

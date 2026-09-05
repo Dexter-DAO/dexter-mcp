@@ -58,8 +58,11 @@ export function CompositionBar({ own, credit, atWork, earnPct, onOpen, triggerRe
         </div>
         {hasAtWork ? (
           <div className="dxw-row">
-            <span className="dxw-cluster"><span className="dxw-dot dxw-dot-work" />{earnPct != null ? `At work, earning ${earnPct}%` : 'At work, earning'}</span>
-            <span className="dxw-amt">{fmtUsd(atWork)}</span>
+            <span className="dxw-cluster">
+              <span className="dxw-dot dxw-dot-work" />
+              {earnPct != null ? `At work, earning ${earnPct}%` : 'At work, earning'}&nbsp;
+              <span className="dxw-amt">{fmtUsd(atWork)}</span>
+            </span>
           </div>
         ) : null}
       </div>

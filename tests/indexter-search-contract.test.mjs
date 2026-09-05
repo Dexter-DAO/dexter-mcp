@@ -55,10 +55,12 @@ test('search can only open a safe next step before payment', () => {
   assert.doesNotMatch(drawer, /Use this service/);
   assert.doesNotMatch(actionSources, /Check fresh price/);
   assert.match(entry, /indexterCheckContinuationPrompt/);
-  assert.match(indexterContinuation, /indexter_result_continuation_v2/);
-  assert.match(indexterContinuation, /searchResultSetId/);
-  assert.match(indexterContinuation, /searchResultOrdinal/);
-  assert.match(indexterContinuation, /currentResultCount/);
+  assert.match(entry, /indexterEndpointReference\(resource\)/);
+  assert.match(indexterContinuation, /indexter_endpoint_reference_v1/);
+  assert.match(indexterContinuation, /resourceId/);
+  assert.match(indexterContinuation, /merchant/);
+  assert.match(indexterContinuation, /offering/);
+  assert.doesNotMatch(entry, /searchResultSetId|indexterResultReference/);
   assert.match(indexterContinuation, /Call x402_check once/);
   assert.match(indexterContinuation, /do not make a payment/);
   assert.match(continuation, /call x402_fetch once/);
@@ -129,9 +131,10 @@ test('comparison disclosures share one bounded, ordinal-safe region', () => {
 });
 
 test('inline copy is bounded and detail keeps one concise summary', () => {
-  assert.match(entry, /<h1 title=\{loadingTitle\}>\{loadingTitle\}<\/h1>/);
+  assert.match(entry, /<h1 title=\{stateTitle\}>\{stateTitle\}<\/h1>/);
   assert.match(entry, /<h1 title=\{emptyTitle\}>\{emptyTitle\}<\/h1>/);
-  assert.match(entry, /<h1 title=\{queryHeading\}>\{queryHeading\}<\/h1>/);
+  assert.match(entry, /className="dx-search-query-context"/);
+  assert.doesNotMatch(entry, /queryHeading/);
   assert.match(css, /\.dx-search-shell--inline \.dx-search-query h1[\s\S]*?-webkit-line-clamp: 2/);
   assert.match(css, /\.dx-search-shell--inline \.dx-search-state h1[\s\S]*?-webkit-line-clamp: 2/);
   assert.match(css, /\.dx-search-shell--inline \.dx-search-state p[\s\S]*?-webkit-line-clamp: 3/);
@@ -219,8 +222,8 @@ test('current build stamp, merchant hierarchy, evidence, and dead-code removals 
   assert.match(brief, /dx-search-safety-note/);
   assert.match(comparison, /dx-search-safety-note/);
   assert.match(drawer, /dx-search-safety-note/);
-  assert.match(brief, /merchantLabel\(actionTarget\)/);
-  assert.match(comparison, /merchantLabel\(resource\)/);
+  assert.match(brief, /merchantCaption\(actionTarget\)/);
+  assert.match(comparison, /merchantCaption\(resource\)/);
   assert.match(drawer, /merchantLabel\(resource\)/);
   assert.match(brief, /compactEvidenceLabel/);
   assert.match(comparison, /compactEvidenceLabel/);

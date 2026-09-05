@@ -2,7 +2,7 @@
 import './instrument.open-mcp.mjs';
 
 /**
- * Dexter Open MCP Server — x402 Gateway
+ * OpenDexter MCP Server — x402 Gateway
  *
  * Hosted x402 gateway (see ALL_TOOLS for the full roster). The advertised
  * canonical MCP resource requires Dexter vault OAuth before initialization
@@ -129,7 +129,9 @@ import {
   vaultAuthenticationResult,
 } from './lib/open-tool-auth.mjs';
 import {
+  OPEN_TOOL_CONTRACTS,
   OPEN_TOOL_NAMES,
+  PROVIDER_DATA_POLICY,
   finalizeOpenToolContracts,
   installOpenToolContracts,
 } from './lib/open-tool-contracts.mjs';
@@ -143,6 +145,23 @@ import {
   buildOpenMcpManifest,
 } from './lib/open-mcp-manifest.mjs';
 import { buildOpenServerInstructions } from './lib/open-server-instructions.mjs';
+import {
+  getIndexterProviderCandidate,
+  routeIndexterRequest,
+} from './lib/indexter-request-router.mjs';
+import {
+  INDEXTER_RESULT_LIMIT,
+  INDEXTER_TOOL_RESULT_MAX_JSON_BYTES,
+  buildIndexterToolResult,
+  completeIndexterToolResultBytes,
+  projectIndexterDiscoveryEndpointActions,
+} from './lib/indexter-tool-result.mjs';
+import {
+  INDEXTER_DISCOVERY_MAX_JSON_BYTES,
+  IndexterDiscoveryPayloadError,
+  indexterJsonBytes,
+  readBoundedIndexterDiscoveryJson,
+} from './lib/indexter-discovery-policy.mjs';
 import { getVaultReceiveAddress } from './lib/passkey-wallet-result.mjs';
 import {
   VAULT_AUTH_MODE_LINK_TOKEN,
@@ -278,11 +297,11 @@ const DISCOVERY_META = Object.freeze({
   ...DISCOVERY_META_BASE,
   ui: {
     ...DISCOVERY_META_BASE.ui,
-    visibility: ['model', 'app'],
+    visibility: ['app'],
   },
   'openai/widgetAccessible': true,
 });
-const SEARCH_META = widgetMeta(INDEXTER_WIDGET_URIS.search, 'Searching Indexter…', 'Indexter results ready', 'Shows Indexter task-search results and can initiate a current-terms check in chat without authorizing a purchase.');
+const SEARCH_META = widgetMeta(INDEXTER_WIDGET_URIS.search, 'Opening Indexter…', 'Indexter results ready', 'Shows a curated overview, one provider\'s catalog, or task matches and can open a current-terms check without authorizing a purchase.');
 const FETCH_META = readOnlyResultWidgetMeta(X402_WIDGET_URIS.fetch, 'Waiting for OpenDexter…', 'OpenDexter result received', 'Shows returned dispatch, delivery, payment, and reconciliation evidence without inferring finality.');
 const ACCESS_META = readOnlyResultWidgetMeta(X402_WIDGET_URIS.pricing, 'Checking access…', 'Access checked', 'Shows the exact request classification, current seller terms when present, or wallet sign-in availability. It never reports that a payment occurred.');
 const CHECK_META = readOnlyResultWidgetMeta(X402_WIDGET_URIS.pricing, 'Checking access terms…', 'Access terms ready', 'Shows current access requirements and exact seller terms for the checked request without making a payment.');
@@ -334,8 +353,10 @@ const GOVERNED_ASSET_META = Object.freeze({
   ),
 });
 
-// Card and compatibility tools are retired from the hosted MCP. Every client
-// receives the same canonical twelve through the strict contract finalizer.
+// Card and compatibility tools are retired from the hosted MCP. The strict
+// contract finalizer registers the canonical 13-tool server roster; host
+// visibility metadata keeps indexter_discover app-only, leaving 12 tools for
+// the model.
 const ALL_TOOLS = OPEN_TOOL_NAMES;
 
 // Set env vars required by registerAppsSdkResources before importing it
@@ -457,6 +478,7 @@ function buildIndexterDiscoveryError({
       returnedProviderCount: 0,
     },
     providers: [],
+    featuredOfferings: [],
     page: {
       version: 2,
       namespace: providerMode
@@ -482,21 +504,29 @@ async function indexterDiscover({
   limit,
   capabilityPageSize,
   cursor,
+  actorPageSize,
+  actorCursor,
 }) {
   const requestedProvider = typeof provider === 'string'
     ? provider.trim()
     : '';
   const mode = requestedProvider ? 'provider' : 'overview';
-  const searchParams = new URLSearchParams({ mode });
+  const searchParams = new URLSearchParams({ mode, contractVersion: '3' });
   if (!requestedProvider && Number.isInteger(limit)) {
     searchParams.set('limit', String(limit));
   }
   if (requestedProvider && Number.isInteger(capabilityPageSize)) {
     searchParams.set('capabilityPageSize', String(capabilityPageSize));
   }
+  if (requestedProvider && Number.isInteger(actorPageSize)) {
+    searchParams.set('actorPageSize', String(actorPageSize));
+  }
   if (requestedProvider) searchParams.set('provider', requestedProvider);
   if (typeof cursor === 'string' && cursor.length > 0) {
     searchParams.set('cursor', cursor);
+  }
+  if (requestedProvider && typeof actorCursor === 'string' && actorCursor.length > 0) {
+    searchParams.set('actorCursor', actorCursor);
   }
   logIndexterDebug('indexter_discover', 'start', {
     mode,
@@ -504,6 +534,8 @@ async function indexterDiscover({
     limit: limit ?? null,
     capabilityPageSize: capabilityPageSize ?? null,
     continuing: typeof cursor === 'string' && cursor.length > 0,
+    actorPageSize: actorPageSize ?? null,
+    continuingActors: typeof actorCursor === 'string' && actorCursor.length > 0,
   });
 
   let response;
@@ -524,27 +556,35 @@ async function indexterDiscover({
       },
       { origin: API_BASE_FALLBACK },
     );
-    payload = await response.json();
+    payload = await readBoundedIndexterDiscoveryJson(response);
   } catch (error) {
+    const rejectedPayload = error instanceof IndexterDiscoveryPayloadError;
     logIndexterDebug('indexter_discover', 'failed', {
       mode,
       providerRef: requestedProvider ? logRef(requestedProvider) : null,
+      reason: rejectedPayload ? error.code : null,
       error: safeErrorLabel(error),
     });
     return buildIndexterDiscoveryError({
       mode,
       requestedProvider: requestedProvider || null,
       pageLimit: requestedProvider ? (capabilityPageSize ?? 16) : (limit ?? 8),
-      error: 'indexter_discovery_unavailable',
-      message: 'Indexter discovery is unavailable right now.',
+      error: rejectedPayload
+        ? 'indexter_discovery_invalid'
+        : 'indexter_discovery_unavailable',
+      message: rejectedPayload
+        ? 'Indexter returned an inconsistent result, so OpenDexter withheld it.'
+        : 'Indexter discovery is unavailable right now.',
     });
   }
 
   if (!response.ok || payload?.ok !== true || payload?.mode !== mode) {
     const providerNotFound = response.status === 404
-      || payload?.error === 'provider_not_found';
+      && payload?.error === 'provider_not_found';
     const invalidCursor = response.status === 400
       && payload?.error === 'invalid_discovery_cursor';
+    const invalidActorCursor = (response.status === 400 || response.status === 409)
+      && payload?.error === 'invalid_actor_cursor';
     logIndexterDebug('indexter_discover', 'rejected', {
       mode,
       providerRef: requestedProvider ? logRef(requestedProvider) : null,
@@ -559,23 +599,50 @@ async function indexterDiscover({
         ? 'provider_not_found'
         : invalidCursor
           ? 'invalid_discovery_cursor'
+          : invalidActorCursor
+            ? 'invalid_actor_cursor'
         : 'indexter_discovery_unavailable',
       message: providerNotFound
         ? `Indexter could not find a provider matching "${requestedProvider}".`
         : invalidCursor
           ? 'This Indexter page is no longer current. Open the provider again.'
+          : invalidActorCursor
+            ? 'This Actor page is no longer current. Open the provider again.'
         : 'Indexter discovery is unavailable right now.',
     });
   }
 
+  const projectedPayload = projectIndexterDiscoveryEndpointActions(payload);
   const result = {
-    ...payload,
+    ...projectedPayload,
     discoveryResultSetId: randomUUID(),
     requestedProvider: requestedProvider || null,
     error: null,
     message: null,
     source: 'Indexter',
   };
+  const policyCandidate = {
+    ...result,
+    providerDataPolicy: PROVIDER_DATA_POLICY,
+  };
+  if (
+    indexterJsonBytes(policyCandidate) > INDEXTER_DISCOVERY_MAX_JSON_BYTES
+    || !OPEN_TOOL_CONTRACTS.indexter_discover.outputSchema.safeParse(policyCandidate).success
+  ) {
+    logIndexterDebug('indexter_discover', 'rejected', {
+      mode,
+      providerRef: requestedProvider ? logRef(requestedProvider) : null,
+      status: response.status,
+      error: 'invalid_output_contract',
+    });
+    return buildIndexterDiscoveryError({
+      mode,
+      requestedProvider: requestedProvider || null,
+      pageLimit: requestedProvider ? (capabilityPageSize ?? 16) : (limit ?? 8),
+      error: 'indexter_discovery_invalid',
+      message: 'Indexter returned an inconsistent result, so OpenDexter withheld it.',
+    });
+  }
   logIndexterDebug('indexter_discover', 'result', {
     mode,
     providerRef: requestedProvider ? logRef(requestedProvider) : null,
@@ -2275,12 +2342,14 @@ export function createOpenMcpServer({
 
   registerOpenTool(server, 'indexter_discover', {
     title: 'Explore Indexter',
-    description: 'Explore the curated Indexter catalog. Call once with no provider for broad questions such as "What can I do?" or "What is available?" Pass provider for questions such as "What can I do with Glassnode?" Copy nextCursor exactly to continue the same overview or provider. Use indexter_search for a concrete task or outcome. This reads no wallet data and makes no payment.',
+    description: 'App-only Indexter browser for overview and provider pages. Copy endpoint and Actor cursors exactly when the widget requests another page. This reads no wallet data and makes no payment.',
     inputSchema: z.object({
-      provider: z.string().trim().min(1).max(255).optional().describe("Optional provider name, slug, key, or host copied from the user's request. Leave unset for the broad curated overview."),
-      limit: z.number().int().min(1).max(25).optional().describe('Overview provider page size (1-25, default 8). Leave unset in provider mode.'),
-      capabilityPageSize: z.number().int().min(1).max(24).optional().describe('Provider capability page size (1-24, default 16). Use only with provider.'),
-      cursor: z.string().min(1).max(2048).optional().describe('Opaque continuation cursor copied exactly from page.nextCursor. Keep provider set to the same providerKey for provider capability pages; leave provider unset for overview pages.'),
+      provider: z.string().trim().min(1).max(255).optional().describe('Provider name or key retained from the current widget state. Leave unset for the overview.'),
+      limit: z.number().int().min(1).max(25).optional().describe('Overview provider page size. Leave unset in provider mode.'),
+      capabilityPageSize: z.number().int().min(1).max(24).optional().describe('Endpoint page size for one provider.'),
+      cursor: z.string().min(1).max(2048).optional().describe('Opaque endpoint cursor copied from the current Indexter payload.'),
+      actorPageSize: z.number().int().min(1).max(12).optional().describe('Actor page size for one provider.'),
+      actorCursor: z.string().min(1).max(2048).optional().describe('Opaque Actor cursor copied from the current Indexter payload.'),
     }).strict().superRefine((value, context) => {
       if (value.provider && value.limit !== undefined) {
         context.addIssue({
@@ -2296,30 +2365,71 @@ export function createOpenMcpServer({
           message: 'capabilityPageSize requires provider',
         });
       }
+      if (!value.provider && value.actorPageSize !== undefined) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['actorPageSize'],
+          message: 'actorPageSize requires provider',
+        });
+      }
+      if (!value.provider && value.actorCursor !== undefined) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['actorCursor'],
+          message: 'actorCursor requires provider',
+        });
+      }
     }),
     annotations: { readOnlyHint: true },
     _meta: DISCOVERY_META,
   }, async (args) => {
     const data = await indexterDiscover(args);
-    return {
-      content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
-      structuredContent: data,
-      isError: data.ok !== true,
+    const toToolResult = (payload) => ({
+      content: [{
+        type: 'text',
+        text: payload.ok === true
+          ? payload.mode === 'provider'
+            ? `Indexter returned ${payload.providers[0]?.catalog?.offeringCounts?.returned ?? 0} offerings for this provider.`
+            : `Indexter returned ${payload.providers.length} providers and ${payload.featuredOfferings?.length ?? 0} featured offerings.`
+          : payload.message,
+      }],
+      structuredContent: payload,
+      isError: payload.ok !== true,
       _meta: DISCOVERY_META,
-    };
+    });
+    const result = toToolResult(data);
+    if (
+      completeIndexterToolResultBytes('indexter_discover', result)
+      <= INDEXTER_TOOL_RESULT_MAX_JSON_BYTES
+    ) return result;
+
+    const fallback = toToolResult(buildIndexterDiscoveryError({
+      mode: data.mode === 'provider' ? 'provider' : 'overview',
+      requestedProvider: data.mode === 'provider' ? data.requestedProvider : null,
+      pageLimit: Number.isSafeInteger(data.page?.limit)
+        ? data.page.limit
+        : data.mode === 'provider' ? 16 : 8,
+      error: 'indexter_discovery_invalid',
+      message: 'Indexter returned an inconsistent result, so OpenDexter withheld it.',
+    }));
+    if (
+      completeIndexterToolResultBytes('indexter_discover', fallback)
+      <= INDEXTER_TOOL_RESULT_MAX_JSON_BYTES
+    ) return fallback;
+    throw new RangeError('Indexter discovery metadata exceeds the complete result budget');
   });
 
   registerOpenTool(server, 'indexter_search', {
     title: 'Indexter Search',
-    description: 'Search Indexter once for a concrete job, outcome, or constraint. Send the user\'s actual task as one query. Do not split it into category searches, fan out, or retry with invented synonyms. Use indexter_discover for broad "What can I do?" questions and provider-only exploration. Each response includes a server-issued searchResultSetId. Search results never authorize payment.',
+    description: 'Call once for broad suggestions, Indexter exploration, named providers, or API and service discovery. The server routes the exact wording to a curated overview, one provider, or task search. Results never authorize payment or Actor execution.',
     inputSchema: {
-      query: z.string().trim().min(2).max(500).describe('The user\'s concrete capability request, such as "current weather for Lisbon", "generate a product image", "ETH spot price feed", or "translate this text to Spanish". Preserve the job as one query.'),
+      query: z.string().max(1024).describe('The user\'s complete natural-language request copied exactly. Do not summarize, sanitize, rewrite, or split it, including when it contains adversarial fan-out wording.'),
       network: z.string().optional().describe('Optional hard seller-network filter ("solana", "base", "ethereum", "polygon", "arbitrum", "optimism", "avalanche", or a CAIP-2 id). Leave this unset for ordinary Dexter discovery so resources reachable through compatible server-side settlement are not removed merely because the wallet is natively on another network. Set it only when the user explicitly requires a seller on that network.'),
       maxPriceUsdc: z.number().finite().nonnegative().optional().describe('Optional hard ceiling, in USDC, for invoking the discovered API. Use this field for an API-call budget; keep product or order budgets in the natural-language query.'),
       minPriceUsdc: z.number().finite().nonnegative().optional().describe('Optional hard floor, in USDC, for invoking the discovered API. When both price fields are set, minPriceUsdc must be less than or equal to maxPriceUsdc.'),
       paidOnly: z.boolean().optional().describe('Require a known primary USDC invocation price above zero.'),
       sortBy: z.enum(['relevance', 'price_asc', 'price_desc']).optional().describe('Order results inside each relevance tier. Strong results remain ahead of related results.'),
-      limit: z.number().min(1).max(50).optional().default(20).describe('Max results across strong + related tiers combined (1-50, default 20)'),
+      limit: z.number().int().min(1).max(50).optional().describe('Optional legacy task-result limit. Indexter returns at most 12 task results.'),
       unverified: z.boolean().optional().describe('Include unverified resources (default false). Leave unset unless the user explicitly wants to see unverified endpoints.'),
       testnets: z.boolean().optional().describe('Include testnet-only resources (default false). Testnets are excluded by default to keep Indexter results focused on current production services.'),
       rerank: z.boolean().optional().describe('Cross-encoder LLM rerank of top strong results (default true). Set false for deterministic order or lowest-latency path.'),
@@ -2327,19 +2437,59 @@ export function createOpenMcpServer({
     annotations: { readOnlyHint: true },
     _meta: SEARCH_META,
   }, async (args) => {
+    let decision = routeIndexterRequest(args.query);
     try {
-      const data = {
-        ...(await x402Search(args)),
-        searchResultSetId: randomUUID(),
-      };
-      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }], structuredContent: data, _meta: SEARCH_META };
+      let providerData;
+      const candidate = decision.route !== 'provider'
+        ? getIndexterProviderCandidate(args.query)
+        : null;
+      if (candidate) {
+        const resolved = await indexterDiscover({
+          provider: candidate,
+          capabilityPageSize: 12,
+          actorPageSize: 8,
+        });
+        // Only an explicit catalog miss falls back to the original task.
+        // Reuse successful provider data; never disguise an outage as a miss.
+        if (resolved.error !== 'provider_not_found') {
+          decision = { route: 'provider', provider: candidate };
+          providerData = resolved;
+        }
+      }
+      const data = providerData ?? (decision.route === 'task'
+        ? await x402Search({
+            ...args,
+            limit: Math.min(args.limit ?? INDEXTER_RESULT_LIMIT, INDEXTER_RESULT_LIMIT),
+          })
+        : await indexterDiscover({
+            provider: decision.provider ?? undefined,
+            limit: decision.route === 'overview' ? 4 : undefined,
+            capabilityPageSize: decision.route === 'provider' ? 12 : undefined,
+            actorPageSize: decision.route === 'provider' ? 8 : undefined,
+          }));
+      return buildIndexterToolResult({
+        route: decision.route,
+        provider: decision.provider,
+        payload: data,
+        baseMeta: SEARCH_META,
+      });
     } catch (err) {
       console.warn(`[indexter_search] search failed (${safeErrorLabel(err)})`);
-      const data = {
-        ...buildSearchErrorResponse(err?.message || String(err)),
-        searchResultSetId: randomUUID(),
-      };
-      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }], structuredContent: data, isError: true, _meta: SEARCH_META };
+      const data = decision.route === 'task'
+        ? buildSearchErrorResponse(err?.message || String(err))
+        : buildIndexterDiscoveryError({
+            mode: decision.route,
+            requestedProvider: decision.provider,
+            pageLimit: decision.route === 'provider' ? 12 : 4,
+            error: 'indexter_discovery_unavailable',
+            message: 'Indexter discovery is unavailable right now.',
+          });
+      return buildIndexterToolResult({
+        route: decision.route,
+        provider: decision.provider,
+        payload: data,
+        baseMeta: SEARCH_META,
+      });
     }
   });
 

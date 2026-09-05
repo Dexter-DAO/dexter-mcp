@@ -169,7 +169,7 @@ test('Indexter opens x402_check through chat instead of direct widget authority'
   assert.match(entry, /sendFollowUp\(indexterCheckContinuationPrompt\(reference\)\)/);
   assert.match(continuation, /Call x402_check once/);
   assert.match(continuation, /do not make a payment/);
-  assert.deepEqual([...OPEN_TOOL_CONTRACTS.indexter_discover.visibility], ['model', 'app']);
+  assert.deepEqual([...OPEN_TOOL_CONTRACTS.indexter_discover.visibility], ['app']);
   assert.equal(OPEN_TOOL_CONTRACTS.indexter_discover.widgetAccessible, true);
   for (const name of ['indexter_search', 'x402_check', 'x402_fetch']) {
     assert.deepEqual([...OPEN_TOOL_CONTRACTS[name].visibility], ['model']);

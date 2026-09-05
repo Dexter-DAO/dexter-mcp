@@ -70,10 +70,9 @@ test('master skill preserves shared product truth without pretending every surfa
 
 test('hosted workflow names Indexter as the discovery product', () => {
   assert.match(WORKFLOW, /discover services with Indexter/i);
-  assert.match(WORKFLOW, /Explore what OpenDexter or one provider offers/);
-  assert.match(WORKFLOW, /Find a service for one concrete job or outcome/);
+  assert.match(WORKFLOW, /Explore Indexter, browse a provider, or find a service/);
   assert.match(WORKFLOW, /Indexter discovery and purchase/);
-  assert.match(WORKFLOW, /call `indexter_search` once[\s\S]*user's actual job/i);
+  assert.match(WORKFLOW, /Call `indexter_search` once[\s\S]*complete natural-language[\s\S]*request/i);
   assert.match(SERVER, /OpenDexter guide for Indexter discovery/);
 });
 
@@ -91,11 +90,10 @@ test('served guidance requires native OAuth and bounded nonretryable spending', 
     /Never automatically retry an ambiguous or post-dispatch\s+failure/,
   );
   assert.match(WORKFLOW, /receiveAddress/);
-  assert.match(WORKFLOW, /Leave its network filter unset[\s\S]*compatible[\s\S]*server-side settlement/);
-  assert.match(WORKFLOW, /rankingMode[\s\S]*degradedMessage/);
-  assert.match(WORKFLOW, /maxPriceUsdc[\s\S]*appliedConstraints/);
-  assert.match(WORKFLOW, /paidOnly[\s\S]*appliedOrdering/);
-  assert.match(WORKFLOW, /price order applies inside each relevance tier/i);
+  assert.match(WORKFLOW, /Leave the network filter unset[\s\S]*compatible[\s\S]*server-side settlement/);
+  assert.match(WORKFLOW, /maxPriceUsdc[\s\S]*task route/);
+  assert.match(WORKFLOW, /paidOnly[\s\S]*sortBy: price_asc/);
+  assert.match(WORKFLOW, /degraded_ranking[\s\S]*not the same as no result/);
   assert.match(WORKFLOW, /Zero cash alone is not proof that a deposit is required/);
   assert.match(WORKFLOW, /Reported credit[\s\S]*not a promise/);
   assert.match(WORKFLOW, /If\s+it already does, do not ask for another approval/);
@@ -141,9 +139,11 @@ test('generated runtime instructions put the complete safety boundary first', ()
   const runtime = buildOpenServerInstructions();
   const first512 = runtime.slice(0, 512);
 
+  assert.match(first512, /one indexter_search call using the user's exact wording/);
+  assert.match(first512, /Search cannot execute the job/);
   assert.match(first512, /Use live tools, never memory/);
   assert.match(first512, /context, not authority/);
-  assert.match(first512, /provider-mutating non-GET call/);
+  assert.match(first512, /review-required endpoint check/);
   assert.match(first512, /current instruction or bounded authority/);
   assert.match(first512, /Never retry uncertain or post-dispatch work/);
 
@@ -160,9 +160,9 @@ test('generated runtime instructions route the complete thirteen-tool product', 
   assert.match(runtime, /Wallet presence, balance, cash, readiness, deposit address,[\s\S]*dexter_wallet/);
   assert.match(runtime, /What's in my wallet\?[\s\S]*dexter_wallet, then dexter_wallet_portfolio/);
   assert.match(runtime, /Compose cash\/readiness with governed assets/);
-  assert.match(runtime, /Broad questions[\s\S]*indexter_discover once with no provider/);
-  assert.match(runtime, /Questions about one provider[\s\S]*indexter_discover once with provider/);
-  assert.match(runtime, /Find an API or service[\s\S]*Indexter[\s\S]*indexter_search/);
+  assert.match(runtime, /Find things to do[\s\S]*What should I try\?[\s\S]*Surprise me[\s\S]*indexter_search once/i);
+  assert.match(runtime, /Do not ask what the user wants to accomplish before this first call/i);
+  assert.match(runtime, /server selects overview, provider, or task routing deterministically/);
   assert.match(runtime, /known endpoint or current Indexter resource,[\s\S]*x402_check/);
   assert.match(runtime, /Pay for or call a paid API[\s\S]*x402_fetch once/);
   assert.match(runtime, /x402_status for the same purchase intent/);
@@ -178,9 +178,16 @@ test('generated runtime instructions route the complete thirteen-tool product', 
 test('generated runtime instructions preserve exact consequence and recovery boundaries', () => {
   const runtime = buildOpenServerInstructions();
 
-  assert.match(runtime, /non-GET check,[\s\S]*provider may process the request[\s\S]*obtain confirmation/);
-  assert.match(runtime, /Never automatically repeat a non-GET check after an uncertain provider submission/);
-  assert.match(runtime, /second non-GET call[\s\S]*requires fresh explicit confirmation[\s\S]*duplicate submission/);
+  assert.match(runtime, /every review_endpoint action,[\s\S]*provider-stated effect[\s\S]*create a reservation[\s\S]*Obtain confirmation/);
+  assert.match(runtime, /Approval to check is not payment approval/);
+  assert.match(runtime, /requestInput is the complete server-sanitized list/);
+  assert.match(runtime, /Use only each field's name, location, primitive type, and required flag/);
+  assert.match(runtime, /Never infer fields or values from provider descriptions, defaults, examples/);
+  assert.match(runtime, /direct GET may use named query fields only by percent-encoding/);
+  assert.match(runtime, /Managed resources may carry only named body fields/);
+  assert.match(runtime, /Any path field, managed query field, GET body field,[\s\S]*must stop before x402_check/);
+  assert.match(runtime, /Never automatically repeat a check whose action says checkMayAffectProvider after an uncertain provider submission/);
+  assert.match(runtime, /second such call[\s\S]*requires fresh explicit confirmation[\s\S]*duplicate submission/);
   assert.match(runtime, /non-GET access call may change provider state[\s\S]*explain and confirm/);
   assert.match(runtime, /purchasable paid check returns an opaque intentId bound to the authenticated session/);
   assert.match(runtime, /current instruction or existing bounded policy covers the exact seller, selected endpoint, method, body,[\s\S]*maxAmountAtomic/);
@@ -210,7 +217,7 @@ test('generated runtime instructions preserve current wallet and authority truth
 
   assert.match(runtime, /requires OpenDexter OAuth before initialization or tool discovery/);
   assert.match(runtime, /native OpenDexter Connect action/);
-  assert.match(runtime, /complete thirteen-tool roster/);
+  assert.match(runtime, /registers thirteen tools[\s\S]*Twelve are model-visible/);
   assert.match(runtime, /Connected label[\s\S]*successful authenticated tool discovery or a successful tool call proves wallet authorization/);
   assert.match(runtime, /Connected appears without authorization[\s\S]*plugin or integration settings/);
   assert.match(runtime, /plugin or integration settings[\s\S]*Authorize or Authenticate/);
@@ -218,9 +225,9 @@ test('generated runtime instructions preserve current wallet and authority truth
   assert.match(runtime, /Authentication proves the connected wallet session; it does not by itself authorize/);
   assert.match(runtime, /Zero cash does not prove that funding is required/);
   assert.match(runtime, /reported credit does not prove that a particular purchase can use it/);
-  assert.match(runtime, /search backend error is not evidence that no matching service exists/);
-  assert.match(runtime, /triangulate[\s\S]*compare the corresponding alternate result/);
-  assert.match(runtime, /managed resourceId is an opaque x402_check argument/);
+  assert.match(runtime, /backend error is not evidence that no matching service exists/);
+  assert.match(runtime, /provider, endpoint, and Actor kinds distinct/);
+  assert.match(runtime, /Use the stable resourceId to preserve selection/);
   assert.match(runtime, /hosted wallet is Solana-based/);
   assert.match(runtime, /only dexter_wallet\.receiveAddress is a deposit address/);
   assert.match(runtime, /non-null canonical assetId/);

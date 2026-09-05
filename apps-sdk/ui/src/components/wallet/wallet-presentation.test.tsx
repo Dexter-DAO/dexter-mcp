@@ -46,6 +46,9 @@ describe('wallet money presentation', () => {
     expect(markup).toContain('<button');
     expect(markup).toContain('aria-label="Review balance composition and credit details.');
     expect(markup).toContain('Yours $6.45, credit $1.00, at work $14.39.');
+    expect(markup).toMatch(
+      /dxw-dot-work[\s\S]*At work, earning 4\.2%[\s\S]*dxw-amt[\s\S]*\$14\.39[\s\S]*<\/span><\/div>/,
+    );
   });
 
   it('exposes one exact semantic headline while hiding animated fragments', () => {

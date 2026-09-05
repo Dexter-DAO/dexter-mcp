@@ -138,9 +138,11 @@ test('hosted source documentation states the current opaque-intent product contr
   ]) {
     assert.ok(readme.includes(`\`${name}\``), name);
   }
-  assert.match(readme, /authenticated thirteen-tool roster/i);
+  assert.match(readme, /health-reported\s+release identity and 13-tool server roster/i);
+  assert.match(readme, /authenticated `tools\/list`/i);
+  assert.match(readme, /12[- ]model-visible(?: tools)? plus one app-only/i);
   assert.match(readme, /replaces only\s+`dexter-open-mcp`/i);
-  assert.match(readme, /legacy `dexter-mcp` PID, path,\s+configuration, and restart counters remain unchanged/i);
+  assert.match(readme, /full `dexter-mcp` PID, path,\s+configuration, and restart counters remain unchanged/i);
   assert.doesNotMatch(readme, /deletes both named PM2\s+processes/i);
   assert.doesNotMatch(
     readme,

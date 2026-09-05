@@ -18,6 +18,7 @@
     "studio:setup": "npm ci --prefix scripts/studio-runtime --omit=dev --ignore-scripts",
     "mcp:sessions": "node scripts/mcp-sessions.mjs",
     "mcp:sessions:json": "node scripts/mcp-sessions.mjs --json",
+    "eval:indexter:routing": "node scripts/evaluate-indexter-model-routing.mjs --run",
     "test:pumpstream": "node scripts/run-pumpstream-harness.js",
     "test:renderers:inventory": "node --test tests/apps-sdk-renderer-inventory.test.mjs",
     "test:renderers:gallery": "DEXTER_RENDERER_GALLERY=1 node --test tests/apps-sdk-renderer-gallery.e2e.mjs",

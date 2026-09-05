@@ -65,11 +65,32 @@ export const GOVERNED_ASSET_WIDGET_URIS = Object.freeze({
 // advertise the content-addressed URIs above; these are read-only rollout
 // aliases that serve the current fixed renderer.
 export const OPENDEXTER_ROLLOUT_WIDGET_URIS = Object.freeze({
-  indexterSearch: Object.freeze(['ui://dexter/indexter-search-f4636936']),
-  fetch: Object.freeze(['ui://dexter/x402-fetch-result-ef385542']),
-  pricing: Object.freeze(['ui://dexter/x402-pricing-3465a350']),
-  wallet: Object.freeze(['ui://dexter/dexter-wallet-f0b010a7']),
-  portfolio: Object.freeze(['ui://dexter/portfolio-56eba5ab']),
-  governedAction: Object.freeze(['ui://dexter/governed-action-2815c33a']),
-  governedHistory: Object.freeze(['ui://dexter/governed-history-ac4c3bb9']),
+  indexterSearch: Object.freeze([
+    'ui://dexter/indexter-search-2d3cd02b',
+    'ui://dexter/indexter-search-f4636936',
+  ]),
+  fetch: Object.freeze([
+    'ui://dexter/x402-fetch-result-fd07778d',
+    'ui://dexter/x402-fetch-result-ef385542',
+  ]),
+  pricing: Object.freeze([
+    'ui://dexter/x402-pricing-6dbbb691',
+    'ui://dexter/x402-pricing-3465a350',
+  ]),
+  wallet: Object.freeze([
+    'ui://dexter/dexter-wallet-f5d0510a',
+    'ui://dexter/dexter-wallet-f0b010a7',
+  ]),
+  portfolio: Object.freeze([
+    'ui://dexter/portfolio-ff57062a',
+    'ui://dexter/portfolio-56eba5ab',
+  ]),
+  governedAction: Object.freeze([
+    'ui://dexter/governed-action-b2a36e59',
+    'ui://dexter/governed-action-2815c33a',
+  ]),
+  governedHistory: Object.freeze([
+    'ui://dexter/governed-history-aab29411',
+    'ui://dexter/governed-history-ac4c3bb9',
+  ]),
 });
