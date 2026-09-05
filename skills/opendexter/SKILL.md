@@ -70,7 +70,11 @@ product tools. Do not select them for a new request.
    `no_current_confirmation` describe different levels of current evidence.
    Keep provider, endpoint, and Actor results distinct. Actors are catalog-only;
    listing one does not make execution or payment available.
-3. Read the selected endpoint's `action.kind` and sanitized `requestInput`.
+3. Read the selected endpoint's `action.kind` and sanitized `requestInput`. For a
+   body field with type `array`, use `items.type`, `minItems`, and `maxItems` to
+   review a JSON array. Preserve omitted optional fields separately from an
+   explicit empty array. Check item types and bounds before forming the request;
+   preserve the final raw body bytes for the exact check.
    `endpoint_unavailable` stops the continuation. `check_endpoint` permits an
    exact check; `review_endpoint` requires review of the request fields and
    `action.safety` first, including for GET. Obtain missing required values

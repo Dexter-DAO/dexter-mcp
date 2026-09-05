@@ -153,6 +153,7 @@ test('summarizes why, quality, and the first listed route price', () => {
     paymentAssetLabel: 'USDC +1 route',
     paymentRouteCount: 2,
     requiredInputsLabel: 'None',
+    arrayInputsLabel: null,
     networkLabel: 'solana',
     evidenceBadgeLabel: 'Quality test',
     evidenceLabel: 'Quality test passed',

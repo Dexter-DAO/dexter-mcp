@@ -1535,3 +1535,63 @@ test('an ordinary nested body object is unavailable rather than flattened into e
     assert.equal(OPEN_TOOL_CONTRACTS.indexter_search.outputSchema.safeParse(result.structuredContent).success, true);
   }
 });
+
+test('projects Xona image inputs with bounded optional primitive arrays through task and overview', () => {
+  for (const type of ['string', 'number', 'integer', 'boolean']) {
+    for (const required of [false, true]) {
+      const inputSchema = { type: 'object', required: required ? ['prompt', 'referenceImage'] : ['prompt'],
+        properties: { prompt: { type: 'string' }, aspect_ratio: { type: 'string' },
+          referenceImage: { type: 'array', items: { type, description: 'UNTRUSTED_ITEM_PROSE' }, minItems: 1, maxItems: 5 } }, additionalProperties: false };
+      const source = endpoint(81, { method: 'POST', inputSchema });
+      const result = buildIndexterToolResult({ route: 'task', payload: { success: true, strongResults: [source], relatedResults: [] } });
+      const projected = result.structuredContent.results[0];
+      assert.equal(projected.action.kind, 'review_endpoint');
+      const expected = { name: 'referenceImage', location: 'body', type: 'array', required, items: { type }, minItems: 1, maxItems: 5 };
+      assert.deepEqual(projected.requestInput.fields.find(f => f.name === 'referenceImage'), expected);
+      assert.equal(OPEN_TOOL_CONTRACTS.indexter_search.outputSchema.safeParse(result.structuredContent).success, true);
+      assert.deepEqual(result._meta.indexterPayload.data.strongResults[0].requestInput, projected.requestInput);
+      assert.doesNotMatch(JSON.stringify(result), /UNTRUSTED_ITEM_PROSE/);
+      const discovery = discoveryPayload();
+      for (const offering of [discovery.providers[0].capabilityGroups[0].resources[0], discovery.featuredOfferings[0]])
+        Object.assign(offering, { method: 'POST', inputSchema });
+      const overview = buildIndexterToolResult({ route: 'overview', payload: projectIndexterDiscoveryEndpointActions(discovery) });
+      const found = overview.structuredContent.results.find(r => r.requestInput?.fields.some(f => f.name === 'referenceImage'));
+      assert.deepEqual(found.requestInput.fields.find(f => f.name === 'referenceImage'), expected);
+      assert.equal(OPEN_TOOL_CONTRACTS.indexter_search.outputSchema.safeParse(overview.structuredContent).success, true);
+    }
+  }
+});
+
+test('array projection rejects unsupported shapes and credentials without silently dropping optional fields', () => {
+  for (const array of [
+    { type: 'array' }, { type: 'array', items: { type: 'object' } },
+    { type: 'array', items: { type: 'array', items: { type: 'string' } } },
+    { type: 'array', items: [{ type: 'string' }, { type: 'number' }] },
+    { type: 'array', items: { type: ['string', 'number'] } },
+    { type: 'array', items: { type: 'string' }, minItems: 33 },
+    { type: 'array', items: { type: 'string' }, maxItems: -1 },
+    { type: 'array', items: { type: 'string' }, minItems: 2, maxItems: 1 },
+    { type: 'array', items: { type: 'string' }, maxItems: 1.5 },
+    { type: 'array', items: { type: 'string' }, maxItems: null },
+    ...['$ref', '$dynamicRef', 'oneOf', 'anyOf', 'allOf', 'not', 'if', 'enum', 'const', 'uniqueItems', 'pattern', 'minimum', 'maxLength'].flatMap(key => [
+      { type: 'array', items: { type: 'string' }, [key]: [] },
+      { type: 'array', items: { type: 'string', [key]: [] } },
+    ]),
+  ]) {
+    const result = buildIndexterToolResult({ route: 'task', payload: { success: true, strongResults: [endpoint(82, {
+      method: 'POST', inputSchema: { type: 'object', required: ['prompt'], properties: { prompt: { type: 'string' }, referenceImage: array } },
+    })], relatedResults: [] } });
+    assert.equal(result.structuredContent.results[0].requestInput, null);
+    assert.equal(result.structuredContent.results[0].action.reason, 'input_contract_unavailable');
+  }
+  for (const name of ['apiKey', 'system_prompt']) {
+    const result = projectIndexterDiscoveryEndpointActions({ featuredOfferings: [endpoint(83, { method: 'POST', inputSchema: {
+      type: 'object', properties: { [name]: { type: 'array', items: { type: 'string' } } },
+    } })] });
+    assert.equal(result.featuredOfferings[0].requestInput, null);
+  }
+  const bounded = projectIndexterDiscoveryEndpointActions({ featuredOfferings: [endpoint(84, { method: 'POST', inputSchema: {
+    type: 'object', properties: { references: { type: 'array', items: { type: 'string' } } },
+  } })] }).featuredOfferings[0];
+  assert.deepEqual(bounded.requestInput.fields[0], { name: 'references', location: 'body', type: 'array', required: false, items: { type: 'string' }, minItems: 0, maxItems: 32 });
+});

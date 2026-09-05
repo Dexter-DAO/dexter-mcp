@@ -729,11 +729,40 @@
                                               "boolean",
                                               "integer",
                                               "number",
-                                              "string"
+                                              "string",
+                                              "array"
                                             ]
                                           },
                                           "required": {
                                             "type": "boolean"
+                                          },
+                                          "items": {
+                                            "type": "object",
+                                            "properties": {
+                                              "type": {
+                                                "type": "string",
+                                                "enum": [
+                                                  "boolean",
+                                                  "integer",
+                                                  "number",
+                                                  "string"
+                                                ]
+                                              }
+                                            },
+                                            "required": [
+                                              "type"
+                                            ],
+                                            "additionalProperties": false
+                                          },
+                                          "minItems": {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "maximum": 32
+                                          },
+                                          "maxItems": {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "maximum": 32
                                           }
                                         },
                                         "required": [
@@ -1801,7 +1830,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/indexter-search-f7fa4d99",
+          "resourceUri": "ui://dexter/indexter-search-4c706da9",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash",
@@ -1819,8 +1848,8 @@
             "app"
           ]
         },
-        "ui/resourceUri": "ui://dexter/indexter-search-f7fa4d99",
-        "openai/outputTemplate": "ui://dexter/indexter-search-f7fa4d99",
+        "ui/resourceUri": "ui://dexter/indexter-search-4c706da9",
+        "openai/outputTemplate": "ui://dexter/indexter-search-4c706da9",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -2191,11 +2220,40 @@
                                       "boolean",
                                       "integer",
                                       "number",
-                                      "string"
+                                      "string",
+                                      "array"
                                     ]
                                   },
                                   "required": {
                                     "type": "boolean"
+                                  },
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "type": {
+                                        "type": "string",
+                                        "enum": [
+                                          "boolean",
+                                          "integer",
+                                          "number",
+                                          "string"
+                                        ]
+                                      }
+                                    },
+                                    "required": [
+                                      "type"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  "minItems": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 32
+                                  },
+                                  "maxItems": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 32
                                   }
                                 },
                                 "required": [
@@ -2762,7 +2820,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/indexter-search-f7fa4d99",
+          "resourceUri": "ui://dexter/indexter-search-4c706da9",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash",
@@ -2780,8 +2838,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/indexter-search-f7fa4d99",
-        "openai/outputTemplate": "ui://dexter/indexter-search-f7fa4d99",
+        "ui/resourceUri": "ui://dexter/indexter-search-4c706da9",
+        "openai/outputTemplate": "ui://dexter/indexter-search-4c706da9",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,

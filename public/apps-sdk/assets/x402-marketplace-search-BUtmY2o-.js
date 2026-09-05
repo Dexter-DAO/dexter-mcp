@@ -1,6 +1,6 @@
 import { j as jsxRuntimeExports } from "./adapter-CkHbMm1G.js";
 import { c as clientExports } from "./client-CfP9AF2a.js";
-import { S as SEARCH_WIDGET_BUILD, I as IndexterSearch } from "./indexter-search-BhWHmxZ2.js";
+import { S as SEARCH_WIDGET_BUILD, I as IndexterSearch } from "./indexter-search-DxsU33oS.js";
 /* empty css             */
 import "./use-openai-global-CSgf-drU.js";
 import "./providerImage-Dk0hurn4.js";

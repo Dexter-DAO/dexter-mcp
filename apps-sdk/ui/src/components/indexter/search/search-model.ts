@@ -491,7 +491,8 @@ export function isSafeSearchRequestInput(value: unknown): boolean {
   for (const candidate of value.fields) {
     if (!isRecord(candidate)) return false;
     if (
-      Object.keys(candidate).sort().join(',') !== 'location,name,required,type'
+      Object.keys(candidate).sort().join(',') !== (candidate.type === 'array'
+        ? 'items,location,maxItems,minItems,name,required,type' : 'location,name,required,type')
       || typeof candidate.name !== 'string'
       || !REQUEST_INPUT_FIELD_NAME_RE.test(candidate.name)
       || candidate.name.normalize('NFKC') !== candidate.name
@@ -500,7 +501,13 @@ export function isSafeSearchRequestInput(value: unknown): boolean {
       || (candidate.name !== 'prompt' && UNSAFE_REQUEST_FIELD_NAME_RE.test(candidate.name))
       || !isSafeText(candidate.name, 64)
       || !REQUEST_INPUT_FIELD_LOCATIONS.has(String(candidate.location))
-      || !REQUEST_INPUT_FIELD_TYPES.has(String(candidate.type))
+      || !(REQUEST_INPUT_FIELD_TYPES.has(String(candidate.type)) || (candidate.type === 'array'
+        && candidate.location === 'body' && isRecord(candidate.items)
+        && Object.keys(candidate.items).join(',') === 'type'
+        && REQUEST_INPUT_FIELD_TYPES.has(String(candidate.items.type))
+        && Number.isInteger(candidate.minItems) && Number(candidate.minItems) >= 0
+        && Number.isInteger(candidate.maxItems) && Number(candidate.maxItems) <= 32
+        && Number(candidate.maxItems) >= Number(candidate.minItems)))
       || typeof candidate.required !== 'boolean'
     ) return false;
     const identity = `${candidate.location}:${candidate.name}`;

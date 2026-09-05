@@ -137,7 +137,7 @@ export function SearchComparisonPanel({
                 ) : null}
               </div>
 
-              {evidence || showRequiredInputs ? (
+              {evidence || showRequiredInputs || summary.arrayInputsLabel ? (
                 <dl className="dx-search-compare__facts">
                   {evidence ? (
                     <div>
@@ -159,6 +159,12 @@ export function SearchComparisonPanel({
                     <div>
                       <dt>Needs</dt>
                       <dd>{summary.requiredInputsLabel}</dd>
+                    </div>
+                  ) : null}
+                  {summary.arrayInputsLabel ? (
+                    <div>
+                      <dt>List inputs</dt>
+                      <dd>{summary.arrayInputsLabel}</dd>
                     </div>
                   ) : null}
                 </dl>
