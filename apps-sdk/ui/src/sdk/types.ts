@@ -49,6 +49,14 @@ export type AdaptiveHostContext = {
   };
   safeAreaInsets: SafeAreaInsets;
   styles?: HostStyleContext;
+  toolInfo?: {
+    id?: string | number;
+    tool: {
+      name: string;
+      [key: string]: unknown;
+    };
+  };
+  widgetSessionId?: string;
 };
 
 export type AdaptiveHostCapabilities = {
@@ -113,6 +121,8 @@ export type OpenAIGlobals<
   toolInput: ToolInput;
   toolOutput: ToolOutput | null;
   toolResponseMetadata: ToolResponseMetadata | null;
+  /** Host-owned identity used to keep concurrently rendered widgets apart. */
+  widgetSessionId?: string;
   widgetState: WidgetState | null;
   setWidgetState: (state: WidgetState) => Promise<void>;
   notifyIntrinsicHeight?: (args: { height: number }) => void;

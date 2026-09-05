@@ -2,12 +2,13 @@
 
 ## What lives here
 
-This repo hosts **two MCP servers** and one shared package:
+This repository contains one codebase for **two independently deployed OAuth
+MCP services** and one shared package:
 
 | Component | Entry point | Description |
 |-----------|-------------|-------------|
-| Dexter MCP (authenticated) | `http-server-oauth.mjs` | OAuth-protected, managed wallets, full platform toolsets |
-| OpenDexter MCP (public) | `open-mcp-server.mjs` | No-auth public x402 gateway, session wallets |
+| Dexter MCP (full platform) | `http-server-oauth.mjs` | OAuth-protected, managed wallets, full platform toolsets |
+| OpenDexter MCP | `open-mcp-server.mjs` | OAuth-protected Indexter, x402, and session-bound Wallet across supported MCP clients |
 | `@dexterai/x402-core` | `packages/x402-core/` | Shared types, formatters, search client used by both servers |
 
 Both servers import from `@dexterai/x402-core` (published npm package).

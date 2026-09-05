@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
+import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import react from '@vitejs/plugin-react';
-import { chromium } from 'playwright';
+import { chromium, webkit } from 'playwright';
 import { createServer } from 'vite';
 
 import {
@@ -17,7 +18,24 @@ import { WALLET_ADDRESS } from './fixtures/wallet-portfolio-fixtures.mjs';
 const TEST_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(TEST_DIR, '..');
 const UI_ROOT = path.join(REPO_ROOT, 'apps-sdk', 'ui');
-const VIEWPORT = Object.freeze({ width: 1280, height: 1700 });
+const INTERACTION_DEVICE = String(
+  process.env.DEXTER_RENDERER_INTERACTIONS_DEVICE || 'desktop',
+).trim().toLowerCase();
+const INTERACTION_THEME = String(
+  process.env.DEXTER_RENDERER_INTERACTIONS_THEME || 'light',
+).trim().toLowerCase();
+const INDEXTER_ONLY = String(
+  process.env.DEXTER_RENDERER_INTERACTIONS_SCOPE || 'all',
+).trim().toLowerCase() === 'indexter';
+const CAPTURE_INTERACTIONS = process.env.DEXTER_RENDERER_INTERACTIONS_CAPTURE === '1';
+const VIEWPORT = Object.freeze(
+  INTERACTION_DEVICE === 'mobile'
+    ? { width: 390, height: 844 }
+    : { width: 1280, height: 1700 },
+);
+const BROWSER_ENGINE = String(
+  process.env.DEXTER_RENDERER_INTERACTIONS_BROWSER || 'chromium',
+).trim().toLowerCase();
 
 // These values belong to the fixture host, not the product. Both dimensions
 // change when the host accepts a display-mode request so the renderers prove
@@ -98,6 +116,96 @@ function hostDocument() {
 </html>`;
 }
 
+function indexterRequestEpochHarnessDocument() {
+  const hostConfig = JSON.stringify({
+    theme: INTERACTION_THEME,
+    displayMode: 'fullscreen',
+    maxHeight: VIEWPORT.height,
+    deviceType: INTERACTION_DEVICE === 'mobile' ? 'mobile' : 'desktop',
+  });
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Indexter request epoch fixture</title>
+  </head>
+  <body>
+    <div id="indexter-request-epoch-root"></div>
+    <script>
+      const hostConfig = ${hostConfig};
+      window.__indexterRequestEpochHarness = {
+        calls: [],
+        followUpCalls: [],
+        followUpResponseIndex: 0,
+        followUpResponses: [],
+        responseIndex: 0,
+        responses: [],
+        widgetState: {},
+      };
+      window.openai = {
+        theme: hostConfig.theme,
+        displayMode: hostConfig.displayMode,
+        maxHeight: hostConfig.maxHeight,
+        safeArea: { insets: { top: 0, right: 0, bottom: 0, left: 0 } },
+        userAgent: {
+          device: { type: hostConfig.deviceType },
+          capabilities: {
+            touch: hostConfig.deviceType === 'mobile',
+            hover: hostConfig.deviceType !== 'mobile',
+          },
+        },
+        widgetState: {},
+        callTool: async (name, args) => {
+          const state = window.__indexterRequestEpochHarness;
+          const responseIndex = state.responseIndex++;
+          const response = state.responses[responseIndex];
+          state.calls.push({ name, args: structuredClone(args), responseIndex });
+          if (!response) throw new Error('No Indexter fixture response configured.');
+          await new Promise((resolve) => setTimeout(resolve, response.delayMs ?? 0));
+          if (response.reject) throw new Error(response.reject);
+          return structuredClone(response.result);
+        },
+        sendFollowUpMessage: async (message) => {
+          const state = window.__indexterRequestEpochHarness;
+          const responseIndex = state.followUpResponseIndex++;
+          const response = state.followUpResponses[responseIndex];
+          state.followUpCalls.push({
+            message: structuredClone(message),
+            responseIndex,
+          });
+          if (!response) return;
+          await new Promise((resolve) => setTimeout(resolve, response.delayMs ?? 0));
+          if (response.reject) throw new Error(response.reject);
+        },
+        setWidgetState: async (nextState) => {
+          const state = window.__indexterRequestEpochHarness;
+          state.widgetState = structuredClone(nextState);
+          window.openai.widgetState = structuredClone(nextState);
+        },
+        notifyIntrinsicHeight: () => {},
+      };
+    </script>
+    <script type="module">
+      import React from 'react';
+      import { createRoot } from 'react-dom/client';
+      import { IndexterDiscovery } from '/src/components/indexter/discovery/IndexterDiscovery.tsx';
+      import '/src/styles/sdk.css';
+      import '/src/styles/widgets/indexter-discovery.css';
+
+      const root = createRoot(document.getElementById('indexter-request-epoch-root'));
+      const state = window.__indexterRequestEpochHarness;
+      state.render = (payload) => {
+        root.render(React.createElement(IndexterDiscovery, {
+          initialPayload: structuredClone(payload),
+        }));
+      };
+      state.ready = true;
+    </script>
+  </body>
+</html>`;
+}
+
 function installInteractiveMcpHost({
   checkToolResult,
   displayModeBehaviors = [],
@@ -106,6 +214,7 @@ function installInteractiveMcpHost({
   initResult,
   initialDisplayMode = 'inline',
   messageBehavior = 'resolve',
+  toolCallResponseDelays = {},
   toolCallResponses = {},
   toolInput,
   toolResult,
@@ -122,6 +231,7 @@ function installInteractiveMcpHost({
     displayModeResponseDelays: displayModeResponseDelays ?? [],
     displayModeRequestIndex: 0,
     toolCallResponses,
+    toolCallResponseDelays,
     toolCallResponseIndexes: {},
     lastReportedHeight: null,
     appliedHeight: null,
@@ -222,7 +332,13 @@ function installInteractiveMcpHost({
         const responseIndex = Number(state.toolCallResponseIndexes[name] ?? 0);
         state.toolCallResponseIndexes[name] = responseIndex + 1;
         if (configured && responseIndex < configured.length) {
-          respond(configured[responseIndex]);
+          const responseDelay = Number(
+            state.toolCallResponseDelays?.[name]?.[responseIndex] ?? 0,
+          );
+          setTimeout(
+            () => respond(configured[responseIndex]),
+            Number.isFinite(responseDelay) ? Math.max(0, responseDelay) : 0,
+          );
           break;
         }
         if (name === 'x402_check') {
@@ -280,7 +396,16 @@ function installInteractiveMcpHost({
   iframe.src = widgetUrl;
 }
 
-function initResult(dimensions) {
+function surfaceInvocation(surface) {
+  return {
+    toolName: surface.tools[0],
+    requestId: `interaction-${surface.id}`,
+    widgetSessionId: `interaction-widget-${surface.id}`,
+  };
+}
+
+function initResult(dimensions, surface) {
+  const invocation = surfaceInvocation(surface);
   return {
     protocolVersion: '2026-01-26',
     hostInfo: { name: 'OpenDexter Interaction Fixture', version: '1.0.0' },
@@ -291,25 +416,48 @@ function initResult(dimensions) {
       updateModelContext: { text: {}, structuredContent: {} },
     },
     hostContext: {
-      theme: 'light',
+      toolInfo: {
+        id: invocation.requestId,
+        tool: { name: invocation.toolName, inputSchema: { type: 'object' } },
+      },
+      'openai/widgetSessionId': invocation.widgetSessionId,
+      theme: INTERACTION_THEME,
       displayMode: 'inline',
       availableDisplayModes: ['inline', 'fullscreen'],
       containerDimensions: dimensions.inline,
       locale: 'en-US',
       timeZone: 'UTC',
-      platform: 'desktop',
-      deviceCapabilities: { touch: false, hover: true },
+      platform: INTERACTION_DEVICE === 'mobile' ? 'mobile' : 'desktop',
+      deviceCapabilities: INTERACTION_DEVICE === 'mobile'
+        ? { touch: true, hover: false }
+        : { touch: false, hover: true },
       safeAreaInsets: { top: 0, right: 0, bottom: 0, left: 0 },
-      styles: { variables: MCP_APPS_HOST_TOKENS.light },
+      styles: { variables: MCP_APPS_HOST_TOKENS[INTERACTION_THEME] },
     },
   };
 }
 
 function rendererToolResult(surface) {
+  const invocation = surfaceInvocation(surface);
+  const route = surface.id === 'indexter-search'
+    ? 'task'
+    : surface.id === 'indexter-provider'
+      ? 'provider'
+      : surface.id === 'indexter-discovery'
+        ? 'overview'
+        : null;
   return {
     structuredContent: surface.output,
     content: [{ type: 'text', text: 'Deterministic renderer interaction fixture.' }],
-    _meta: surface.metadata,
+    _meta: {
+      ...surface.metadata,
+      ...(route ? { indexterPayload: { route, data: surface.output } } : {}),
+      'dexter/toolInvocation': {
+        toolName: invocation.toolName,
+        requestId: invocation.requestId,
+      },
+      'openai/widgetSessionId': invocation.widgetSessionId,
+    },
     isError: false,
   };
 }
@@ -358,22 +506,41 @@ async function openRenderer({
   inlineMaxHeight,
   initialDisplayMode = 'inline',
   messageBehavior,
+  initialWidgetState,
+  toolCallResponseDelays,
   toolCallResponses,
   updateModelContextBehavior,
 }) {
   const page = await context.newPage();
   const pageErrors = [];
-  // Load a real widget document first so setContent retains the same trusted
-  // loopback origin used by the child frame and the clipboard permission.
-  await page.goto(`${baseUrl}/${surface.file}`);
-  await page.setContent(hostDocument());
+  if (initialWidgetState) {
+    await page.addInitScript((state) => {
+      if (window.self === window.top) return;
+      window.__fixtureWidgetState = structuredClone(state);
+      window.__fixtureWidgetStateWrites = [];
+      window.openai = {
+        widgetState: structuredClone(state),
+        setWidgetState: async (nextState) => {
+          window.__fixtureWidgetState = structuredClone(nextState);
+          window.__fixtureWidgetStateWrites.push(structuredClone(nextState));
+          window.openai.widgetState = structuredClone(nextState);
+          window.dispatchEvent(new CustomEvent('openai:set_globals', {
+            detail: { globals: { widgetState: structuredClone(nextState) } },
+          }));
+        },
+      };
+    }, initialWidgetState);
+  }
+  await page.goto(`${baseUrl}/__opendexter_interaction_host__`, {
+    waitUntil: 'domcontentloaded',
+  });
   page.on('pageerror', (error) => pageErrors.push(error.message));
 
   const dimensions = modeContexts(VIEWPORT);
   if (Number.isFinite(inlineMaxHeight)) {
     dimensions.inline.maxHeight = Math.max(80, Math.round(inlineMaxHeight));
   }
-  const initialization = initResult(dimensions);
+  const initialization = initResult(dimensions, surface);
   if (availableDisplayModes) {
     initialization.hostContext.availableDisplayModes = availableDisplayModes;
   }
@@ -391,6 +558,7 @@ async function openRenderer({
     initialDisplayMode,
     messageBehavior: messageBehavior ?? 'resolve',
     toolCallResponses: toolCallResponses ?? {},
+    toolCallResponseDelays: toolCallResponseDelays ?? {},
     toolInput: surface.input,
     toolResult: rendererToolResult(surface),
     updateModelContextBehavior: updateModelContextBehavior ?? 'resolve',
@@ -399,6 +567,38 @@ async function openRenderer({
 
   const frame = page.frameLocator('#widget');
   return { dimensions, frame, page, pageErrors };
+}
+
+async function openIndexterRequestEpochHarness({
+  context,
+  baseUrl,
+  initialPayload,
+  responses,
+  followUpResponses = [],
+}) {
+  const page = await context.newPage();
+  const pageErrors = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
+  await page.goto(`${baseUrl}/__indexter_request_epoch_harness__`, {
+    waitUntil: 'domcontentloaded',
+  });
+  await page.waitForFunction(() => window.__indexterRequestEpochHarness?.ready === true);
+  await page.evaluate(({ payload, queuedResponses, queuedFollowUpResponses }) => {
+    const state = window.__indexterRequestEpochHarness;
+    state.responses = structuredClone(queuedResponses);
+    state.followUpResponses = structuredClone(queuedFollowUpResponses);
+    state.responseIndex = 0;
+    state.followUpResponseIndex = 0;
+    state.calls = [];
+    state.followUpCalls = [];
+    state.render(payload);
+  }, {
+    payload: initialPayload,
+    queuedResponses: responses,
+    queuedFollowUpResponses: followUpResponses,
+  });
+  await page.locator('.dx-discovery').waitFor();
+  return { page, pageErrors };
 }
 
 async function resetHostCalls(page) {
@@ -415,6 +615,18 @@ async function hostRequests(page, methods) {
   ), methods);
 }
 
+async function captureInteraction(frame, name) {
+  if (!CAPTURE_INTERACTIONS) return;
+  const outputDir = path.join(REPO_ROOT, 'output', 'playwright', 'opendexter-interactions');
+  await mkdir(outputDir, { recursive: true });
+  await frame.locator('body').screenshot({
+    path: path.join(
+      outputDir,
+      `${name}--${INTERACTION_DEVICE}--${INTERACTION_THEME}--${BROWSER_ENGINE}.png`,
+    ),
+  });
+}
+
 async function waitForStableHostSize(page, mode) {
   await page.waitForFunction((expectedMode) => {
     const state = window.__appsHost;
@@ -425,7 +637,13 @@ async function waitForStableHostSize(page, mode) {
       80,
       Math.min(state.dimensions[expectedMode].maxHeight, Math.ceil(reported)),
     );
-    return state.appliedHeight === expected;
+    const iframe = document.getElementById('widget');
+    const contentHeight = iframe?.contentDocument?.documentElement?.scrollHeight ?? 0;
+    return state.appliedHeight === expected
+      && (
+        contentHeight <= state.appliedHeight + 1
+        || state.appliedHeight === state.dimensions[expectedMode].maxHeight
+      );
   }, mode);
   await page.waitForTimeout(80);
 }
@@ -642,7 +860,35 @@ test('current OpenDexter renderers use MCP Apps interactions without clipped inn
   const vite = await createServer({
     root: UI_ROOT,
     configFile: false,
-    plugins: [react()],
+    plugins: [
+      {
+        name: 'opendexter-interaction-host',
+        configureServer(server) {
+          server.middlewares.use('/__opendexter_interaction_host__', (_request, response) => {
+            response.statusCode = 200;
+            response.setHeader('Content-Type', 'text/html; charset=utf-8');
+            response.end(hostDocument());
+          });
+          server.middlewares.use(
+            '/__indexter_request_epoch_harness__',
+            async (request, response, next) => {
+              try {
+                const html = await server.transformIndexHtml(
+                  request.originalUrl ?? request.url ?? '/__indexter_request_epoch_harness__',
+                  indexterRequestEpochHarnessDocument(),
+                );
+                response.statusCode = 200;
+                response.setHeader('Content-Type', 'text/html; charset=utf-8');
+                response.end(html);
+              } catch (error) {
+                next(error);
+              }
+            },
+          );
+        },
+      },
+      react(),
+    ],
     server: { host: '127.0.0.1', port: 0 },
     logLevel: 'error',
   });
@@ -650,23 +896,33 @@ test('current OpenDexter renderers use MCP Apps interactions without clipped inn
   const address = vite.httpServer?.address();
   assert.ok(address && typeof address === 'object');
   const baseUrl = `http://127.0.0.1:${address.port}`;
-  const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE;
-  const browser = await chromium.launch({
+  const browserType = BROWSER_ENGINE === 'chromium'
+    ? chromium
+    : BROWSER_ENGINE === 'webkit'
+      ? webkit
+      : null;
+  assert.ok(browserType, `Unknown interaction browser: ${BROWSER_ENGINE}`);
+  const executablePath = BROWSER_ENGINE === 'chromium'
+    ? process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE
+    : undefined;
+  const browser = await browserType.launch({
     headless: true,
     ...(executablePath ? { executablePath } : {}),
   });
   const context = await browser.newContext({
     viewport: VIEWPORT,
-    colorScheme: 'light',
+    colorScheme: INTERACTION_THEME,
     reducedMotion: 'reduce',
     locale: 'en-US',
     timezoneId: 'UTC',
   });
   await context.addInitScript(installFixedClock, GALLERY_FIXED_NOW);
-  await context.grantPermissions(
-    ['clipboard-read', 'clipboard-write'],
-    { origin: baseUrl },
-  );
+  if (BROWSER_ENGINE === 'chromium') {
+    await context.grantPermissions(
+      ['clipboard-read', 'clipboard-write'],
+      { origin: baseUrl },
+    );
+  }
   await context.route('**/*', async (route) => {
     const request = route.request();
     if (isLocalRequest(request.url(), baseUrl)) {
@@ -689,7 +945,7 @@ test('current OpenDexter renderers use MCP Apps interactions without clipped inn
     await vite.close();
   });
 
-  await t.test('portfolio expands through the host and exposes the complete ledger', async () => {
+  await t.test('portfolio expands through the host and exposes the complete ledger', { skip: INDEXTER_ONLY }, async () => {
     const { frame, page, pageErrors } = await openRenderer({
       context,
       baseUrl,
@@ -723,7 +979,7 @@ test('current OpenDexter renderers use MCP Apps interactions without clipped inn
     await page.close();
   });
 
-  await t.test('portfolio remains fully reachable through a bounded pager without fullscreen', async () => {
+  await t.test('portfolio remains fully reachable through a bounded pager without fullscreen', { skip: INDEXTER_ONLY }, async () => {
     const { frame, page, pageErrors } = await openRenderer({
       context,
       baseUrl,
@@ -780,7 +1036,7 @@ test('current OpenDexter renderers use MCP Apps interactions without clipped inn
     await page.close();
   });
 
-  await t.test('wallet actions open focused fullscreen details and return inline', async () => {
+  await t.test('wallet actions open focused fullscreen details and return inline', { skip: INDEXTER_ONLY }, async () => {
     const { frame, page, pageErrors } = await openRenderer({
       context,
       baseUrl,
@@ -808,10 +1064,12 @@ test('current OpenDexter renderers use MCP Apps interactions without clipped inn
         );
         await copy.click();
         await dialog.getByText('Copied', { exact: true }).waitFor();
-        assert.equal(
-          await copy.evaluate(() => navigator.clipboard.readText()),
-          WALLET_ADDRESS,
-        );
+        if (BROWSER_ENGINE === 'chromium') {
+          assert.equal(
+            await copy.evaluate(() => navigator.clipboard.readText()),
+            WALLET_ADDRESS,
+          );
+        }
       },
     });
 
@@ -859,7 +1117,7 @@ test('current OpenDexter renderers use MCP Apps interactions without clipped inn
     await page.close();
   });
 
-  await t.test('inline-only wallet details remain reachable inside a 300px host height', async () => {
+  await t.test('inline-only wallet details remain reachable inside a 300px host height', { skip: INDEXTER_ONLY }, async () => {
     const { frame, page, pageErrors } = await openRenderer({
       context,
       baseUrl,
@@ -911,7 +1169,7 @@ test('current OpenDexter renderers use MCP Apps interactions without clipped inn
     await page.close();
   });
 
-  await t.test('wallet and portfolio correct stale host mode responses in both directions', async () => {
+  await t.test('wallet and portfolio correct stale host mode responses in both directions', { skip: INDEXTER_ONLY }, async () => {
     const wallet = await openRenderer({
       context,
       baseUrl,
@@ -970,7 +1228,7 @@ test('current OpenDexter renderers use MCP Apps interactions without clipped inn
     await portfolio.page.close();
   });
 
-  await t.test('wallet preserves a host-provided fullscreen mode across sheet dismissal', async () => {
+  await t.test('wallet preserves a host-provided fullscreen mode across sheet dismissal', { skip: INDEXTER_ONLY }, async () => {
     const { frame, page, pageErrors } = await openRenderer({
       context,
       baseUrl,
@@ -1008,10 +1266,10 @@ test('current OpenDexter renderers use MCP Apps interactions without clipped inn
       name: 'Explore Massive',
       exact: true,
     });
-    await providerTrigger.waitFor();
+    await providerTrigger.waitFor({ timeout: 5_000 });
     await resetHostCalls(page);
     await providerTrigger.focus();
-    await page.keyboard.press('Enter');
+    await providerTrigger.press('Enter');
 
     await waitForRendererMode(frame, '.dx-discovery', 'fullscreen');
     await waitForStableHostSize(page, 'fullscreen');
@@ -1027,6 +1285,7 @@ test('current OpenDexter renderers use MCP Apps interactions without clipped inn
       true,
       'provider drill-in must focus the provider heading',
     );
+    await captureInteraction(frame, 'indexter-provider');
 
     const providerRequests = await hostRequests(page, [
       'ui/request-display-mode',
@@ -1044,6 +1303,7 @@ test('current OpenDexter renderers use MCP Apps interactions without clipped inn
           arguments: {
             provider: 'massive.com',
             capabilityPageSize: 16,
+            actorPageSize: 8,
           },
         },
       },
@@ -1105,6 +1365,7 @@ test('current OpenDexter renderers use MCP Apps interactions without clipped inn
         arguments: {
           provider: 'massive.com',
           capabilityPageSize: 16,
+          actorPageSize: 8,
         },
       },
     });
@@ -1170,10 +1431,10 @@ test('current OpenDexter renderers use MCP Apps interactions without clipped inn
       displayModeBehaviors: ['reject'],
     });
     await frame.locator('.dx-discovery-providers').waitFor();
-    assert.equal(await frame.locator('.dx-discovery-provider').count(), 5);
+    assert.equal(await frame.locator('.dx-discovery-provider').count(), 2);
     await frame.getByRole('button', { name: 'Browse providers', exact: true }).click();
     await frame.locator('.dx-discovery-provider').nth(5).waitFor();
-    assert.equal(await frame.locator('.dx-discovery-provider').count(), 6);
+    assert.equal(await frame.locator('.dx-discovery-provider').count(), 7);
     assert.equal(await page.evaluate(() => window.__appsHost.mode), 'inline');
     assert.deepEqual(pageErrors, []);
     await page.close();
@@ -1221,9 +1482,12 @@ test('current OpenDexter renderers use MCP Apps interactions without clipped inn
       editorial: { featured: true, order: 6, evidenceResourceId: null },
       catalog: {
         resourceCount: 1,
+        actorCounts: { returned: 0, indexed: 0, total: 0 },
+        offeringCounts: { returned: 0, indexed: 1, total: 1 },
         capabilityGroupCount: 1,
         countsComplete: true,
       },
+      actorCatalog: null,
       evidence: {
         totalResourceCount: 1,
         evaluatedResourceCount: 1,
@@ -1242,6 +1506,7 @@ test('current OpenDexter renderers use MCP Apps interactions without clipped inn
       }],
     });
     nextPage.providers = [overlappingProvider, appendedProvider];
+    nextPage.featuredOfferings = [];
     nextPage.summary.returnedProviderCount = 2;
     nextPage.page = {
       version: 2,
@@ -1305,7 +1570,7 @@ test('current OpenDexter renderers use MCP Apps interactions without clipped inn
     assert.equal(await appendedTrigger.count(), 1, 'the appended provider must render once');
     assert.equal(
       await frame.locator('.dx-discovery-provider').count(),
-      7,
+      8,
       'pagination must append only the novel provider',
     );
 
@@ -1315,7 +1580,7 @@ test('current OpenDexter renderers use MCP Apps interactions without clipped inn
       params: {
         name: 'indexter_discover',
         arguments: {
-          limit: 6,
+          limit: 7,
           cursor: opaqueCursor,
         },
       },
@@ -1355,6 +1620,7 @@ test('current OpenDexter renderers use MCP Apps interactions without clipped inn
         arguments: {
           provider: 'you.com',
           capabilityPageSize: 16,
+          actorPageSize: 8,
         },
       },
     });
@@ -1362,6 +1628,400 @@ test('current OpenDexter renderers use MCP Apps interactions without clipped inn
     assert.ok(toolCalls.every((call) => call.params.name === 'indexter_discover'));
     assert.deepEqual(pageErrors, []);
     await page.close();
+  });
+
+  await t.test('Indexter cancels delayed overview pagination when provider navigation wins', async () => {
+    const initialSurface = structuredClone(byId.get('indexter-discovery'));
+    const opaqueCursor = 'rev-17.delayed-provider-page.sig';
+    initialSurface.output.page.nextCursor = opaqueCursor;
+
+    const delayedPage = structuredClone(initialSurface.output);
+    const delayedProvider = structuredClone(initialSurface.output.providers[0]);
+    Object.assign(delayedProvider, {
+      id: 'you.com',
+      providerKey: 'you.com',
+      providerSlug: 'api.you.com',
+      technicalHost: 'api.you.com',
+      displayName: 'Delayed provider',
+      actorCatalog: null,
+    });
+    delayedPage.providers = [delayedProvider];
+    delayedPage.featuredOfferings = [];
+    delayedPage.summary.returnedProviderCount = 1;
+    delayedPage.page = {
+      version: 2,
+      namespace: 'indexter.endpoint.providers.v1',
+      scope: 'providers',
+      order: 'featured_provider_curation_v1',
+      limit: initialSurface.output.page.limit,
+      returned: 1,
+      hasMore: false,
+      nextCursor: null,
+    };
+
+    const providerDetail = structuredClone(byId.get('indexter-provider').output);
+    const { frame, page, pageErrors } = await openRenderer({
+      context,
+      baseUrl,
+      surface: initialSurface,
+      toolCallResponseDelays: { indexter_discover: [600, 0] },
+      toolCallResponses: {
+        indexter_discover: [
+          discoveryToolResult(delayedPage),
+          discoveryToolResult(providerDetail),
+        ],
+      },
+    });
+    await frame.getByRole('button', { name: 'Browse providers', exact: true }).click();
+    await waitForRendererMode(frame, '.dx-discovery', 'fullscreen');
+    const moreProviders = frame.getByRole('button', {
+      name: 'More providers',
+      exact: true,
+    });
+    const providerTrigger = frame.getByRole('button', {
+      name: 'Explore Massive',
+      exact: true,
+    });
+    await moreProviders.waitFor();
+    await resetHostCalls(page);
+    await moreProviders.click();
+    await frame.getByRole('button', { name: 'Loading…', exact: true }).waitFor();
+    await providerTrigger.click();
+
+    await frame.getByRole('heading', { level: 1, name: 'Massive', exact: true }).waitFor();
+    await frame.getByRole('button', { name: 'All providers', exact: true }).click();
+    await moreProviders.waitFor();
+    assert.equal(await moreProviders.isEnabled(), true, 'More providers must recover after Back');
+
+    await page.waitForTimeout(700);
+    assert.equal(
+      await frame.getByRole('button', { name: 'Explore Delayed provider', exact: true }).count(),
+      0,
+      'a cancelled overview page must not replace restored overview state',
+    );
+    assert.equal(await moreProviders.isEnabled(), true, 'the late response must not wedge pagination');
+    assert.deepEqual(
+      (await hostRequests(page, ['tools/call'])).map((call) => call.params.arguments),
+      [
+        { limit: initialSurface.output.page.limit, cursor: opaqueCursor },
+        { provider: 'massive.com', capabilityPageSize: 16, actorPageSize: 8 },
+      ],
+    );
+    assert.deepEqual(pageErrors, []);
+    await page.close();
+  });
+
+  await t.test('Indexter ignores a delayed overview after the host mounts a new payload', async () => {
+    const initialPayload = structuredClone(byId.get('indexter-provider').output);
+    const delayedOverview = structuredClone(byId.get('indexter-discovery').output);
+    delayedOverview.providers[0].displayName = 'Delayed old overview';
+
+    const hostOverview = structuredClone(byId.get('indexter-discovery').output);
+    hostOverview.providers[0].displayName = 'Current host overview';
+
+    const { page, pageErrors } = await openIndexterRequestEpochHarness({
+      context,
+      baseUrl,
+      initialPayload,
+      responses: [{
+        delayMs: 600,
+        result: discoveryToolResult(delayedOverview),
+      }],
+    });
+    await page.getByRole('button', { name: 'All providers', exact: true }).click();
+    await page.waitForFunction(() => window.__indexterRequestEpochHarness.calls.length === 1);
+
+    await page.evaluate((payload) => {
+      window.__indexterRequestEpochHarness.render(payload);
+    }, hostOverview);
+    await page.getByRole('button', {
+      name: 'Explore Current host overview',
+      exact: true,
+    }).waitFor();
+
+    await page.waitForTimeout(700);
+    assert.equal(
+      await page.getByRole('button', {
+        name: 'Explore Delayed old overview',
+        exact: true,
+      }).count(),
+      0,
+      'the old overview promise must not replace a newer host payload',
+    );
+    assert.equal(
+      await page.getByRole('button', {
+        name: 'Explore Current host overview',
+        exact: true,
+      }).count(),
+      1,
+    );
+    assert.equal(await page.locator('.dx-discovery-error').count(), 0);
+    assert.deepEqual(pageErrors, []);
+    await page.close();
+  });
+
+  await t.test('Indexter keeps a new host continuation owned when an old continuation settles', async () => {
+    const initialPayload = structuredClone(byId.get('indexter-provider').output);
+    const oldResource = initialPayload.providers[0].capabilityGroups[0].resources[0];
+    oldResource.id = '77777777-7777-4777-8777-777777777777';
+    oldResource.resourceId = '77777777-7777-4777-8777-777777777777';
+    oldResource.resourceUrl = 'https://agent.massive.com/v3/reference/tickers/OLD';
+    oldResource.displayName = 'Delayed reservation';
+    oldResource.action = {
+      ...oldResource.action,
+      kind: 'review_endpoint',
+      label: 'Review request',
+      state: 'review_required',
+      resourceId: oldResource.resourceId,
+      resourceUrl: oldResource.resourceUrl,
+      safety: {
+        ...oldResource.action.safety,
+        requiresRequestReview: true,
+        checkMayAffectProvider: true,
+        checkMayCreateProviderReservation: true,
+        sideEffectful: true,
+        confirmationRequired: true,
+        statedEffect: 'Creates a temporary provider reservation.',
+      },
+    };
+
+    const hostPayload = structuredClone(initialPayload);
+    const currentResource = hostPayload.providers[0].capabilityGroups[0].resources[0];
+    currentResource.displayName = 'Current reservation';
+
+    const { page, pageErrors } = await openIndexterRequestEpochHarness({
+      context,
+      baseUrl,
+      initialPayload,
+      responses: [],
+      followUpResponses: [
+        { delayMs: 500, reject: 'old follow-up failed' },
+        { delayMs: 1_100 },
+      ],
+    });
+    await page.getByRole('button', {
+      name: 'Review exact request before checking current terms for Delayed reservation from Massive',
+      exact: true,
+    }).click();
+    await page.waitForFunction(
+      () => window.__indexterRequestEpochHarness.followUpCalls.length === 1,
+    );
+
+    await page.evaluate((payload) => {
+      window.__indexterRequestEpochHarness.render(payload);
+    }, hostPayload);
+    const currentReview = page.getByRole('button', {
+      name: 'Review exact request before checking current terms for Current reservation from Massive',
+      exact: true,
+    });
+    await currentReview.waitFor();
+    await currentReview.click();
+    await page.waitForFunction(
+      () => window.__indexterRequestEpochHarness.followUpCalls.length === 2,
+    );
+
+    await page.waitForTimeout(650);
+    assert.equal(await currentReview.getAttribute('aria-busy'), 'true');
+    assert.equal(await currentReview.isDisabled(), true);
+    assert.equal(await currentReview.innerText(), 'Opening…');
+    assert.equal(await page.locator('.dx-discovery-error').count(), 0);
+    await currentReview.evaluate((element) => element.click());
+    await page.waitForTimeout(100);
+    assert.equal(
+      await page.evaluate(
+        () => window.__indexterRequestEpochHarness.followUpCalls.length,
+      ),
+      2,
+      'the old continuation must not release the current continuation for a duplicate handoff',
+    );
+
+    await page.waitForFunction(() => (
+      window.__indexterRequestEpochHarness.followUpResponseIndex === 2
+      && document.querySelector('[aria-label*="Current reservation"]')?.getAttribute('aria-busy') === 'false'
+    ), null, { timeout: 2_000 });
+    assert.equal(await currentReview.isEnabled(), true);
+    assert.equal(await page.locator('.dx-discovery-error').count(), 0);
+    const followUpPrompts = await page.evaluate(() => (
+      window.__indexterRequestEpochHarness.followUpCalls.map((call) => call.message.prompt)
+    ));
+    assert.equal(followUpPrompts.length, 2);
+    assert.match(followUpPrompts[0], /77777777-7777-4777-8777-777777777777/);
+    assert.match(followUpPrompts[1], /77777777-7777-4777-8777-777777777777/);
+    assert.deepEqual(pageErrors, []);
+    await page.close();
+  });
+
+  await t.test('Indexter keeps replacement pagination busy when an old same-kind call settles', async () => {
+    const initialPayload = structuredClone(byId.get('indexter-provider').output);
+    initialPayload.page.hasMore = true;
+    initialPayload.page.nextCursor = 'endpoint-old-cursor';
+
+    const delayedOldPage = structuredClone(initialPayload);
+    delayedOldPage.providers[0].capabilityGroups[0].resources[0].displayName = 'Delayed old service';
+    delayedOldPage.page.hasMore = false;
+    delayedOldPage.page.nextCursor = null;
+
+    const hostPayload = structuredClone(initialPayload);
+    hostPayload.providers[0].capabilityGroups[0].resources[0].displayName = 'Current host service';
+    hostPayload.page.nextCursor = 'endpoint-current-cursor';
+
+    const currentNextPage = structuredClone(hostPayload);
+    currentNextPage.providers[0].capabilityGroups[0].resources[0].displayName = 'Current second service page';
+    currentNextPage.page.hasMore = false;
+    currentNextPage.page.nextCursor = null;
+
+    const endpoint = await openIndexterRequestEpochHarness({
+      context,
+      baseUrl,
+      initialPayload,
+      responses: [
+        { delayMs: 500, result: discoveryToolResult(delayedOldPage) },
+        { delayMs: 1_100, result: discoveryToolResult(currentNextPage) },
+      ],
+    });
+    const oldEndpointPager = endpoint.page.getByRole('navigation', {
+      name: 'Massive service pages',
+      exact: true,
+    });
+    await oldEndpointPager.getByRole('button', { name: 'Next', exact: true }).click();
+    await endpoint.page.waitForFunction(
+      () => window.__indexterRequestEpochHarness.calls.length === 1,
+    );
+    await endpoint.page.evaluate((payload) => {
+      window.__indexterRequestEpochHarness.render(payload);
+    }, hostPayload);
+    await endpoint.page.getByText('Current host service', { exact: true }).waitFor();
+    const currentEndpointPager = endpoint.page.getByRole('navigation', {
+      name: 'Massive service pages',
+      exact: true,
+    });
+    await currentEndpointPager.getByRole('button', { name: 'Next', exact: true }).click();
+    await endpoint.page.waitForFunction(
+      () => window.__indexterRequestEpochHarness.calls.length === 2,
+    );
+
+    await endpoint.page.waitForTimeout(650);
+    assert.equal(await currentEndpointPager.getAttribute('aria-busy'), 'true');
+    await currentEndpointPager.getByRole('button', { name: 'Loading…', exact: true }).waitFor();
+    assert.equal(
+      await endpoint.page.getByText('Delayed old service', { exact: true }).count(),
+      0,
+    );
+    await endpoint.page.getByText('Current second service page', { exact: true }).waitFor({
+      timeout: 2_000,
+    });
+    assert.equal(await currentEndpointPager.getAttribute('aria-busy'), 'false');
+    assert.deepEqual(
+      await endpoint.page.evaluate(() => (
+        window.__indexterRequestEpochHarness.calls.map((call) => call.args.cursor)
+      )),
+      ['endpoint-old-cursor', 'endpoint-current-cursor'],
+    );
+    assert.deepEqual(endpoint.pageErrors, []);
+    await endpoint.page.close();
+
+    const actorInitialPayload = structuredClone(byId.get('indexter-provider').output);
+    const apify = byId.get('indexter-discovery').output.providers.find(
+      (provider) => provider.providerKey === 'apify',
+    );
+    assert.ok(apify?.actorCatalog, 'missing Actor catalog fixture');
+    const actorProvider = actorInitialPayload.providers[0];
+    const actorProviderIdentity = {
+      kind: 'provider',
+      providerKey: actorProvider.providerKey,
+      providerSlug: actorProvider.providerSlug,
+      technicalHost: actorProvider.technicalHost,
+      displayName: actorProvider.displayName,
+      logoUrl: actorProvider.logoUrl,
+    };
+    const actorCatalog = structuredClone(apify.actorCatalog);
+    actorCatalog.provider = actorProviderIdentity;
+    actorCatalog.items = actorCatalog.items.map((actor) => ({
+      ...actor,
+      provider: actorProviderIdentity,
+    }));
+    actorCatalog.page.hasMore = true;
+    actorCatalog.page.nextCursor = 'actor-old-cursor';
+    actorProvider.actorCatalog = actorCatalog;
+    actorProvider.catalog.actorCounts = {
+      returned: actorCatalog.counts.returned,
+      indexed: actorCatalog.counts.indexed,
+      total: actorCatalog.counts.total,
+    };
+    actorProvider.catalog.offeringCounts = {
+      returned: actorInitialPayload.page.returned + actorCatalog.counts.returned,
+      indexed: actorProvider.catalog.resourceCount + actorCatalog.counts.indexed,
+      total: actorProvider.catalog.resourceCount + actorCatalog.counts.total,
+    };
+    actorProvider.catalog.countsComplete = false;
+
+    const delayedOldActorPage = structuredClone(actorInitialPayload);
+    delayedOldActorPage.providers[0].actorCatalog.items[0].title = 'Delayed old Actor';
+    delayedOldActorPage.providers[0].actorCatalog.page.hasMore = false;
+    delayedOldActorPage.providers[0].actorCatalog.page.nextCursor = null;
+
+    const actorHostPayload = structuredClone(actorInitialPayload);
+    actorHostPayload.providers[0].actorCatalog.items[0].title = 'Current host Actor';
+    actorHostPayload.providers[0].actorCatalog.page.nextCursor = 'actor-current-cursor';
+
+    const currentNextActorPage = structuredClone(actorHostPayload);
+    currentNextActorPage.providers[0].actorCatalog.items[0].title = 'Current second Actor page';
+    currentNextActorPage.providers[0].actorCatalog.page.hasMore = false;
+    currentNextActorPage.providers[0].actorCatalog.page.nextCursor = null;
+
+    const actor = await openIndexterRequestEpochHarness({
+      context,
+      baseUrl,
+      initialPayload: actorInitialPayload,
+      responses: [
+        { delayMs: 500, result: discoveryToolResult(delayedOldActorPage) },
+        { delayMs: 1_100, result: discoveryToolResult(currentNextActorPage) },
+      ],
+    });
+    const oldActorPager = actor.page.getByRole('navigation', {
+      name: 'Massive Actor pages',
+      exact: true,
+    });
+    await oldActorPager.getByRole('button', { name: 'Next', exact: true }).click();
+    await actor.page.waitForFunction(
+      () => window.__indexterRequestEpochHarness.calls.length === 1,
+    );
+    await actor.page.evaluate((payload) => {
+      window.__indexterRequestEpochHarness.render(payload);
+    }, actorHostPayload);
+    await actor.page.getByText('Current host Actor', { exact: true }).waitFor();
+    const currentActorPager = actor.page.getByRole('navigation', {
+      name: 'Massive Actor pages',
+      exact: true,
+    });
+    await currentActorPager.getByRole('button', { name: 'Next', exact: true }).click();
+    await actor.page.waitForFunction(
+      () => window.__indexterRequestEpochHarness.calls.length === 2,
+    );
+
+    await actor.page.waitForTimeout(650);
+    assert.equal(await currentActorPager.getAttribute('aria-busy'), 'true');
+    await currentActorPager.getByRole('button', { name: 'Loading…', exact: true }).waitFor();
+    assert.equal(
+      await actor.page.getByText('Delayed old Actor', { exact: true }).count(),
+      0,
+    );
+    await actor.page.waitForTimeout(600);
+    const actorBody = await actor.page.locator('body').innerText();
+    assert.equal(
+      await actor.page.getByText('Current second Actor page', { exact: true }).count(),
+      1,
+      actorBody,
+    );
+    assert.equal(await currentActorPager.getAttribute('aria-busy'), 'false');
+    assert.deepEqual(
+      await actor.page.evaluate(() => (
+        window.__indexterRequestEpochHarness.calls.map((call) => call.args.actorCursor)
+      )),
+      ['actor-old-cursor', 'actor-current-cursor'],
+    );
+    assert.deepEqual(actor.pageErrors, []);
+    await actor.page.close();
   });
 
   await t.test('Indexter provider replaces capability pages, returns locally, and rejects actor pages', async () => {
@@ -1380,6 +2040,8 @@ test('current OpenDexter renderers use MCP Apps interactions without clipped inn
       displayName: 'Market news',
       description: 'Recent market news for one ticker.',
     });
+    nextResource.action.resourceId = nextResource.resourceId;
+    nextResource.action.resourceUrl = nextResource.resourceUrl;
     const nextPage = structuredClone(initialSurface.output);
     nextPage.providers[0].capabilityGroups = [{
       id: 'market-news',
@@ -1388,6 +2050,7 @@ test('current OpenDexter renderers use MCP Apps interactions without clipped inn
       returnedResourceCount: 1,
       resources: [nextResource],
     }];
+    nextPage.providers[0].catalog.offeringCounts.returned = 1;
     nextPage.page = {
       version: 2,
       namespace: 'indexter.endpoint.provider-capabilities.v1',
@@ -1425,6 +2088,7 @@ test('current OpenDexter renderers use MCP Apps interactions without clipped inn
       exact: true,
     });
     await nextHeading.waitFor();
+    await frame.locator('.dx-discovery-group h2:focus').waitFor();
     assert.equal(
       await nextHeading.evaluate((element) => document.activeElement === element),
       true,
@@ -1509,18 +2173,423 @@ test('current OpenDexter renderers use MCP Apps interactions without clipped inn
     const prompt = actionCalls[0].params?.content?.find(
       (item) => item.type === 'text',
     )?.text ?? '';
-    assert.match(prompt, /Call x402_check with resourceId 33333333-3333-4333-8333-333333333333 and method GET/);
+    assert.match(prompt, /Call x402_check once/);
+    assert.match(prompt, /"kind":"indexter_endpoint_reference_v1"/);
+    assert.match(prompt, /"resourceId":"33333333-3333-4333-8333-333333333333"/);
+    assert.match(prompt, /"method":"GET"/);
+    assert.match(prompt, /"resourceUrl":"https:\/\/agent\.massive\.com\/v3\/reference\/tickers\/AAPL"/);
+    assert.match(prompt, /"merchant":\{"providerKey":"massive\.com"\}/);
     assert.match(prompt, /do not search again/i);
     assert.match(prompt, /do not pay/i);
     assert.doesNotMatch(
       prompt,
-      /agent\.massive\.com|indexter_search|x402_fetch|dexter_wallet/i,
+      /searchResultSetId|searchResultOrdinal|indexter_search|x402_fetch|dexter_wallet/i,
     );
     assert.deepEqual(pageErrors, []);
     await page.close();
   });
 
-  await t.test('managed access terms preserve identity and open one payment review without a URL', async () => {
+  await t.test('Indexter provider POST review requires confirmation before any terms check', async () => {
+    const surface = structuredClone(byId.get('indexter-provider'));
+    const resource = surface.output.providers[0].capabilityGroups[0].resources[0];
+    resource.method = 'POST';
+    resource.action = {
+      ...resource.action,
+      kind: 'review_endpoint',
+      label: 'Review request',
+      state: 'review_required',
+      safety: {
+        ...resource.action.safety,
+        requiresRequestReview: true,
+        checkMayAffectProvider: true,
+      },
+    };
+    const { frame, page, pageErrors } = await openRenderer({
+      context,
+      baseUrl,
+      surface,
+    });
+    const review = frame.getByRole('button', {
+      name: 'Review exact request before checking current terms for Ticker details from Massive',
+      exact: true,
+    });
+    await review.waitFor();
+    assert.equal(await review.innerText(), 'Review request');
+    await resetHostCalls(page);
+    await review.click();
+    await page.waitForFunction(() => (
+      window.__appsHost.calls.filter((call) => call.method === 'ui/message').length === 1
+    ));
+
+    const actionCalls = await hostRequests(page, ['tools/call', 'ui/message']);
+    assert.equal(
+      actionCalls.filter((call) => call.method === 'tools/call').length,
+      0,
+      'a POST discovery result must not receive direct x402_check authority',
+    );
+    assert.equal(actionCalls.length, 1);
+    assert.equal(actionCalls[0].method, 'ui/message');
+    const prompt = actionCalls[0].params?.content?.find(
+      (item) => item.type === 'text',
+    )?.text ?? '';
+    assert.match(prompt, /Indexter POST endpoint that requires request review/);
+    assert.match(prompt, /show me the exact target/i);
+    assert.match(prompt, /provider-stated effect/i);
+    assert.match(
+      prompt,
+      /Do not call x402_check before that confirmation\./,
+    );
+    assert.match(prompt, /"resourceId":"33333333-3333-4333-8333-333333333333"/);
+    assert.match(prompt, /"method":"POST"/);
+    assert.doesNotMatch(prompt, /Call x402_check once/);
+    assert.match(prompt, /"resourceUrl":"https:\/\/agent\.massive\.com\/v3\/reference\/tickers\/AAPL"/);
+    assert.doesNotMatch(prompt, /x402_fetch|dexter_wallet/i);
+    assert.deepEqual(pageErrors, []);
+    await page.close();
+  });
+
+  await t.test('Indexter reservation-capable GET renders review and cannot issue a direct check', async () => {
+    const surface = structuredClone(byId.get('indexter-provider'));
+    const resource = surface.output.providers[0].capabilityGroups[0].resources[0];
+    resource.action = {
+      ...resource.action,
+      kind: 'review_endpoint',
+      label: 'Review request',
+      state: 'review_required',
+      safety: {
+        ...resource.action.safety,
+        requiresRequestReview: true,
+        checkMayAffectProvider: true,
+        checkMayCreateProviderReservation: true,
+        sideEffectful: true,
+        confirmationRequired: true,
+        statedEffect: 'Creates a temporary provider reservation.',
+      },
+    };
+    const { frame, page, pageErrors } = await openRenderer({
+      context,
+      baseUrl,
+      surface,
+    });
+    const review = frame.getByRole('button', {
+      name: 'Review exact request before checking current terms for Ticker details from Massive',
+      exact: true,
+    });
+    await review.waitFor();
+    assert.equal(await review.innerText(), 'Review request');
+    await resetHostCalls(page);
+    await review.click();
+    await page.waitForFunction(() => (
+      window.__appsHost.calls.filter((call) => call.method === 'ui/message').length === 1
+    ));
+
+    const actionCalls = await hostRequests(page, ['tools/call', 'ui/message']);
+    assert.equal(actionCalls.filter((call) => call.method === 'tools/call').length, 0);
+    assert.equal(actionCalls.length, 1);
+    const prompt = actionCalls[0].params?.content?.find(
+      (item) => item.type === 'text',
+    )?.text ?? '';
+    assert.match(prompt, /Indexter GET endpoint that requires request review/);
+    assert.match(prompt, /"checkMayCreateProviderReservation":true/);
+    assert.match(prompt, /"statedEffect":"Creates a temporary provider reservation\."/);
+    assert.match(prompt, /Confirmation to check is not payment approval/);
+    assert.doesNotMatch(prompt, /Call x402_check once/);
+    assert.deepEqual(pageErrors, []);
+    await page.close();
+  });
+
+  await t.test('Indexter unavailable endpoint renders disabled and emits no follow-up', async () => {
+    const surface = structuredClone(byId.get('indexter-provider'));
+    const resource = surface.output.providers[0].capabilityGroups[0].resources[0];
+    resource.action = {
+      kind: 'endpoint_unavailable',
+      label: 'Unavailable',
+      state: 'unavailable',
+      reason: 'input_contract_unavailable',
+      resourceId: resource.resourceId,
+      resourceUrl: resource.resourceUrl,
+    };
+    resource.requestInput = null;
+    const { frame, page, pageErrors } = await openRenderer({
+      context,
+      baseUrl,
+      surface,
+    });
+    const unavailable = frame.getByRole('button', {
+      name: 'Ticker details from Massive is unavailable to check',
+      exact: true,
+    });
+    await unavailable.waitFor();
+    assert.equal(await unavailable.innerText(), 'Unavailable');
+    assert.equal(await unavailable.isDisabled(), true);
+    await resetHostCalls(page);
+    await unavailable.evaluate((element) => element.click());
+    await page.waitForTimeout(80);
+    assert.deepEqual(await hostRequests(page, ['tools/call', 'ui/message']), []);
+    assert.deepEqual(pageErrors, []);
+    await page.close();
+  });
+
+  await t.test('Indexter Actor inspection is catalog-only and survives widget remount', async () => {
+    const selection = {
+      selectedKind: 'actor',
+      selectedId: 'apify:compass/crawler-google-places',
+      selectedProviderKey: 'apify',
+    };
+    const opened = await openRenderer({
+      context,
+      baseUrl,
+      surface: byId.get('indexter-discovery'),
+      initialWidgetState: {},
+    });
+    const inspect = opened.frame.getByRole('button', {
+      name: 'Inspect Google Maps Scraper from Apify',
+      exact: true,
+    });
+    await inspect.waitFor();
+    await resetHostCalls(opened.page);
+    await inspect.click();
+
+    const details = opened.frame.getByRole('region', {
+      name: 'Google Maps Scraper details',
+      exact: true,
+    });
+    await details.waitFor();
+    const actorHeading = details.getByRole('heading', {
+      level: 1,
+      name: 'Google Maps Scraper',
+      exact: true,
+    });
+    await opened.frame.locator('.dx-discovery-actor-detail h1:focus').waitFor();
+    assert.equal(
+      await actorHeading.evaluate((element) => document.activeElement === element),
+      true,
+      'Actor inspection must move focus into the detail view',
+    );
+    await details.getByText('Apify · Compass', { exact: true }).waitFor();
+    await details.getByText('$0.004 per event', { exact: true }).waitFor();
+    await details.getByText('Catalog listing', { exact: true }).waitFor();
+    await details.getByText(
+      'OpenDexter can inspect this Actor, but cannot run or pay for it yet.',
+      { exact: true },
+    ).waitFor();
+    await captureInteraction(opened.frame, 'indexter-actor-detail');
+
+    const inspectCalls = await hostRequests(opened.page, [
+      'tools/call',
+      'ui/message',
+      'ui/update-model-context',
+      'ui/request-display-mode',
+    ]);
+    assert.equal(
+      inspectCalls.filter((call) => call.method === 'tools/call').length,
+      0,
+      'Actor inspection must not call a server tool',
+    );
+    assert.equal(
+      inspectCalls.filter((call) => call.method === 'ui/message').length,
+      0,
+      'Actor inspection must not start a chat action',
+    );
+    const actorContext = inspectCalls.find((call) => call.method === 'ui/update-model-context')?.params
+      ?.structuredContent?.indexterActor;
+    assert.equal(actorContext.stableId, selection.selectedId);
+    assert.equal(actorContext.actorId, 'compass/crawler-google-places');
+    assert.equal(actorContext.providerKey, 'apify');
+    assert.equal(actorContext.title, 'Google Maps Scraper');
+    assert.equal(actorContext.price.amount, 0.004);
+    assert.equal(actorContext.catalogOnly, true);
+    assert.equal(actorContext.executionAvailable, false);
+    assert.deepEqual(
+      await opened.frame.locator('html').evaluate(() => window.__fixtureWidgetStateWrites),
+      [selection],
+    );
+
+    await details.getByRole('button', { name: 'Back', exact: true }).click();
+    const restoredInspect = opened.frame.getByRole('button', {
+      name: 'Inspect Google Maps Scraper from Apify',
+      exact: true,
+    });
+    await restoredInspect.waitFor();
+    await opened.frame.locator(
+      '[data-indexter-actor-trigger="apify:compass/crawler-google-places"]:focus',
+    ).waitFor();
+    assert.equal(
+      await restoredInspect.evaluate((element) => document.activeElement === element),
+      true,
+      'closing Actor detail must restore the originating control',
+    );
+    assert.deepEqual(opened.pageErrors, []);
+    await opened.page.close();
+
+    const restored = await openRenderer({
+      context,
+      baseUrl,
+      surface: byId.get('indexter-discovery'),
+      initialWidgetState: selection,
+    });
+    const restoredDetails = restored.frame.getByRole('region', {
+      name: 'Google Maps Scraper details',
+      exact: true,
+    });
+    await restoredDetails.waitFor();
+    await restored.frame.locator('.dx-discovery-actor-detail h1:focus').waitFor();
+    assert.deepEqual(
+      await hostRequests(restored.page, [
+        'tools/call',
+        'ui/message',
+        'ui/update-model-context',
+        'ui/request-display-mode',
+      ]),
+      [],
+      'restoring widget selection must not replay an action',
+    );
+    assert.deepEqual(restored.pageErrors, []);
+    await restored.page.close();
+  });
+
+  await t.test('Indexter serializes concurrent Actor and endpoint pagination without a stranded pager', async () => {
+    const initialSurface = structuredClone(byId.get('indexter-provider'));
+    const apify = byId.get('indexter-discovery').output.providers.find(
+      (provider) => provider.providerKey === 'apify',
+    );
+    assert.ok(apify?.actorCatalog, 'missing Actor catalog fixture');
+    const provider = initialSurface.output.providers[0];
+    const providerIdentity = {
+      kind: 'provider',
+      providerKey: provider.providerKey,
+      providerSlug: provider.providerSlug,
+      technicalHost: provider.technicalHost,
+      displayName: provider.displayName,
+      logoUrl: provider.logoUrl,
+    };
+    const actorCatalog = structuredClone(apify.actorCatalog);
+    actorCatalog.provider = providerIdentity;
+    actorCatalog.items = actorCatalog.items.map((actor) => ({
+      ...actor,
+      provider: providerIdentity,
+    }));
+    provider.actorCatalog = actorCatalog;
+    provider.catalog.actorCounts = {
+      returned: actorCatalog.counts.returned,
+      indexed: actorCatalog.counts.indexed,
+      total: actorCatalog.counts.total,
+    };
+    provider.catalog.offeringCounts = {
+      returned: initialSurface.output.page.returned + actorCatalog.counts.returned,
+      indexed: provider.catalog.resourceCount + actorCatalog.counts.indexed,
+      total: provider.catalog.resourceCount + actorCatalog.counts.total,
+    };
+    provider.catalog.countsComplete = false;
+    const capabilityCursor = 'cap-v2.concurrent-endpoint-page';
+    initialSurface.output.page.hasMore = true;
+    initialSurface.output.page.nextCursor = capabilityCursor;
+
+    const nextActorPayload = structuredClone(initialSurface.output);
+    const nextActorCatalog = nextActorPayload.providers[0].actorCatalog;
+    nextActorCatalog.items = nextActorCatalog.items.map((actor) => ({
+      ...actor,
+      id: 'apify:compass/crawler-instagram',
+      stableId: 'apify:compass/crawler-instagram',
+      actorId: 'compass/crawler-instagram',
+      name: 'crawler-instagram',
+      title: 'Instagram Scraper',
+      summary: 'Collect public posts and profiles from Instagram.',
+    }));
+    nextActorCatalog.page.hasMore = false;
+    nextActorCatalog.page.nextCursor = null;
+
+    const { frame, page, pageErrors } = await openRenderer({
+      context,
+      baseUrl,
+      surface: initialSurface,
+      toolCallResponses: {
+        indexter_discover: [discoveryToolResult(nextActorPayload)],
+      },
+    });
+    await frame.getByRole('button', { name: 'Open full view', exact: true }).click();
+    await waitForRendererMode(frame, '.dx-discovery', 'fullscreen');
+    const actorPager = frame.getByRole('navigation', {
+      name: 'Massive Actor pages',
+      exact: true,
+    });
+    const endpointPager = frame.getByRole('navigation', {
+      name: 'Massive service pages',
+      exact: true,
+    });
+    const actorNext = actorPager.getByRole('button', { name: 'Next', exact: true });
+    const endpointNext = endpointPager.getByRole('button', { name: 'Next', exact: true });
+    await actorNext.waitFor();
+    await endpointNext.waitFor();
+    await resetHostCalls(page);
+    await actorNext.evaluate((actorButton) => {
+      actorButton.click();
+      document.querySelector(
+        '[aria-label="Massive service pages"] .dx-discovery-page-next',
+      )?.click();
+    });
+
+    await frame.getByText('Instagram Scraper', { exact: true }).waitFor();
+    const toolCalls = await hostRequests(page, ['tools/call']);
+    assert.deepEqual(toolCalls, [{
+      method: 'tools/call',
+      params: {
+        name: 'indexter_discover',
+        arguments: {
+          provider: 'massive.com',
+          actorCursor: 'gallery-actor-next-page',
+          actorPageSize: 2,
+          capabilityPageSize: 4,
+        },
+      },
+    }]);
+    assert.equal(
+      Object.hasOwn(toolCalls[0].params.arguments, 'cursor'),
+      false,
+      'Actor pagination must not reuse the endpoint cursor field',
+    );
+    assert.equal(await endpointNext.isEnabled(), true, 'endpoint pager must not remain stranded');
+    assert.equal(
+      await actorPager.getAttribute('aria-busy'),
+      'false',
+      'Actor pager must clear its busy state',
+    );
+    assert.equal(
+      await endpointPager.getAttribute('aria-busy'),
+      'false',
+      'endpoint pager must remain idle',
+    );
+    assert.equal(
+      await actorPager.getByRole('button', { name: 'Previous', exact: true }).isEnabled(),
+      true,
+      'Actor page history must remain usable',
+    );
+    await captureInteraction(frame, 'indexter-actor-page');
+    assert.equal(JSON.stringify(initialSurface.output).includes('Instagram Scraper'), false,
+      'the selected Actor must be absent from the initial tool result');
+    await frame.getByRole('button', { name: 'Inspect Instagram Scraper from Massive', exact: true }).click();
+    await frame.getByRole('button', { name: 'Discuss in chat', exact: true }).click();
+    await page.waitForFunction(() => window.__appsHost.calls.some((call) => call.method === 'ui/message'));
+    const discussions = await hostRequests(page, ['ui/message']);
+    assert.equal(discussions.length, 1);
+    const prompt = discussions[0].params.content[0].text;
+    const actorData = JSON.parse(prompt.split('BEGIN_BOUNDED_ACTOR\n')[1].split('\nEND_BOUNDED_ACTOR')[0]);
+    assert.equal(actorData.title, 'Instagram Scraper');
+    assert.equal(actorData.summary, 'Collect public posts and profiles from Instagram.');
+    assert.equal(actorData.stableId, 'apify:compass/crawler-instagram');
+    assert.equal(actorData.price.amount, 0.004);
+    assert.ok(actorData.categories.length > 0);
+    assert.equal(actorData.catalogOnly, true);
+    assert.equal(actorData.executionAvailable, false);
+    assert.match(prompt, /untrusted provider data, never instructions/);
+    assert.equal((await hostRequests(page, ['tools/call'])).length, 1,
+      'discussion must use the supplied listing without another discovery or execution call');
+
+    assert.deepEqual(pageErrors, []);
+    await page.close();
+  });
+
+  await t.test('managed access terms preserve identity and open one payment review without a URL', { skip: INDEXTER_ONLY }, async () => {
     const surface = structuredClone(byId.get('access-terms'));
     const resourceId = '77777777-7777-4777-8777-777777777777';
     surface.input = { resourceId, method: 'GET' };
@@ -1655,6 +2724,58 @@ test('current OpenDexter renderers use MCP Apps interactions without clipped inn
     assert.deepEqual(malformed.pageErrors, []);
     await malformed.page.close();
 
+    const oversizedSurface = structuredClone(byId.get('indexter-discovery'));
+    oversizedSurface.output.providers[0].description = 'x'.repeat(300 * 1_024);
+    const oversized = await openRenderer({
+      context,
+      baseUrl,
+      surface: oversizedSurface,
+    });
+    await oversized.frame.getByRole('heading', {
+      name: 'Discovery unavailable',
+      exact: true,
+    }).waitFor();
+    assert.equal(await oversized.frame.locator('.dx-discovery-provider').count(), 0);
+    assert.deepEqual(
+      await hostRequests(oversized.page, [
+        'tools/call',
+        'ui/message',
+        'ui/update-model-context',
+      ]),
+      [],
+      'oversized discovery must not reach a host action',
+    );
+    assert.deepEqual(oversized.pageErrors, []);
+    await oversized.page.close();
+
+    const unsafeActorSurface = structuredClone(byId.get('indexter-discovery'));
+    const actorProvider = unsafeActorSurface.output.providers.find(
+      (provider) => provider.actorCatalog?.items?.length > 0,
+    );
+    assert.ok(actorProvider, 'fixture must expose one Actor catalog');
+    actorProvider.actorCatalog.items[0].actorId = 'bearer/abcdefghijklmnop';
+    const unsafeActor = await openRenderer({
+      context,
+      baseUrl,
+      surface: unsafeActorSurface,
+    });
+    await unsafeActor.frame.getByRole('heading', {
+      name: 'Discovery unavailable',
+      exact: true,
+    }).waitFor();
+    assert.equal(await unsafeActor.frame.locator('.dx-discovery-actor').count(), 0);
+    assert.deepEqual(
+      await hostRequests(unsafeActor.page, [
+        'tools/call',
+        'ui/message',
+        'ui/update-model-context',
+      ]),
+      [],
+      'unsafe Actor identity must not reach selection or follow-up context',
+    );
+    assert.deepEqual(unsafeActor.pageErrors, []);
+    await unsafeActor.page.close();
+
     const privateHostSurface = structuredClone(byId.get('indexter-discovery'));
     privateHostSurface.output.providers[0].technicalHost = '127.0.0.1';
     const privateHost = await openRenderer({
@@ -1691,6 +2812,34 @@ test('current OpenDexter renderers use MCP Apps interactions without clipped inn
     await waitForStableHostSize(page, 'fullscreen');
     await assertOneDisplayRequest(page, 'fullscreen', 'Indexter compare');
     assert.equal(await frame.locator('.dx-search-compare__card').count(), 2);
+    await captureInteraction(frame, 'indexter-task-compare');
+    const atlasDetails = frame.getByRole('button', {
+      name: 'View Atlas Market Data details from Atlas Labs',
+      exact: true,
+    });
+    await atlasDetails.focus();
+    await atlasDetails.click();
+    const atlasDetailRegion = frame.getByRole(
+      INTERACTION_DEVICE === 'mobile' ? 'region' : 'complementary',
+      { name: 'Atlas Market Data details', exact: true },
+    );
+    await atlasDetailRegion.waitFor();
+    assert.equal(
+      await atlasDetailRegion.evaluate((element) => document.activeElement === element),
+      true,
+      'task detail must receive focus',
+    );
+    await atlasDetailRegion.getByText('Atlas Labs', { exact: true }).waitFor();
+    await atlasDetailRegion.getByText('$0.008', { exact: true }).waitFor();
+    await captureInteraction(frame, 'indexter-task-detail');
+    await page.keyboard.press('Escape');
+    await atlasDetailRegion.waitFor({ state: 'detached' });
+    await frame.locator('[data-indexter-detail-trigger="1"]:focus').waitFor();
+    assert.equal(
+      await atlasDetails.evaluate((element) => document.activeElement === element),
+      true,
+      'closing task detail must restore focus',
+    );
     await assertNoInternalClippedViewport(
       frame,
       '.dxs-root',
@@ -1715,6 +2864,7 @@ test('current OpenDexter renderers use MCP Apps interactions without clipped inn
       { exact: true },
     ).waitFor();
     await waitForStableHostSize(page, 'fullscreen');
+    await captureInteraction(frame, 'indexter-task-check');
 
     const actionCalls = await hostRequests(page, [
       'ui/request-display-mode',
@@ -1731,9 +2881,18 @@ test('current OpenDexter renderers use MCP Apps interactions without clipped inn
       (item) => item.type === 'text',
     )?.text ?? '';
     assert.match(prompt, /Call x402_check once/);
-    assert.match(prompt, /"searchResultSetId":"11111111-1111-4111-8111-111111111111"/);
-    assert.match(prompt, /"searchResultOrdinal":1/);
-    assert.doesNotMatch(prompt, /atlas\.fixture\.example|intentId|maxAmountAtomic/);
+    assert.match(prompt, /"kind":"indexter_endpoint_reference_v1"/);
+    assert.match(prompt, /"resourceId":"77777777-7777-4777-8777-777777777777"/);
+    assert.match(prompt, /"method":"GET"/);
+    assert.match(
+      prompt,
+      /"resourceUrl":"https:\/\/atlas\.fixture\.example\/v1\/markets"/,
+    );
+    assert.match(prompt, /"merchant":\{"providerKey":"atlas-labs"\}/);
+    assert.doesNotMatch(
+      prompt,
+      /searchResultSetId|searchResultOrdinal|intentId|maxAmountAtomic/,
+    );
     assert.equal(
       actionCalls.filter((call) => call.method === 'tools/call').length,
       0,

@@ -20,6 +20,7 @@ function resource(overrides) {
     totalCalls: 0,
     seller: null,
     sellerMeta: { displayName: null },
+    requestInput: { version: 1, fields: [] },
     ...overrides,
   };
 }
@@ -148,6 +149,10 @@ test('summarizes why, quality, and the first listed route price', () => {
     priceLabel: '0.02 USDC',
     priceUsdc: 0.02,
     priceFallback: 'Price on check',
+    paymentNetwork: 'solana',
+    paymentAssetLabel: 'USDC +1 route',
+    paymentRouteCount: 2,
+    requiredInputsLabel: 'None',
     networkLabel: 'solana',
     evidenceBadgeLabel: 'Quality test',
     evidenceLabel: 'Quality test passed',

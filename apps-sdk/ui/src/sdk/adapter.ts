@@ -29,6 +29,11 @@ import {
   normalizeMcpToolInput,
 } from './host-adapter-model';
 import * as mcpApps from './mcp-apps-bridge';
+import {
+  ToolInvocationStore,
+  type ToolInvocationClock,
+  type ToolInvocationLifecycle,
+} from './tool-invocation-lifecycle';
 
 type HostRuntime = 'chatgpt' | 'mcp-apps' | 'unknown';
 
@@ -52,15 +57,49 @@ const _chatGptAdapterListeners = new Set<() => void>();
 
 // ── MCP Apps state store ──────────────────────────────────────────────
 
-let _mcpToolOutput: unknown = null;
-let _mcpToolInput: unknown = null;
-let _mcpToolMeta: unknown = null;
 let _mcpTheme: Theme = 'dark';
 let _mcpHostContext: AdaptiveHostContext = DEFAULT_HOST_CONTEXT;
 let _mcpHostCapabilities: AdaptiveHostCapabilities = DEFAULT_HOST_CAPABILITIES;
 let _mcpInitDone = false;
 const _mcpListeners = new Set<() => void>();
 const _adaptiveSnapshotCache = new Map<string, { serialized: string; value: unknown }>();
+type ChatGptInvocationHydrationState = {
+  toolInput: unknown;
+  toolOutput: unknown;
+  toolResponseMetadata: unknown;
+  widgetSessionId: unknown;
+};
+let _chatGptInvocationHydrationState: ChatGptInvocationHydrationState | null = null;
+
+function invocationHydrationState(
+  globals: Record<string, unknown>,
+): ChatGptInvocationHydrationState {
+  return {
+    toolInput: globals.toolInput,
+    toolOutput: globals.toolOutput,
+    toolResponseMetadata: globals.toolResponseMetadata,
+    widgetSessionId: globals.widgetSessionId,
+  };
+}
+
+function invocationClock(): ToolInvocationClock | undefined {
+  if (typeof window === 'undefined') return undefined;
+  const candidate = (window as unknown as Record<string, unknown>).__dexterToolInvocationClock;
+  if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return undefined;
+  const value = candidate as Record<string, unknown>;
+  if (
+    typeof value.now !== 'function'
+    || typeof value.setTimeout !== 'function'
+    || typeof value.clearTimeout !== 'function'
+  ) return undefined;
+  return {
+    now: value.now as ToolInvocationClock['now'],
+    setTimeout: value.setTimeout as ToolInvocationClock['setTimeout'],
+    clearTimeout: value.clearTimeout as ToolInvocationClock['clearTimeout'],
+  };
+}
+
+const _invocations = new ToolInvocationStore({ clock: invocationClock() });
 
 function stableSnapshot<T>(key: string, value: T): T {
   try {
@@ -137,25 +176,92 @@ function notifyMcpListeners() {
   for (const fn of _mcpListeners) fn();
 }
 
+_invocations.subscribe(notifyMcpListeners);
+
+function chatGptInvocationGlobals(
+  changedGlobals?: Record<string, unknown>,
+): Record<string, unknown> | null {
+  if (typeof window === 'undefined' || !window.openai) return null;
+  const changed = changedGlobals ?? {};
+  const has = (key: string) => Object.prototype.hasOwnProperty.call(changed, key);
+  const includeAll = changedGlobals === undefined;
+  const invocationChanged = includeAll
+    || has('toolInput')
+    || has('toolOutput')
+    || has('toolResponseMetadata')
+    || has('widgetSessionId');
+  if (!invocationChanged) return null;
+
+  const globals = window.openai as unknown as Record<string, unknown>;
+  return {
+    ...(includeAll || has('toolInput')
+      ? { toolInput: has('toolInput') ? changed.toolInput : globals.toolInput }
+      : {}),
+    // A metadata-only update must never inherit an older output from the
+    // mutable window global. Output updates may pair with the metadata in the
+    // same event or the host's already-updated metadata global.
+    ...(includeAll || has('toolOutput')
+      ? { toolOutput: has('toolOutput') ? changed.toolOutput : globals.toolOutput }
+      : {}),
+    ...(includeAll || has('toolResponseMetadata') || has('toolOutput')
+      ? {
+          toolResponseMetadata: has('toolResponseMetadata')
+            ? changed.toolResponseMetadata
+            : globals.toolResponseMetadata,
+        }
+      : {}),
+    widgetSessionId: has('widgetSessionId')
+      ? changed.widgetSessionId
+      : globals.widgetSessionId,
+  };
+}
+
+function hydrateChatGptInvocation(): void {
+  const globals = chatGptInvocationGlobals();
+  if (!globals) return;
+  const next = invocationHydrationState(globals);
+  const previous = _chatGptInvocationHydrationState;
+  if (
+    previous
+    && Object.is(previous.toolInput, next.toolInput)
+    && Object.is(previous.toolOutput, next.toolOutput)
+    && Object.is(previous.toolResponseMetadata, next.toolResponseMetadata)
+    && Object.is(previous.widgetSessionId, next.widgetSessionId)
+  ) return;
+
+  // Record the observed global references before updating the store because
+  // the store notifies React synchronously. Re-read whenever any reference
+  // changes so a host update in React's render-to-subscribe gap still attaches.
+  _chatGptInvocationHydrationState = next;
+  _invocations.acceptChatGptGlobals(globals, {
+    allowUnboundLegacyHydration: true,
+  });
+}
+
 function initMcpAppsOnce() {
   if (_mcpInitDone) return;
   _mcpInitDone = true;
 
   mcpApps.onNotification('ui/notifications/tool-result', (params: unknown) => {
-    const p = params as { content?: Array<{ type: string; text?: string }>; structuredContent?: unknown; _meta?: unknown } | undefined;
-    _mcpToolOutput = p?.structuredContent ?? tryParseTextContent(p?.content);
-    // Widget-only side-channel (sessionToken, dexterCardToken). Absent on
-    // hosts that strip _meta — consumers must treat null as "not armed".
-    _mcpToolMeta = p?._meta ?? null;
-    notifyMcpListeners();
+    _invocations.acceptResult(params, 'mcp-apps');
   });
 
   mcpApps.onNotification('ui/notifications/tool-input', (params: unknown) => {
-    _mcpToolInput = normalizeMcpToolInput(params);
-    notifyMcpListeners();
+    _invocations.acceptInput(normalizeMcpToolInput(params), 'mcp-apps');
+  });
+
+  mcpApps.onNotification('ui/notifications/tool-cancelled', (params: unknown) => {
+    const reason = params && typeof params === 'object' && !Array.isArray(params)
+      ? (params as Record<string, unknown>).reason
+      : null;
+    _invocations.cancel(reason);
   });
 
   mcpApps.onNotification('ui/notifications/host-context-changed', (params: unknown) => {
+    _invocations.activateHostContext(
+      params,
+      typeof window !== 'undefined' ? window.openai?.widgetSessionId : null,
+    );
     _mcpHostContext = normalizeMcpHostContext(
       params && typeof params === 'object' && !Array.isArray(params)
         ? params as Record<string, unknown>
@@ -171,6 +277,10 @@ function initMcpAppsOnce() {
   });
 
   mcpApps.initialize().then((result) => {
+    _invocations.activateHostContext(
+      result.hostContext,
+      typeof window !== 'undefined' ? window.openai?.widgetSessionId : null,
+    );
     _mcpHostContext = normalizeMcpHostContext(
       result.hostContext as Record<string, unknown> | undefined,
       _mcpHostContext,
@@ -190,22 +300,29 @@ if (isEmbeddedHost()) {
   initMcpAppsOnce();
 }
 
-function tryParseTextContent(content?: Array<{ type: string; text?: string }>): unknown {
-  const text = content?.find(c => c.type === 'text')?.text;
-  if (!text) return null;
-  try { return JSON.parse(text); } catch { return text; }
-}
-
 function subscribeChatGPTGlobals(onChange: () => void): () => void {
   if (typeof window === 'undefined') return () => {};
   _chatGptAdapterListeners.add(onChange);
   const handler = (event: CustomEvent<{ globals?: Record<string, unknown> }>) => {
-    if (Object.prototype.hasOwnProperty.call(event.detail?.globals ?? {}, 'displayMode')) {
+    const globals = event.detail?.globals ?? {};
+    if (Object.prototype.hasOwnProperty.call(globals, 'displayMode')) {
       _chatGptDisplayModeOverride = null;
+    }
+    const invocationGlobals = chatGptInvocationGlobals(globals);
+    if (invocationGlobals) _invocations.acceptChatGptGlobals(invocationGlobals);
+    // Mark the complete current globals as observed. In particular, a
+    // metadata-only event must not be followed by a snapshot hydration that
+    // pairs that identity with an older output still present on window.openai.
+    const currentInvocationGlobals = chatGptInvocationGlobals();
+    if (currentInvocationGlobals) {
+      _chatGptInvocationHydrationState = invocationHydrationState(
+        currentInvocationGlobals,
+      );
     }
     onChange();
   };
   window.addEventListener('openai:set_globals', handler as EventListener, { passive: true });
+  hydrateChatGptInvocation();
   return () => {
     _chatGptAdapterListeners.delete(onChange);
     window.removeEventListener('openai:set_globals', handler as EventListener);
@@ -263,7 +380,10 @@ function getAdaptiveCapabilities(): AdaptiveHostCapabilities {
 export function useToolOutput<T = unknown>(): T | null {
   return useSyncExternalStore(
     subscribeAdaptive,
-    () => (_mcpToolOutput ?? chatGptGlobal<T | null>('toolOutput') ?? null) as T | null,
+    () => {
+      hydrateChatGptInvocation();
+      return (_invocations.getSnapshot().output ?? null) as T | null;
+    },
     () => null,
   );
 }
@@ -276,9 +396,10 @@ export function useToolOutput<T = unknown>(): T | null {
 export function useToolResponseMetadata<T = Record<string, unknown>>(): T | null {
   return useSyncExternalStore(
     subscribeAdaptive,
-    () => (
-      _mcpToolMeta ?? chatGptGlobal<T | null>('toolResponseMetadata') ?? null
-    ) as T | null,
+    () => {
+      hydrateChatGptInvocation();
+      return (_invocations.getSnapshot().metadata ?? null) as T | null;
+    },
     () => null,
   );
 }
@@ -289,8 +410,26 @@ export function useToolResponseMetadata<T = Record<string, unknown>>(): T | null
 export function useToolInput<T = Record<string, unknown>>(): T | null {
   return useSyncExternalStore(
     subscribeAdaptive,
-    () => (_mcpToolInput ?? chatGptGlobal<T | null>('toolInput') ?? null) as T | null,
+    () => {
+      hydrateChatGptInvocation();
+      return (_invocations.getSnapshot().input ?? null) as T | null;
+    },
     () => null,
+  );
+}
+
+/**
+ * Read-only lifecycle for the host-owned tool invocation attached to this
+ * widget. Rendering this state never starts or retries a tool call.
+ */
+export function useToolInvocationLifecycle(): ToolInvocationLifecycle {
+  return useSyncExternalStore(
+    subscribeAdaptive,
+    () => {
+      hydrateChatGptInvocation();
+      return _invocations.getSnapshot();
+    },
+    () => _invocations.getSnapshot(),
   );
 }
 

@@ -2,6 +2,7 @@ import './init-sentry';
 
 export * from './types';
 export * from './call-tool-result';
+export * from './tool-invocation-lifecycle';
 export * from './use-openai-global';
 export * from './use-widget-props';
 export * from './use-display-mode';
@@ -31,5 +32,6 @@ export {
   useAdaptiveCallToolFn,
   useAdaptiveOpenExternal,
   useHostRuntime,
+  useToolInvocationLifecycle,
 } from './adapter';
 export { isMcpAppsHost } from './mcp-apps-bridge';

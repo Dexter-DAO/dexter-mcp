@@ -27,6 +27,11 @@ test('partial host-context updates merge without erasing prior presentation stat
     theme: 'light',
     displayMode: 'inline',
     availableDisplayModes: ['inline', 'fullscreen'],
+    toolInfo: {
+      id: 'request-alpha',
+      tool: { name: 'indexter_search', inputSchema: { type: 'object' } },
+    },
+    'openai/widgetSessionId': 'widget-alpha',
     locale: 'en-US',
     safeAreaInsets: { top: 1, right: 2, bottom: 18, left: 2 },
     styles: {
@@ -46,6 +51,8 @@ test('partial host-context updates merge without erasing prior presentation stat
   assert.equal(updated.displayMode, 'fullscreen');
   assert.deepEqual(updated.availableDisplayModes, ['inline', 'fullscreen']);
   assert.equal(updated.locale, 'en-US');
+  assert.deepEqual(updated.toolInfo, initial.toolInfo);
+  assert.equal(updated.widgetSessionId, 'widget-alpha');
   assert.deepEqual(updated.safeAreaInsets, {
     top: 1,
     right: 2,

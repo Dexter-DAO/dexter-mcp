@@ -124,7 +124,7 @@ test('only read-only Indexter discovery is callable from its renderer', () => {
     const discovery = name === 'indexter_discover';
     assert.deepEqual(
       OPEN_TOOL_CONTRACTS[name].visibility,
-      discovery ? ['model', 'app'] : ['model'],
+      discovery ? ['app'] : ['model'],
       `${name} native MCP Apps visibility`,
     );
     assert.equal(
@@ -133,6 +133,12 @@ test('only read-only Indexter discovery is callable from its renderer', () => {
       `${name} ChatGPT compatibility visibility`,
     );
   }
+  assert.deepEqual(
+    Object.entries(OPEN_TOOL_CONTRACTS)
+      .filter(([name, contract]) => name.startsWith('indexter_') && contract.visibility.includes('model'))
+      .map(([name]) => name),
+    ['indexter_search'],
+  );
 });
 
 test('hosted paid guidance uses one opaque check-fetch-status path', () => {
@@ -176,151 +182,230 @@ test('discovery, search, and wallet contracts expose current truth without route
   const search = OPEN_TOOL_CONTRACTS.indexter_search;
   const wallet = OPEN_TOOL_CONTRACTS.dexter_wallet;
 
-  assert.match(discovery.description, /what is available/i);
-  assert.match(discovery.description, /named provider/);
-  assert.match(discovery.description, /Use indexter_search for a concrete task/);
-  assert.match(discovery.description, /no wallet-read prerequisite/);
-  assert.match(discovery.description, /resourceId/);
+  assert.match(discovery.description, /App-only Indexter browser/);
+  assert.match(discovery.description, /endpoint and Actor cursors/);
+  assert.match(discovery.description, /never authorizes payment or Actor execution/);
   assert.equal(Object.hasOwn(discovery.registrationOutputSchema.shape, 'providers'), true);
   assert.equal(Object.hasOwn(discovery.registrationOutputSchema.shape, 'mode'), true);
 
-  assert.match(search.description, /rankingMode=degraded/);
-  assert.match(search.description, /maxPriceUsdc/);
-  assert.match(search.description, /paidOnly/);
-  assert.match(search.description, /sortBy/);
-  assert.match(search.description, /appliedConstraints/);
-  assert.match(search.description, /appliedOrdering/);
-  assert.match(search.description, /do not ask twice/);
-  assert.equal(Object.hasOwn(search.outputSchema.shape, 'rankingMode'), true);
-  assert.equal(Object.hasOwn(search.outputSchema.shape, 'degradedMessage'), true);
+  assert.match(search.description, /^Use this when the user wants to explore OpenDexter or Indexter, browse a provider's offerings, or find a service for a job/);
+  assert.match(search.description, /Call this tool exactly once/);
+  assert.match(search.description, /Find things to do[\s\S]*What should I try\?[\s\S]*Surprise me/i);
+  assert.match(search.description, /open an overview without a clarifying question/);
+  assert.match(search.description, /before asking for fulfillment details/);
+  assert.match(search.description, /Named-provider questions go to that provider[\s\S]*concrete jobs go to task search/);
+  assert.match(search.description, /at most twelve results/);
+  assert.match(search.description, /Actor results are catalog-only/);
+  assert.equal(Object.hasOwn(search.registrationOutputSchema.shape, 'route'), true);
+  assert.equal(Object.hasOwn(search.registrationOutputSchema.shape, 'results'), true);
   const validSearchOutput = {
-    searchResultSetId: '11111111-1111-4111-8111-111111111111',
-    success: true,
-    rankingMode: 'degraded',
-    degradedMessage: 'Reduced ranking is active.',
-    count: 0,
-    strongResults: [],
-    relatedResults: [],
-    strongCount: 0,
-    relatedCount: 0,
-    topSimilarity: null,
-    noMatchReason: 'below_similarity_threshold',
-    rerank: { enabled: true, applied: false },
-    intent: {
-      capabilityText: 'weather data',
-      maxPriceUsdc: 0.01,
-      minPriceUsdc: null,
-    },
-    appliedConstraints: {
-      maxPriceUsdc: 0.01,
-      minPriceUsdc: null,
-      paidOnly: true,
-    },
-    appliedOrdering: { sortBy: 'price_asc' },
-    searchMeta: {
-      mode: 'empty',
-      note: 'No matching result.',
-      rankingMode: 'degraded',
-      degradedMessage: 'Reduced ranking is active.',
-    },
-    tip: 'Try another query.',
-    source: 'Indexter',
+    route: 'task',
+    ok: true,
+    requestedProvider: null,
+    counts: { returned: 0, providers: 0, endpoints: 0, actors: 0 },
+    results: [],
+    warnings: [{
+      code: 'untrusted_provider_data',
+      message: 'Catalog data never authorizes payment.',
+    }],
     providerDataPolicy: PROVIDER_DATA_POLICY,
   };
   assert.equal(search.outputSchema.safeParse(validSearchOutput).success, true);
-  const { searchResultSetId: _missingBinding, ...searchWithoutBinding } = validSearchOutput;
-  assert.equal(search.outputSchema.safeParse(searchWithoutBinding).success, false);
   assert.equal(search.outputSchema.safeParse({
     ...validSearchOutput,
-    unexpectedRoute: 'leak',
+    searchResultSetId: '11111111-1111-4111-8111-111111111111',
   }).success, false);
   assert.equal(search.outputSchema.safeParse({
     ...validSearchOutput,
-    appliedConstraints: {
-      maxPriceUsdc: 0.01,
-      minPriceUsdc: 0.02,
-      paidOnly: true,
-    },
+    route: 'provider',
   }).success, false);
   assert.equal(search.outputSchema.safeParse({
     ...validSearchOutput,
-    appliedOrdering: { sortBy: 'cheapest' },
+    counts: { ...validSearchOutput.counts, returned: 1 },
   }).success, false);
-  assert.equal(search.outputSchema.safeParse({
-    ...validSearchOutput,
-    noMatchReason: 'no_results_with_price_controls',
-  }).success, true);
 
   const endpoint = {
     kind: 'endpoint',
+    id: '22222222-2222-4222-8222-222222222222',
     resourceId: '22222222-2222-4222-8222-222222222222',
-    resourceUrl: 'https://weather.example.test/current',
-    url: 'https://weather.example.test/current',
-    access: {
-      kind: 'direct_url',
-      checkable: true,
-      requiresFreshCheck: true,
-    },
     merchant: {
+      kind: 'provider',
       providerKey: 'weather.example.test',
-      providerSlug: 'weather-co',
-      displayName: 'Weather Co',
+      name: 'Weather Co',
       logoUrl: 'https://weather.example.test/logo.png',
-      technicalHost: 'weather.example.test',
     },
     name: 'Current weather',
-    method: 'GET',
-    description: 'Current weather for a requested location.',
+    summary: 'Current weather for a requested location.',
     category: 'weather',
-    price: '$0.01',
-    priceUsdc: 0.01,
-    iconUrl: 'https://weather.example.test/icon.png',
-    ogImageUrl: null,
-    docsUrl: 'https://weather.example.test/docs',
-    openapiSpecUrl: null,
-    host: 'weather.example.test',
-    why: 'Matches the requested current weather data.',
+    method: 'GET',
+    requestInput: { version: 1, fields: [] },
+    matchTier: 'strong',
+    price: {
+      label: '$0.01',
+      amount: 0.01,
+      currency: 'USDC',
+      network: 'eip155:8453',
+      variable: false,
+    },
+    action: {
+      kind: 'check_endpoint',
+      label: 'Check current terms',
+      state: 'ready_for_check',
+      resourceId: '22222222-2222-4222-8222-222222222222',
+      resourceUrl: 'https://weather.example.test/current',
+      safety: {
+        requiresRequestReview: false,
+        checkMayAffectProvider: false,
+        checkMayCreateProviderReservation: false,
+        requiresExplicitInput: false,
+        publishedInputPresent: false,
+        sideEffectful: false,
+        confirmationRequired: false,
+        statedEffect: null,
+        statedEffectSource: 'provider_catalog',
+      },
+    },
   };
   const searchWithEndpoint = {
     ...validSearchOutput,
-    count: 1,
-    strongResults: [endpoint],
-    strongCount: 1,
-    topSimilarity: 0.92,
-    noMatchReason: null,
-    searchMeta: {
-      ...validSearchOutput.searchMeta,
-      mode: 'direct',
-    },
+    counts: { returned: 1, providers: 0, endpoints: 1, actors: 0 },
+    results: [endpoint],
   };
   assert.equal(search.outputSchema.safeParse(searchWithEndpoint).success, true);
   for (const unsafeEndpoint of [
-    { ...endpoint, iconUrl: 'data:image/svg+xml;base64,PHN2Zy8+' },
-    { ...endpoint, docsUrl: 'javascript:alert(1)' },
-    { ...endpoint, resourceUrl: 'http://weather.example.test/current', url: 'http://weather.example.test/current' },
-    { ...endpoint, resourceUrl: 'https://user:secret@weather.example.test/current', url: 'https://user:secret@weather.example.test/current' },
-    { ...endpoint, host: '127.0.0.1', merchant: { ...endpoint.merchant, technicalHost: '127.0.0.1' } },
+    { ...endpoint, merchant: { ...endpoint.merchant, logoUrl: 'data:image/svg+xml;base64,PHN2Zy8+' } },
+    { ...endpoint, action: { ...endpoint.action, resourceUrl: 'javascript:alert(1)' } },
+    { ...endpoint, action: { ...endpoint.action, resourceUrl: 'http://weather.example.test/current' } },
+    { ...endpoint, action: { ...endpoint.action, resourceUrl: 'https://user:secret@weather.example.test/current' } },
   ]) {
     assert.equal(search.outputSchema.safeParse({
       ...searchWithEndpoint,
-      strongResults: [unsafeEndpoint],
+      results: [unsafeEndpoint],
     }).success, false);
   }
   assert.equal(search.outputSchema.safeParse({
     ...searchWithEndpoint,
-    strongResults: [{
+    results: [{
       ...endpoint,
-      resourceUrl: null,
-      url: null,
-      host: null,
-      access: { ...endpoint.access, kind: 'managed_resolvable' },
-      merchant: { ...endpoint.merchant, technicalHost: null },
+      action: { ...endpoint.action, resourceUrl: null },
     }],
   }).success, true);
   assert.equal(search.outputSchema.safeParse({
     ...searchWithEndpoint,
-    strongResults: [{ ...endpoint, kind: 'actor', actorId: 'apify/weather' }],
+    results: [{ ...endpoint, resourceId: '33333333-3333-4333-8333-333333333333' }],
   }).success, false);
+  const reservationReview = {
+    ...endpoint,
+    action: {
+      ...endpoint.action,
+      kind: 'review_endpoint',
+      label: 'Review request',
+      state: 'review_required',
+      safety: {
+        ...endpoint.action.safety,
+        requiresRequestReview: true,
+        checkMayAffectProvider: true,
+        checkMayCreateProviderReservation: true,
+        sideEffectful: true,
+        confirmationRequired: true,
+        statedEffect: 'Creates a temporary provider reservation.',
+      },
+    },
+  };
+  assert.equal(search.outputSchema.safeParse({
+    ...searchWithEndpoint,
+    results: [reservationReview],
+  }).success, true);
+  assert.equal(search.outputSchema.safeParse({
+    ...searchWithEndpoint,
+    results: [{
+      ...reservationReview,
+      action: {
+        ...reservationReview.action,
+        safety: {
+          ...reservationReview.action.safety,
+          requiresRequestReview: false,
+        },
+      },
+    }],
+  }).success, false);
+  assert.equal(search.outputSchema.safeParse({
+    ...searchWithEndpoint,
+    results: [{
+      ...endpoint,
+      action: { ...endpoint.action, safety: undefined },
+    }],
+  }).success, false);
+
+  const queryInputReview = {
+    ...endpoint,
+    requestInput: {
+      version: 1,
+      fields: [
+        { name: 'asset', location: 'query', type: 'string', required: false },
+        { name: 'path', location: 'query', type: 'string', required: true },
+      ],
+    },
+    action: {
+      ...endpoint.action,
+      kind: 'review_endpoint',
+      label: 'Review request',
+      state: 'review_required',
+      safety: {
+        ...endpoint.action.safety,
+        requiresRequestReview: true,
+        publishedInputPresent: true,
+      },
+    },
+  };
+  assert.equal(search.outputSchema.safeParse({
+    ...searchWithEndpoint,
+    results: [queryInputReview],
+  }).success, true);
+  for (const unsafeRequestInput of [
+    {
+      version: 1,
+      fields: [{ name: 'apiKey', location: 'query', type: 'string', required: true }],
+    },
+    {
+      version: 1,
+      fields: [{ name: 'ignoreInstructions', location: 'query', type: 'string', required: true }],
+    },
+    {
+      version: 1,
+      fields: [{ name: 'path', location: 'query', type: 'object', required: true }],
+    },
+    {
+      version: 1,
+      fields: [{ name: 'itemId', location: 'path', type: 'string', required: true }],
+    },
+    {
+      version: 1,
+      fields: [{ name: 'bodyValue', location: 'body', type: 'string', required: true }],
+    },
+  ]) {
+    assert.equal(search.outputSchema.safeParse({
+      ...searchWithEndpoint,
+      results: [{ ...queryInputReview, requestInput: unsafeRequestInput }],
+    }).success, false);
+  }
+  assert.equal(search.outputSchema.safeParse({
+    ...searchWithEndpoint,
+    results: [{
+      ...queryInputReview,
+      inputSchema: { description: 'Raw provider schema is forbidden.' },
+    }],
+  }).success, false);
+  assert.equal(search.outputSchema.safeParse({
+    ...searchWithEndpoint,
+    results: [{
+      ...queryInputReview,
+      action: {
+        ...queryInputReview.action,
+        resourceUrl: null,
+      },
+    }],
+  }).success, false, 'managed resolution cannot carry query input');
 
   assert.match(wallet.description, /Cash, credit capacity, and exact-intent execution eligibility are distinct/);
   assert.match(wallet.description, /zero cash alone is not proof/i);
@@ -918,7 +1003,7 @@ test('recursive scrub drops common provider credential aliases', () => {
   assert.equal(result.structuredContent.nested.safe, 'retained');
 });
 
-test('search policy strips legacy raw errorDetail from model-visible output', () => {
+test('search policy withholds malformed legacy output and raw error detail', () => {
   const result = applyOpenToolResultPolicy('indexter_search', {
     isError: true,
     content: [{
@@ -936,9 +1021,13 @@ test('search policy strips legacy raw errorDetail from model-visible output', ()
     },
   });
 
-  assert.doesNotMatch(JSON.stringify(result.structuredContent), /raw upstream stack detail/);
+  assert.equal(Object.hasOwn(result, 'structuredContent'), false);
   assert.doesNotMatch(result.content[0].text, /raw upstream stack detail/);
-  assert.equal(result.structuredContent.searchMeta.mode, 'error');
+  assert.equal(
+    result.content[0].text,
+    'Indexter returned an inconsistent result, so OpenDexter withheld it.',
+  );
+  assert.equal(result.isError, true);
 });
 
 test('intent output schemas reject route and prepared-purchase leakage', () => {
@@ -1197,13 +1286,37 @@ test('real SDK tools/list exposes executable schemas, OAuth, annotations, and me
     if (listed.name === 'indexter_search') {
       assert.equal(listed.outputSchema.additionalProperties, false);
       assert.equal(
-        Object.hasOwn(listed.outputSchema.properties ?? {}, 'appliedConstraints'),
+        Object.hasOwn(listed.outputSchema.properties ?? {}, 'route'),
         true,
       );
       assert.equal(
-        Object.hasOwn(listed.outputSchema.properties ?? {}, 'appliedOrdering'),
+        Object.hasOwn(listed.outputSchema.properties ?? {}, 'counts'),
         true,
       );
+      assert.equal(
+        Object.hasOwn(listed.outputSchema.properties ?? {}, 'results'),
+        true,
+      );
+      assert.equal(
+        Object.hasOwn(listed.outputSchema.properties ?? {}, 'searchResultSetId'),
+        false,
+      );
+      const resultVariants = listed.outputSchema.properties?.results?.items?.anyOf;
+      assert.deepEqual(
+        resultVariants?.map((variant) => variant.properties?.kind?.const),
+        ['provider', 'endpoint', 'actor'],
+      );
+      const endpointVariant = resultVariants?.find(
+        (variant) => variant.properties?.kind?.const === 'endpoint',
+      );
+      assert.equal(Object.hasOwn(endpointVariant?.properties ?? {}, 'merchant'), true);
+      assert.equal(Object.hasOwn(endpointVariant?.properties ?? {}, 'price'), true);
+      assert.equal(Object.hasOwn(endpointVariant?.properties ?? {}, 'action'), true);
+      const actorVariant = resultVariants?.find(
+        (variant) => variant.properties?.kind?.const === 'actor',
+      );
+      assert.equal(actorVariant?.properties?.catalogOnly?.const, true);
+      assert.equal(actorVariant?.properties?.executionAvailable?.const, false);
     }
     if (listed.name === 'indexter_discover') {
       const page = listed.outputSchema.properties?.page;

@@ -34,8 +34,9 @@ Add the three servers to `~/.cursor/mcp.json`:
 
 Complete the host-native OAuth flow for both hosted connectors. OpenDexter uses
 only `https://open.dexter.cash/mcp`; the authorized connection exposes its
-twelve product tools. `dexter-x402` creates or reuses a local wallet, usually
-at `~/.dexterai-mcp/wallet.json`.
+thirteen registered tools. Twelve are model-visible; `indexter_discover` is
+reserved for app browsing. `dexter-x402` creates or reuses a local wallet,
+usually at `~/.dexterai-mcp/wallet.json`.
 
 ## Hosted connector UIs
 
@@ -57,7 +58,8 @@ sequence below.
 ### Hosted OpenDexter
 
 1. Finish connector authorization and confirm the tool list loads.
-2. Search the Indexter marketplace for `"nansen"` with `indexter_search`.
+2. Ask `"What can I do with Nansen?"` through `indexter_search`. Confirm the
+   returned route is `provider` and inspect its actual offerings.
 3. Call `dexter_wallet` and confirm its wallet and funding context.
 4. Call `x402_check` on a selected low-cost x402 endpoint. A purchasable result
    carries `quoteOnly=false`; keep its opaque `intentId`. Stop if
@@ -93,7 +95,8 @@ outcome, do not assume that retrying it is safe.
 "Add Dexter at `https://mcp.dexter.cash/mcp`, OpenDexter at
 `https://open.dexter.cash/mcp`, and the local
 `npx -y @dexterai/x402-discovery@latest` connector. Authorize the hosted
-connectors. For OpenDexter, search with `indexter_search`, inspect
+connectors. For OpenDexter, send each complete Indexter request once through
+`indexter_search`, inspect
 `dexter_wallet`, and use the checked `intentId` for one `x402_fetch`. For the
 local connector, use `x402_search` and `x402_wallet`, then pass the checked
 request directly to `x402_fetch`."

@@ -69,6 +69,24 @@ export function normalizeMcpHostContext(
           mode === 'inline' || mode === 'fullscreen' || mode === 'pip',
       )
     : previous.availableDisplayModes;
+  const rawToolInfo = context.toolInfo;
+  const toolInfo = rawToolInfo
+    && typeof rawToolInfo === 'object'
+    && !Array.isArray(rawToolInfo)
+    && 'tool' in rawToolInfo
+    && rawToolInfo.tool
+    && typeof rawToolInfo.tool === 'object'
+    && !Array.isArray(rawToolInfo.tool)
+    && 'name' in rawToolInfo.tool
+    && typeof rawToolInfo.tool.name === 'string'
+      ? rawToolInfo as AdaptiveHostContext['toolInfo']
+      : previous.toolInfo;
+  const widgetSessionId =
+    typeof context['openai/widgetSessionId'] === 'string'
+      ? context['openai/widgetSessionId']
+      : typeof context.widgetSessionId === 'string'
+        ? context.widgetSessionId
+        : previous.widgetSessionId;
 
   return {
     ...previous,
@@ -95,6 +113,8 @@ export function normalizeMcpHostContext(
     deviceCapabilities,
     safeAreaInsets,
     styles,
+    toolInfo,
+    widgetSessionId,
   };
 }
 

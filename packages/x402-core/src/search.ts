@@ -19,11 +19,67 @@ import { normalizeRankingState } from './ranking.js';
 
 const DEFAULT_ENDPOINT = 'https://x402.dexter.cash/api/x402gle/capability';
 const DEFAULT_TIMEOUT = 20_000;
+const MAX_SEARCH_RESPONSE_BYTES = 256 * 1_024;
 const SEARCH_SORTS = new Set<CapabilitySearchSortBy>([
   'relevance',
   'price_asc',
   'price_desc',
 ]);
+
+async function cancelResponseBody(response: Response): Promise<void> {
+  try {
+    await response.body?.cancel();
+  } catch {
+    // The size error below is authoritative even if the source cannot cancel.
+  }
+}
+
+async function readBoundedResponseText(response: Response): Promise<string> {
+  const declaredLength = response.headers.get('content-length');
+  if (declaredLength && /^\d+$/.test(declaredLength)) {
+    const length = Number(declaredLength);
+    if (!Number.isSafeInteger(length) || length > MAX_SEARCH_RESPONSE_BYTES) {
+      await cancelResponseBody(response);
+      throw new Error(
+        `Capability search response exceeds the ${MAX_SEARCH_RESPONSE_BYTES}-byte limit`,
+      );
+    }
+  }
+  if (!response.body) return '';
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      total += value.byteLength;
+      if (total > MAX_SEARCH_RESPONSE_BYTES) {
+        try {
+          await reader.cancel();
+        } catch {
+          // Preserve the deterministic size error.
+        }
+        throw new Error(
+          `Capability search response exceeds the ${MAX_SEARCH_RESPONSE_BYTES}-byte limit`,
+        );
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+}
 
 function assertUsdcPriceConstraint(
   field: 'maxPriceUsdc' | 'minPriceUsdc',
@@ -161,7 +217,7 @@ export async function capabilitySearch(
   });
 
   if (!response.ok) {
-    const body = await response.text().catch(() => '');
+    const body = await readBoundedResponseText(response);
     throw new Error(
       `Capability search failed: ${response.status} ${body.slice(0, 400)}`,
     );
@@ -169,7 +225,7 @@ export async function capabilitySearch(
 
   let data: RawCapabilityResponse;
   try {
-    data = (await response.json()) as RawCapabilityResponse;
+    data = JSON.parse(await readBoundedResponseText(response)) as RawCapabilityResponse;
   } catch (err) {
     throw new Error(
       `Capability search returned a non-JSON body: ${err instanceof Error ? err.message : String(err)}`,

@@ -367,6 +367,7 @@ function searchResource(overrides = {}) {
       requiresExplicitInput: false,
       quoteMayCreateProviderReservation: false,
     },
+    requestInput: { version: 1, fields: [] },
     description: 'Current market prices with source timestamps.',
     category: 'Market data',
     qualityScore: 97,
@@ -377,6 +378,13 @@ function searchResource(overrides = {}) {
     trustLabel: 'Recent paid delivery',
     lastVerifiedAt: FIXED_NOW,
     totalCalls: 2401,
+    merchant: {
+      providerKey: 'atlas-labs',
+      providerSlug: 'atlas-labs',
+      displayName: 'Atlas Labs',
+      logoUrl: null,
+      technicalHost: 'atlas.fixture.example',
+    },
     seller: 'Atlas Labs',
     sellerMeta: {
       payTo: '0x1111111111111111111111111111111111111111',
@@ -414,6 +422,13 @@ function searchOutput() {
     description: 'Spot quotes with explicit asset input.',
     qualityScore: 93,
     totalCalls: 1904,
+    merchant: {
+      providerKey: 'beacon-systems',
+      providerSlug: 'beacon-systems',
+      displayName: 'Beacon Systems',
+      logoUrl: null,
+      technicalHost: 'beacon.fixture.example',
+    },
     seller: 'Beacon Systems',
     sellerMeta: {
       payTo: '0x2222222222222222222222222222222222222222',
@@ -425,12 +440,15 @@ function searchOutput() {
       ...primary.execution,
       requiresExplicitInput: true,
     },
+    requestInput: {
+      version: 1,
+      fields: [{ name: 'symbol', location: 'body', type: 'string', required: true }],
+    },
     similarity: 0.93,
     why: 'A strong alternative when the request needs an explicit asset pair.',
     score: 0.93,
   });
   return {
-    searchResultSetId: '11111111-1111-4111-8111-111111111111',
     success: true,
     count: 2,
     strongCount: 2,
@@ -460,8 +478,129 @@ function discoveryOverviewGroup(id, label, resourceCount) {
   return { id, label, resourceCount, returnedResourceCount: 0, resources: [] };
 }
 
+function discoveryProviderIdentity(provider) {
+  return {
+    kind: 'provider',
+    providerKey: provider.providerKey,
+    providerSlug: provider.providerSlug,
+    technicalHost: provider.technicalHost,
+    displayName: provider.displayName,
+    logoUrl: provider.logoUrl,
+  };
+}
+
+function discoveryEndpointAction(resource, safetyOverrides = {}) {
+  const safety = {
+    requiresRequestReview: false,
+    checkMayAffectProvider: false,
+    checkMayCreateProviderReservation: false,
+    requiresExplicitInput: false,
+    publishedInputPresent: (resource.requestInput?.fields.length ?? 0) > 0,
+    sideEffectful: false,
+    confirmationRequired: false,
+    statedEffect: null,
+    statedEffectSource: 'provider_catalog',
+    ...safetyOverrides,
+  };
+  const checkMayAffectProvider = resource.method !== 'GET'
+    || safety.sideEffectful
+    || safety.confirmationRequired
+    || safety.checkMayCreateProviderReservation;
+  const requiresRequestReview = checkMayAffectProvider
+    || safety.requiresExplicitInput
+    || safety.publishedInputPresent;
+  const projectedSafety = {
+    ...safety,
+    requiresRequestReview,
+    checkMayAffectProvider,
+  };
+  return requiresRequestReview
+    ? {
+        kind: 'review_endpoint',
+        label: 'Review request',
+        state: 'review_required',
+        resourceId: resource.resourceId,
+        resourceUrl: resource.resourceUrl,
+        safety: projectedSafety,
+      }
+    : {
+        kind: 'check_endpoint',
+        label: 'Check current terms',
+        state: 'ready_for_check',
+        resourceId: resource.resourceId,
+        resourceUrl: resource.resourceUrl,
+        safety: projectedSafety,
+      };
+}
+
+function discoveryEndpoint(provider, overrides = {}) {
+  const resource = {
+    kind: 'endpoint',
+    id: '33333333-3333-4333-8333-333333333333',
+    resourceId: '33333333-3333-4333-8333-333333333333',
+    resourceUrl: `https://${provider.technicalHost}/v1/example`,
+    displayName: 'Market snapshot',
+    description: 'A current, structured result from the selected provider.',
+    category: 'Reference data',
+    method: 'GET',
+    iconUrl: provider.logoUrl,
+    docsUrl: provider.docsUrl,
+    price: { usdc: 0.01, label: '$0.01', network: 'eip155:8453' },
+    evidence: { state: 'terms_checked', label: 'Terms checked', observedAt: FIXED_NOW },
+    access: { kind: 'direct_url', checkable: true, requiresFreshCheck: true },
+    requestInput: { version: 1, fields: [] },
+    ...overrides,
+  };
+  return {
+    ...resource,
+    action: overrides.action ?? discoveryEndpointAction(resource),
+  };
+}
+
+function discoveryActor(provider) {
+  return {
+    kind: 'actor',
+    id: 'apify:compass/crawler-google-places',
+    stableId: 'apify:compass/crawler-google-places',
+    actorId: 'compass/crawler-google-places',
+    provider: discoveryProviderIdentity(provider),
+    publisher: {
+      username: 'compass',
+      displayName: 'Compass',
+      url: 'https://apify.com/compass',
+      imageUrl: 'https://apify.com/favicon.ico',
+    },
+    name: 'crawler-google-places',
+    title: 'Google Maps Scraper',
+    summary: 'Collect places, reviews, and business details from Google Maps.',
+    imageUrl: 'https://apify.com/favicon.ico',
+    categories: ['Local business data', 'Reviews'],
+    pricing: {
+      model: 'pay_per_event',
+      variable: true,
+      currency: 'USD',
+      minimumMaxTotalChargeUsd: 0.5,
+      primaryEvent: {
+        key: 'place',
+        title: 'Place result',
+        priceUsd: 0.004,
+        isOneTime: false,
+        tieredPricesUsd: {},
+      },
+    },
+    availability: { status: 'available', notice: null },
+    catalogOnly: true,
+    execution: {
+      available: false,
+      reason: 'payment_contract_unavailable',
+      previewMode: 'inspection_only',
+    },
+    schemaStatus: 'available',
+  };
+}
+
 function discoveryOutput() {
-  const providers = [
+  const providerRows = [
     {
       id: 'massive.com',
       providerKey: 'massive.com',
@@ -569,6 +708,104 @@ function discoveryOutput() {
       ],
     },
   ];
+  const providers = providerRows.map((provider) => ({
+    kind: 'provider',
+    ...provider,
+    catalog: {
+      ...provider.catalog,
+      actorCounts: { returned: 0, indexed: 0, total: 0 },
+      offeringCounts: {
+        returned: provider.capabilityGroups.reduce(
+          (total, group) => total + group.returnedResourceCount,
+          0,
+        ),
+        indexed: provider.catalog.resourceCount,
+        total: provider.catalog.resourceCount,
+      },
+    },
+    actorCatalog: null,
+  }));
+  const apify = {
+    kind: 'provider',
+    id: 'apify',
+    providerKey: 'apify',
+    providerSlug: 'apify',
+    technicalHost: 'apify.com',
+    displayName: 'Apify',
+    description: 'Ready-made data collection and automation Actors.',
+    logoUrl: 'https://apify.com/favicon.ico',
+    docsUrl: 'https://docs.apify.com',
+    editorial: { featured: true, order: 2, evidenceResourceId: null },
+    catalog: {
+      resourceCount: 0,
+      actorCounts: { returned: 1, indexed: 964, total: 37_677 },
+      offeringCounts: { returned: 1, indexed: 964, total: 37_677 },
+      capabilityGroupCount: 0,
+      countsComplete: false,
+    },
+    evidence: discoveryProviderEvidence(0, 'no_current_confirmation'),
+    capabilityGroups: [],
+    actorCatalog: null,
+  };
+  const apifyActor = discoveryActor(apify);
+  apify.actorCatalog = {
+    status: 'ready',
+    warning: null,
+    provider: discoveryProviderIdentity(apify),
+    counts: { returned: 1, indexed: 964, total: 37_677, complete: false },
+    items: [apifyActor],
+    snapshot: {
+      catalogRevision: '1',
+      completedAt: FIXED_NOW,
+      sourceStatus: 'complete',
+      warning: null,
+      scope: 'apify_store_ordered_listing',
+      scopeLimit: 1_000,
+      sourceReportedCount: 37_677,
+      truncated: true,
+    },
+    page: {
+      version: 1,
+      namespace: 'indexter.actor.catalog.v1',
+      scope: 'provider_actors',
+      order: 'apify-source-rank-v1',
+      limit: 2,
+      returned: 1,
+      hasMore: true,
+      nextCursor: 'gallery-actor-next-page',
+    },
+  };
+  providers.splice(2, 0, apify);
+
+  const featuredOfferings = [
+    {
+      ...discoveryEndpoint(providers[0], {
+        displayName: 'Stock snapshot',
+        resourceUrl: 'https://agent.massive.com/v2/snapshot/locale/us/markets/stocks/tickers/AAPL',
+      }),
+      provider: discoveryProviderIdentity(providers[0]),
+    },
+    apifyActor,
+    {
+      ...discoveryEndpoint(providers[1], {
+        id: '44444444-4444-4444-8444-444444444444',
+        resourceId: '44444444-4444-4444-8444-444444444444',
+        displayName: 'Wallet intelligence',
+        resourceUrl: 'https://api.arkm.com/v1/wallet/intelligence',
+        price: { usdc: 0.02, label: '$0.02', network: 'solana:mainnet' },
+      }),
+      provider: discoveryProviderIdentity(providers[1]),
+    },
+    {
+      ...discoveryEndpoint(providers[3], {
+        id: '55555555-5555-4555-8555-555555555555',
+        resourceId: '55555555-5555-4555-8555-555555555555',
+        displayName: 'On-chain market indicators',
+        resourceUrl: 'https://x402.glassnode.com/v1/market/indicators',
+      }),
+      provider: discoveryProviderIdentity(providers[3]),
+    },
+  ];
 
   return {
     ok: true,
@@ -585,13 +822,14 @@ function discoveryOutput() {
       returnedProviderCount: providers.length,
     },
     providers,
+    featuredOfferings,
     page: {
       version: 2,
       namespace: 'indexter.endpoint.providers.v1',
       scope: 'providers',
       order: 'featured_provider_curation_v1',
-      limit: 6,
-      returned: 6,
+      limit: providers.length,
+      returned: providers.length,
       hasMore: true,
       nextCursor: 'gallery-next-page',
     },
@@ -603,20 +841,14 @@ function discoveryOutput() {
 function discoveryProviderOutput() {
   const overview = discoveryOutput();
   const provider = overview.providers[0];
-  const endpoint = (overrides) => ({
-    kind: 'endpoint',
-    id: '33333333-3333-4333-8333-333333333333',
-    resourceId: '33333333-3333-4333-8333-333333333333',
+  const endpoint = (overrides) => discoveryEndpoint(provider, {
     resourceUrl: 'https://agent.massive.com/v3/reference/tickers/AAPL',
     displayName: 'Ticker details',
     description: 'Company identity, market, exchange, and listing details for one ticker.',
     category: 'Reference data',
-    method: 'GET',
     iconUrl: null,
     docsUrl: 'https://massive.com/docs/rest/stocks/tickers/ticker-overview',
-    price: { usdc: 0.01, label: '$0.01', network: 'eip155:8453' },
     evidence: { state: 'delivered_recently', label: 'Delivered recently', observedAt: FIXED_NOW },
-    access: { kind: 'direct_url', checkable: true, requiresFreshCheck: true },
     ...overrides,
   });
 
@@ -628,8 +860,16 @@ function discoveryProviderOutput() {
       ...overview.summary,
       returnedProviderCount: 1,
     },
+    featuredOfferings: [],
     providers: [{
       ...provider,
+      catalog: {
+        ...provider.catalog,
+        offeringCounts: {
+          ...provider.catalog.offeringCounts,
+          returned: 4,
+        },
+      },
       editorial: {
         ...provider.editorial,
         evidenceResourceId: '33333333-3333-4333-8333-333333333333',

@@ -30,8 +30,7 @@ access, payment, and governed actions.
 
 | Intent | Tool |
 | --- | --- |
-| Explore what OpenDexter or one provider offers | `indexter_discover` |
-| Find a service for one concrete job or outcome | `indexter_search` |
+| Explore Indexter, browse a provider, or find a service | `indexter_search` |
 | Custody an exact endpoint request and current quote | `x402_check` |
 | Call one approved, API-custodied intent | `x402_fetch` |
 | Inspect one intent without redispatch | `x402_status` |
@@ -49,35 +48,29 @@ product tools. Do not select them for a new request.
 
 ## Indexter discovery and purchase
 
-1. For a broad question such as "What can I do?" or a question about one
-   provider, call `indexter_discover` once. Use no provider for the curated
-   overview; otherwise copy the provider name from the request. If the user
-   explicitly asks for more results, call it once with the prior
-   `page.nextCursor` copied exactly. Keep provider unset for an overview page;
-   for another provider-capability page, pass the same returned `providerKey`.
-   Never decode, alter, or replace the cursor with a numeric offset.
-2. For a concrete job, outcome, or constraint, call `indexter_search` once
-   with the user's actual job. Do not fan out into category searches or retry
-   with invented synonyms. Leave its network filter unset
+1. Call `indexter_search` once with the user's complete natural-language
+   request. The server chooses overview for broad or ambiguous prompts,
+   provider for a named-provider question, and task for a concrete job. Do not
+   fan out into category searches, invent synonyms, or call the app-only
+   `indexter_discover` tool. Leave the network filter unset
    unless the user explicitly requires a seller on one network; compatible
    server-side settlement may make a seller on another network reachable from
-   the Dexter account. Put a hard API invocation-price ceiling or floor in
-   `maxPriceUsdc` or `minPriceUsdc`, then confirm the returned
-   `appliedConstraints`. Set `paidOnly: true` when the result must have a known
-   primary USDC invocation price above zero. Use `sortBy: price_asc` or
-   `sortBy: price_desc` when price order matters, then confirm
-   `appliedOrdering`. Price order applies inside each relevance tier, so a
-   related result cannot move ahead of a strong result. Keep product and order
-   budgets in the query. The search controls use the listing's primary USDC
-   invocation price; alternate entries in `chains[]` can quote a different
-   amount. `x402_check` confirms the selected option before purchase. If
-   `rankingMode` is `degraded`, surface the accompanying `degradedMessage`;
-   reduced ranking is not the same as no result. Discovery and search do not
-   require a separate wallet call.
-3. Keep discovery claims precise: featured placement is editorial, while
+   the Dexter account. Put an explicit API invocation-price ceiling or floor in
+   `maxPriceUsdc` or `minPriceUsdc`. Set `paidOnly: true` when the result must
+   have a known primary USDC invocation price above zero. Use
+   `sortBy: price_asc` or `sortBy: price_desc` when price order matters. Keep
+   product and order budgets in the query; these controls apply only to the
+   task route. `x402_check` confirms the selected endpoint's current terms
+   before purchase. Surface a `degraded_ranking` warning when returned;
+   reduced ranking is not the same as no result. Task results are capped at
+   twelve and do not paginate. Indexter does not require a separate wallet
+   call.
+2. Keep discovery claims precise: featured placement is editorial, while
    catalog counts describe coverage. `delivered_recently`, `terms_checked`, and
    `no_current_confirmation` describe different levels of current evidence.
-4. Call `x402_check` on the selected endpoint and request shape. For
+   Keep provider, endpoint, and Actor results distinct. Actors are catalog-only;
+   listing one does not make execution or payment available.
+3. Call `x402_check` on the selected endpoint and request shape. For
    `access.kind=direct_url`, pass its exact `resourceUrl`. For
    `access.kind=managed_resolvable`, pass only its stable `resourceId`; Dexter
    resolves the private route server-side. Never invent or expose that route.

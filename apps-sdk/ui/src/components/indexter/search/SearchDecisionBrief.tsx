@@ -8,7 +8,7 @@ import {
 import {
   compactEvidenceLabel,
   formatListedPrice,
-  merchantLabel,
+  merchantCaption,
 } from './utils';
 
 export type SearchDecisionBriefCheckState =
@@ -54,7 +54,7 @@ function visibleActionLabel(
   if (action.disabled) return action.label;
   if (unavailableInHost) return 'Unavailable';
   if (status === 'checking') return 'Opening…';
-  if (status === 'details_sent') return 'Opened';
+  if (status === 'details_sent') return 'Sent to chat';
   if (status === 'error') return 'Try again';
   return action.kind === 'provide_details' ? 'Add details' : 'Check terms';
 }
@@ -135,7 +135,9 @@ export function SearchDecisionBrief({
         <div className="dx-search-result-primary__identity">
           <SearchIdentityIcon resource={actionTarget} size={compact ? 42 : 48} />
           <div className="dx-search-result-primary__copy">
-            <p className="dx-search-result-primary__merchant">{merchantLabel(actionTarget)}</p>
+            {merchantCaption(actionTarget) && (
+              <p className="dx-search-result-primary__merchant">{merchantCaption(actionTarget)}</p>
+            )}
             <h2 id={headingId} className="dx-search-brief__title">{actionTarget.name}</h2>
           </div>
           <strong className="dx-search-result-primary__price">{listedPrice(actionTarget)}</strong>
@@ -160,7 +162,9 @@ export function SearchDecisionBrief({
               className="dx-search-primary-action"
               onClick={() => onUseService(actionTarget)}
               aria-busy={currentState.status === 'checking'}
-              aria-label={`${action.label} for ${actionTarget.name}`}
+              aria-label={currentState.status === 'details_sent'
+                ? `${actionTarget.name} sent to chat`
+                : `${action.label} for ${actionTarget.name}`}
               disabled={actionDisabled}
             >
               {visibleActionLabel(actionTarget, currentState.status, unavailableInHost)}
@@ -190,7 +194,7 @@ export function SearchDecisionBrief({
                 >
                   <SearchIdentityIcon resource={resource} size={32} />
                   <span className="dx-search-result-alternatives__copy">
-                    <small>{merchantLabel(resource)}</small>
+                    {merchantCaption(resource) && <small>{merchantCaption(resource)}</small>}
                     <strong>{resource.name}</strong>
                   </span>
                   <span className="dx-search-result-alternatives__price">{listedPrice(resource)}</span>

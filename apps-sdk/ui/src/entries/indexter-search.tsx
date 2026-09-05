@@ -13,7 +13,11 @@ import {
   useAdaptiveMaxHeight,
   useAdaptiveRequestDisplayMode,
   useAdaptiveSendFollowUp,
+  useToolInvocationLifecycle,
+  useToolResponseMetadata,
+  useWidgetState,
 } from '../sdk';
+import type { ToolInvocationLifecycle } from '../sdk';
 import { useToolInput as useAdaptiveToolInput } from '../sdk/adapter';
 import { IndexterSummaryHeader } from '../components/indexter/search/IndexterSummaryHeader';
 import { IndexterLockup } from '../components/brand/IndexterLockup';
@@ -24,14 +28,17 @@ import {
 } from '../components/indexter/search/SearchDecisionBrief';
 import { SearchComparisonPanel } from '../components/indexter/search/SearchComparisonPanel';
 import { SearchInlineDetail } from '../components/indexter/search/SearchInlineDetail';
-import type { SearchResource } from '../components/indexter/search/types';
+import type {
+  SearchResource,
+  SearchWidgetState,
+} from '../components/indexter/search/types';
 import {
   buildDetailsFollowUpPrompt,
   getSearchResourceAction,
 } from '../components/indexter/search/SearchDecisionBrief.model';
 import {
   indexterCheckContinuationPrompt,
-  indexterResultReference,
+  indexterEndpointReference,
 } from '../components/indexter/search/indexter-continuation';
 import {
   SEARCH_WIDGET_BUILD,
@@ -39,6 +46,7 @@ import {
   getSearchErrorCopy,
   getSearchGuidance,
   getSearchSections,
+  isSafeSearchPayload,
   normalizeSearchPayload,
 } from '../components/indexter/search/search-model';
 import type { SearchPayload } from '../components/indexter/search/search-model';
@@ -99,7 +107,13 @@ function useCompactViewport() {
   return isCompact;
 }
 
-function IndexterSearch({ toolOutput }: { toolOutput: SearchPayload | null }) {
+function IndexterSearch({
+  toolOutput,
+  lifecycle,
+}: {
+  toolOutput: SearchPayload | null;
+  lifecycle: ToolInvocationLifecycle;
+}) {
   const toolInput = useAdaptiveToolInput<SearchToolInput>();
   const theme = useAdaptiveTheme();
   const hostContext = useAdaptiveHostContext();
@@ -128,6 +142,8 @@ function IndexterSearch({ toolOutput }: { toolOutput: SearchPayload | null }) {
     [toolOutput],
   );
   const externalQuery = toolInput?.query ?? '';
+  const [widgetState, setWidgetState] = useWidgetState<SearchWidgetState>({});
+  const widgetStateRef = useRef(widgetState);
   const [selectedOrdinal, setSelectedOrdinal] = useState<number | undefined>(undefined);
   const [detailOpen, setDetailOpen] = useState(false);
   const [comparisonOpen, setComparisonOpen] = useState(false);
@@ -149,10 +165,28 @@ function IndexterSearch({ toolOutput }: { toolOutput: SearchPayload | null }) {
   useEffect(() => { document.documentElement.setAttribute('data-theme', theme); }, [theme]);
 
   useEffect(() => {
+    widgetStateRef.current = widgetState;
+  }, [widgetState]);
+
+  useEffect(() => {
     checkRequestId.current += 1;
-    setSelectedOrdinal(undefined);
-    setDetailOpen(false);
-    setComparisonOpen(false);
+    const persisted = widgetStateRef.current;
+    const nextResources = activeOutput ? getSearchSections(activeOutput).resources : [];
+    const sameQuery = !persisted.searchQuery || persisted.searchQuery === externalQuery;
+    const selectedIndex = sameQuery && persisted.selectedResourceId
+      ? nextResources.findIndex((resource) => resource.resourceId === persisted.selectedResourceId)
+      : -1;
+    const restoredOrdinal = selectedIndex >= 0
+      ? selectedIndex + 1
+      : sameQuery
+        && Number.isSafeInteger(persisted.selectedOrdinal)
+        && Number(persisted.selectedOrdinal) >= 1
+        && Number(persisted.selectedOrdinal) <= nextResources.length
+          ? Number(persisted.selectedOrdinal)
+          : undefined;
+    setSelectedOrdinal(restoredOrdinal);
+    setDetailOpen(Boolean(restoredOrdinal && persisted.detailOpen));
+    setComparisonOpen(Boolean(nextResources.length > 1 && persisted.comparisonOpen));
     comparisonRequestedFullscreen.current = false;
     setCheckFlow({ status: 'idle' });
   }, [activeOutput, externalQuery]);
@@ -177,6 +211,13 @@ function IndexterSearch({ toolOutput }: { toolOutput: SearchPayload | null }) {
   );
   const searchError = activeOutput ? getSearchErrorCopy(activeOutput) : null;
   const searchGuidance = activeOutput ? getSearchGuidance(activeOutput) : null;
+  const persistWidgetState = useCallback((patch: Partial<SearchWidgetState>) => {
+    void setWidgetState((current) => ({
+      ...current,
+      ...patch,
+      searchQuery: externalQuery,
+    })).catch(() => {});
+  }, [externalQuery, setWidgetState]);
 
   useEffect(() => {
     if (!selectedOrdinal || selectedResource) return;
@@ -206,16 +247,12 @@ function IndexterSearch({ toolOutput }: { toolOutput: SearchPayload | null }) {
       });
       return;
     }
-    const reference = indexterResultReference(
-      activeOutput?.searchResultSetId,
-      resultOrdinal,
-      resources.length,
-    );
+    const reference = indexterEndpointReference(resource);
     if (!reference) {
       setCheckFlow({
         status: 'error',
         resultOrdinal,
-        message: 'This result is no longer current. Refresh Indexter before checking it.',
+        message: 'This result has no usable resource identity, so Dexter cannot check it.',
       });
       return;
     }
@@ -231,6 +268,10 @@ function IndexterSearch({ toolOutput }: { toolOutput: SearchPayload | null }) {
     followUpInFlightRequestId.current = requestId;
     addWidgetBreadcrumb('current_terms_requested', { url: resource.url, method: resource.method });
     setSelectedOrdinal(resultOrdinal);
+    persistWidgetState({
+      selectedOrdinal: resultOrdinal,
+      selectedResourceId: resource.resourceId,
+    });
     setCheckFlow({ status: 'checking', resultOrdinal });
     try {
       await sendFollowUp(indexterCheckContinuationPrompt(reference));
@@ -250,7 +291,7 @@ function IndexterSearch({ toolOutput }: { toolOutput: SearchPayload | null }) {
         followUpInFlightRequestId.current = null;
       }
     }
-  }, [activeOutput?.searchResultSetId, resources, sendFollowUp]);
+  }, [persistWidgetState, resources, sendFollowUp]);
 
   const useSearchResource = useCallback(async (resource: SearchResource) => {
     if (followUpInFlightRequestId.current !== null) return;
@@ -288,16 +329,12 @@ function IndexterSearch({ toolOutput }: { toolOutput: SearchPayload | null }) {
       return;
     }
 
-    const reference = indexterResultReference(
-      activeOutput?.searchResultSetId,
-      resultOrdinal,
-      resources.length,
-    );
+    const reference = indexterEndpointReference(resource);
     if (!reference) {
       setCheckFlow({
         status: 'error',
         resultOrdinal,
-        message: 'This result is no longer current. Refresh Indexter before continuing.',
+        message: 'This result has no usable resource identity, so Dexter cannot continue.',
       });
       return;
     }
@@ -306,6 +343,11 @@ function IndexterSearch({ toolOutput }: { toolOutput: SearchPayload | null }) {
     followUpInFlightRequestId.current = requestId;
     setSelectedOrdinal(resultOrdinal);
     setDetailOpen(false);
+    persistWidgetState({
+      selectedOrdinal: resultOrdinal,
+      selectedResourceId: resource.resourceId,
+      detailOpen: false,
+    });
     setCheckFlow({ status: 'details_sending', resultOrdinal });
     addWidgetBreadcrumb('request_details_requested', {
       url: resource.url,
@@ -333,10 +375,10 @@ function IndexterSearch({ toolOutput }: { toolOutput: SearchPayload | null }) {
       }
     }
   }, [
-    activeOutput?.searchResultSetId,
     canToggleFullscreen,
     confirmCurrentTerms,
     isFullscreen,
+    persistWidgetState,
     requestDisplayMode,
     resources,
     sendFollowUp,
@@ -359,7 +401,12 @@ function IndexterSearch({ toolOutput }: { toolOutput: SearchPayload | null }) {
     });
     setSelectedOrdinal(resultOrdinal);
     setCheckFlow({ status: 'idle' });
-  }, [resources]);
+    persistWidgetState({
+      selectedOrdinal: resultOrdinal,
+      selectedResourceId: resource.resourceId,
+      detailOpen: false,
+    });
+  }, [persistWidgetState, resources]);
 
   const handleInspectResource = useCallback((resource: SearchResource) => {
     if (followUpInFlightRequestId.current !== null) return;
@@ -374,12 +421,19 @@ function IndexterSearch({ toolOutput }: { toolOutput: SearchPayload | null }) {
       : null;
     detailTriggerOrdinalRef.current = resultOrdinal;
     setDetailOpen(true);
-  }, [resources]);
+    persistWidgetState({
+      selectedOrdinal: resultOrdinal,
+      selectedResourceId: resource.resourceId,
+      detailOpen: true,
+      comparisonOpen: true,
+    });
+  }, [persistWidgetState, resources]);
 
   const handleCloseDetail = useCallback(() => {
     addWidgetBreadcrumb('inspect_closed');
     setDetailOpen(false);
-  }, []);
+    persistWidgetState({ detailOpen: false });
+  }, [persistWidgetState]);
 
   useEffect(() => {
     if (!detailOpen) return;
@@ -446,10 +500,11 @@ function IndexterSearch({ toolOutput }: { toolOutput: SearchPayload | null }) {
     comparisonRequestedFullscreen.current = shouldRequestFullscreen;
     setDetailOpen(false);
     setComparisonOpen(true);
+    persistWidgetState({ detailOpen: false, comparisonOpen: true });
     if (shouldRequestFullscreen) {
       requestHostMode('fullscreen', 'request_compare_fullscreen');
     }
-  }, [canToggleFullscreen, isFullscreen, requestHostMode]);
+  }, [canToggleFullscreen, isFullscreen, persistWidgetState, requestHostMode]);
 
   const handleViewControl = useCallback(() => {
     if (comparisonOpen) {
@@ -457,13 +512,14 @@ function IndexterSearch({ toolOutput }: { toolOutput: SearchPayload | null }) {
       comparisonRequestedFullscreen.current = false;
       setDetailOpen(false);
       setComparisonOpen(false);
+      persistWidgetState({ detailOpen: false, comparisonOpen: false });
       if (requestDisplayMode && shouldRestoreInline) {
         requestHostMode('inline', 'close_comparison');
       }
       return;
     }
     openComparison();
-  }, [comparisonOpen, openComparison, requestDisplayMode, requestHostMode]);
+  }, [comparisonOpen, openComparison, persistWidgetState, requestDisplayMode, requestHostMode]);
 
   const handleCompareAll = openComparison;
 
@@ -511,12 +567,24 @@ function IndexterSearch({ toolOutput }: { toolOutput: SearchPayload | null }) {
   const showComparison = comparisonOpen && !showInlineDetail && !showMobileDetail;
 
   if (!activeOutput) {
-    const loadingTitle = externalQuery
-      ? `Finding ${externalQuery}`
-      : 'Finding available capabilities';
+    const failed = lifecycle.status === 'cancelled'
+      || lifecycle.status === 'malformed'
+      || lifecycle.status === 'timed_out';
+    const loadingTitle = externalQuery ? 'Finding matches' : 'Loading Indexter';
+    const stateTitle = lifecycle.status === 'cancelled'
+      ? 'Indexter search cancelled'
+      : lifecycle.status === 'malformed' || lifecycle.status === 'timed_out'
+        ? 'Indexter could not attach this result'
+        : loadingTitle;
+    const stateDescription = failed
+      ? lifecycle.message ?? 'No valid result was attached to this tool call. No action was taken.'
+      : lifecycle.status === 'running'
+        ? 'Indexter is ranking the closest current matches.'
+        : 'Waiting for this Indexter tool call to start returning data.';
     return (
       <div
         ref={searchRootRef}
+        data-tool-invocation-status={lifecycle.status}
         data-theme={theme}
         data-display-mode={displayMode}
         data-host-max-height={maxHeight ?? undefined}
@@ -524,10 +592,14 @@ function IndexterSearch({ toolOutput }: { toolOutput: SearchPayload | null }) {
         style={rootStyle}
       >
         <header className="dx-search-state__brand"><IndexterLockup /></header>
-        <section className="dx-search-state" aria-busy="true">
-          <span className="dx-search-state__pulse" aria-hidden />
-          <h1 title={loadingTitle}>{loadingTitle}</h1>
-          <p>Indexter is ranking the closest current matches.</p>
+        <section
+          className={`dx-search-state${failed ? ' dx-search-state--error' : ''}`}
+          aria-busy={failed ? undefined : 'true'}
+          role={failed ? 'alert' : undefined}
+        >
+          {!failed ? <span className="dx-search-state__pulse" aria-hidden /> : null}
+          <h1 title={stateTitle}>{stateTitle}</h1>
+          <p>{stateDescription}</p>
         </section>
       </div>
     );
@@ -537,6 +609,7 @@ function IndexterSearch({ toolOutput }: { toolOutput: SearchPayload | null }) {
     return (
       <div
         ref={searchRootRef}
+        data-tool-invocation-status={lifecycle.status}
         data-theme={theme}
         data-display-mode={displayMode}
         data-host-max-height={maxHeight ?? undefined}
@@ -553,11 +626,10 @@ function IndexterSearch({ toolOutput }: { toolOutput: SearchPayload | null }) {
   }
 
   if (resources.length === 0) {
-    const queryLabel = externalQuery;
     const emptyTitle =
       noMatchReason === 'below_strong_threshold'
-        ? `Only weak matches${queryLabel ? ` for "${queryLabel}"` : ''}`
-        : `No strong matches${queryLabel ? ` for "${queryLabel}"` : ''}`;
+        ? 'Only weak matches'
+        : 'No strong matches';
     const emptyDescription =
       noMatchReason === 'below_similarity_threshold'
         ? 'Nothing in our capability index matches that query yet. Try rephrasing, or widen the description of what you want to do.'
@@ -570,6 +642,7 @@ function IndexterSearch({ toolOutput }: { toolOutput: SearchPayload | null }) {
     return (
       <div
         ref={searchRootRef}
+        data-tool-invocation-status={lifecycle.status}
         data-theme={theme}
         data-display-mode={displayMode}
         data-host-max-height={maxHeight ?? undefined}
@@ -585,11 +658,15 @@ function IndexterSearch({ toolOutput }: { toolOutput: SearchPayload | null }) {
     );
   }
 
-  const queryHeading = externalQuery || 'Available capabilities';
+  const queryLabel = externalQuery.trim().replace(/\s+/g, ' ');
+  const queryContext = queryLabel.length > 96
+    ? `${queryLabel.slice(0, 95).trimEnd()}…`
+    : queryLabel;
 
   return (
     <div
       ref={searchRootRef}
+      data-tool-invocation-status={lifecycle.status}
       data-theme={theme}
       data-display-mode={displayMode}
       data-host-max-height={maxHeight ?? undefined}
@@ -616,9 +693,11 @@ function IndexterSearch({ toolOutput }: { toolOutput: SearchPayload | null }) {
       >
         {!comparisonOpen && (
           <>
-            <header className="dx-search-query">
-              <h1 title={queryHeading}>{queryHeading}</h1>
-            </header>
+            {queryContext ? (
+              <p className="dx-search-query-context" title={queryLabel}>
+                Results for &quot;{queryContext}&quot;
+              </p>
+            ) : null}
             <div className="dx-search-experience__decision">
               <SearchDecisionBrief
                 resources={resources}
@@ -745,15 +824,117 @@ if (root) {
   createRoot(root).render(<IndexterEntry />);
 }
 
+function unifiedRoute(value: unknown): 'overview' | 'provider' | 'task' | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const route = (value as Record<string, unknown>).route;
+  return route === 'overview' || route === 'provider' || route === 'task'
+    ? route
+    : null;
+}
+
+function malformedLifecycle(
+  lifecycle: ToolInvocationLifecycle,
+  message: string,
+): ToolInvocationLifecycle {
+  return {
+    ...lifecycle,
+    status: 'malformed',
+    output: null,
+    message,
+  };
+}
+
 function IndexterEntry() {
   const toolOutput = useToolOutput<unknown>();
-  if (isIndexterDiscoveryPayload(toolOutput)) {
-    return <IndexterDiscovery initialPayload={toolOutput as IndexterDiscoveryPayload} />;
+  const toolMetadata = useToolResponseMetadata<{
+    indexterPayload?: {
+      route?: 'overview' | 'provider' | 'task';
+      data?: unknown;
+    };
+  }>();
+  const lifecycle = useToolInvocationLifecycle();
+  if (lifecycle.status !== 'ready') {
+    return <IndexterSearch toolOutput={null} lifecycle={lifecycle} />;
   }
-  if (isIndexterDiscoveryCandidate(toolOutput)) {
+  const payloadEnvelope = toolMetadata?.indexterPayload;
+  const structuredRoute = unifiedRoute(toolOutput);
+  const payloadRoute = payloadEnvelope?.route ?? null;
+  if (structuredRoute && payloadRoute && structuredRoute !== payloadRoute) {
+    return (
+      <IndexterSearch
+        toolOutput={null}
+        lifecycle={malformedLifecycle(
+          lifecycle,
+          'The attached Indexter view does not match this tool result. No action was taken.',
+        )}
+      />
+    );
+  }
+  if (structuredRoute && payloadEnvelope?.data === undefined) {
+    return (
+      <IndexterSearch
+        toolOutput={null}
+        lifecycle={malformedLifecycle(
+          lifecycle,
+          'The complete Indexter result was not attached to this widget. No action was taken.',
+        )}
+      />
+    );
+  }
+
+  const renderOutput = payloadEnvelope?.data ?? toolOutput;
+  if (isIndexterDiscoveryPayload(renderOutput)) {
+    if (payloadRoute && payloadRoute !== renderOutput.mode) {
+      return (
+        <IndexterSearch
+          toolOutput={null}
+          lifecycle={malformedLifecycle(
+            lifecycle,
+            'The attached Indexter route does not match its result. No action was taken.',
+          )}
+        />
+      );
+    }
+    return <IndexterDiscovery initialPayload={renderOutput as IndexterDiscoveryPayload} />;
+  }
+  if (isIndexterDiscoveryCandidate(renderOutput)) {
     return <IndexterDiscoveryUnavailable />;
   }
-  return <IndexterSearch toolOutput={toolOutput as SearchPayload | null} />;
+  if (!isSafeSearchPayload(renderOutput)) {
+    return (
+      <IndexterSearch
+        toolOutput={null}
+        lifecycle={malformedLifecycle(
+          lifecycle,
+          'The attached result is not a valid Indexter response. No action was taken.',
+        )}
+      />
+    );
+  }
+  if (payloadRoute && payloadRoute !== 'task') {
+    return (
+      <IndexterSearch
+        toolOutput={null}
+        lifecycle={malformedLifecycle(
+          lifecycle,
+          'The attached Indexter route does not match its result. No action was taken.',
+        )}
+      />
+    );
+  }
+  const normalizedSearch = normalizeSearchPayload(renderOutput);
+  if (!normalizedSearch) {
+    return (
+      <IndexterSearch
+        toolOutput={null}
+        lifecycle={malformedLifecycle(
+          lifecycle,
+          'The attached result is not a valid Indexter response. No action was taken.',
+        )}
+      />
+    );
+  }
+  return <IndexterSearch toolOutput={normalizedSearch} lifecycle={lifecycle} />;
 }
 
 export default IndexterSearch;

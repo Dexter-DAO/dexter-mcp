@@ -5,6 +5,7 @@ import { summarizeSearchResource } from './SearchDecisionBrief.model';
 import {
   compactEvidenceLabel,
   formatListedPrice,
+  merchantCaption,
   merchantLabel,
 } from './utils';
 
@@ -120,7 +121,7 @@ export function SearchComparisonPanel({
               <div className="dx-search-compare__identity">
                 <SearchIdentityIcon resource={resource} size={36} />
                 <div>
-                  <small>{merchantLabel(resource)}</small>
+                  {merchantCaption(resource) && <small>{merchantCaption(resource)}</small>}
                   <strong>{resource.name}</strong>
                   <span className="sr-only">Result {ordinal} of {resources.length}</span>
                 </div>
@@ -140,7 +141,7 @@ export function SearchComparisonPanel({
                 <dl className="dx-search-compare__facts">
                   {evidence ? (
                     <div>
-                      <dt>Evidence</dt>
+                      <dt className="sr-only">Evidence</dt>
                       <dd className="dx-search-compare__evidence">
                         <span
                           className="dx-search-compare__evidence-dot"

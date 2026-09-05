@@ -16,12 +16,13 @@
   · <a href="https://github.com/Dexter-DAO/dexter-facilitator">Dexter Facilitator</a>
 </p>
 
-This repo contains two hosted MCP servers and the shared `@dexterai/x402-core` package:
+This repository contains one codebase for two independently deployed OAuth MCP
+services and the shared `@dexterai/x402-core` package:
 
 | Product | Endpoint | Auth | Payment |
 |---------|----------|------|---------|
-| **Dexter MCP** (authenticated) | `mcp.dexter.cash/mcp` | Dexter OAuth | Managed wallet, automatic |
-| **OpenDexter MCP** (hosted) | `open.dexter.cash/mcp` | OAuth `scope=vault` before discovery or use | Session-bound passkey wallet; explicit user or policy authority |
+| **Dexter MCP** (full platform) | `mcp.dexter.cash/mcp` | Dexter OAuth | Managed wallet, automatic |
+| **OpenDexter MCP** | `open.dexter.cash/mcp` | OAuth `scope=vault` before discovery or use | Session-bound passkey wallet; explicit user or policy authority |
 
 The npm packages (`@dexterai/opendexter`, `@dexterai/x402-discovery`) live in [Dexter-DAO/opendexter-ide](https://github.com/Dexter-DAO/opendexter-ide).
 
@@ -39,6 +40,8 @@ and its installed dependency graph can be checked without deploying:
 ```bash
 OPENDXTER_IDE_SOURCE=/absolute/path/to/opendexter-ide-candidate \
 DEXTER_VAULT_SDK_SOURCE=/absolute/path/to/dexter-vault-sdk-candidate \
+OPENDEXTER_API_SOURCE_ROOT=/absolute/path/to/dexter-api-candidate \
+OPENDEXTER_FACILITATOR_SOURCE_ROOT=/absolute/path/to/dexter-facilitator-candidate \
 OPENDXTER_RUNTIME_ROOT=/absolute/path/to/disposable-installed-graph \
   npm run verify:release:source
 ```
@@ -89,15 +92,16 @@ advertise, an existing destination, or an unreviewed Node/npm/lock identity.
 `deploy:mcp` accepts only a sealed immutable OpenDexter release containing
 deterministic provenance, the exact descriptor, and a complete file manifest
 that also authenticates the provenance bytes. It replaces only
-`dexter-open-mcp`, while proving the separate legacy `dexter-mcp` PID, path,
+`dexter-open-mcp`, while proving the separate full `dexter-mcp` PID, path,
 configuration, and restart counters remain unchanged. It verifies the new
-public process's PM2 and kernel paths, health, authorization challenge,
-authenticated thirteen-tool roster, and release
-identity before `pm2 save`. Any mismatch independently restores and re-verifies
+public process's PM2 and kernel paths, protected environment, health-reported
+release identity and 13-tool server roster, and public asset bytes and MIME
+types before `pm2 save`. Any mismatch independently restores and re-verifies
 the prior public OpenDexter process without restarting the private service. It
-never reloads or updates an existing process in place. This is still activation,
-not authorization to deploy or a substitute for OAuth and real-user product
-proof.
+never reloads or updates an existing process in place. The OAuth challenge,
+authenticated `tools/list`, 12-model-visible plus one app-only visibility split,
+and real-user experience remain separate post-deploy proof gates. This is still
+activation, not authorization to deploy.
 
 ---
 
@@ -111,7 +115,7 @@ portfolio reads, identity-gated access, payment, and governed actions on the
 same connection. Consequential calls still require the exact user instruction
 or bounded policy authority described below.
 
-The authorized roster is:
+The authorized server roster is 13 registered tools:
 
 1) `indexter_discover`
 2) `indexter_search`
@@ -130,12 +134,22 @@ The authorized roster is:
 Every tool in this roster carries the OAuth security scheme and requires the
 current vault Bearer on each invocation. Compatibility aliases,
 composed-skill, passkey-probe, and card tools stay outside this hosted roster.
+The MCP Apps visibility metadata exposes 12 of these tools to the model in
+clients that honor it. The remaining registered tool, `indexter_discover`, is
+reserved for app browsing. Text-only clients use `indexter_search` and its
+structured result; MCP Apps clients render the widget, with additional
+ChatGPT display controls where supported.
 
-`indexter_discover` answers broad catalog and provider questions in one call;
-`indexter_search` handles one concrete job or outcome. Discovery separates
-editorial placement, catalog coverage, and current evidence. Its continuation
-cursor is opaque and must be copied unchanged. Neither tool requires a wallet
-read.
+`indexter_search` is the only model-visible Indexter entry. It accepts the
+user's natural-language request and selects a curated overview, one provider,
+or task search on the server. Broad and ambiguous requests use the overview;
+named-provider questions use the provider view; concrete requests use task
+search. Ambiguous provider names are resolved against the current catalog,
+including lowercase names. An explicit catalog miss falls back to task search;
+an unavailable catalog returns an error. Task search returns at most twelve results. `indexter_discover` remains
+registered for widget browsing and is hidden from the model. Endpoint and Actor
+cursors are separate opaque values and must be copied unchanged. Neither tool
+requires a wallet read.
 
 `x402_check` accepts exactly one target: a public endpoint URL or a stable
 `resourceId` from the current Indexter result. Dexter resolves managed
@@ -216,7 +230,7 @@ configuration fails closed before the request leaves MCP; the secret is never
 part of a tool argument or result.
 
 This release's production activation runs only `dexter-open-mcp` from
-`ecosystem.production.cjs` and leaves the distinct legacy `dexter-mcp` process
+`ecosystem.production.cjs` and leaves the distinct full `dexter-mcp` process
 untouched. Set
 `DEXTER_MCP_ENV_FILE` to one absolute, service-owned mode-0600 regular file
 before asking PM2 to load that config. The launcher rejects symlinks, hard

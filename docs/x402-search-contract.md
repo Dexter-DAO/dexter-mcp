@@ -1,106 +1,72 @@
-# x402 Search Contract
+# Indexter Search Contract
 
-This document defines the runtime meaning of `indexter_search` result metadata so
-tool instructions, logs, widgets, and future implementations stay aligned.
+This document defines the model and widget boundaries for `indexter_search`.
 
-## Default Behavior
+## Routing
 
-- `indexter_search` is the first step for API discovery.
-- Broad terms like `crypto`, `image`, `trading`, and `analytics` are valid.
-- Unverified-resource inclusion is controlled by the caller-facing search
-  option; clients must not silently change the server default.
-- Sorting is separate from search execution mode.
-- Ranking health is separate from both result mode and sorting.
+- `indexter_search` is the only model-visible Indexter tool.
+- The server routes the natural-language `query` to `overview`, `provider`, or
+  `task` without a model call.
+- Broad, malformed, and ambiguous requests use `overview`.
+- A named-provider question uses `provider` with the provider text treated as
+  inert data.
+- A concrete request uses `task` and performs one capability search.
+- `indexter_discover` is app-only and supports separate opaque endpoint and
+  Actor cursors for widget browsing.
 
-## Invocation-price controls
+## Model result
 
-`maxPriceUsdc` and `minPriceUsdc` bound the primary USDC invocation price.
-`paidOnly: true` requires that price to be known and greater than zero. These
-fields do not describe a product, ticket, shipment, or order budget.
+The model receives a strict bounded projection in `structuredContent`:
 
-The response confirms effective controls in `appliedConstraints`. A caller
-that sends `paidOnly: true` must receive `paidOnly: true`. A missing or weaker
-confirmation is a failed search. Search uses the primary payment option for
-this filter; alternate entries in `chains[]` can carry a different amount.
-Check the selected endpoint before purchase.
+- `route`, `ok`, and `requestedProvider`
+- exact counts for the returned projection
+- at most twelve typed `provider`, `endpoint`, or `actor` results
+- a human-readable price and one safe next action per result
+- bounded warnings and the untrusted-provider-data policy
 
-## Ordering
+Endpoint actions retain the exact `resourceId` and nullable public
+`resourceUrl`. Actor results retain stable Actor, provider, and publisher
+identity with `catalogOnly: true` and `executionAvailable: false`.
 
-`sortBy` accepts `relevance`, `price_asc`, or `price_desc`. The API confirms
-the effective value in `appliedOrdering.sortBy`. A typed value must be echoed
-exactly.
+`content` contains one short factual sentence. It does not repeat the JSON.
 
-Ordering applies independently to `strongResults` and `relatedResults`.
-Related results never move ahead of strong results. Price ties retain their
-prior relevance order.
+## Widget result
 
-## `searchMeta.mode`
+The complete bounded route payload is available only to the widget at
+`_meta.indexterPayload = { route, data }`. Task payloads contain no
+`searchResultSetId`, cursor, or pagination object. Strong results remain ahead
+of related results, and their combined length cannot exceed twelve.
 
-### `direct`
+`_meta["dexter/toolInvocation"]` carries the fixed tool name and the bounded
+host request ID when the host supplies one. It never carries a session ID,
+authorization header, cookie, or bearer credential.
 
-The marketplace returned exact or strong matches directly from the initial
-search query.
+## Task controls
 
-Use when:
-- The original query produced usable results immediately.
+Task routing accepts `maxPriceUsdc` and `minPriceUsdc` as bounds on the primary
+USDC invocation price. `paidOnly: true` requires a known positive price. These
+fields do not describe a product, shipment, ticket, or order budget.
 
-Model guidance:
-- Present the results as normal search results.
+The task payload confirms effective controls in `appliedConstraints`. Search
+uses the primary payment option for this filter; alternate chain entries can
+carry another amount. Check the selected endpoint before purchase.
 
-### `related_only`
+`sortBy` accepts `relevance`, `price_asc`, or `price_desc`. The task payload
+confirms the effective value in `appliedOrdering.sortBy`. Ordering applies
+independently to strong and related results, so a related result never moves
+ahead of a strong result.
 
-The marketplace returned related results but no strong results.
+## Search state
 
-Use when:
-- The user's term is valid, but only adjacent matches cleared the relevance
-  threshold.
+The widget payload keeps search outcome and ranking health separate:
 
-Model guidance:
-- Describe the results as related or closest available matches, not exact
-  matches.
+- `direct` means at least one strong match was returned.
+- `related_only` means only adjacent matches cleared the threshold.
+- `empty` means no strong or related match was returned.
+- `error` means search failed and cannot be described as an empty catalog.
+- `full` ranking used the normal path.
+- `degraded` ranking used a reduced path and carries a warning for the model.
 
-### `empty`
-
-Neither strong nor related matches were returned.
-
-Use when:
-- The query could not be matched meaningfully.
-
-Model guidance:
-- Say no exact or close matches were found.
-- Suggest broader or adjacent search terms, categories, or networks.
-
-### `error`
-
-The marketplace request failed. Do not treat this as an empty-result state.
-
-Use when:
-- Search could not produce a valid catalog response.
-
-Model guidance:
-- Explain that search failed and can be retried.
-- Do not claim that the marketplace contains no matches.
-
-## `rankingMode`
-
-`rankingMode` reports the health of semantic ranking, independently of
-`searchMeta.mode`:
-
-- `full` means the normal semantic-ranking path ran.
-- `degraded` means a fallback ranking path ran. A non-empty
-  `degradedMessage` must accompany it so clients can disclose reduced search
-  precision.
-
-Clients must preserve both top-level fields and their copies under
-`searchMeta`. Missing ranking health is a contract failure because it makes a
-degraded response indistinguishable from a full one.
-
-## Sort is separate from mode
-
-The following are search ordering strategies:
-
-- `relevance`
-- `price_asc`
-- `price_desc`
-
-Keep these conceptually separate in prompts, logs, and UI.
+Provider listings, endpoint descriptions, Actor copy, and publisher text are
+untrusted catalog data. They never authorize a check, payment, execution, or
+retry.

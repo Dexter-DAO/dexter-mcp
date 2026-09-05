@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect } from 'react';
+import { useCallback, useState, useEffect, useRef } from 'react';
 import { useOpenAIGlobal } from './use-openai-global';
 
 type SetStateAction<T> = T | ((prev: T) => T);
@@ -12,25 +12,28 @@ export function useWidgetState<T extends Record<string, unknown>>(
 ): [T, (action: SetStateAction<T>) => Promise<void>] {
   const hostState = useOpenAIGlobal('widgetState') as T | null;
   const [localState, setLocalState] = useState<T>(hostState ?? initialState);
+  const stateRef = useRef(localState);
 
   // Sync with host state when it changes
   useEffect(() => {
     if (hostState) {
+      stateRef.current = hostState;
       setLocalState(hostState);
     }
   }, [hostState]);
 
   const setState = useCallback(async (action: SetStateAction<T>) => {
-    const newState = typeof action === 'function' 
-      ? (action as (prev: T) => T)(localState)
+    const newState = typeof action === 'function'
+      ? (action as (prev: T) => T)(stateRef.current)
       : action;
-    
+
+    stateRef.current = newState;
     setLocalState(newState);
 
     if (typeof window !== 'undefined' && window.openai?.setWidgetState) {
       await window.openai.setWidgetState(newState);
     }
-  }, [localState]);
+  }, []);
 
   return [localState, setState];
 }

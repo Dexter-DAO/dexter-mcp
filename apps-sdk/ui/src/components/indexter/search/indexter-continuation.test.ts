@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   indexterCheckContinuationPrompt,
+  indexterEndpointReference,
   indexterNonPaymentContinuationPrompt,
   indexterPurchaseContinuationData,
   indexterPurchaseContinuationPrompt,
@@ -10,7 +11,8 @@ import {
 
 const INTENT_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const RESULT_SET_ID = '11111111-1111-4111-8111-111111111111';
-const OTHER_RESULT_SET_ID = '22222222-2222-4222-8222-222222222222';
+const RESOURCE_ID = '77777777-7777-4777-8777-777777777777';
+const OTHER_RESOURCE_ID = '88888888-8888-4888-8888-888888888888';
 
 describe('Indexter result continuations', () => {
   it('binds a paid intent and ceiling to one current result ordinal', () => {
@@ -68,24 +70,66 @@ describe('Indexter result continuations', () => {
     expect(fallback).not.toContain(INTENT_ID);
   });
 
-  it('opens a model-mediated check without exposing a direct widget tool call', () => {
-    const data = indexterResultReference(RESULT_SET_ID, 1, 2)!;
+  it('opens Search -> Check with the exact endpoint and merchant identity', () => {
+    const data = indexterEndpointReference({
+      resourceId: RESOURCE_ID,
+      method: 'GET',
+      url: 'https://atlas.example/v1/markets',
+      name: 'Market snapshot',
+      merchant: { providerKey: 'atlas-labs', displayName: 'Atlas Labs' },
+    })!;
     const prompt = indexterCheckContinuationPrompt(data);
 
-    expect(prompt).toContain(JSON.stringify(data));
+    expect(prompt).toContain(JSON.stringify({
+      kind: 'indexter_endpoint_reference_v1',
+      resourceId: RESOURCE_ID,
+      method: 'GET',
+      resourceUrl: 'https://atlas.example/v1/markets',
+      merchant: { providerKey: 'atlas-labs' },
+    }));
+    expect(data).toEqual({
+      kind: 'indexter_endpoint_reference_v1',
+      resourceId: RESOURCE_ID,
+      method: 'GET',
+      resourceUrl: 'https://atlas.example/v1/markets',
+      merchant: { providerKey: 'atlas-labs', name: 'Atlas Labs' },
+      offering: 'Market snapshot',
+    });
     expect(prompt).toContain('Call x402_check once');
     expect(prompt).toContain('do not make a payment');
-    expect(prompt).not.toContain('service.example');
+    expect(prompt).not.toContain('searchResultSetId');
+    expect(prompt).not.toContain('Atlas Labs');
+    expect(prompt).not.toContain('Market snapshot');
+    expect(prompt).toContain('https://atlas.example/v1/markets');
   });
 
-  it('distinguishes the same ordinal from two different server result sets', () => {
-    const first = indexterResultReference(RESULT_SET_ID, 1, 2)!;
-    const second = indexterResultReference(OTHER_RESULT_SET_ID, 1, 2)!;
+  it('distinguishes two endpoint references and rejects missing identity', () => {
+    const first = indexterEndpointReference({
+      resourceId: RESOURCE_ID,
+      method: 'GET',
+      url: null,
+      name: 'Market snapshot',
+      sellerMeta: { displayName: 'Atlas Labs' },
+    })!;
+    const second = indexterEndpointReference({
+      resourceId: OTHER_RESOURCE_ID,
+      method: 'POST',
+      url: 'https://beacon.example/v1/spot',
+      name: 'Spot quote',
+      merchant: { providerKey: 'beacon', displayName: 'Beacon' },
+    })!;
 
     expect(indexterCheckContinuationPrompt(first)).not.toBe(
       indexterCheckContinuationPrompt(second),
     );
-    expect(indexterCheckContinuationPrompt(first)).toContain(RESULT_SET_ID);
-    expect(indexterCheckContinuationPrompt(second)).toContain(OTHER_RESULT_SET_ID);
+    expect(indexterCheckContinuationPrompt(first)).toContain(RESOURCE_ID);
+    expect(indexterCheckContinuationPrompt(second)).toContain(OTHER_RESOURCE_ID);
+    expect(indexterEndpointReference({
+      resourceId: undefined,
+      method: 'GET',
+      url: null,
+      name: 'Missing identity',
+      sellerMeta: { displayName: 'Atlas Labs' },
+    })).toBeNull();
   });
 });
