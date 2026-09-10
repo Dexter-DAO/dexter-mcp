@@ -92,7 +92,7 @@ test('portfolio implementation derives identity from session and exact wallet eq
     server.indexOf('// ─── MCP Server Setup', start),
   );
   assert.match(implementation, /extractMcpSessionId\(extra\)/);
-  assert.match(implementation, /fetchVaultStateBySession\(sessionId\)/);
+  assert.match(implementation, /fetchVaultStateBySession\(sessionId,\s*\{\s*portfolio:\s*true\s*\}\)/);
   assert.match(implementation, /getVaultReceiveAddress\(state\.vault\)/);
   assert.match(implementation, /expectedWalletAddress:\s*receiveAddress/);
   assert.match(implementation, /modelSafePortfolioSnapshot\(portfolio\)/);

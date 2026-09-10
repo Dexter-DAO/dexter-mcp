@@ -2197,7 +2197,7 @@ async function dexterPortfolio(_args, extra) {
 
   let state;
   try {
-    state = await fetchVaultStateBySession(sessionId);
+    state = await fetchVaultStateBySession(sessionId, { portfolio: true });
   } catch (err) {
     console.warn(
       `[dexter_wallet_portfolio] /state read failed (${safeErrorLabel(err)})`,
