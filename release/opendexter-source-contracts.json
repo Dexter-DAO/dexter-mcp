@@ -15,8 +15,8 @@
     "repository": "https://github.com/Dexter-DAO/dexter-api",
     "commit": "da9412289abfb8df8f2afa3fc5b2a310b5f4c80d",
     "tree": "11212650a844977911e221ba23c24e0a7d8a2755",
-    "governedContractCommit": "fa0701b67625911b8ec97a5399f62ec97a69f976",
-    "governedContractTree": "dcee95df1d92018b8fcd8b43645fe63211383274"
+    "governedContractCommit": "da9412289abfb8df8f2afa3fc5b2a310b5f4c80d",
+    "governedContractTree": "11212650a844977911e221ba23c24e0a7d8a2755"
   },
   "portfolioProjection": {
     "repository": "https://github.com/Dexter-DAO/dexter-api",
