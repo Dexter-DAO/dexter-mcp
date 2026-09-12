@@ -15,11 +15,11 @@
     "endpoint": "https://x402.dexter.cash/version",
     "repository": "https://github.com/Dexter-DAO/dexter-facilitator",
     "namespace": "dexter-facilitator-immutable-release/v1",
-    "sourceCommit": "32842d1a1858108112b16e47f422f7ee1d992d85",
-    "sourceTree": "155539e9e24114c22f4600a79fa9afc495a6b355",
-    "sourceArchiveSha256": "546343caed62671b0f8f2328d1df2a2dfdf97d810fc2431f7a3881ca27782849",
-    "artifactSha256": "4d6828f2629e420e7882dc18ea25c0c63344394a4bca4ce72e613094c42f736f",
-    "artifactBindingDigest": "a10db906321f65af95cf32e1af278e8eb291c56997ff9012c7f7bf034d3fb716",
-    "metadataBindingDigest": "0b88e72e7b95d2997c1cdad38f8afb50ce7bcf8833cc61fe5bef9c5d95bff2a2"
+    "sourceCommit": "b05ad78b1f99e55b2d68874ca73f46387421bb6b",
+    "sourceTree": "cd9a5e3259e9ad7e2cc923431a1b94a267d56640",
+    "sourceArchiveSha256": "e6f0040bb7d9ddc81c0976d47a4fc0d4d961397dc9ed61ecbf5109e6ce9432c4",
+    "artifactSha256": "4cc4c466e3d15b164d158239f316199b8f52bb32b2d4a0178980945e50207a1e",
+    "artifactBindingDigest": "fd3faf66a30e91c89ded2681102c446428f5812dc18717cff4b13cd1a2183316",
+    "metadataBindingDigest": "f74f3dc43dbd335ae0c5f03a3f0857d2a1a1f2cbbb1a39a325f2dd20cbe7ea44"
   }
 }
