@@ -39,8 +39,8 @@
     },
     "facilitator": {
       "repository": "https://github.com/Dexter-DAO/dexter-facilitator",
-      "commit": "b05ad78b1f99e55b2d68874ca73f46387421bb6b",
-      "tree": "cd9a5e3259e9ad7e2cc923431a1b94a267d56640",
+      "commit": "43326d251732a29f95174d72832544866e864ebb",
+      "tree": "b11f11aa7ed7f5478a4c771da789351151ffe20f",
       "bindingFixture": {
         "consumerPath": "tests/fixtures/governed-agent-trade-api-facilitator-binding-v1.json",
         "apiPath": "tests/fixtures/governed-agent-trade-api-facilitator-binding-v1.json",
