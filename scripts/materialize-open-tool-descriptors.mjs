@@ -110,8 +110,8 @@ const EXPECTED_SOURCE_CONTRACTS = Object.freeze({
   // The historical consumer fixture remains pinned above. The stock release
   // has its own reviewed governed implementation, which later API releases
   // must preserve byte-for-byte over API_GOVERNED_CONTRACT_PATHS.
-  integratedGovernedCommit: '95563db418bdaea72800ce0c0adf9a7970bec79a',
-  integratedGovernedTree: '47e7859b255c28d64c55d90b0702d4a4f1c5762d',
+  integratedGovernedCommit: '9519880d22672c77bed3fbe4ba880f6f15bd4813',
+  integratedGovernedTree: '312573a99d9a2890c78746d388dd565d1eeca088',
   apiFixtureSha256:
     'ad06690a3914e0ef0f359c4164eb62f78ca54abe6697a52672d739df63c2c352',
   apiCanonicalBodyDigest:
