@@ -1947,9 +1947,9 @@ async function x402Wallet(_args, extra) {
   // target. Never substitute the Swig config PDA when it is absent.
   const receiveAddress = getVaultReceiveAddress(state.vault);
   // Start optional widget reads as soon as the verified wallet address exists.
-  // They run concurrently with money composition below; portfolio is locally
-  // capped at 2.5s and degrades to unavailable rather than holding the wallet
-  // tool on the API's longer enrichment budgets.
+  // They run concurrently with money composition below; portfolio has a finite
+  // 20s deadline for wallet resolution, stock authority and holdings. It still
+  // degrades to unavailable if that complete read cannot finish in time.
   const portfolioPromise = fetchSessionPortfolio({
     apiBase: API_BASE_FALLBACK,
     sessionId,
@@ -2197,7 +2197,7 @@ async function dexterPortfolio(_args, extra) {
 
   let state;
   try {
-    state = await fetchVaultStateBySession(sessionId);
+    state = await fetchVaultStateBySession(sessionId, { portfolio: true });
   } catch (err) {
     console.warn(
       `[dexter_wallet_portfolio] /state read failed (${safeErrorLabel(err)})`,
@@ -2266,6 +2266,11 @@ async function governedAssetAction(operation, args, extra) {
       operation,
       input: args,
       mcpSessionId: sessionId,
+      ...(operation === 'prepare'
+        && (args?.action === 'buy' || args?.action === 'sell')
+        && typeof args?.companyQuery === 'string'
+        ? { timeoutMs: 30_000 }
+        : {}),
     });
   } catch (err) {
     console.warn(

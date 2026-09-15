@@ -16,15 +16,15 @@
     },
     "integratedApiRelease": {
       "repository": "https://github.com/Dexter-DAO/dexter-api",
-      "commit": "8f7fca8cbd808d5ceaa28976812d9da03ad33db6",
-      "tree": "1572e4e3d4c0344f1370194a4c99d90388d7a81a",
-      "governedContractCommit": "fa0701b67625911b8ec97a5399f62ec97a69f976",
-      "governedContractTree": "dcee95df1d92018b8fcd8b43645fe63211383274"
+      "commit": "9519880d22672c77bed3fbe4ba880f6f15bd4813",
+      "tree": "312573a99d9a2890c78746d388dd565d1eeca088",
+      "governedContractCommit": "9519880d22672c77bed3fbe4ba880f6f15bd4813",
+      "governedContractTree": "312573a99d9a2890c78746d388dd565d1eeca088"
     },
     "portfolioProjection": {
       "repository": "https://github.com/Dexter-DAO/dexter-api",
-      "commit": "8f7fca8cbd808d5ceaa28976812d9da03ad33db6",
-      "tree": "1572e4e3d4c0344f1370194a4c99d90388d7a81a",
+      "commit": "9519880d22672c77bed3fbe4ba880f6f15bd4813",
+      "tree": "312573a99d9a2890c78746d388dd565d1eeca088",
       "sourcePaths": [
         "src/portfolio/approvedActionTargets.ts",
         "src/routes/passkeyMcpBinding.ts",
@@ -39,8 +39,8 @@
     },
     "facilitator": {
       "repository": "https://github.com/Dexter-DAO/dexter-facilitator",
-      "commit": "ee0b4605ac606920210219a370e0b9cda4b16555",
-      "tree": "77339ac403a86383a6240775e37dd2fbe92af84f",
+      "commit": "43326d251732a29f95174d72832544866e864ebb",
+      "tree": "b11f11aa7ed7f5478a4c771da789351151ffe20f",
       "bindingFixture": {
         "consumerPath": "tests/fixtures/governed-agent-trade-api-facilitator-binding-v1.json",
         "apiPath": "tests/fixtures/governed-agent-trade-api-facilitator-binding-v1.json",
@@ -5007,57 +5007,138 @@
                 "additionalProperties": false
               },
               "grant": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "$ref": "#/properties/attribution/properties/runtime/properties/agentId"
-                  },
-                  "revision": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "maximum": 9007199254740991
-                  },
-                  "revisionDigest": {
-                    "$ref": "#/properties/attribution/properties/runtime/properties/surfaceBindingDigest"
-                  },
-                  "ruleId": {
-                    "$ref": "#/properties/attribution/properties/runtime/properties/agentId"
-                  },
-                  "riskPolicyDigest": {
-                    "anyOf": [
-                      {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "authorityNamespace": {
+                        "type": "string",
+                        "const": "grant-rule-v1"
+                      },
+                      "id": {
+                        "$ref": "#/properties/attribution/properties/runtime/properties/agentId"
+                      },
+                      "revision": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "revisionDigest": {
                         "$ref": "#/properties/attribution/properties/runtime/properties/surfaceBindingDigest"
                       },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "validFrom": {
-                    "type": "string",
-                    "format": "date-time"
-                  },
-                  "expiresAt": {
-                    "anyOf": [
-                      {
-                        "$ref": "#/properties/attribution/properties/grant/properties/validFrom"
+                      "ruleId": {
+                        "$ref": "#/properties/attribution/properties/runtime/properties/agentId"
                       },
-                      {
-                        "type": "null"
+                      "riskPolicyDigest": {
+                        "anyOf": [
+                          {
+                            "$ref": "#/properties/attribution/properties/runtime/properties/surfaceBindingDigest"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "validFrom": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "expiresAt": {
+                        "anyOf": [
+                          {
+                            "$ref": "#/properties/attribution/properties/grant/anyOf/0/properties/validFrom"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
                       }
-                    ]
+                    },
+                    "required": [
+                      "id",
+                      "revision",
+                      "revisionDigest",
+                      "ruleId",
+                      "riskPolicyDigest",
+                      "validFrom",
+                      "expiresAt"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "authorityNamespace": {
+                        "type": "string",
+                        "const": "stock-category-v2"
+                      },
+                      "categoryRuleId": {
+                        "$ref": "#/properties/attribution/properties/runtime/properties/agentId"
+                      },
+                      "categoryRuleDigest": {
+                        "$ref": "#/properties/attribution/properties/runtime/properties/surfaceBindingDigest"
+                      },
+                      "grantBindingId": {
+                        "$ref": "#/properties/attribution/properties/runtime/properties/agentId"
+                      },
+                      "apiRuntimeAdmissionDigest": {
+                        "$ref": "#/properties/attribution/properties/grant/anyOf/1/properties/categoryRuleDigest"
+                      },
+                      "attestorVerifierTrustSetDigest": {
+                        "$ref": "#/properties/attribution/properties/grant/anyOf/1/properties/categoryRuleDigest"
+                      },
+                      "graphConfigAccount": {
+                        "$ref": "#/properties/attribution/properties/wallet/properties/vaultPda"
+                      },
+                      "graphConfigAccountDataSha256": {
+                        "$ref": "#/properties/attribution/properties/grant/anyOf/1/properties/categoryRuleDigest"
+                      },
+                      "id": {
+                        "$ref": "#/properties/attribution/properties/runtime/properties/agentId"
+                      },
+                      "revision": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "revisionDigest": {
+                        "$ref": "#/properties/attribution/properties/runtime/properties/surfaceBindingDigest"
+                      },
+                      "riskPolicyDigest": {
+                        "$ref": "#/properties/attribution/properties/runtime/properties/surfaceBindingDigest"
+                      },
+                      "validFrom": {
+                        "$ref": "#/properties/attribution/properties/grant/anyOf/0/properties/validFrom"
+                      },
+                      "expiresAt": {
+                        "anyOf": [
+                          {
+                            "$ref": "#/properties/attribution/properties/grant/anyOf/0/properties/validFrom"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "authorityNamespace",
+                      "categoryRuleId",
+                      "categoryRuleDigest",
+                      "grantBindingId",
+                      "apiRuntimeAdmissionDigest",
+                      "attestorVerifierTrustSetDigest",
+                      "graphConfigAccount",
+                      "graphConfigAccountDataSha256",
+                      "id",
+                      "revision",
+                      "revisionDigest",
+                      "validFrom",
+                      "expiresAt"
+                    ],
+                    "additionalProperties": false
                   }
-                },
-                "required": [
-                  "id",
-                  "revision",
-                  "revisionDigest",
-                  "ruleId",
-                  "riskPolicyDigest",
-                  "validFrom",
-                  "expiresAt"
-                ],
-                "additionalProperties": false
+                ]
               }
             },
             "required": [
@@ -5292,7 +5373,7 @@
             ]
           },
           "effectiveExpiresAt": {
-            "$ref": "#/properties/attribution/properties/grant/properties/validFrom"
+            "$ref": "#/properties/attribution/properties/grant/anyOf/0/properties/validFrom"
           },
           "riskEvidenceDigest": {
             "$ref": "#/properties/attribution/properties/runtime/properties/surfaceBindingDigest"
@@ -5308,13 +5389,13 @@
                 "const": "dexter-delegated-stock-prepare-runtime-binding/v2"
               },
               "runtimeReleaseDigest": {
-                "$ref": "#/properties/attribution/properties/runtime/properties/surfaceBindingDigest"
+                "$ref": "#/properties/attribution/properties/grant/anyOf/1/properties/categoryRuleDigest"
               },
               "requestClaimDigest": {
-                "$ref": "#/properties/stockRuntime/properties/runtimeReleaseDigest"
+                "$ref": "#/properties/attribution/properties/grant/anyOf/1/properties/categoryRuleDigest"
               },
               "durableIdentityDigest": {
-                "$ref": "#/properties/stockRuntime/properties/runtimeReleaseDigest"
+                "$ref": "#/properties/attribution/properties/grant/anyOf/1/properties/categoryRuleDigest"
               }
             },
             "required": [
@@ -6276,57 +6357,138 @@
                 "additionalProperties": false
               },
               "grant": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "$ref": "#/properties/intentId"
-                  },
-                  "revision": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "maximum": 9007199254740991
-                  },
-                  "revisionDigest": {
-                    "$ref": "#/properties/attribution/properties/runtime/properties/surfaceBindingDigest"
-                  },
-                  "ruleId": {
-                    "$ref": "#/properties/intentId"
-                  },
-                  "riskPolicyDigest": {
-                    "anyOf": [
-                      {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "authorityNamespace": {
+                        "type": "string",
+                        "const": "grant-rule-v1"
+                      },
+                      "id": {
+                        "$ref": "#/properties/intentId"
+                      },
+                      "revision": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "revisionDigest": {
                         "$ref": "#/properties/attribution/properties/runtime/properties/surfaceBindingDigest"
                       },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "validFrom": {
-                    "type": "string",
-                    "format": "date-time"
-                  },
-                  "expiresAt": {
-                    "anyOf": [
-                      {
-                        "$ref": "#/properties/attribution/properties/grant/properties/validFrom"
+                      "ruleId": {
+                        "$ref": "#/properties/intentId"
                       },
-                      {
-                        "type": "null"
+                      "riskPolicyDigest": {
+                        "anyOf": [
+                          {
+                            "$ref": "#/properties/attribution/properties/runtime/properties/surfaceBindingDigest"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "validFrom": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "expiresAt": {
+                        "anyOf": [
+                          {
+                            "$ref": "#/properties/attribution/properties/grant/anyOf/0/properties/validFrom"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
                       }
-                    ]
+                    },
+                    "required": [
+                      "id",
+                      "revision",
+                      "revisionDigest",
+                      "ruleId",
+                      "riskPolicyDigest",
+                      "validFrom",
+                      "expiresAt"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "authorityNamespace": {
+                        "type": "string",
+                        "const": "stock-category-v2"
+                      },
+                      "categoryRuleId": {
+                        "$ref": "#/properties/intentId"
+                      },
+                      "categoryRuleDigest": {
+                        "$ref": "#/properties/attribution/properties/runtime/properties/surfaceBindingDigest"
+                      },
+                      "grantBindingId": {
+                        "$ref": "#/properties/intentId"
+                      },
+                      "apiRuntimeAdmissionDigest": {
+                        "$ref": "#/properties/attribution/properties/grant/anyOf/1/properties/categoryRuleDigest"
+                      },
+                      "attestorVerifierTrustSetDigest": {
+                        "$ref": "#/properties/attribution/properties/grant/anyOf/1/properties/categoryRuleDigest"
+                      },
+                      "graphConfigAccount": {
+                        "$ref": "#/properties/attribution/properties/wallet/properties/vaultPda"
+                      },
+                      "graphConfigAccountDataSha256": {
+                        "$ref": "#/properties/attribution/properties/grant/anyOf/1/properties/categoryRuleDigest"
+                      },
+                      "id": {
+                        "$ref": "#/properties/intentId"
+                      },
+                      "revision": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "revisionDigest": {
+                        "$ref": "#/properties/attribution/properties/runtime/properties/surfaceBindingDigest"
+                      },
+                      "riskPolicyDigest": {
+                        "$ref": "#/properties/attribution/properties/runtime/properties/surfaceBindingDigest"
+                      },
+                      "validFrom": {
+                        "$ref": "#/properties/attribution/properties/grant/anyOf/0/properties/validFrom"
+                      },
+                      "expiresAt": {
+                        "anyOf": [
+                          {
+                            "$ref": "#/properties/attribution/properties/grant/anyOf/0/properties/validFrom"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "authorityNamespace",
+                      "categoryRuleId",
+                      "categoryRuleDigest",
+                      "grantBindingId",
+                      "apiRuntimeAdmissionDigest",
+                      "attestorVerifierTrustSetDigest",
+                      "graphConfigAccount",
+                      "graphConfigAccountDataSha256",
+                      "id",
+                      "revision",
+                      "revisionDigest",
+                      "validFrom",
+                      "expiresAt"
+                    ],
+                    "additionalProperties": false
                   }
-                },
-                "required": [
-                  "id",
-                  "revision",
-                  "revisionDigest",
-                  "ruleId",
-                  "riskPolicyDigest",
-                  "validFrom",
-                  "expiresAt"
-                ],
-                "additionalProperties": false
+                ]
               }
             },
             "required": [
@@ -7638,6 +7800,81 @@
               }
             ]
           },
+          "authorityIdentity": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "authorityNamespace": {
+                    "type": "string",
+                    "const": "stock-category-v2"
+                  },
+                  "categoryRuleId": {
+                    "$ref": "#/properties/intentId"
+                  },
+                  "categoryRuleDigest": {
+                    "$ref": "#/properties/stockV2Identity/properties/runtimeReleaseDigest"
+                  },
+                  "grantBindingId": {
+                    "$ref": "#/properties/intentId"
+                  },
+                  "apiRuntimeAdmissionDigest": {
+                    "$ref": "#/properties/stockV2Identity/properties/runtimeReleaseDigest"
+                  },
+                  "attestorVerifierTrustSetDigest": {
+                    "$ref": "#/properties/stockV2Identity/properties/runtimeReleaseDigest"
+                  },
+                  "graphConfigAccount": {
+                    "$ref": "#/properties/assetMint/anyOf/1"
+                  },
+                  "graphConfigAccountDataSha256": {
+                    "$ref": "#/properties/stockV2Identity/properties/runtimeReleaseDigest"
+                  }
+                },
+                "required": [
+                  "authorityNamespace",
+                  "categoryRuleId",
+                  "categoryRuleDigest",
+                  "grantBindingId",
+                  "apiRuntimeAdmissionDigest",
+                  "attestorVerifierTrustSetDigest",
+                  "graphConfigAccount",
+                  "graphConfigAccountDataSha256"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "authorityNamespace": {
+                    "type": "string",
+                    "const": "grant-rule-v1"
+                  },
+                  "grantRuleId": {
+                    "$ref": "#/properties/intentId"
+                  }
+                },
+                "required": [
+                  "authorityNamespace",
+                  "grantRuleId"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "authorityNamespace": {
+                    "type": "string",
+                    "const": "owner"
+                  }
+                },
+                "required": [
+                  "authorityNamespace"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
           "policyDecision": {
             "type": "string",
             "enum": [
@@ -8848,6 +9085,81 @@
                   }
                 ]
               },
+              "authorityIdentity": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "authorityNamespace": {
+                        "type": "string",
+                        "const": "stock-category-v2"
+                      },
+                      "categoryRuleId": {
+                        "$ref": "#/properties/intentId"
+                      },
+                      "categoryRuleDigest": {
+                        "$ref": "#/properties/statusAfter/properties/stockV2Identity/properties/runtimeReleaseDigest"
+                      },
+                      "grantBindingId": {
+                        "$ref": "#/properties/intentId"
+                      },
+                      "apiRuntimeAdmissionDigest": {
+                        "$ref": "#/properties/statusAfter/properties/stockV2Identity/properties/runtimeReleaseDigest"
+                      },
+                      "attestorVerifierTrustSetDigest": {
+                        "$ref": "#/properties/statusAfter/properties/stockV2Identity/properties/runtimeReleaseDigest"
+                      },
+                      "graphConfigAccount": {
+                        "$ref": "#/properties/statusAfter/properties/assetMint/anyOf/1"
+                      },
+                      "graphConfigAccountDataSha256": {
+                        "$ref": "#/properties/statusAfter/properties/stockV2Identity/properties/runtimeReleaseDigest"
+                      }
+                    },
+                    "required": [
+                      "authorityNamespace",
+                      "categoryRuleId",
+                      "categoryRuleDigest",
+                      "grantBindingId",
+                      "apiRuntimeAdmissionDigest",
+                      "attestorVerifierTrustSetDigest",
+                      "graphConfigAccount",
+                      "graphConfigAccountDataSha256"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "authorityNamespace": {
+                        "type": "string",
+                        "const": "grant-rule-v1"
+                      },
+                      "grantRuleId": {
+                        "$ref": "#/properties/intentId"
+                      }
+                    },
+                    "required": [
+                      "authorityNamespace",
+                      "grantRuleId"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "authorityNamespace": {
+                        "type": "string",
+                        "const": "owner"
+                      }
+                    },
+                    "required": [
+                      "authorityNamespace"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
               "policyDecision": {
                 "type": "string",
                 "enum": [
@@ -10009,6 +10321,81 @@
                     },
                     {
                       "type": "null"
+                    }
+                  ]
+                },
+                "authorityIdentity": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "authorityNamespace": {
+                          "type": "string",
+                          "const": "stock-category-v2"
+                        },
+                        "categoryRuleId": {
+                          "$ref": "#/properties/items/items/properties/intentId"
+                        },
+                        "categoryRuleDigest": {
+                          "$ref": "#/properties/items/items/properties/stockV2Identity/properties/runtimeReleaseDigest"
+                        },
+                        "grantBindingId": {
+                          "$ref": "#/properties/items/items/properties/intentId"
+                        },
+                        "apiRuntimeAdmissionDigest": {
+                          "$ref": "#/properties/items/items/properties/stockV2Identity/properties/runtimeReleaseDigest"
+                        },
+                        "attestorVerifierTrustSetDigest": {
+                          "$ref": "#/properties/items/items/properties/stockV2Identity/properties/runtimeReleaseDigest"
+                        },
+                        "graphConfigAccount": {
+                          "$ref": "#/properties/items/items/properties/assetMint/anyOf/1"
+                        },
+                        "graphConfigAccountDataSha256": {
+                          "$ref": "#/properties/items/items/properties/stockV2Identity/properties/runtimeReleaseDigest"
+                        }
+                      },
+                      "required": [
+                        "authorityNamespace",
+                        "categoryRuleId",
+                        "categoryRuleDigest",
+                        "grantBindingId",
+                        "apiRuntimeAdmissionDigest",
+                        "attestorVerifierTrustSetDigest",
+                        "graphConfigAccount",
+                        "graphConfigAccountDataSha256"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "authorityNamespace": {
+                          "type": "string",
+                          "const": "grant-rule-v1"
+                        },
+                        "grantRuleId": {
+                          "$ref": "#/properties/items/items/properties/intentId"
+                        }
+                      },
+                      "required": [
+                        "authorityNamespace",
+                        "grantRuleId"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "authorityNamespace": {
+                          "type": "string",
+                          "const": "owner"
+                        }
+                      },
+                      "required": [
+                        "authorityNamespace"
+                      ],
+                      "additionalProperties": false
                     }
                   ]
                 },

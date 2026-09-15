@@ -107,6 +107,11 @@ const API_GOVERNED_CONTRACT_PATHS = Object.freeze([
 const EXPECTED_SOURCE_CONTRACTS = Object.freeze({
   apiCommit: 'fa0701b67625911b8ec97a5399f62ec97a69f976',
   apiTree: 'dcee95df1d92018b8fcd8b43645fe63211383274',
+  // The historical consumer fixture remains pinned above. The stock release
+  // has its own reviewed governed implementation, which later API releases
+  // must preserve byte-for-byte over API_GOVERNED_CONTRACT_PATHS.
+  integratedGovernedCommit: '9519880d22672c77bed3fbe4ba880f6f15bd4813',
+  integratedGovernedTree: '312573a99d9a2890c78746d388dd565d1eeca088',
   apiFixtureSha256:
     'ad06690a3914e0ef0f359c4164eb62f78ca54abe6697a52672d739df63c2c352',
   apiCanonicalBodyDigest:
@@ -213,8 +218,10 @@ export function hasExactOpenDexterSourceContractsShape(
       === acceptedApi.sourceCommit
     && integratedApiRelease.tree
       === acceptedApi.sourceTree
-    && integratedApiRelease.governedContractCommit === api.commit
-    && integratedApiRelease.governedContractTree === api.tree
+    && integratedApiRelease.governedContractCommit
+      === EXPECTED_SOURCE_CONTRACTS.integratedGovernedCommit
+    && integratedApiRelease.governedContractTree
+      === EXPECTED_SOURCE_CONTRACTS.integratedGovernedTree
     && portfolioProjection.repository === API_REPOSITORY
     && portfolioProjection.commit === integratedApiRelease.commit
     && portfolioProjection.tree === integratedApiRelease.tree
@@ -1063,14 +1070,27 @@ export async function verifyOpenDexterCrossRepositorySourceContracts({
     }),
   ]);
 
+  const governedCommit = contracts.integratedApiRelease.governedContractCommit;
+  const governedTree = await gitText({
+    root: explicitApiRoot,
+    args: ['rev-parse', `${governedCommit}^{tree}`],
+    runCommand,
+    environment: cleanGitEnvironment,
+  });
+  if (governedTree.trim() !== contracts.integratedApiRelease.governedContractTree) {
+    throw new Error('OpenDexter reviewed governed contract commit/tree identity mismatch');
+  }
   try {
-    await runCommand('git', [
-      '--no-replace-objects',
-      '-C', explicitApiRoot,
-      'merge-base', '--is-ancestor',
-      contracts.api.commit,
-      contracts.integratedApiRelease.commit,
-    ], { encoding: 'utf8', env: cleanGitEnvironment });
+    for (const [ancestor, descendant] of [
+      [contracts.api.commit, governedCommit],
+      [governedCommit, contracts.integratedApiRelease.commit],
+    ]) {
+      await runCommand('git', [
+        '--no-replace-objects',
+        '-C', explicitApiRoot,
+        'merge-base', '--is-ancestor', ancestor, descendant,
+      ], { encoding: 'utf8', env: cleanGitEnvironment });
+    }
   } catch (error) {
     throw new Error(
       'OpenDexter integrated API release does not descend from its governed contract',
@@ -1082,7 +1102,7 @@ export async function verifyOpenDexterCrossRepositorySourceContracts({
     root: explicitApiRoot,
     args: [
       'diff', '--no-ext-diff', '--no-textconv', '--name-only',
-      contracts.api.commit,
+      governedCommit,
       contracts.integratedApiRelease.commit,
       '--',
       ...API_GOVERNED_CONTRACT_PATHS,
@@ -1178,7 +1198,7 @@ export async function verifyOpenDexterCrossRepositorySourceContracts({
   return Object.freeze({
     api: Object.freeze({
       repository: contracts.api.repository,
-      governedContractCommit: contracts.api.commit,
+      governedContractCommit: governedCommit,
       integratedReleaseCommit: contracts.integratedApiRelease.commit,
     }),
     portfolioProjection: Object.freeze({

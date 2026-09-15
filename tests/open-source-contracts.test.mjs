@@ -234,6 +234,8 @@ function createCrossRepositoryHarness(t, options = {}) {
       return response('', commandOptions);
     }
     if (gitArgs[0] === 'diff') {
+      assert.equal(gitArgs[4], contracts.integratedApiRelease.governedContractCommit);
+      assert.equal(gitArgs[5], contracts.integratedApiRelease.commit);
       return response(
         options.governedDrift
           ? 'src/routes/governedDelegatedAssetActions.ts\n'
@@ -354,6 +356,13 @@ test('sourceContracts/v3 has one exact immutable shape and exact local fixtures'
     () => verifyExactOpenDexterSourceContractsShape(wrongTree),
     /manifest is invalid/,
   );
+  const oldGovernedBaseline = structuredClone(sourceContracts);
+  oldGovernedBaseline.integratedApiRelease.governedContractCommit = sourceContracts.api.commit;
+  oldGovernedBaseline.integratedApiRelease.governedContractTree = sourceContracts.api.tree;
+  assert.equal(hasExactOpenDexterSourceContractsShape(oldGovernedBaseline), false);
+  const arbitraryGovernedBaseline = structuredClone(sourceContracts);
+  arbitraryGovernedBaseline.integratedApiRelease.governedContractCommit = '1'.repeat(40);
+  assert.equal(hasExactOpenDexterSourceContractsShape(arbitraryGovernedBaseline), false);
 });
 
 test('private source receipts bind exact repository refs and descriptor source', () => {
@@ -790,7 +799,7 @@ test('cross-repository source verifier accepts only the exact frozen graph', asy
   assert.deepEqual(await verifyHarness(harness), {
     api: {
       repository: 'https://github.com/Dexter-DAO/dexter-api',
-      governedContractCommit: harness.contracts.api.commit,
+      governedContractCommit: harness.contracts.integratedApiRelease.governedContractCommit,
       integratedReleaseCommit: harness.contracts.integratedApiRelease.commit,
     },
     portfolioProjection: {
