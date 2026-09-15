@@ -62,7 +62,7 @@ function fixtureFor(kind, authority) {
   return fixture;
 }
 
-async function dispatch(t, operation, input, body, { bypassBackendValidation = false } = {}) {
+async function dispatch(t, operation, input, body, { bypassBackendValidation = false, httpStatus } = {}) {
   const name = GOVERNED_ASSET_TOOL_NAMES[operation];
   const server = new McpServer({ name: 'governed-success-regression', version: '1.0.0' });
   installOpenToolContracts(server);
@@ -74,7 +74,7 @@ async function dispatch(t, operation, input, body, { bypassBackendValidation = f
       : normalizeGovernedAssetResult({
           operation,
           input: args,
-          httpStatus: operation === 'reconcile' && body.outcome === 'pending' ? 202 : 200,
+          httpStatus: httpStatus ?? (operation === 'reconcile' && body.outcome === 'pending' ? 202 : 200),
           body,
         });
     return buildGovernedAssetToolResult(result);
@@ -146,3 +146,72 @@ test('real SDK rejects invalid Prepare input before calling the backend', async 
   assert.equal(result.isError, true);
   assert.doesNotMatch(JSON.stringify(result.content), /_zod/);
 });
+
+const BACKPACK_POLICY_DIGEST = 'cfc50c0ac6c17db0dd8b8d471055a0d9dc8691c23d01b4e380aed1beb7be4a47';
+const APPROVAL_REQUEST_ID = `vspr_${'a'.repeat(36)}`;
+const APPROVAL_URL = `https://dexter.cash/tabs/setup?request_id=${APPROVAL_REQUEST_ID}`;
+
+function eligibilityRefusal(approvalUrl) {
+  const fixture = fixtureFor('amount', 'category');
+  fixture.input.companyQuery = 'SpaceX';
+  const code = 'stock_principal_eligibility_required';
+  return {
+    input: fixture.input,
+    body: {
+      namespace: 'dexter-governed-agent-action/v1', status: 'refused', executed: false,
+      requestId: OPERATION_ID, attribution: null,
+      business: { ...fixture.prepared.business, assetId: null, requestedCompanyQuery: 'SpaceX',
+        lifecycle: 'not-created', settlement: 'not-submitted', finality: 'not-final', executionSucceeded: null,
+        refusalOrEscalationReasons: [code] },
+      code, explanation: 'Eligibility acknowledgment required.', retryable: false,
+      permissionRequest: { namespace: 'dexter-stock-permission-request/v1', family: 'stocks',
+        requestId: APPROVAL_REQUEST_ID, approvalUrl, expiresAt: '2026-09-15T04:30:00.000Z' },
+    },
+  };
+}
+
+for (const [name, url] of [
+  ['original default policy', APPROVAL_URL],
+  ['exact Backpack policy', `${APPROVAL_URL}&policy_digest=${BACKPACK_POLICY_DIGEST}`],
+]) {
+  test('real SDK preserves an eligibility refusal with ' + name, async (t) => {
+    const { input, body } = eligibilityRefusal(url);
+    const { result, calls } = await dispatch(t, 'prepare', input, body, { httpStatus: 422 });
+    assert.equal(calls, 1);
+    assert.equal(result.isError, true);
+    assert.equal(result.structuredContent, undefined);
+    const publicBody = JSON.parse(result.content[0].text);
+    assert.deepEqual(publicBody, body);
+    assert.deepEqual(result._meta['dexter/governedWidgetResult'], body);
+    assert.equal(publicBody.permissionRequest.approvalUrl, url);
+    assert.match(result.content[0].text, /https:\/\/dexter.cash\/tabs\/setup/);
+    assert.equal(Object.hasOwn(publicBody, 'eligibilityPolicyDigest'), false);
+  });
+}
+
+for (const [name, url] of [
+  ['zero policy', `${APPROVAL_URL}&policy_digest=${'0'.repeat(64)}`],
+  ['short policy', `${APPROVAL_URL}&policy_digest=abc`],
+  ['uppercase policy', `${APPROVAL_URL}&policy_digest=${BACKPACK_POLICY_DIGEST.toUpperCase()}`],
+  ['empty policy', `${APPROVAL_URL}&policy_digest=`],
+  ['duplicate policy', `${APPROVAL_URL}&policy_digest=${BACKPACK_POLICY_DIGEST}&policy_digest=${BACKPACK_POLICY_DIGEST}`],
+  ['duplicate request', `${APPROVAL_URL}&request_id=${APPROVAL_REQUEST_ID}`],
+  ['unknown query key', `${APPROVAL_URL}&policy_digest=${BACKPACK_POLICY_DIGEST}&extra=1`],
+  ['encoded policy key', `${APPROVAL_URL}&%70olicy_digest=${BACKPACK_POLICY_DIGEST}`],
+  ['different request', APPROVAL_URL.replace(APPROVAL_REQUEST_ID, `vspr_${'b'.repeat(36)}`)],
+  ['different origin', APPROVAL_URL.replace('dexter.cash', 'evil.example')],
+  ['different path', APPROVAL_URL.replace('/tabs/setup', '/tabs/other')],
+  ['URL credentials', APPROVAL_URL.replace('https://', 'https://user@')],
+  ['fragment', `${APPROVAL_URL}#policy`],
+]) {
+  test('real SDK refuses an approval link with ' + name, async (t) => {
+    const { input, body } = eligibilityRefusal(url);
+    const { result, calls } = await dispatch(t, 'prepare', input, body, { httpStatus: 422 });
+    assert.equal(calls, 1);
+    assert.equal(result.isError, true);
+    assert.equal(result.structuredContent, undefined);
+    const publicBody = JSON.parse(result.content[0].text);
+    assert.equal(publicBody.code, 'governed_backend_response_invalid');
+    assert.equal(Object.hasOwn(publicBody, 'permissionRequest'), false);
+  });
+}
