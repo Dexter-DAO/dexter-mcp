@@ -78,6 +78,12 @@ const ROLLOUT_RESOURCES = ROLLOUT_RESOURCE_GROUPS.flatMap(({ uris, ...resource }
 
 const ROLLOUT_URIS = ROLLOUT_RESOURCES.map(({ uri }) => uri);
 
+test('activity rollout retains the immediately preceding production resource addresses', () => {
+  assert.ok(OPENDEXTER_ROLLOUT_WIDGET_URIS.wallet.includes('ui://dexter/dexter-wallet-ed4ae6f7'));
+  assert.ok(OPENDEXTER_ROLLOUT_WIDGET_URIS.fetch.includes('ui://dexter/x402-fetch-result-2873cba3'));
+  assert.ok(OPENDEXTER_ROLLOUT_WIDGET_URIS.pricing.includes('ui://dexter/x402-pricing-13216f3e'));
+});
+
 test('wallet resource metadata describes the current Dexter Wallet view', async (t) => {
   const originalEnvironment = {
     TOKEN_AI_APPS_SDK_ASSET_BASE: process.env.TOKEN_AI_APPS_SDK_ASSET_BASE,
