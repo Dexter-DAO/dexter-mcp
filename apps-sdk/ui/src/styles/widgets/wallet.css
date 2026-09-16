@@ -675,13 +675,43 @@ button.dxw-comp,
 
 /* Activity retains full service names and atomic amounts on narrow hosts. */
 .dxw-activity-entry { border-bottom: 1px solid var(--hair); }
-.dxw-act-row { width: 100%; border: 0; background: none; text-align: left; cursor: pointer; }
+.dxw-act-row { width: 100%; min-height: 84px; display: grid; grid-template-columns: minmax(0, 1fr) auto 24px; gap: 18px; border: 0; background: none; text-align: left; }
+.dxw-activity-identity { min-width: 0; display: flex; align-items: center; gap: 13px; padding-block: 10px; }
+.dxw-activity-mark { display: grid; flex: none; place-items: center; width: 38px; height: 38px; border-radius: 50%; overflow: hidden; background: var(--page); font-size: 12px; font-weight: 600; }
+.dxw-activity-mark img { width: 100%; height: 100%; object-fit: contain; }
 .dxw-act-copy { display: block; flex: 1; min-width: 0; }
 .dxw-act-main, .dxw-act-sub { display: block; white-space: normal; overflow-wrap: anywhere; }
-.dxw-act-amt { max-width: 42%; overflow-wrap: anywhere; text-align: right; }
-.dxw-activity-details { padding: 4px 0 14px; color: var(--ink-2); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.dxw-act-main { font-size: 14px; line-height: 1.4; font-weight: 520; }
+.dxw-act-sub { line-height: 1.4; }
+.dxw-activity-value { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; max-width: 230px; }
+.dxw-act-amt { max-width: 100%; overflow-wrap: anywhere; text-align: right; font-size: 14px; font-variant-numeric: tabular-nums; }
+.dxw-activity-value time { display: block; color: var(--ink-2); font-size: 11px; line-height: 1.4; text-align: right; }
+.dxw-activity-value:hover .dxw-act-amt, .dxw-activity-identity:hover .dxw-act-main { text-decoration: underline; text-underline-offset: 3px; }
+.dxw-activity-expand { display: grid; place-items: center; width: 24px; height: 44px; color: var(--ink-2); }
+.dxw-activity-expand[aria-expanded="true"] svg { transform: rotate(90deg); }
+.dxw-activity-details { padding: 2px 42px 18px 51px; color: var(--ink-2); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
 .dxw-activity-details p { margin: 5px 0; }
+.dxw-activity-details dl { margin: 10px 0 0; }
+.dxw-activity-details dl > div { display: flex; justify-content: space-between; gap: 20px; padding-block: 3px; }
+.dxw-activity-details dt { color: var(--ink-2); }
+.dxw-activity-details dd { margin: 0; color: var(--ink); text-align: right; }
 .dxw-activity-links { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; }
 .dxw-activity-links button, .dxw-activity-refresh { border: 0; background: none; color: var(--ink); text-decoration: underline; cursor: pointer; padding: 6px 0; font: inherit; font-size: 12px; }
 .dxw-activity-refresh:disabled { opacity: .5; cursor: wait; }
 .dxw-activity-notice { color: var(--ink-2); font-size: 12px; line-height: 1.5; }
+.dxw-sheet-tools { position: absolute; top: -10px; right: -8px; display: flex; gap: 2px; }
+.dxw-sheet-tools .dxw-sheet-close { position: static; }
+.dxw-activity-refresh-icon { display: grid; place-items: center; width: 44px; height: 44px; color: var(--ink-2); border-radius: 50%; }
+.dxw-activity-refresh-icon:hover { color: var(--ink); background: var(--page); }
+.dxw-activity-refresh-icon:disabled { opacity: .5; cursor: wait; }
+@media (max-width: 480px) {
+  .dxw-act-row { grid-template-columns: minmax(0, 1fr) 114px 16px; gap: 8px; min-height: 92px; }
+  .dxw-activity-identity { gap: 9px; }
+  .dxw-activity-mark { width: 30px; height: 30px; }
+  .dxw-act-main { font-size: 13px; }
+  .dxw-act-sub { font-size: 11px; }
+  .dxw-act-amt { font-size: 12px; }
+  .dxw-activity-value time { font-size: 10px; }
+  .dxw-activity-expand { width: 16px; }
+  .dxw-activity-details { padding-inline: 0; }
+}

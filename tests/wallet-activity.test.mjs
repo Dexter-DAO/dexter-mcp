@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createHmac } from 'node:crypto';
 import { fetchSessionActivity, signedSessionActivityHeaders } from '../lib/session-activity.mjs';
-import { formatActivityAmount, normalizeActivityPage, activityLinkAllowed } from '../apps-sdk/ui/src/components/wallet/activityModel.ts';
+import { formatActivityAmount, normalizeActivityPage, activityLinkAllowed, activityServiceUrl, activitySubtitle } from '../apps-sdk/ui/src/components/wallet/activityModel.ts';
 import { walletOutput, WALLET_ADDRESS } from './fixtures/wallet-portfolio-fixtures.mjs';
 
 const secret = 'test-only-long-purpose-separated-secret';
@@ -50,6 +50,36 @@ test('exact atomic amounts preserve subcent payments, token quantities and integ
   assert.equal(formatActivityAmount({ ...amount, atomic: '9007199254740993', decimals: 0 }), '9,007,199,254,740,993 USDC');
   assert.equal(formatActivityAmount({ ...amount, atomic: '4426', decimals: 6, symbol: 'SPCX' }), '0.004426 SPCX');
   assert.equal(formatActivityAmount(null), 'Amount unavailable');
+  assert.equal(formatActivityAmount({ ...amount, atomic: '34815', symbol: 'SPCX', displayAmount: '0.06963' }), '0.06963 SPCX');
+  assert.equal(formatActivityAmount({ ...amount, displayAmount: '-9007199254740993.000001' }), '−9,007,199,254,740,993.000001 USDC');
+});
+
+test('canonical service metadata and transaction display quantities survive validation', () => {
+  const input = page();
+  input.items[0].service.publicUrl = 'https://indexter.cash/services/r-fixture';
+  input.items[0].service.description = 'Market analysis for the requested symbol.';
+  input.items[0].amount.displayAmount = '-0.002';
+  const normalized = normalizeActivityPage(input, WALLET_ADDRESS);
+  assert.equal(normalized.items[0].service.description, input.items[0].service.description);
+  assert.equal(normalized.items[0].amount.displayAmount, '-0.002');
+  input.items[0].amount.displayAmount = '1e-6';
+  assert.equal(normalizeActivityPage(input, WALLET_ADDRESS), null);
+});
+
+test('service identity opens its Indexter page and never a paid endpoint', () => {
+  const item = page().items[0];
+  assert.equal(activityServiceUrl(item), null);
+  for (const publicUrl of ['https://syraa.fun/paid', 'https://indexter.cash.evil.test/services/r-fixture', 'https://indexter.cash/providers/syraa']) {
+    assert.equal(activityServiceUrl({ ...item, service: { ...item.service, publicUrl } }), null);
+  }
+  assert.equal(activityServiceUrl({ ...item, service: { ...item.service, publicUrl: 'https://indexter.cash/services/r-fixture' } }), 'https://indexter.cash/services/r-fixture');
+});
+
+test('subtitles keep useful exceptions and omit routine finality and internal actor addresses', () => {
+  const item = page().items[0];
+  assert.equal(activitySubtitle(item), 'Market research · Research agent');
+  assert.equal(activitySubtitle({ ...item, status: 'refused', actor: { ...item.actor, name: '127.0.0.1' } }), 'Market research · Agent · Declined');
+  assert.equal(activitySubtitle({ ...item, actor: { ...item.actor, name: 'grokbot://mcp' } }), 'Market research · Agent');
 });
 
 test('all unified event kinds survive and unsafe receipt links cannot navigate', () => {
