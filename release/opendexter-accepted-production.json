@@ -4,12 +4,12 @@
   "api": {
     "endpoint": "https://api.dexter.cash/health",
     "repository": "https://github.com/Dexter-DAO/dexter-api",
-    "releaseId": "f205267b29df-65d21dbdee98375c-5ccca7432ee9",
-    "sourceCommit": "f205267b29df8423fb2f909a21bdd5332b53919b",
-    "sourceTree": "8ccd3dd209a7f79c6a3a067c31a2901375a6858d",
-    "toolingCommit": "f205267b29df8423fb2f909a21bdd5332b53919b",
-    "artifactSha256": "65d21dbdee98375c69c4ebff647a0d85b7bee72a0c1764192b2eacda398bb25e",
-    "metadataBindingSha256": "c2135348a13efb62438a4ebbefc3cbd0b0d1693f5a0e12a7b979a342228fa431"
+    "releaseId": "3f011d70560e-e646d27064b51a20-5ccca7432ee9",
+    "sourceCommit": "3f011d70560e29b002cd72447a053196023edf10",
+    "sourceTree": "e921521d42c8767bff8a5b4c15cc405be7a3b3f5",
+    "toolingCommit": "3f011d70560e29b002cd72447a053196023edf10",
+    "artifactSha256": "e646d27064b51a20279e5bcb5b2aca3084eeef577bbe93c6bf6a5929a2a788d9",
+    "metadataBindingSha256": "2fefccf2101450cbfff4ef19b276048c55231fcf0e276acf3aa72ae24547342b"
   },
   "facilitator": {
     "endpoint": "https://x402.dexter.cash/version",
