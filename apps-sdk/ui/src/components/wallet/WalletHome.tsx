@@ -8,7 +8,7 @@ import { ActivitySheet } from './ActivitySheet';
 import { CreditSheet } from './CreditSheet';
 import { AssetsSheet } from './AssetsSheet';
 import { relativeTime } from './format';
-import { activitySubtitle, formatActivityAmount, normalizeActivityPage } from './activityModel';
+import { activitySubtitle, activityTitle, formatActivityAmount, normalizeActivityPage } from './activityModel';
 import { ActivityIcon, AssetsIcon, Chevron, CreditMark, DepositIcon, WorldMark } from './icons';
 // Widget-frame-only refresh rail (auth = _meta.dexterWalletToken).
 const WALLET_RAIL = 'https://open.dexter.cash/widget/wallet';
@@ -325,7 +325,7 @@ export function WalletHome({
           type="button"
         >
           <span className="dxw-tx-copy">
-            <span className="dxw-tx-main">{latest.title}</span>
+            <span className="dxw-tx-main">{activityTitle(latest)}</span>
             <span className="dxw-tx-sub">{relativeTime(latest.occurredAt)} · {activitySubtitle(latest)}</span>
           </span>
           <span

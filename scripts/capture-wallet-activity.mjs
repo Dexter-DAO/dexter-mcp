@@ -12,7 +12,7 @@ const status = JSON.parse(await fs.readFile(process.argv[3], 'utf8'));
 const portfolio = JSON.parse(await fs.readFile(process.argv[4], 'utf8')).portfolio;
 if (!Array.isArray(pages) || !pages[0]?.items) throw new Error('Expected V4 pages.');
 if (status.vault?.receiveAddress !== pages[0].walletAddress || portfolio?.walletAddress !== pages[0].walletAddress) throw new Error('Capture inputs must belong to the same receive wallet.');
-const out = path.join(root, 'output/playwright');
+const out = process.argv[5] ? path.resolve(process.argv[5]) : path.join(root, 'output/playwright');
 await fs.mkdir(out, { recursive: true });
 const vite = await createServer({ configFile: path.join(root, 'apps-sdk/vite.config.ts'), server: { host: '127.0.0.1', port: 0 }, logLevel: 'error' });
 await vite.listen();
@@ -48,10 +48,11 @@ try {
     await page.getByRole('button', { name: 'Activity', exact: true }).click();
     await page.waitForFunction(() => document.querySelector('.dxw-act-row') && !document.querySelector('.dxw-activity-refresh-icon')?.disabled);
     await page.mouse.move(0, 0);
-    const images = () => page.locator('.dxw-activity-mark img').evaluateAll((images) => Promise.all(images.map((image) => image.complete ? null : new Promise((resolve) => { image.onload = resolve; image.onerror = resolve; setTimeout(resolve, 5000); }))));
+    const images = () => page.locator('.dxw-activity-entry img').evaluateAll((images) => Promise.all(images.map((image) => image.complete ? null : new Promise((resolve) => { image.onload = resolve; image.onerror = resolve; setTimeout(resolve, 5000); }))));
     await images();
     await page.screenshot({ path: path.join(out, `activity-real-${mobile ? 'mobile' : 'desktop'}.png`), fullPage: true });
     await page.locator('.dxw-activity-expand').first().click();
+    await images();
     await page.screenshot({ path: path.join(out, `activity-real-receipt-${mobile ? 'mobile' : 'desktop'}.png`), fullPage: true });
     await page.locator('.dxw-activity-expand').first().click();
     let currentPage = 0;
@@ -67,6 +68,7 @@ try {
       if (name === 'services') {
         const toggle = page.getByRole('button', { name: `Show receipt for ${pages[0].items[itemIndex].title}`, exact: true });
         await toggle.click();
+        await images();
         await page.mouse.move(0, 0);
         await page.screenshot({ path: path.join(out, `activity-real-service-receipt-${mobile ? 'mobile' : 'desktop'}.png`), fullPage: true });
         await page.getByRole('button', { name: `Hide receipt for ${pages[0].items[itemIndex].title}`, exact: true }).click();

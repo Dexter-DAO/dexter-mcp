@@ -53,8 +53,13 @@ export function activitySubtitle(item: WalletActivityItem): string {
   const name = item.actor.name;
   const internalName = name && (/^[a-z][a-z\d+.-]*:\/\//i.test(name) || /^(?:localhost|\d{1,3}(?:\.\d{1,3}){3})(?::\d+)?$/i.test(name));
   const actor = (internalName ? null : name) ?? (item.actor.kind === 'agent' ? 'Agent' : null);
-  const status = { proposed: 'Awaiting approval', pending: 'Pending', failed: 'Failed', refused: 'Declined', refunded: 'Refunded', unknown: 'Status unavailable', confirmed: null, finalized: null }[item.status];
-  return [...new Set([item.subtitle, actor, status].filter(Boolean))].join(' · ');
+  const status = { proposed: 'Proposed', pending: 'Pending', failed: 'Failed', refused: 'Declined', refunded: 'Refunded', unknown: 'Status unavailable', confirmed: null, finalized: null }[item.status];
+  const subtitle = item.subtitle === 'CrossPay' ? null : item.subtitle;
+  return [...new Set([subtitle, actor, status].filter(Boolean))].join(' · ');
+}
+
+export function activityTitle(item: WalletActivityItem): string {
+  return item.kind === 'deposit' ? 'Received' : item.kind === 'withdrawal' ? 'Sent' : item.title;
 }
 
 export function activityDateTime(value: string): string {
@@ -71,7 +76,8 @@ export function activityReceiptFacts(item: WalletActivityItem): string[] {
     if (label === 'Filled amounts') return [`Filled amounts ${value[0].toLowerCase()}${value.slice(1)}`];
     return [value];
   });
-  if (delivery || http) facts.push(delivery ? `${delivery}${http ? ` (HTTP ${http})` : ''}` : `Provider returned HTTP ${http}`);
+  if (delivery && delivery !== 'Response received') facts.push(`${delivery}${http ? ` (HTTP ${http})` : ''}`);
+  else if (http && !/^2\d\d$/.test(http)) facts.push(`Provider returned HTTP ${http}`);
   return facts;
 }
 
