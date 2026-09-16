@@ -2,10 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import { Sheet } from './Sheet';
 import { ActivityRow } from './ActivityRow';
 import { Pager } from './Pager';
-import type { ActivityPage } from './activityModel';
+import { activityWithPortfolioArtwork, type ActivityPage } from './activityModel';
+import type { PortfolioSnapshotV1 } from './portfolioModel';
 
-export function ActivitySheet({ initialPage, onClose, isFullscreen, condensed, onLoad, onOpenExternal }: {
+export function ActivitySheet({ initialPage, portfolio, onClose, isFullscreen, condensed, onLoad, onOpenExternal }: {
   initialPage: ActivityPage | null;
+  portfolio: PortfolioSnapshotV1 | null;
   onClose: () => void;
   isFullscreen: boolean;
   condensed: boolean;
@@ -60,7 +62,7 @@ export function ActivitySheet({ initialPage, onClose, isFullscreen, condensed, o
       {error || (!snapshot && !loading) ? <p className="dxw-activity-notice" role="status">Activity could not be loaded.{snapshot ? ' Previously loaded entries are shown.' : ''}</p> : null}
       {snapshot && !items.length ? <div className="dxw-empty">No recorded activity in this page.</div> : null}
       <div className="dxw-act-list">
-        {visibleItems.map((item) => <ActivityRow key={item.id} item={item} onOpenExternal={onOpenExternal} />)}
+        {visibleItems.map((item) => <ActivityRow key={item.id} item={activityWithPortfolioArtwork(item, portfolio, snapshot?.walletAddress)} onOpenExternal={onOpenExternal} />)}
       </div>
       {items.length ? <Pager label="Activity pages" page={safePage} pageCount={pageCount} start={pageStart + 1} end={pageStart + visibleItems.length} total={snapshot?.nextCursor || hasFailedSource ? undefined : items.length} onPage={setPage} /> : null}
       {snapshot?.nextCursor && safePage === pageCount - 1 && onLoad ? <button className="dxw-activity-refresh" type="button" disabled={loading} onClick={() => void load(true)}>Load older activity</button> : null}

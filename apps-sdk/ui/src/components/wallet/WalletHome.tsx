@@ -221,6 +221,7 @@ export function WalletHome({
         <ActivitySheet
           key={`${walletToken ?? ''}:${address}:${payload.activityPage?.observedAt ?? ''}`}
           initialPage={payload.activityPage}
+          portfolio={payload.portfolio.snapshot}
           onOpenExternal={onOpenExternal}
           onLoad={walletToken ? async (cursor) => {
             const response = await fetch(`${WALLET_RAIL}/activity`, {

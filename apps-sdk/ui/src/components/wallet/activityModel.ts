@@ -1,4 +1,5 @@
 import { activityPageV4Schema } from '../../../../../lib/wallet-activity-contract.mjs';
+import type { PortfolioSnapshotV1 } from './portfolioModel';
 
 export type ActivityAmount = { atomic: string; decimals: number; symbol: string; mint: string; network: string; displayAmount?: string };
 export type WalletActivityItem = {
@@ -31,6 +32,12 @@ export function normalizeActivityPage(value: unknown, walletAddress?: string): A
   const parsed = activityPageV4Schema.safeParse(value);
   if (!parsed.success || !walletAddress || parsed.data.walletAddress !== walletAddress) return null;
   return parsed.data as ActivityPage;
+}
+
+export function activityWithPortfolioArtwork(item: WalletActivityItem, portfolio: PortfolioSnapshotV1 | null, walletAddress?: string): WalletActivityItem {
+  if (item.service || !item.asset || !portfolio || portfolio.walletAddress !== walletAddress) return item;
+  const logoUrl = portfolio.holdings.find((holding) => holding.mint === item.asset!.mint)?.graphics.canonicalImageUrl;
+  return logoUrl && activityLinkAllowed(logoUrl) ? { ...item, asset: { ...item.asset, logoUrl } } : item;
 }
 
 /** Keep exact atomic precision without converting balances to floating point. */

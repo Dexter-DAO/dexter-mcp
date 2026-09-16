@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createHmac } from 'node:crypto';
 import { fetchSessionActivity, signedSessionActivityHeaders } from '../lib/session-activity.mjs';
-import { formatActivityAmount, formatActivityValue, activityCashDirection, normalizeActivityPage, activityLinkAllowed, activityServiceUrl, activitySubtitle, activityReceiptFacts, activityTitle } from '../apps-sdk/ui/src/components/wallet/activityModel.ts';
+import { formatActivityAmount, formatActivityValue, activityCashDirection, activityWithPortfolioArtwork, normalizeActivityPage, activityLinkAllowed, activityServiceUrl, activitySubtitle, activityReceiptFacts, activityTitle } from '../apps-sdk/ui/src/components/wallet/activityModel.ts';
 import { walletOutput, WALLET_ADDRESS } from './fixtures/wallet-portfolio-fixtures.mjs';
 
 const secret = 'test-only-long-purpose-separated-secret';
@@ -84,6 +84,18 @@ test('cash rounds cents with exact decimal math and keeps significant subcent di
   assert.equal(formatActivityValue({ ...amount, displayAmount: '-0.00000123' }), '−$0.0000012');
   assert.equal(formatActivityValue({ ...amount, atomic: '34815', symbol: 'SPCX' }), '0.034815 SPCX');
   assert.equal(activityCashDirection({ ...amount, symbol: 'SPCX' }), null);
+});
+
+test('activity artwork follows the same wallet and exact mint in the portfolio', () => {
+  const item = { ...page().items[0], service: null, asset: { mint: 'stock-mint', logoUrl: 'https://example.com/catalog.png' } };
+  const portfolio = { walletAddress: WALLET_ADDRESS, holdings: [{ mint: 'stock-mint', graphics: { canonicalImageUrl: 'https://example.com/canonical.svg' } }] };
+  assert.equal(activityWithPortfolioArtwork(item, portfolio, WALLET_ADDRESS).asset.logoUrl, 'https://example.com/canonical.svg');
+  assert.equal(activityWithPortfolioArtwork(item, portfolio, 'different-wallet'), item);
+  assert.equal(activityWithPortfolioArtwork({ ...item, asset: { ...item.asset, mint: 'other-mint' } }, portfolio, WALLET_ADDRESS).asset.logoUrl, item.asset.logoUrl);
+  const serviceItem = page().items[0];
+  assert.equal(activityWithPortfolioArtwork(serviceItem, portfolio, WALLET_ADDRESS), serviceItem);
+  portfolio.holdings[0].graphics.canonicalImageUrl = 'javascript:alert(1)';
+  assert.equal(activityWithPortfolioArtwork(item, portfolio, WALLET_ADDRESS), item);
 });
 
 test('service identity opens its Indexter page and never a paid endpoint', () => {
