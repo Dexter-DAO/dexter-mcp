@@ -5,9 +5,10 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { nativeMcpTargetSchema, openX402CheckSchema } from '../lib/native-mcp-contract.mjs';
 import { buildOpenX402IntentRequest, callOpenX402IntentApi, sanitizeOpenX402IntentResult } from '../lib/open-x402-intent-api.mjs';
 import { buildHostedCheckModelResult } from '../lib/open-check-result.mjs';
-import { applyOpenToolResultPolicy, OPEN_TOOL_CONTRACTS } from '../lib/open-tool-contracts.mjs';
+import { applyOpenToolResultPolicy, buildHostedOpenToolDescriptor, OPEN_TOOL_CONTRACTS } from '../lib/open-tool-contracts.mjs';
 import { registerX402ClientToolset } from '../toolsets/x402-client/index.mjs';
 import { createOpenMcpServer } from '../open-mcp-server.mjs';
+import { walletOutput } from './fixtures/wallet-portfolio-fixtures.mjs';
 
 const intentId = '00000000-0000-4000-8000-000000000042';
 const mcp = { version: 1, serverUrl: 'https://seller.example/mcp', toolName: 'research',
@@ -134,6 +135,13 @@ test('public SDK discovery advertises protected native tools and forwards native
   const previousSecret = process.env.NATIVE_EXACT_MCP_SERVICE_HMAC_SECRET;
   process.env.NATIVE_EXACT_MCP_SERVICE_HMAC_SECRET = 'a'.repeat(32);
   const calls = [];
+  const rpc = { jsonrpc: '2.0', id: 42, result: { task: { taskId: 'task-42' },
+    _meta: { 'x402/payment-response': { success: false, errorReason: 'settlement_pending', transaction: 'pending-tx' } } } };
+  const unsupported = { ok: true, intentId, retryable: false, retryWithSameIntentOnly: true,
+    payment: { state: 'unknown', confirmed: false }, delivery: { transport: 'mcp', state: 'response_unsupported',
+      result: { contract: 'dexter-native-mcp-received-response/v1', reason: 'task_unsupported',
+        rawResponse: JSON.stringify(rpc), response: rpc, responseHttpStatus: 200,
+        recovery: { serverUrl: mcp.serverUrl, protocolVersion: mcp.protocolVersion, sessionId: 'private-seller-session', requestId: 42 } } } };
   globalThis.fetch = async (url, init) => {
     const path = new URL(url).pathname;
     if (path.startsWith('/api/passkey-anon/mcp-binding/')) return response({ ok: true, user_handle: 'fixture-user' });
@@ -141,6 +149,7 @@ test('public SDK discovery advertises protected native tools and forwards native
     if (path.endsWith('/mcp/tools')) return response({ ok: true, serverUrl: mcp.serverUrl, protocolVersion: mcp.protocolVersion,
       tools: [{ name: mcp.toolName, inputSchemaJson: mcp.inputSchemaJson }] });
     if (path.endsWith('/check')) return response(paidCheck);
+    if (path.endsWith('/fetch') || path.endsWith('/status')) return response(unsupported);
     throw new Error(`unexpected fixture request ${path}`);
   };
   const server = createOpenMcpServer({ includeResources: false });
@@ -163,4 +172,46 @@ test('public SDK discovery advertises protected native tools and forwards native
   assert.equal(checked.structuredContent.intentId, intentId);
   assert.deepEqual(calls.at(-1).body.mcp, mcp);
   assert.deepEqual(Object.keys(calls.at(-1).body).sort(), ['mcp', 'mcp_session_id', 'requestId']);
+  for (const name of ['x402_fetch', 'x402_status']) {
+    const args = name === 'x402_fetch' ? { intentId, maxAmountAtomic: '1000' } : { intentId };
+    const received = await server._registeredTools[name].handler(args, { sessionId: 'native-fixture-session' });
+    assert.equal(received.structuredContent.delivery.state, 'response_unsupported');
+    assert.deepEqual(received.structuredContent.delivery.result.response, rpc);
+    assert.equal(received.structuredContent.delivery.result.rawResponse, JSON.stringify(rpc));
+    assert.equal(received.structuredContent.delivery.result.recovery.sessionId, undefined);
+    assert.doesNotMatch(JSON.stringify(received), /private-seller-session/);
+    assert.equal(received.structuredContent.payment.state, 'unknown');
+    assert.equal(received.structuredContent.retryable, false);
+    assert.deepEqual(calls.at(-1).body, { mcp_session_id: 'native-fixture-session', ...args });
+  }
+});
+
+test('native purchase contracts and Activity V4 survive one finalized hosted registration', async (t) => {
+  const server = createOpenMcpServer({ includeResources: false });
+  const client = new Client({ name: 'native-activity-overlap', version: '1' });
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  t.after(async () => { await client.close(); await server.close(); });
+  await server.connect(serverTransport); await client.connect(clientTransport);
+  const listed = (await client.listTools()).tools;
+  assert.equal(listed.length, 14);
+  const descriptor = buildHostedOpenToolDescriptor(server);
+  for (const name of ['x402_mcp_tools', 'x402_check', 'x402_fetch', 'x402_status', 'dexter_wallet']) {
+    const tool = listed.find((entry) => entry.name === name);
+    const projected = descriptor.tools.find((entry) => entry.name === name);
+    assert.deepEqual(tool.inputSchema, projected.inputSchema);
+    assert.deepEqual(tool.outputSchema, projected.outputSchema);
+    assert.deepEqual(tool._meta.securitySchemes, [{ type: 'oauth2', scopes: ['vault'] }]);
+  }
+  const wallet = listed.find((entry) => entry.name === 'dexter_wallet');
+  assert.deepEqual(Object.keys(wallet.inputSchema.properties).sort(), ['activityCursor', 'activityLimit']);
+  // Keep the existing wallet annotation: setup may create session state.
+  assert.equal(wallet.annotations.readOnlyHint, false);
+  assert.equal(wallet.annotations.destructiveHint, false);
+  assert.ok(wallet.outputSchema.properties.activityPage);
+  const activity = walletOutput().activityPage;
+  const read = applyOpenToolResultPolicy('dexter_wallet', { structuredContent: {
+    activityPage: activity, activityReadStatus: activity.coverage.state,
+  }, content: [] });
+  assert.deepEqual(read.structuredContent.activityPage, activity);
+  assert.equal(OPEN_TOOL_CONTRACTS.dexter_wallet.outputSchema.safeParse(read.structuredContent).success, true);
 });

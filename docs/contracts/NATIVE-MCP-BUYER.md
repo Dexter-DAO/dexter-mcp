@@ -50,3 +50,25 @@ USDC exact payments. Seller authentication, Tasks execution and other payment
 rails require additional support. The bridge forwards no customer credentials
 to sellers. Discovery and contract tests use local fixtures; paid production
 validation is a separate release check.
+
+## Release coordination
+
+Keep the native buyer and Wallet Activity changes on the same reviewed MCP
+commit. The descriptor lists 14 tools, including 13 visible to the model.
+Its wallet schema retains Activity V4 pagination alongside native purchase
+discovery, checks and status.
+
+The release owner applies the paired API migration and accepts the compatible
+API and facilitator releases before running `npm run prepare:open-accepted-production`.
+That command reads their advertised release identities and updates the three
+files under `release/`: the acceptance receipt, source contracts and tool
+descriptors. A candidate API commit alone cannot supply this production receipt.
+
+Commit and push those generated files. From the clean MCP checkout, set
+`OPENDEXTER_API_SOURCE_ROOT` and `OPENDEXTER_FACILITATOR_SOURCE_ROOT` to explicit
+source repositories containing the accepted commits, then run
+`npm run generate:open-tool-descriptors`. This rebuilds the committed archive
+with the reviewed release steps and verifies the referenced backend contracts.
+Review, commit and push any resulting descriptor change, then run
+`npm run verify:open-tool-descriptors` with the same source roots. The release
+owner builds and activates the immutable MCP release after these checks.
