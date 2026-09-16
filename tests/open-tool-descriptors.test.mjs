@@ -39,6 +39,7 @@ const execFileAsync = promisify(execFile);
 const CONNECTED = [
   'indexter_discover',
   'indexter_search',
+  'x402_mcp_tools',
   'x402_check',
   'x402_fetch',
   'x402_status',
