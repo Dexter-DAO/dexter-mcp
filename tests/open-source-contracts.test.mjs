@@ -218,6 +218,9 @@ function createCrossRepositoryHarness(t, options = {}) {
       if (expression.endsWith('^{tree}')) {
         let tree;
         if (isApi && commit === contracts.api.commit) tree = contracts.api.tree;
+        if (isApi && commit === contracts.integratedApiRelease.governedContractCommit) {
+          tree = contracts.integratedApiRelease.governedContractTree;
+        }
         if (isApi && commit === contracts.integratedApiRelease.commit) {
           tree = options.wrongTree
             ? 'f'.repeat(40)
