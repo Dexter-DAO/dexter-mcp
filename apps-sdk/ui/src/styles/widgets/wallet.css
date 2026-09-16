@@ -672,3 +672,16 @@ button.dxw-comp,
   .dxw-sheet,
   .dxw-scrim { animation: none; }
 }
+
+/* Activity retains full service names and atomic amounts on narrow hosts. */
+.dxw-activity-entry { border-bottom: 1px solid var(--hair); }
+.dxw-act-row { width: 100%; border: 0; background: none; text-align: left; cursor: pointer; }
+.dxw-act-copy { display: block; flex: 1; min-width: 0; }
+.dxw-act-main, .dxw-act-sub { display: block; white-space: normal; overflow-wrap: anywhere; }
+.dxw-act-amt { max-width: 42%; overflow-wrap: anywhere; text-align: right; }
+.dxw-activity-details { padding: 4px 0 14px; color: var(--ink-2); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.dxw-activity-details p { margin: 5px 0; }
+.dxw-activity-links { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; }
+.dxw-activity-links button, .dxw-activity-refresh { border: 0; background: none; color: var(--ink); text-decoration: underline; cursor: pointer; padding: 6px 0; font: inherit; font-size: 12px; }
+.dxw-activity-refresh:disabled { opacity: .5; cursor: wait; }
+.dxw-activity-notice { color: var(--ink-2); font-size: 12px; line-height: 1.5; }

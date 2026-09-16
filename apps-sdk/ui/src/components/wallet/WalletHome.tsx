@@ -7,7 +7,8 @@ import { DepositSheet } from './DepositSheet';
 import { ActivitySheet } from './ActivitySheet';
 import { CreditSheet } from './CreditSheet';
 import { AssetsSheet } from './AssetsSheet';
-import { fmtExactSignedUsd, fmtSignedUsd, relativeTime } from './format';
+import { relativeTime } from './format';
+import { activitySubtitle, formatActivityAmount, normalizeActivityPage } from './activityModel';
 import { ActivityIcon, AssetsIcon, Chevron, CreditMark, DepositIcon, WorldMark } from './icons';
 // Widget-frame-only refresh rail (auth = _meta.dexterWalletToken).
 const WALLET_RAIL = 'https://open.dexter.cash/widget/wallet';
@@ -88,7 +89,7 @@ export function WalletHome({
   const payloadCapacity = money ? money.accountCapacityUsd : payload.balances.usdc;
   const accountCapacity = payloadCapacity + (own - payloadCash);
   const capacityLabel = credit > 0 ? 'Cash + reported credit' : 'Available cash';
-  const activity = payload.activity ?? [];
+  const activity = payload.activityPage?.items ?? [];
   const latest = activity[0];
   const verified = payload.personhood?.verified === true;
 
@@ -218,7 +219,18 @@ export function WalletHome({
     return (
       <div className={`dxw-widget dxw-widget--sheet${isFullscreen ? ' dxw-widget--fullscreen' : ''}${condensed ? ' dxw-widget--condensed-sheet' : ''}`}>
         <ActivitySheet
-          items={activity}
+          key={`${walletToken ?? ''}:${address}:${payload.activityPage?.observedAt ?? ''}`}
+          initialPage={payload.activityPage}
+          onOpenExternal={onOpenExternal}
+          onLoad={walletToken ? async (cursor) => {
+            const response = await fetch(`${WALLET_RAIL}/activity`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ token: walletToken, ...(cursor ? { cursor } : {}) }),
+            });
+            if (!response.ok) return null;
+            const body = await response.json();
+            return body.ok ? normalizeActivityPage(body.activityPage, address) : null;
+          } : null}
           onClose={closeSheet}
           isFullscreen={isFullscreen}
           condensed={condensed}
@@ -313,15 +325,15 @@ export function WalletHome({
           type="button"
         >
           <span className="dxw-tx-copy">
-            <span className="dxw-tx-main">{latest.label}</span>
-            <span className="dxw-tx-sub">{relativeTime(latest.at)}{latest.kind === 'payment' ? ' · paid API call' : ''}</span>
+            <span className="dxw-tx-main">{latest.title}</span>
+            <span className="dxw-tx-sub">{relativeTime(latest.occurredAt)} · {activitySubtitle(latest)}</span>
           </span>
           <span
             className="dxw-tx-amt dxw-mono"
-            title={`Exact amount: ${fmtExactSignedUsd(latest.amountUsd)}`}
+            title={`Exact amount: ${formatActivityAmount(latest.amount)}`}
           >
-            <span aria-hidden="true">{fmtSignedUsd(latest.amountUsd)}</span>
-            <span className="sr-only">Exact amount: {fmtExactSignedUsd(latest.amountUsd)}</span>
+            <span aria-hidden="true">{formatActivityAmount(latest.amount)}</span>
+            <span className="sr-only">Exact amount: {formatActivityAmount(latest.amount)}</span>
           </span>
           <Chevron />
         </button>
