@@ -67,12 +67,16 @@ test('unified wallet activity shows receipts, exact amounts, paging and read fai
       const alignment = await page.locator('.dxw-activity-entry').first().evaluate((entry) => {
         const top = (selector) => entry.querySelector(selector).getBoundingClientRect().top;
         const fallback = getComputedStyle(entry.querySelector('.dxw-activity-fallback'));
-        return { title: top('.dxw-act-main'), amount: top('.dxw-act-amt'), logo: top('.dxw-activity-mark'), filter: fallback.filter, opacity: fallback.opacity };
+        const mark = getComputedStyle(entry.querySelector('.dxw-activity-mark'));
+        return { title: top('.dxw-act-main'), amount: top('.dxw-act-amt'), logo: top('.dxw-activity-mark'), filter: fallback.filter, opacity: fallback.opacity, border: getComputedStyle(entry).borderBottomWidth, logoRadius: mark.borderRadius, logoBackground: mark.backgroundColor };
       });
       assert.ok(Math.abs(alignment.title - alignment.amount) <= 2);
       assert.equal(alignment.title, alignment.logo);
       assert.equal(alignment.filter, 'grayscale(1)');
-      assert.equal(alignment.opacity, '0.45');
+      assert.equal(alignment.opacity, '0.38');
+      assert.equal(alignment.border, '0px');
+      assert.equal(alignment.logoRadius, '0px');
+      assert.equal(alignment.logoBackground, 'rgba(0, 0, 0, 0)');
       await page.locator('.dxw-activity-identity').first().click();
       await page.locator('.dxw-activity-value').first().click();
       assert.deepEqual(await page.evaluate(() => window.__openedLinks), ['https://indexter.cash/services/r-fixture', 'https://solscan.io/tx/fixture']);

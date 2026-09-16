@@ -26,7 +26,7 @@ export function ActivityRow({ item, onOpenExternal }: { item: WalletActivityItem
       <div className="dxw-act-row">
         <button className="dxw-activity-identity" type="button" onClick={openIdentity} disabled={!serviceUrl && !hasDetails && !transaction}
           aria-expanded={!serviceUrl && hasDetails ? expanded : undefined} title={serviceUrl ? `View ${item.service?.name} on Indexter` : undefined}>
-          <span className={`dxw-activity-mark${item.kind === 'trade' ? ' dxw-activity-mark--stock' : ''}`} aria-hidden="true">
+          <span className="dxw-activity-mark" aria-hidden="true">
             {logo && activityLinkAllowed(logo) && !imageFailed ? <img src={`https://api.dexter.cash/api/img?url=${encodeURIComponent(logo)}`} alt="" referrerPolicy="no-referrer" onError={() => setImageFailed(true)} /> : <img className="dxw-activity-fallback" src="https://dexter.cash/opendexter-clients/dexter-logo-main.svg" alt="" />}
           </span>
           <span className="dxw-act-copy">
