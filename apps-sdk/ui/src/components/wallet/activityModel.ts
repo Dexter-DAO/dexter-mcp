@@ -61,7 +61,8 @@ export function formatActivityValue(amount: ActivityAmount | null): string {
   const exact = formatActivityAmount(amount);
   if (!amount || amount.symbol !== 'USDC') return exact;
   const direction = activityCashDirection(amount);
-  return `${direction === 'outgoing' ? '−' : direction === 'incoming' ? '+' : ''}$${exact.replace(/^−/, '').replace(/ USDC$/, '')}`;
+  const [whole, fraction = ''] = exact.replace(/^−/, '').replace(/ USDC$/, '').split('.');
+  return `${direction === 'outgoing' ? '−' : direction === 'incoming' ? '+' : ''}$${whole}.${fraction.padEnd(2, '0')}`;
 }
 
 export function activitySubtitle(item: WalletActivityItem): string {

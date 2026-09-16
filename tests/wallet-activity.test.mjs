@@ -72,7 +72,9 @@ test('cash uses signed exact dollars with direction while asset quantities keep 
   assert.equal(activityCashDirection(amount), 'outgoing');
   assert.equal(formatActivityValue({ ...amount, atomic: '1' }), '+$0.000001');
   assert.equal(activityCashDirection({ ...amount, atomic: '1' }), 'incoming');
-  assert.equal(formatActivityValue({ ...amount, atomic: '0' }), '$0');
+  assert.equal(formatActivityValue({ ...amount, atomic: '0' }), '$0.00');
+  assert.equal(formatActivityValue({ ...amount, atomic: '10000000' }), '+$10.00');
+  assert.equal(formatActivityValue({ ...amount, atomic: '-50000' }), '−$0.05');
   assert.equal(activityCashDirection({ ...amount, atomic: '0' }), null);
   assert.equal(formatActivityValue({ ...amount, displayAmount: '-9007199254740993.000001' }), '−$9,007,199,254,740,993.000001');
   assert.equal(formatActivityValue({ ...amount, atomic: '34815', symbol: 'SPCX' }), '0.034815 SPCX');
