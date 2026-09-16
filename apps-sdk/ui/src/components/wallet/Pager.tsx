@@ -12,14 +12,14 @@ export function Pager({
   pageCount: number;
   start: number;
   end: number;
-  total: number;
+  total?: number;
   onPage: (page: number) => void;
 }) {
   if (pageCount <= 1) return null;
 
   return (
     <nav className="dxw-pager" aria-label={label}>
-      <span aria-live="polite">{`${start}\u2013${end} of ${total}`}</span>
+      <span aria-live="polite">{`${start}\u2013${end}${total === undefined ? '' : ` of ${total}`}`}</span>
       <span className="dxw-pager__actions">
         <button
           type="button"

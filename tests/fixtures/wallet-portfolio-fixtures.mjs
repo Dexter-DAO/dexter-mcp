@@ -413,14 +413,20 @@ export function walletOutput() {
       pendingVoucherCount: 2,
       withdrawalBlocked: true,
     },
-    activity: [
-      {
-        at: '2026-07-25T10:20:00.000Z',
-        kind: 'payment',
-        amountAtomic: '-8000',
-        host: 'fixture.example',
-        sig: 'fixture-signature',
-      },
-    ],
+    activityPage: {
+      schemaVersion: 4, namespace: 'dexter-wallet-activity/v4', walletAddress: WALLET_ADDRESS,
+      observedAt: '2026-07-25T12:34:00.000Z', nextCursor: null,
+      coverage: { state: 'complete', sources: [{ category: 'payments', state: 'available', reason: null }] },
+      items: [{
+        id: 'payment:fixture', occurredAt: '2026-07-25T10:20:00.000Z', kind: 'payment',
+        title: 'SYRAA.fun market analysis', subtitle: 'Market research', status: 'finalized',
+        amount: { atomic: '-1000', decimals: 6, symbol: 'USDC', mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', network: 'solana:mainnet' },
+        amounts: [], actor: { kind: 'agent', name: 'Research agent', agentId: 'agent-fixture' },
+        service: { name: 'Market analysis', provider: 'SYRAA.fun', resourceId: 'resource-fixture', providerSlug: 'syraa', url: 'https://syraa.fun', logoUrl: null },
+        details: [{ label: 'Delivery', value: 'Response received (HTTP 200)' }],
+        links: [{ label: 'View transaction', kind: 'transaction', url: 'https://solscan.io/tx/fixture' }],
+        relatedActivityId: null,
+      }],
+    },
   };
 }

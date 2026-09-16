@@ -95,6 +95,7 @@ import {
   buildGovernedAssetToolResult,
   buildGovernedAssetFailure,
 } from './lib/governed-asset-result.mjs';
+import { fetchSessionActivity } from './lib/session-activity.mjs';
 import { projectWalletResultForModel } from './lib/wallet-result-visibility.mjs';
 import {
   buildAnonVaultToolResult,
@@ -1625,46 +1626,6 @@ const SOLANA_MAINNET_CAIP2 = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
  * non-Solana ones report zero with available='0'. That keeps the widget
  * rendering rather than crashing on a missing key.
  */
-/**
- * The wallet's recent money events, for the dashboard's Activity view.
- * Best-effort: resolves the session's user_handle via the durable binding,
- * then reads the real /activity stream (settled x402 payments + earning moves).
- * Any failure returns [] — activity never blocks or fails the wallet read.
- * Shape emitted to the widget: [{ at, kind, amountAtomic, host, sig }].
- */
-async function fetchWalletActivity(sessionId) {
-  if (!sessionId) return [];
-  try {
-    const bindRes = await fetchInternalApi(
-      `/api/passkey-anon/mcp-binding/${encodeURIComponent(sessionId)}`,
-      { headers: signedInternalHeaders(sessionId), signal: AbortSignal.timeout(2000) },
-    );
-    if (!bindRes.ok) return [];
-    const userHandle = (await bindRes.json())?.user_handle;
-    if (!userHandle) return [];
-
-    // NOTE the mount: /activity lives on the passkey-VAULT-anon router
-    // (app.ts:1407), NOT /api/passkey-anon (the binding router — hitting it
-    // 404'd silently and the widget's activity rendered empty; caught Jul 24).
-    const actRes = await fetchInternalApi(
-      `/api/passkey-vault-anon/activity?user_handle=${encodeURIComponent(userHandle)}`,
-      { signal: AbortSignal.timeout(3000) },
-    );
-    if (!actRes.ok) return [];
-    const items = (await actRes.json())?.items;
-    if (!Array.isArray(items)) return [];
-
-    return items.slice(0, 12).map((it) => {
-      let host = null;
-      if (it.resourceUrl) { try { host = new URL(it.resourceUrl).host.replace(/^www\./, ''); } catch { /* keep null */ } }
-      return { at: it.at, kind: it.kind, amountAtomic: it.amountAtomic, host, sig: it.sig };
-    });
-  } catch (err) {
-    console.warn(`[dexter_wallet] activity read failed (${safeErrorLabel(err)})`);
-    return [];
-  }
-}
-
 // ─── Dextercard-in-wallet (board #94/#95) ───────────────────────────────────
 // The wallet payload carries a small read-only card summary; reveal/freeze
 // ride widget-frame-only HTTP endpoints authed by a short-TTL token delivered
@@ -1802,7 +1763,7 @@ async function readEarningRatePct() {
   }
 }
 
-async function x402Wallet(_args, extra) {
+async function x402Wallet(args, extra) {
   // Identity = the MCP session's live vault binding, resolved server-side.
   // The old x-dexter-user-handle PHONE PATH is RETIRED (money-path ruling: a
   // raw handle is a lookup key, never a bearer credential). dexter-phone
@@ -1957,7 +1918,11 @@ async function x402Wallet(_args, extra) {
     secret: INTERNAL_HMAC_SECRET,
   });
   const cardSummaryPromise = readCardSummary(sessionId);
-  const activityPromise = fetchWalletActivity(sessionId);
+  const activityPromise = fetchSessionActivity({
+    apiBase: API_BASE_FALLBACK, sessionId, expectedWalletAddress: receiveAddress,
+    secret: INTERNAL_HMAC_SECRET, limit: args?.activityLimit ?? 25,
+    cursor: args?.activityCursor,
+  });
   const onchain = state.onchain || null;
   const usdcAtomic = String(onchain?.usdcAtomic ?? '0');
   const usdcAvailable = Number(usdcAtomic) / 1e6;
@@ -2083,7 +2048,7 @@ async function x402Wallet(_args, extra) {
   // dexter-api through the live durable binding; no handle or wallet address
   // can be supplied through tool arguments. Exact wallet equality is checked
   // before the snapshot reaches the widget.
-  const [cardSummary, portfolio, activity, earningRatePct] = await Promise.all([
+  const [cardSummary, portfolio, activityPage, earningRatePct] = await Promise.all([
     cardSummaryPromise,
     portfolioPromise,
     activityPromise,
@@ -2131,7 +2096,8 @@ async function x402Wallet(_args, extra) {
     paySource: 'anon_vault',
     vault_status: 'ready',
     user_bound: true,
-    activity,
+    activityPage,
+    activityReadStatus: activityPage ? activityPage.coverage.state : 'unavailable',
     card: cardSummary,
     // The full portfolio contains issuer-controlled display metadata. Keep it
     // widget-only; the registration strips this private field into _meta.
@@ -2701,7 +2667,10 @@ export function createOpenMcpServer({
   registerOpenTool(server, 'dexter_wallet', {
     title: 'Dexter Wallet',
     description: "Read-only view of the user's Dexter wallet, the non-custodial passkey vault bound to this session. Returns its receive address, cash, reported credit capacity and read status, payment-readiness guidance, and recent activity after native OpenDexter authorization. Cash, reported credit, and exact-intent execution eligibility are distinct: never infer that a deposit is required from zero cash alone, and never promise that credit can fund an endpoint until its exact intent is checked. A missing or stale authorization triggers the host's Connect flow; it never creates a separate connector URL. Dexter holds no keys and runs no server-side session wallet.",
-    inputSchema: {},
+    inputSchema: {
+      activityLimit: z.number().int().min(1).max(100).optional().describe('Maximum activity rows; defaults to 25.'),
+      activityCursor: z.string().min(1).max(4096).optional().describe('Opaque nextCursor from this wallet activityPage; omit for newest activity.'),
+    },
     annotations: { readOnlyHint: true },
     _meta: WALLET_META,
   }, async (args, extra) => {
@@ -3412,19 +3381,20 @@ const httpServer = http.createServer(async (req, res) => {
     return;
   }
 
-  // ─── /widget/wallet/refresh — live-balance poll for the visible widget ───
+  // ─── Token-bound wallet reads: balances and paginated activity ───
   // Auth = _meta.dexterWalletToken. Returns just enough for the headline to
   // move when a deposit lands: cash (atomic) + activation state. Bounded by
   // fetchVaultStateBySession's own 3s timeout; the widget polls ~10s while
   // visible and stops on its own cap.
-  if (pathname === '/widget/wallet/refresh') {
+  if (pathname === '/widget/wallet/refresh' || pathname === '/widget/wallet/activity') {
     if (req.method !== 'POST') {
       res.writeHead(405, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: false, error: 'method_not_allowed' }));
       return;
     }
     let raw = '';
-    req.on('data', (chunk) => { raw += chunk; if (raw.length > 4 * 1024) req.destroy(); });
+    const maxBodyBytes = pathname === '/widget/wallet/activity' ? 8 * 1024 : 4 * 1024;
+    req.on('data', (chunk) => { raw += chunk; if (Buffer.byteLength(raw) > maxBodyBytes) req.destroy(); });
     req.on('end', async () => {
       const respond = (code, body) => {
         res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
@@ -3437,6 +3407,15 @@ const httpServer = http.createServer(async (req, res) => {
         if (!sessionId) { respond(401, { ok: false, error: 'bad_token' }); return; }
         const state = await fetchVaultStateBySession(sessionId);
         if (!state?.vault) { respond(409, { ok: false, error: 'no_vault' }); return; }
+        if (pathname === '/widget/wallet/activity') {
+          const activityPage = await fetchSessionActivity({
+            apiBase: API_BASE_FALLBACK, sessionId,
+            expectedWalletAddress: getVaultReceiveAddress(state.vault),
+            secret: INTERNAL_HMAC_SECRET, limit: 25, cursor: body?.cursor,
+          });
+          respond(activityPage ? 200 : 502, { ok: Boolean(activityPage), activityPage });
+          return;
+        }
         respond(200, {
           ok: true,
           usdcAtomic: String(state.onchain?.usdcAtomic ?? '0'),
