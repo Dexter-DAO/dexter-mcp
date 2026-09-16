@@ -25,6 +25,7 @@ test('unified wallet activity shows receipts, exact amounts, paging and read fai
       const initial = output.activityPage;
       initial.items[0].service.publicUrl = 'https://indexter.cash/services/r-fixture';
       initial.items[0].service.logoUrl = 'https://provider.example/missing-logo.png';
+      initial.items[0].service.description = 'Market research and source analysis for the requested company, including recent developments and relevant context.';
       initial.items[0].actor.name = 'Grok Bot';
       initial.items[0].details = [{ label: 'Delivery', value: 'Response unavailable' }, { label: 'Seller response', value: '503' }];
       initial.items[0].links.push({ label: 'View Base transaction', kind: 'transaction', url: 'https://basescan.org/tx/fixture' });
@@ -63,6 +64,15 @@ test('unified wallet activity shows receipts, exact amounts, paging and read fai
       assert.match(await page.locator('.dxw-activity-actor img').first().getAttribute('src'), /grok-bot-official\.svg/);
       await page.locator('.dxw-activity-mark img').first().waitFor();
       await page.waitForFunction(() => document.querySelector('.dxw-activity-mark img')?.getAttribute('src') === 'https://dexter.cash/opendexter-clients/dexter-logo-main.svg');
+      const alignment = await page.locator('.dxw-activity-entry').first().evaluate((entry) => {
+        const top = (selector) => entry.querySelector(selector).getBoundingClientRect().top;
+        const fallback = getComputedStyle(entry.querySelector('.dxw-activity-fallback'));
+        return { title: top('.dxw-act-main'), amount: top('.dxw-act-amt'), logo: top('.dxw-activity-mark'), filter: fallback.filter, opacity: fallback.opacity };
+      });
+      assert.ok(Math.abs(alignment.title - alignment.amount) <= 2);
+      assert.equal(alignment.title, alignment.logo);
+      assert.equal(alignment.filter, 'grayscale(1)');
+      assert.equal(alignment.opacity, '0.45');
       await page.locator('.dxw-activity-identity').first().click();
       await page.locator('.dxw-activity-value').first().click();
       assert.deepEqual(await page.evaluate(() => window.__openedLinks), ['https://indexter.cash/services/r-fixture', 'https://solscan.io/tx/fixture']);

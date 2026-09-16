@@ -56,13 +56,21 @@ export function activityCashDirection(amount: ActivityAmount | null): 'incoming'
   return value.startsWith('-') ? 'outgoing' : 'incoming';
 }
 
-/** USDC cash uses dollars; the exact token quantity remains available on hover. */
+/** Round cash without floating point; retain two significant digits below one cent. */
 export function formatActivityValue(amount: ActivityAmount | null): string {
   const exact = formatActivityAmount(amount);
   if (!amount || amount.symbol !== 'USDC') return exact;
   const direction = activityCashDirection(amount);
-  const [whole, fraction = ''] = exact.replace(/^−/, '').replace(/ USDC$/, '').split('.');
-  return `${direction === 'outgoing' ? '−' : direction === 'incoming' ? '+' : ''}$${whole}.${fraction.padEnd(2, '0')}`;
+  const [grouped, fraction = ''] = exact.replace(/^−/, '').replace(/ USDC$/, '').split('.');
+  const whole = grouped.replace(/,/g, '');
+  const firstSignificant = fraction.search(/[1-9]/);
+  const subcent = /^0+$/.test(whole) && firstSignificant >= 2;
+  const decimals = subcent ? firstSignificant + 2 : 2;
+  const kept = fraction.padEnd(decimals, '0').slice(0, decimals);
+  const rounded = (BigInt(`${whole}${kept}`) + ((fraction[decimals] ?? '0') >= '5' ? 1n : 0n)).toString().padStart(decimals + 1, '0');
+  const roundedWhole = rounded.slice(0, -decimals).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  const roundedFraction = (subcent ? rounded.slice(-decimals).replace(/0+$/, '') : rounded.slice(-decimals)).padEnd(2, '0');
+  return `${direction === 'outgoing' ? '−' : direction === 'incoming' ? '+' : ''}$${roundedWhole}.${roundedFraction}`;
 }
 
 export function activitySubtitle(item: WalletActivityItem): string {

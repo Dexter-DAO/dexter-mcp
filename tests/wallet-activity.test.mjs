@@ -66,7 +66,7 @@ test('canonical service metadata and transaction display quantities survive vali
   assert.equal(normalizeActivityPage(input, WALLET_ADDRESS), null);
 });
 
-test('cash uses signed exact dollars with direction while asset quantities keep their symbol', () => {
+test('cash rounds cents with exact decimal math and keeps significant subcent digits', () => {
   const amount = page().items[0].amount;
   assert.equal(formatActivityValue(amount), '−$0.001');
   assert.equal(activityCashDirection(amount), 'outgoing');
@@ -76,7 +76,12 @@ test('cash uses signed exact dollars with direction while asset quantities keep 
   assert.equal(formatActivityValue({ ...amount, atomic: '10000000' }), '+$10.00');
   assert.equal(formatActivityValue({ ...amount, atomic: '-50000' }), '−$0.05');
   assert.equal(activityCashDirection({ ...amount, atomic: '0' }), null);
-  assert.equal(formatActivityValue({ ...amount, displayAmount: '-9007199254740993.000001' }), '−$9,007,199,254,740,993.000001');
+  assert.equal(formatActivityValue({ ...amount, displayAmount: '-9007199254740993.000001' }), '−$9,007,199,254,740,993.00');
+  assert.equal(formatActivityValue({ ...amount, atomic: '-16991215' }), '−$16.99');
+  assert.equal(formatActivityValue({ ...amount, atomic: '-16995000' }), '−$17.00');
+  assert.equal(formatActivityValue({ ...amount, atomic: '-1234' }), '−$0.0012');
+  assert.equal(formatActivityValue({ ...amount, atomic: '-9999' }), '−$0.01');
+  assert.equal(formatActivityValue({ ...amount, displayAmount: '-0.00000123' }), '−$0.0000012');
   assert.equal(formatActivityValue({ ...amount, atomic: '34815', symbol: 'SPCX' }), '0.034815 SPCX');
   assert.equal(activityCashDirection({ ...amount, symbol: 'SPCX' }), null);
 });
