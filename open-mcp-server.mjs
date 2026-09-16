@@ -2266,9 +2266,10 @@ async function governedAssetAction(operation, args, extra) {
       operation,
       input: args,
       mcpSessionId: sessionId,
-      ...(operation === 'prepare'
+      ...(operation === 'execute'
+        || (operation === 'prepare'
         && (args?.action === 'buy' || args?.action === 'sell')
-        && typeof args?.companyQuery === 'string'
+        && typeof args?.companyQuery === 'string')
         ? { timeoutMs: 30_000 }
         : {}),
     });
