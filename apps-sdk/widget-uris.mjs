@@ -72,14 +72,17 @@ export const OPENDEXTER_ROLLOUT_WIDGET_URIS = Object.freeze({
   fetch: Object.freeze([
     'ui://dexter/x402-fetch-result-fd07778d',
     'ui://dexter/x402-fetch-result-ef385542',
+    'ui://dexter/x402-fetch-result-2873cba3',
   ]),
   pricing: Object.freeze([
     'ui://dexter/x402-pricing-6dbbb691',
     'ui://dexter/x402-pricing-3465a350',
+    'ui://dexter/x402-pricing-13216f3e',
   ]),
   wallet: Object.freeze([
     'ui://dexter/dexter-wallet-f5d0510a',
     'ui://dexter/dexter-wallet-f0b010a7',
+    'ui://dexter/dexter-wallet-ed4ae6f7',
   ]),
   portfolio: Object.freeze([
     'ui://dexter/portfolio-ff57062a',

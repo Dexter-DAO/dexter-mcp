@@ -61,7 +61,8 @@ test('hosted dexter_wallet remains read-only with no caller identity input', asy
     server.indexOf("registerOpenTool(server, 'dexter_wallet_portfolio'", registrationStart),
   );
 
-  assert.match(registration, /inputSchema:\s*\{\}/);
+  assert.match(registration, /activityLimit: z\.number\(\)\.int\(\)\.min\(1\)\.max\(100\)/);
+  assert.match(registration, /activityCursor: z\.string\(\)/);
   assert.match(registration, /readOnlyHint:\s*true/);
   assert.doesNotMatch(registration, /walletAddress|user_handle|userHandle/);
 });

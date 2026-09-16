@@ -363,6 +363,10 @@ test('sourceContracts/v3 has one exact immutable shape and exact local fixtures'
   oldGovernedBaseline.integratedApiRelease.governedContractCommit = sourceContracts.api.commit;
   oldGovernedBaseline.integratedApiRelease.governedContractTree = sourceContracts.api.tree;
   assert.equal(hasExactOpenDexterSourceContractsShape(oldGovernedBaseline), false);
+  const preActivityGovernedBaseline = structuredClone(sourceContracts);
+  preActivityGovernedBaseline.integratedApiRelease.governedContractCommit = '81662ade9d821c3617397d4a0103c53b2f600fa4';
+  preActivityGovernedBaseline.integratedApiRelease.governedContractTree = '96f436fe8fb7dcb66ff802c77406f3ee25e646b5';
+  assert.equal(hasExactOpenDexterSourceContractsShape(preActivityGovernedBaseline), false);
   const arbitraryGovernedBaseline = structuredClone(sourceContracts);
   arbitraryGovernedBaseline.integratedApiRelease.governedContractCommit = '1'.repeat(40);
   assert.equal(hasExactOpenDexterSourceContractsShape(arbitraryGovernedBaseline), false);

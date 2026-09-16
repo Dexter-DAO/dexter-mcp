@@ -9,17 +9,8 @@ export type WalletChainBalance = {
   tier: 'first' | 'second';
 };
 
-export type WalletActivityItem = {
-  /** ISO timestamp of the event. */
-  at: string;
-  kind: 'payment' | 'earn_start' | 'earn_stop' | 'deposit' | 'withdrawal';
-  /** Signed USDC delta from the wallet's perspective (payments/withdrawals negative). */
-  amountUsd: number;
-  /** Human label — the seller host for a payment, else the money verb. */
-  label: string;
-  /** Solana tx signature, when present. */
-  sig?: string;
-};
+export type { WalletActivityItem } from '../wallet/activityModel';
+import { normalizeActivityPage, type ActivityPage } from '../wallet/activityModel';
 
 export type WalletMoney = {
   /** Cash plus reported open credit. This is capacity, not endpoint eligibility. */
@@ -88,7 +79,7 @@ export type CanonicalWalletPayload = {
   /** Whether the wallet's USDC account is activated on-chain. */
   activated?: boolean;
   /** Recent recorded money events, newest first (real data from /activity). */
-  activity?: WalletActivityItem[];
+  activityPage: ActivityPage | null;
   /**
    * Portfolio inventory is independent from cash/credit. It is always present
    * as an explicit read state, and never participates in spendable arithmetic.
@@ -266,30 +257,6 @@ export function normalizeWalletPayload(
       }
     : undefined;
 
-  // Recent activity — the server emits { at, kind, amountAtomic, host, sig }.
-  const activity: WalletActivityItem[] | undefined = Array.isArray(raw.activity)
-    ? (raw.activity as Record<string, unknown>[])
-        .map((it): WalletActivityItem | null => {
-          const at = typeof it.at === 'string' ? it.at : null;
-          const kind =
-            it.kind === 'payment' || it.kind === 'earn_start' || it.kind === 'earn_stop' ||
-            it.kind === 'deposit' || it.kind === 'withdrawal'
-              ? it.kind
-              : null;
-          if (!at || !kind) return null;
-          const amountUsd = atomicToUsd(it.amountAtomic);
-          const host = typeof it.host === 'string' ? it.host : null;
-          const label =
-            kind === 'payment' ? (host ?? 'Paid API call')
-            : kind === 'earn_start' ? 'Started earning'
-            : kind === 'earn_stop' ? 'Stopped earning'
-            : kind === 'deposit' ? 'Deposit received'
-            : 'Withdrawal';
-          return { at, kind, amountUsd, label, sig: typeof it.sig === 'string' ? it.sig : undefined };
-        })
-        .filter((x): x is WalletActivityItem => x !== null)
-    : undefined;
-
   const address = typeof raw.address === 'string' ? raw.address : undefined;
   const solanaAddress =
     typeof raw.solanaAddress === 'string'
@@ -339,7 +306,7 @@ export function normalizeWalletPayload(
       raw.vault && typeof raw.vault === 'object' && typeof (raw.vault as Record<string, unknown>).isActivated === 'boolean'
         ? (raw.vault as Record<string, unknown>).isActivated as boolean
         : raw.mode === 'vault_ready' ? true : undefined,
-    activity,
+    activityPage: normalizeActivityPage(raw.activityPage, solanaAddress),
     portfolio,
     supportedNetworks: Array.isArray(raw.supportedNetworks)
       ? raw.supportedNetworks.filter((v): v is string => typeof v === 'string')

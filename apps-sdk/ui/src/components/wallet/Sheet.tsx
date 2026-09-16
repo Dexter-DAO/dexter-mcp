@@ -6,10 +6,11 @@ import { CloseIcon } from './icons';
  * title + close. Only one sheet is ever mounted at a time (WalletHome owns that
  * state), which is what keeps the surface calm.
  */
-export function Sheet({ title, onClose, children }: {
+export function Sheet({ title, onClose, children, actions }: {
   title: string;
   onClose: () => void;
   children: ReactNode;
+  actions?: ReactNode;
 }) {
   const sheetRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -64,6 +65,8 @@ export function Sheet({ title, onClose, children }: {
         aria-modal="true"
         aria-label={title}
       >
+        <div className={actions ? 'dxw-sheet-tools' : undefined}>
+        {actions}
         <button
           className="dxw-sheet-close"
           ref={closeRef}
@@ -73,6 +76,7 @@ export function Sheet({ title, onClose, children }: {
         >
           <CloseIcon />
         </button>
+        </div>
         <h2>{title}</h2>
         {children}
       </div>
