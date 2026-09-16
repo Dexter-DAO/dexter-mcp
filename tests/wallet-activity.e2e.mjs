@@ -24,6 +24,8 @@ test('unified wallet activity shows receipts, exact amounts, paging and read fai
       const output = walletOutput();
       const initial = output.activityPage;
       initial.items[0].service.publicUrl = 'https://indexter.cash/services/r-fixture';
+      initial.items[0].service.logoUrl = 'https://provider.example/missing-logo.png';
+      initial.items[0].actor.name = 'Grok Bot';
       initial.items[0].details = [{ label: 'Delivery', value: 'Response unavailable' }, { label: 'Seller response', value: '503' }];
       initial.items[0].links.push({ label: 'View Base transaction', kind: 'transaction', url: 'https://basescan.org/tx/fixture' });
       initial.nextCursor = 'opaque-older';
@@ -31,6 +33,7 @@ test('unified wallet activity shows receipts, exact amounts, paging and read fai
       for (let i = 0; i < 4; i += 1) initial.items.push({ ...initial.items[0], id: `deposit:${i}`, kind: 'deposit', title: 'USDC received', subtitle: null, amount: { ...initial.items[0].amount, atomic: '1000000' }, actor: { kind: 'external', name: null, agentId: null }, details: [] });
       const requests = [];
       let fail = false;
+      await page.route('https://api.dexter.cash/api/img?url=https%3A%2F%2Fprovider.example%2Fmissing-logo.png', (route) => route.fulfill({ status: 404, body: '' }));
       await page.route('https://open.dexter.cash/widget/wallet/**', async (route) => {
         const body = route.request().postDataJSON();
         requests.push({ path: new URL(route.request().url()).pathname, body });
@@ -53,7 +56,13 @@ test('unified wallet activity shows receipts, exact amounts, paging and read fai
       await page.getByRole('button', { name: 'Activity', exact: true }).click();
       await page.getByRole('button', { name: 'Refresh activity', exact: true }).waitFor();
       await page.waitForFunction(() => !document.querySelector('.dxw-activity-refresh-icon')?.disabled);
-      assert.equal(await page.getByText('−0.001 USDC', { exact: true }).count(), 1);
+      assert.equal(await page.getByText('−$0.001', { exact: true }).count(), 1);
+      assert.equal(await page.locator('.dxw-activity-value').first().getAttribute('title'), '−0.001 USDC. View transaction');
+      assert.equal(await page.locator('.dxw-act-amt').first().getAttribute('data-cash-direction'), 'outgoing');
+      assert.equal(await page.locator('.dxw-act-amt[data-cash-direction="incoming"]').count(), 3);
+      assert.match(await page.locator('.dxw-activity-actor img').first().getAttribute('src'), /grok-bot-official\.svg/);
+      await page.locator('.dxw-activity-mark img').first().waitFor();
+      await page.waitForFunction(() => document.querySelector('.dxw-activity-mark img')?.getAttribute('src') === 'https://dexter.cash/opendexter-clients/dexter-logo-main.svg');
       await page.locator('.dxw-activity-identity').first().click();
       await page.locator('.dxw-activity-value').first().click();
       assert.deepEqual(await page.evaluate(() => window.__openedLinks), ['https://indexter.cash/services/r-fixture', 'https://solscan.io/tx/fixture']);

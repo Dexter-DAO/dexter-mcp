@@ -49,6 +49,21 @@ export function formatActivityAmount(amount: ActivityAmount | null): string {
   return `${negative ? '−' : ''}${grouped}${fraction ? `.${fraction}` : ''} ${amount.symbol}`;
 }
 
+export function activityCashDirection(amount: ActivityAmount | null): 'incoming' | 'outgoing' | null {
+  if (!amount || amount.symbol !== 'USDC') return null;
+  const value = amount.displayAmount ?? amount.atomic;
+  if (!/[1-9]/.test(value)) return null;
+  return value.startsWith('-') ? 'outgoing' : 'incoming';
+}
+
+/** USDC cash uses dollars; the exact token quantity remains available on hover. */
+export function formatActivityValue(amount: ActivityAmount | null): string {
+  const exact = formatActivityAmount(amount);
+  if (!amount || amount.symbol !== 'USDC') return exact;
+  const direction = activityCashDirection(amount);
+  return `${direction === 'outgoing' ? '−' : direction === 'incoming' ? '+' : ''}$${exact.replace(/^−/, '').replace(/ USDC$/, '')}`;
+}
+
 export function activitySubtitle(item: WalletActivityItem): string {
   const name = item.actor.name;
   const internalName = name && (/^[a-z][a-z\d+.-]*:\/\//i.test(name) || /^(?:localhost|\d{1,3}(?:\.\d{1,3}){3})(?::\d+)?$/i.test(name));

@@ -8,7 +8,7 @@ import { ActivitySheet } from './ActivitySheet';
 import { CreditSheet } from './CreditSheet';
 import { AssetsSheet } from './AssetsSheet';
 import { relativeTime } from './format';
-import { activitySubtitle, activityTitle, formatActivityAmount, normalizeActivityPage } from './activityModel';
+import { activityCashDirection, activitySubtitle, activityTitle, formatActivityAmount, formatActivityValue, normalizeActivityPage } from './activityModel';
 import { ActivityIcon, AssetsIcon, Chevron, CreditMark, DepositIcon, WorldMark } from './icons';
 // Widget-frame-only refresh rail (auth = _meta.dexterWalletToken).
 const WALLET_RAIL = 'https://open.dexter.cash/widget/wallet';
@@ -330,9 +330,10 @@ export function WalletHome({
           </span>
           <span
             className="dxw-tx-amt dxw-mono"
+            data-cash-direction={activityCashDirection(latest.amount) ?? undefined}
             title={`Exact amount: ${formatActivityAmount(latest.amount)}`}
           >
-            <span aria-hidden="true">{formatActivityAmount(latest.amount)}</span>
+            <span aria-hidden="true">{formatActivityValue(latest.amount)}</span>
             <span className="sr-only">Exact amount: {formatActivityAmount(latest.amount)}</span>
           </span>
           <Chevron />

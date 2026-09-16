@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createHmac } from 'node:crypto';
 import { fetchSessionActivity, signedSessionActivityHeaders } from '../lib/session-activity.mjs';
-import { formatActivityAmount, normalizeActivityPage, activityLinkAllowed, activityServiceUrl, activitySubtitle, activityReceiptFacts, activityTitle } from '../apps-sdk/ui/src/components/wallet/activityModel.ts';
+import { formatActivityAmount, formatActivityValue, activityCashDirection, normalizeActivityPage, activityLinkAllowed, activityServiceUrl, activitySubtitle, activityReceiptFacts, activityTitle } from '../apps-sdk/ui/src/components/wallet/activityModel.ts';
 import { walletOutput, WALLET_ADDRESS } from './fixtures/wallet-portfolio-fixtures.mjs';
 
 const secret = 'test-only-long-purpose-separated-secret';
@@ -64,6 +64,19 @@ test('canonical service metadata and transaction display quantities survive vali
   assert.equal(normalized.items[0].amount.displayAmount, '-0.002');
   input.items[0].amount.displayAmount = '1e-6';
   assert.equal(normalizeActivityPage(input, WALLET_ADDRESS), null);
+});
+
+test('cash uses signed exact dollars with direction while asset quantities keep their symbol', () => {
+  const amount = page().items[0].amount;
+  assert.equal(formatActivityValue(amount), '−$0.001');
+  assert.equal(activityCashDirection(amount), 'outgoing');
+  assert.equal(formatActivityValue({ ...amount, atomic: '1' }), '+$0.000001');
+  assert.equal(activityCashDirection({ ...amount, atomic: '1' }), 'incoming');
+  assert.equal(formatActivityValue({ ...amount, atomic: '0' }), '$0');
+  assert.equal(activityCashDirection({ ...amount, atomic: '0' }), null);
+  assert.equal(formatActivityValue({ ...amount, displayAmount: '-9007199254740993.000001' }), '−$9,007,199,254,740,993.000001');
+  assert.equal(formatActivityValue({ ...amount, atomic: '34815', symbol: 'SPCX' }), '0.034815 SPCX');
+  assert.equal(activityCashDirection({ ...amount, symbol: 'SPCX' }), null);
 });
 
 test('service identity opens its Indexter page and never a paid endpoint', () => {

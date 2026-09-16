@@ -690,6 +690,8 @@ button.dxw-comp,
 .dxw-act-description { display: block; max-width: 65ch; margin-top: 4px; color: var(--ink-2); font-size: 12px; line-height: 1.4; }
 .dxw-activity-value { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; max-width: 230px; }
 .dxw-act-amt { max-width: 100%; overflow-wrap: anywhere; text-align: right; font-size: 14px; font-variant-numeric: tabular-nums; }
+.dxw-root [data-cash-direction="outgoing"] { color: var(--dx-danger); }
+.dxw-root [data-cash-direction="incoming"] { color: var(--dx-success); }
 .dxw-activity-value time { display: block; color: var(--ink-2); font-size: 11px; line-height: 1.4; text-align: right; }
 .dxw-activity-value:hover .dxw-act-amt, .dxw-activity-identity:hover .dxw-act-main { text-decoration: underline; text-underline-offset: 3px; }
 .dxw-activity-expand { display: grid; place-items: center; width: 24px; height: 44px; color: var(--ink-2); }
