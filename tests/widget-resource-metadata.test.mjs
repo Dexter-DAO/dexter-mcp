@@ -326,8 +326,13 @@ test('resource profiles grant only widget-specific network capabilities', () => 
   assert.ok(!wallet.resource_domains.includes('https://api.qrserver.com'));
   assert.deepEqual(wallet.redirect_domains.sort(), [
     'https://dexter.cash',
+    'https://indexter.cash',
     'https://solscan.io',
+    'https://basescan.org',
   ].sort());
+  // Catalog and portfolio artwork uses the shared API image proxy.
+  assert.ok(!wallet.resource_domains.includes('https://agent.massive.com'));
+  assert.ok(!wallet.resource_domains.includes('https://s3-symbol-logo.tradingview.com'));
 
   const probe = buildWidgetCsp(
     'https://dexter.cash/assets',

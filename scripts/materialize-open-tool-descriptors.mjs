@@ -107,11 +107,12 @@ const API_GOVERNED_CONTRACT_PATHS = Object.freeze([
 const EXPECTED_SOURCE_CONTRACTS = Object.freeze({
   apiCommit: 'fa0701b67625911b8ec97a5399f62ec97a69f976',
   apiTree: 'dcee95df1d92018b8fcd8b43645fe63211383274',
-  // The historical consumer fixture remains pinned above. The stock release
-  // has its own reviewed governed implementation, which later API releases
-  // must preserve byte-for-byte over API_GOVERNED_CONTRACT_PATHS.
-  integratedGovernedCommit: '81662ade9d821c3617397d4a0103c53b2f600fa4',
-  integratedGovernedTree: '96f436fe8fb7dcb66ff802c77406f3ee25e646b5',
+  // The historical consumer fixture remains pinned above. This reviewed API
+  // adds only the read-only listWalletActivityGovernedTransactions projection
+  // to the previous governed implementation. Later API releases must preserve
+  // these bytes over API_GOVERNED_CONTRACT_PATHS.
+  integratedGovernedCommit: '3563384462e4d7d063a50942c88d589afe20aeae',
+  integratedGovernedTree: 'f5f34b460fa3c476b61e42578cf714e58e109673',
   apiFixtureSha256:
     'ad06690a3914e0ef0f359c4164eb62f78ca54abe6697a52672d739df63c2c352',
   apiCanonicalBodyDigest:

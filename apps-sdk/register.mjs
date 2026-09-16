@@ -153,7 +153,12 @@ export function buildWidgetCsp(
       'https://open.dexter.cash',
       'https://api.dexter.cash',
     );
-    redirectDomains.push('https://dexter.cash', 'https://solscan.io');
+    redirectDomains.push(
+      'https://dexter.cash',
+      'https://indexter.cash',
+      'https://solscan.io',
+      'https://basescan.org',
+    );
   } else if (templateUri === DIAGNOSTIC_WIDGET_URIS.passkeyProbe) {
     if (webauthnProbeTelemetryEnabled) {
       connectDomains.push('https://open.dexter.cash');
