@@ -61,6 +61,25 @@ export function activityDateTime(value: string): string {
   return new Date(value).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
 
+export function activityReceiptFacts(item: WalletActivityItem): string[] {
+  const http = item.details.find((detail) => detail.label === 'Seller response')?.value;
+  const delivery = item.details.find((detail) => detail.label === 'Delivery')?.value;
+  const facts = item.details.flatMap(({ label, value }) => {
+    if (['Asset', 'Provider', 'Seller response', 'Delivery'].includes(label)) return [];
+    if (label === 'Recipient') return [`To ${value}`];
+    if (label === 'Shares requested') return [`${value} shares requested`];
+    if (label === 'Filled amounts') return [`Filled amounts ${value[0].toLowerCase()}${value.slice(1)}`];
+    return [value];
+  });
+  if (delivery || http) facts.push(delivery ? `${delivery}${http ? ` (HTTP ${http})` : ''}` : `Provider returned HTTP ${http}`);
+  return facts;
+}
+
+export function activityChainName(url: string): string {
+  const host = new URL(url).hostname;
+  return host === 'solscan.io' ? 'Solana' : host === 'basescan.org' ? 'Base' : host;
+}
+
 export function activityServiceUrl(item: WalletActivityItem): string | null {
   const value = item.service?.publicUrl ?? item.links.find((link) => link.kind === 'service')?.url;
   if (!value || !activityLinkAllowed(value)) return null;

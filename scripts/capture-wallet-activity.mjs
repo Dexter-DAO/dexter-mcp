@@ -47,6 +47,7 @@ try {
     await page.screenshot({ path: path.join(out, `wallet-real-${mobile ? 'mobile' : 'desktop'}.png`), fullPage: true });
     await page.getByRole('button', { name: 'Activity', exact: true }).click();
     await page.waitForFunction(() => document.querySelector('.dxw-act-row') && !document.querySelector('.dxw-activity-refresh-icon')?.disabled);
+    await page.mouse.move(0, 0);
     const images = () => page.locator('.dxw-activity-mark img').evaluateAll((images) => Promise.all(images.map((image) => image.complete ? null : new Promise((resolve) => { image.onload = resolve; image.onerror = resolve; setTimeout(resolve, 5000); }))));
     await images();
     await page.screenshot({ path: path.join(out, `activity-real-${mobile ? 'mobile' : 'desktop'}.png`), fullPage: true });
@@ -61,7 +62,15 @@ try {
       while (currentPage < targetPage) { await page.getByRole('button', { name: 'Next', exact: true }).click(); currentPage++; }
       while (currentPage > targetPage) { await page.getByRole('button', { name: 'Previous', exact: true }).click(); currentPage--; }
       await images();
+      await page.mouse.move(0, 0);
       await page.screenshot({ path: path.join(out, `activity-real-${name}-${mobile ? 'mobile' : 'desktop'}.png`), fullPage: true });
+      if (name === 'services') {
+        const toggle = page.getByRole('button', { name: `Show receipt for ${pages[0].items[itemIndex].title}`, exact: true });
+        await toggle.click();
+        await page.mouse.move(0, 0);
+        await page.screenshot({ path: path.join(out, `activity-real-service-receipt-${mobile ? 'mobile' : 'desktop'}.png`), fullPage: true });
+        await page.getByRole('button', { name: `Hide receipt for ${pages[0].items[itemIndex].title}`, exact: true }).click();
+      }
     }
     console.log(JSON.stringify({ device: mobile ? 'mobile' : 'desktop', horizontalOverflow: await page.evaluate(() => document.documentElement.scrollWidth > innerWidth),
       font: await page.locator('.dxw-act-main').first().evaluate((el) => getComputedStyle(el).fontFamily),

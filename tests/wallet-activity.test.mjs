@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createHmac } from 'node:crypto';
 import { fetchSessionActivity, signedSessionActivityHeaders } from '../lib/session-activity.mjs';
-import { formatActivityAmount, normalizeActivityPage, activityLinkAllowed, activityServiceUrl, activitySubtitle } from '../apps-sdk/ui/src/components/wallet/activityModel.ts';
+import { formatActivityAmount, normalizeActivityPage, activityLinkAllowed, activityServiceUrl, activitySubtitle, activityReceiptFacts } from '../apps-sdk/ui/src/components/wallet/activityModel.ts';
 import { walletOutput, WALLET_ADDRESS } from './fixtures/wallet-portfolio-fixtures.mjs';
 
 const secret = 'test-only-long-purpose-separated-secret';
@@ -80,6 +80,12 @@ test('subtitles keep useful exceptions and omit routine finality and internal ac
   assert.equal(activitySubtitle(item), 'Market research · Research agent');
   assert.equal(activitySubtitle({ ...item, status: 'refused', actor: { ...item.actor, name: '127.0.0.1' } }), 'Market research · Agent · Declined');
   assert.equal(activitySubtitle({ ...item, actor: { ...item.actor, name: 'grokbot://mcp' } }), 'Market research · Agent');
+});
+
+test('receipt facts preserve delivery and funding while removing repeated identity fields', () => {
+  const item = page().items[0];
+  item.details = [{ label: 'Asset', value: 'SpaceX' }, { label: 'Provider', value: 'Backpack Securities' }, { label: 'Seller response', value: '200' }, { label: 'Delivery', value: 'Response received' }, { label: 'Payment', value: 'Financed with credit' }];
+  assert.deepEqual(activityReceiptFacts(item), ['Financed with credit', 'Response received (HTTP 200)']);
 });
 
 test('all unified event kinds survive and unsafe receipt links cannot navigate', () => {

@@ -62,7 +62,7 @@ export function ActivitySheet({ initialPage, onClose, isFullscreen, condensed, o
       <div className="dxw-act-list">
         {visibleItems.map((item) => <ActivityRow key={item.id} item={item} onOpenExternal={onOpenExternal} />)}
       </div>
-      {items.length ? <Pager label="Activity pages" page={safePage} pageCount={pageCount} start={pageStart + 1} end={pageStart + visibleItems.length} total={items.length} onPage={setPage} /> : null}
+      {items.length ? <Pager label="Activity pages" page={safePage} pageCount={pageCount} start={pageStart + 1} end={pageStart + visibleItems.length} total={snapshot?.nextCursor || hasFailedSource ? undefined : items.length} onPage={setPage} /> : null}
       {snapshot?.nextCursor && safePage === pageCount - 1 && onLoad ? <button className="dxw-activity-refresh" type="button" disabled={loading} onClick={() => void load(true)}>Load older activity</button> : null}
       {snapshot?.coverage.state === 'partial' ? <p className="dxw-activity-notice">{hasFailedSource ? 'Some activity could not be refreshed.' : staleTransfers ? 'Transfers may be delayed.' : 'Transfers include USDC. Other token transfers may be missing.'}</p> : null}
     </Sheet>

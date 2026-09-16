@@ -691,12 +691,12 @@ button.dxw-comp,
 .dxw-activity-expand[aria-expanded="true"] svg { transform: rotate(90deg); }
 .dxw-activity-details { padding: 2px 42px 18px 51px; color: var(--ink-2); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
 .dxw-activity-details p { margin: 5px 0; }
-.dxw-activity-details dl { margin: 10px 0 0; }
-.dxw-activity-details dl > div { display: flex; justify-content: space-between; gap: 20px; padding-block: 3px; }
-.dxw-activity-details dt { color: var(--ink-2); }
-.dxw-activity-details dd { margin: 0; color: var(--ink); text-align: right; }
+.dxw-activity-quantity { display: flex; align-items: center; gap: 8px; padding-block: 7px; color: var(--ink); text-align: left; }
+.dxw-activity-quantity img { width: 24px; height: 24px; object-fit: contain; }
+button.dxw-activity-quantity:hover { text-decoration: underline; text-underline-offset: 3px; }
 .dxw-activity-links { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; }
-.dxw-activity-links button, .dxw-activity-refresh { border: 0; background: none; color: var(--ink); text-decoration: underline; cursor: pointer; padding: 6px 0; font: inherit; font-size: 12px; }
+.dxw-activity-links button, .dxw-activity-refresh { display: flex; align-items: center; gap: 4px; border: 0; background: none; color: var(--ink); cursor: pointer; padding: 6px 0; font: inherit; font-size: 12px; }
+.dxw-activity-links button:hover, .dxw-activity-refresh:hover { text-decoration: underline; text-underline-offset: 3px; }
 .dxw-activity-refresh:disabled { opacity: .5; cursor: wait; }
 .dxw-activity-notice { color: var(--ink-2); font-size: 12px; line-height: 1.5; }
 .dxw-sheet-tools { position: absolute; top: -10px; right: -8px; display: flex; gap: 2px; }

@@ -24,6 +24,7 @@ test('unified wallet activity shows receipts, exact amounts, paging and read fai
       const output = walletOutput();
       const initial = output.activityPage;
       initial.items[0].service.publicUrl = 'https://indexter.cash/services/r-fixture';
+      initial.items[0].links.push({ label: 'View Base transaction', kind: 'transaction', url: 'https://basescan.org/tx/fixture' });
       initial.nextCursor = 'opaque-older';
       initial.items.push({ ...initial.items[0], id: 'trade:fixture', kind: 'trade', title: 'Bought SPCX', subtitle: 'Stock purchase', amount: { ...initial.items[0].amount, atomic: '4426', symbol: 'SPCX' }, details: [{ label: 'Paid', value: '0.09 USDC' }] });
       for (let i = 0; i < 4; i += 1) initial.items.push({ ...initial.items[0], id: `deposit:${i}`, kind: 'deposit', title: 'USDC received', subtitle: null, amount: { ...initial.items[0].amount, atomic: '1000000' }, actor: { kind: 'external', name: null, agentId: null }, details: [] });
@@ -57,6 +58,12 @@ test('unified wallet activity shows receipts, exact amounts, paging and read fai
       assert.deepEqual(await page.evaluate(() => window.__openedLinks), ['https://indexter.cash/services/r-fixture', 'https://solscan.io/tx/fixture']);
       await page.getByRole('button', { name: 'Show receipt for SYRAA.fun market analysis', exact: true }).click();
       await page.getByText('Response received (HTTP 200)', { exact: true }).waitFor();
+      assert.equal(await page.locator('.dxw-activity-details dl').count(), 0);
+      assert.equal(await page.getByText('View transaction', { exact: true }).count(), 0);
+      assert.equal(await page.getByText('View Base transaction', { exact: true }).count(), 0);
+      await page.getByRole('button', { name: 'Base', exact: true }).click();
+      assert.equal((await page.evaluate(() => window.__openedLinks)).at(-1), 'https://basescan.org/tx/fixture');
+      assert.equal(await page.getByRole('navigation', { name: 'Activity pages' }).getByText('1–5', { exact: true }).count(), 1);
       await page.locator('.dxw-widget').screenshot({ path: path.join(root, `output/playwright/activity-${mobile ? 'mobile' : 'desktop'}.png`) });
       const overflow = await page.locator('.dxw-widget').evaluate((el) => el.scrollWidth > el.clientWidth + 1);
       assert.equal(overflow, false);
