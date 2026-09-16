@@ -15,6 +15,7 @@ import {
   formatExactDecimal,
   formatExactUsd,
   formatDisplayUsd,
+  governedActionReason,
   normalizeDexterPortfolio,
   type ApprovedActionAvailability,
   type ApprovedActionTarget,
@@ -67,6 +68,9 @@ function holdingStateText(holding: PortfolioHolding): string {
 
 function unavailableActionText(action: ApprovedActionAvailability): string {
   const name = sentenceCase(action.action);
+  if (action.reason?.startsWith('stock_')) {
+    return `${name} is unavailable. ${governedActionReason(action.reason)}`;
+  }
   if (action.reason === 'protected_agent_send_sdk_required') {
     return 'Send requires the protected agent SDK.';
   }
