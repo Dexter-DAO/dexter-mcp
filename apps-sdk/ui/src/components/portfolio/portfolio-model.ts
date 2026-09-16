@@ -15,7 +15,14 @@ export type GovernedAction = 'buy' | 'sell' | 'send';
 export type PortfolioAvailabilityReason =
   | 'governed_asset_rail_not_live'
   | 'governed_asset_action_not_supported'
-  | 'protected_agent_send_sdk_required';
+  | 'protected_agent_send_sdk_required'
+  | 'stock_approval_required'
+  | 'stock_connection_unavailable'
+  | 'stock_authority_unavailable'
+  | 'stock_activation_unavailable'
+  | 'stock_eligibility_required'
+  | 'stock_eligibility_unavailable'
+  | 'stock_direction_not_permitted';
 
 export type PortfolioHolding = {
   assetId: string | null;
@@ -108,6 +115,13 @@ const GOVERNED_UNAVAILABLE_REASONS = new Set<PortfolioAvailabilityReason>([
   'governed_asset_rail_not_live',
   'governed_asset_action_not_supported',
   'protected_agent_send_sdk_required',
+  'stock_approval_required',
+  'stock_connection_unavailable',
+  'stock_authority_unavailable',
+  'stock_activation_unavailable',
+  'stock_eligibility_required',
+  'stock_eligibility_unavailable',
+  'stock_direction_not_permitted',
 ]);
 
 function record(value: unknown): UnknownRecord | null {
@@ -540,6 +554,13 @@ export function governedActionReason(reason: PortfolioAvailabilityReason | null)
   if (reason === 'protected_agent_send_sdk_required') return 'Send requires the protected agent SDK.';
   if (reason === 'governed_asset_action_not_supported') return 'This action is unavailable for the asset.';
   if (reason === 'governed_asset_rail_not_live') return 'The governed asset rail is unavailable.';
+  if (reason === "stock_approval_required") return "This agent needs approval to trade stocks.";
+  if (reason === "stock_connection_unavailable") return "This agent's wallet connection could not be verified.";
+  if (reason === "stock_authority_unavailable") return "Stock trading permission could not be checked.";
+  if (reason === "stock_activation_unavailable") return "This stock is not enabled for trading.";
+  if (reason === "stock_eligibility_required") return "Stock eligibility approval is required.";
+  if (reason === "stock_eligibility_unavailable") return "Stock eligibility could not be checked.";
+  if (reason === "stock_direction_not_permitted") return "This stock permission does not allow this action.";
   return 'Available';
 }
 

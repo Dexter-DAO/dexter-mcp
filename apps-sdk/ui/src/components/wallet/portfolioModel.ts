@@ -675,6 +675,20 @@ export function groupPortfolioUnavailableActions(
 
 export function capabilityReason(reason: string | null): string {
   switch (reason) {
+    case "stock_approval_required":
+      return "This agent needs approval to trade stocks.";
+    case "stock_connection_unavailable":
+      return "This agent's wallet connection could not be verified.";
+    case "stock_authority_unavailable":
+      return "Stock trading permission could not be checked.";
+    case "stock_activation_unavailable":
+      return "This stock is not enabled for trading.";
+    case "stock_eligibility_required":
+      return "Stock eligibility approval is required.";
+    case "stock_eligibility_unavailable":
+      return "Stock eligibility could not be checked.";
+    case "stock_direction_not_permitted":
+      return "This stock permission does not allow this action.";
     case 'governed_asset_rail_not_live':
       return 'Not available yet';
     case 'asset_not_approved':
