@@ -102,6 +102,10 @@ const PORTFOLIO_PROJECTION_FIXTURE_PATH =
   'tests/fixtures/opendexter-portfolio-v1-zero-holding-approved-action-targets.json';
 const API_GOVERNED_CONTRACT_PATHS = Object.freeze([
   'src/portfolio/governedWrites',
+  'src/marketData/priceUnits.ts',
+  'src/portfolio/enrichment.ts',
+  'src/portfolio/decimal.ts',
+  'src/routes/defaultGovernedDelegatedAssetActions.ts',
   'src/routes/governedDelegatedAssetActions.ts',
   'src/routes/defaultGovernedOwnerSendProduction.ts',
   'src/routes/governedOwnerSendExecution.ts',
@@ -134,9 +138,11 @@ const EXPECTED_SOURCE_CONTRACTS = Object.freeze({
   // native checkout recovery, historical Send receipt recognition, readable
   // receipt outcomes, and observation-only purchase continuation. PR302 adds
   // required payment-identifier admission while preserving existing recovery.
+  // PR304 adds dollar Sell sizing, quote corroboration and frozen recovery.
+  // PR306 retains validated Send release history without a count-only cutoff.
   // Later releases must preserve these API_GOVERNED_CONTRACT_PATHS bytes.
-  integratedGovernedCommit: 'e564d6000429f49868ebcb020075e3492080e415',
-  integratedGovernedTree: '48e0a21b7acbc748902c426873fa9167c7d3cdb8',
+  integratedGovernedCommit: '61cc13057c19d3cfa3fbedc64e15082334ae429c',
+  integratedGovernedTree: '9ee214a14c7cd86427457a503610d0dd9badbfbd',
   apiFixtureSha256:
     'ad06690a3914e0ef0f359c4164eb62f78ca54abe6697a52672d739df63c2c352',
   apiCanonicalBodyDigest:
