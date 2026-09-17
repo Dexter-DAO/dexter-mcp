@@ -306,6 +306,9 @@ function Authority({ model }: { model: GovernedActionViewModel }) {
 }
 
 function executionSentence(model: GovernedActionViewModel): string {
+  if (model.namespace === 'opendexter-governed-maintenance/v1') {
+    return 'This response does not report an execution outcome.';
+  }
   if (model.stage === 'success') {
     return model.confirmationCommitment === 'finalized'
       ? 'Finalized on Solana with successful execution.'
@@ -544,7 +547,7 @@ export function GovernedActionDetail({
           ) : null}
           {onExpand ? (
             <button type="button" className="dx-action__expand" onClick={onExpand}>
-              View full receipt
+              {model.namespace === 'opendexter-governed-maintenance/v1' ? 'View details' : 'View full receipt'}
             </button>
           ) : null}
         </section>

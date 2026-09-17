@@ -915,7 +915,15 @@ async function renderVariant({ browser, baseUrl, surface, device, theme }) {
 
   if (TOOL_RESULT_FILE && surface.id === 'governed-action') {
     const bodyText = await frame.locator('body').innerText();
-    if (surface.output.executionSucceeded === true
+    if (surface.output.namespace === 'opendexter-governed-maintenance/v1') {
+      assert.match(bodyText, /Maintenance/);
+      assert.match(bodyText, /Vault operations are temporarily unavailable/);
+      assert.match(bodyText, /This response does not report an execution outcome/);
+      assert.match(bodyText, /View details/);
+      assert.doesNotMatch(bodyText, /awaiting confirmation|authority decision|stopped before completion|The action is unsigned|execution outcome remains open|View full receipt/);
+      if (surface.output.intentId) assert.match(bodyText, /Read the saved outcome for this intent/);
+      else assert.match(bodyText, /After maintenance, retry the original Prepare/);
+    } else if (surface.output.executionSucceeded === true
       && ['confirmed', 'finalized'].includes(surface.output.confirmationCommitment)) {
       assert.match(bodyText, surface.output.confirmationCommitment === 'finalized' ? /Finalized/ : /Confirmed/);
       assert.doesNotMatch(bodyText, /awaiting confirmation|is being verified/);
@@ -1020,7 +1028,8 @@ galleryTest('current OpenDexter renderers fill one deterministic host-frame gall
   if (TOOL_RESULT_FILE) {
     const recorded = JSON.parse(await readFile(path.resolve(REPO_ROOT, TOOL_RESULT_FILE), 'utf8'));
     if (SURFACE_FILTER === 'governed-action') {
-      assert.ok(recorded.namespace?.startsWith('dexter-governed-'), 'Expected a governed response');
+      assert.ok(recorded.namespace?.startsWith('dexter-governed-')
+        || recorded.namespace === 'opendexter-governed-maintenance/v1', 'Expected a governed response');
       const actionSurface = allSurfaces.find(({ id }) => id === 'governed-action');
       actionSurface.output = recorded;
       actionSurface.input = { intentId: recorded.intentId };

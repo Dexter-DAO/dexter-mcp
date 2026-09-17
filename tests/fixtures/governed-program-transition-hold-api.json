@@ -1,0 +1,14 @@
+{
+  "apiSourceBase": "481d5edce8c58d26abc06f6c9a5b74506773590c",
+  "source": "src/services/vaultProgramTransitionHold.ts",
+  "sourceSha256": "4ee1eb2074dc78535d846f7aee0b148cd08b8941ec539409f6c0b4b92136ca33",
+  "scope": "Captured by invoking the actual pure response producer after TypeScript transpilation. No provider request or financial operation.",
+  "httpStatus": 503,
+  "body": {
+    "status": "paused",
+    "code": "VAULT_PROGRAM_TRANSITION_HELD",
+    "message": "Vault operations are paused for a program update. Retry the same operation after maintenance.",
+    "retryable": true,
+    "retryWithSameRequestOnly": true
+  }
+}
