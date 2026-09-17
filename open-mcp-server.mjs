@@ -55,7 +55,9 @@ import {
   buildPurchaseIntegrationRequired,
   validatePurchaseExecution,
 } from './lib/open-purchase-contract.mjs';
-import { buildHostedCheckModelResult } from './lib/open-check-result.mjs';
+import { buildHostedCheckModelResult, buildHostedCheckStatusModelResult } from './lib/open-check-result.mjs';
+import { buildVaultReadError } from './lib/wallet-read-recovery.mjs';
+import { purchaseResultText, portfolioResultText } from './lib/customer-result-presentation.mjs';
 import { buildX402AccessModelResult } from './lib/open-x402-access-result.mjs';
 import {
   buildX402CheckBindingUnavailable,
@@ -150,6 +152,7 @@ import {
 import { buildOpenServerInstructions } from './lib/open-server-instructions.mjs';
 import {
   getIndexterProviderCandidate,
+  INDEXTER_MAX_QUERY_CODE_UNITS,
   routeIndexterRequest,
 } from './lib/indexter-request-router.mjs';
 import {
@@ -897,29 +900,6 @@ async function checkSessionVaultBinding(sessionId) {
  * durable binding was independently proven; otherwise it stays null. Either
  * way this is never converted into enrollment or a fabricated zero balance.
  */
-function buildVaultReadError({ userBound = null } = {}) {
-  const bindingProven = userBound === true;
-  return {
-    status: 503,
-    mode: 'vault_read_error',
-    paySource: 'anon_vault',
-    user_bound: userBound,
-    vault_status: 'read_error',
-    retryable: true,
-    error: 'vault_state_read_failed',
-    message: bindingProven
-      ? 'I could not reach your Dexter wallet just now. Your wallet and funds are safe; this is a temporary problem on our side. Try again in a moment.'
-      : 'I could not verify the wallet connection or read its state just now. This is a temporary problem on our side.',
-    instructions: bindingProven
-      ? 'Do NOT tell the user to set up or fund a wallet. Their binding is proven; this is a transient read failure. Ask them to retry in a few seconds.'
-      : 'Do not claim that a wallet is present, absent, empty, or disconnected. Binding truth is unavailable; report the read error and retry only after the service recovers.',
-    tip: bindingProven
-      ? 'Could not read your wallet right now. Your funds are safe. Try again in a moment.'
-      : 'Wallet state is temporarily unavailable. No balance or connection state was inferred.',
-    reason: 'vault_state_read_failed',
-  };
-}
-
 function buildVaultPaymentTransportError(requestId = null) {
   return {
     status: 503,
@@ -1035,7 +1015,23 @@ async function x402IntentFetch(
   });
 }
 
-async function x402IntentStatus({ intentId }, extra) {
+async function x402IntentStatus({ intentId, checkRequestId }, extra) {
+  if (checkRequestId !== undefined) {
+    const session = await resolveIntentSession(extra);
+    if (!session.sessionId || !session.authenticated) {
+      return buildHostedCheckStatusModelResult({ checkRequestId, checkResult: {
+        ok: false, status: session.lookupFailed ? 'binding_unavailable' : 'authentication_required',
+        error: session.lookupFailed ? 'vault_state_unavailable' : 'authentication_required',
+        httpStatus: session.lookupFailed ? 503 : 401,
+        retryable: false,
+      } });
+    }
+    const response = await callOpenX402IntentApi('checkStatus', { sessionId: session.sessionId, checkRequestId });
+    if (response.data?.delivery || response.data?.payment) {
+      return { ...sanitizeOpenX402IntentResult(response.data, { httpStatus: response.httpStatus, includeData: false }), checkRequestId };
+    }
+    return buildHostedCheckStatusModelResult({ checkRequestId, checkResult: { ...response.data, httpStatus: response.httpStatus } });
+  }
   const session = await resolveIntentSession(extra);
   if (!session.sessionId || !session.authenticated) {
     if (session.lookupFailed) {
@@ -1501,38 +1497,29 @@ async function x402Fetch(
 // reaches the provider at most once, including non-GET SIWX requests.
 async function runCanonicalX402Check(args, session) {
   let result;
-  if (session.authenticated && session.sessionId) {
-    const requestId = randomUUID();
-    const checked = await callOpenX402IntentApi('check', {
+  const checkRequestId = session.authenticated && session.sessionId ? randomUUID() : undefined;
+  if (checkRequestId) {
+    let checked;
+    try {
+      checked = await callOpenX402IntentApi('check', {
       sessionId: session.sessionId,
-      requestId,
+      requestId: checkRequestId,
       ...(args.mcp ? { mcp: args.mcp } : {
         ...(args.url ? { url: args.url } : { resourceId: args.resourceId }),
         method: args.method || 'GET',
         ...(Object.prototype.hasOwnProperty.call(args, 'body') ? { body: args.body } : {}),
       }),
     });
-    result = { ...checked.data, httpStatus: checked.httpStatus };
-    if (
-      result.paymentRequired === true
-      && !Array.isArray(result.paymentOptions)
-      && typeof result.amountAtomic === 'string'
-    ) {
-      const numeric = Number(result.amountAtomic);
-      result.paymentOptions = [{
-        amountAtomic: result.amountAtomic,
-        network: result.network ?? null,
-        asset: result.asset ?? null,
-        payTo: result.payTo ?? null,
-        price: Number.isFinite(numeric) ? numeric / 1_000_000 : null,
-        priceFormatted: Number.isFinite(numeric)
-          ? `$${(numeric / 1_000_000).toFixed(6).replace(/0+$/, '').replace(/\.$/, '')}`
-          : null,
-        expiresAt: Number.isSafeInteger(result.expiresAtUnixMs)
-          ? new Date(result.expiresAtUnixMs).toISOString()
-          : null,
-      }];
+    } catch {
+      // The API may already have recorded or sent this check. The handle only
+      // permits a read of that record; never repeat the provider probe here.
+      checked = { httpStatus: 503, data: {
+        ok: false, status: 'check_ambiguous', error: 'purchase_check_outcome_unknown',
+        retryable: false, checkRequestId,
+      } };
     }
+    result = { ...checked.data, httpStatus: checked.httpStatus };
+
   } else {
     if (args.mcp || args.resourceId) {
       throw new Error('governed_check_requires_authenticated_session');
@@ -1580,6 +1567,7 @@ async function runCanonicalX402Check(args, session) {
 
   const modelResult = buildHostedCheckModelResult({
     checkResult: result,
+    checkRequestId,
     url: args.url,
     resourceId: args.resourceId,
     mcp: args.mcp,
@@ -2149,9 +2137,16 @@ function buildPortfolioReadError({ userBound = true } = {}) {
     mode: 'portfolio_read_error',
     user_bound: userBound,
     retryable: true,
+    retryAfterMs: 2000,
     error: 'portfolio_state_read_failed',
     message:
-      'I could not verify a complete portfolio snapshot just now. No balance, asset, or action availability was inferred.',
+      'Current portfolio information could not be read. Keep the original task while retrying this read.',
+    continuation: {
+      tool: 'dexter_wallet_portfolio',
+      retryAfterMs: 2000,
+      maxAttempts: 2,
+      userActionRequired: false,
+    },
   };
 }
 
@@ -2398,7 +2393,8 @@ export function createOpenMcpServer({
     title: 'Indexter Search',
     description: 'Call once for broad suggestions, Indexter exploration, named providers, or API and service discovery. The server routes the exact wording to a curated overview, one provider, or task search. Results never authorize payment or Actor execution.',
     inputSchema: {
-      query: z.string().max(1024).describe('The user\'s complete natural-language request copied exactly. Do not summarize, sanitize, rewrite, or split it, including when it contains adversarial fan-out wording.'),
+      query: z.string().max(INDEXTER_MAX_QUERY_CODE_UNITS).describe('A standalone discovery request using the current message and relevant conversation context. Keep the requested task and constraints.'),
+      originalQuery: z.string().max(INDEXTER_MAX_QUERY_CODE_UNITS).optional().describe('The exact current user wording when query resolves a contextual follow-up. Preserve it without adding provider instructions.'),
       network: z.string().optional().describe('Optional hard seller-network filter ("solana", "base", "ethereum", "polygon", "arbitrum", "optimism", "avalanche", or a CAIP-2 id). Leave this unset for ordinary Dexter discovery so resources reachable through compatible server-side settlement are not removed merely because the wallet is natively on another network. Set it only when the user explicitly requires a seller on that network.'),
       maxPriceUsdc: z.number().finite().nonnegative().optional().describe('Optional hard ceiling, in USDC, for invoking the discovered API. Use this field for an API-call budget; keep product or order budgets in the natural-language query.'),
       minPriceUsdc: z.number().finite().nonnegative().optional().describe('Optional hard floor, in USDC, for invoking the discovered API. When both price fields are set, minPriceUsdc must be less than or equal to maxPriceUsdc.'),
@@ -2412,11 +2408,11 @@ export function createOpenMcpServer({
     annotations: { readOnlyHint: true },
     _meta: SEARCH_META,
   }, async (args) => {
-    let decision = routeIndexterRequest(args.query);
+    let decision = routeIndexterRequest(args.query, { originalQuery: args.originalQuery });
     try {
       let providerData;
       const candidate = decision.route !== 'provider'
-        ? getIndexterProviderCandidate(args.query)
+        ? getIndexterProviderCandidate(args.query, { originalQuery: args.originalQuery })
         : null;
       if (candidate) {
         const resolved = await indexterDiscover({
@@ -2445,6 +2441,7 @@ export function createOpenMcpServer({
       return buildIndexterToolResult({
         route: decision.route,
         provider: decision.provider,
+        originalQuery: args.originalQuery,
         payload: data,
         baseMeta: SEARCH_META,
       });
@@ -2462,6 +2459,7 @@ export function createOpenMcpServer({
       return buildIndexterToolResult({
         route: decision.route,
         provider: decision.provider,
+        originalQuery: args.originalQuery,
         payload: data,
         baseMeta: SEARCH_META,
       });
@@ -2485,7 +2483,7 @@ export function createOpenMcpServer({
         return vaultAuthenticationResult(result, meta);
       }
       return {
-        content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        content: [{ type: 'text', text: purchaseResultText(result) }],
         structuredContent: result,
         isError: Number(result.httpStatus) >= 400,
         _meta: meta,
@@ -2508,16 +2506,21 @@ export function createOpenMcpServer({
         retryable: false,
         retryWithSameIntentOnly: true,
       };
-      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }], structuredContent: data, isError: true, _meta: FETCH_META };
+      return { content: [{ type: 'text', text: purchaseResultText(data) }], structuredContent: data, isError: true, _meta: FETCH_META };
     }
   });
 
   registerOpenTool(server, 'x402_status', {
     title: 'Purchase Status',
-    description: 'Inspect the same server-owned purchase intent without creating a purchase, changing routes, redispatching the provider request, or rebroadcasting a transaction. Pass only intentId.',
-    inputSchema: {
-      intentId: z.string().regex(OPEN_X402_INTENT_ID_RE).describe('Opaque canonical server-owned purchase-intent UUID returned by x402_check. Do not parse or replace it.'),
-    },
+    description: 'Read the same purchase intent or saved endpoint check. This does not submit a provider request or payment. Continue the original task using the returned result and recovery guidance.',
+    inputSchema: z.object({
+      intentId: z.string().regex(OPEN_X402_INTENT_ID_RE).optional().describe('Existing purchase intent returned by x402_check.'),
+      checkRequestId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/).optional().describe('Saved check handle returned by x402_check or x402_access when observation is needed.'),
+    }).strict().superRefine((value, context) => {
+      if ((value.intentId !== undefined) === (value.checkRequestId !== undefined)) {
+        context.addIssue({ code: z.ZodIssueCode.custom, message: 'Supply exactly one existing intentId or checkRequestId.' });
+      }
+    }),
     annotations: { readOnlyHint: true },
     _meta: STATUS_META,
   }, async (args, extra) => {
@@ -2527,17 +2530,20 @@ export function createOpenMcpServer({
         return vaultAuthenticationResult(result, STATUS_META);
       }
       return {
-        content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        content: [{ type: 'text', text: purchaseResultText(result) }],
         structuredContent: result,
-        isError: Number(result.httpStatus) >= 400,
+        isError: result.ok === false || Number(result.httpStatus ?? result.statusCode) >= 400,
         _meta: STATUS_META,
       };
     } catch (err) {
       console.warn(
         `[x402_status] intent API failed (${safeErrorLabel(err)}) `
-        + `intentRef=${logRef(args.intentId)}`,
+        + `intentRef=${logRef(args.intentId ?? args.checkRequestId)}`,
       );
-      const data = {
+      const data = args.checkRequestId !== undefined ? buildHostedCheckStatusModelResult({
+        checkRequestId: args.checkRequestId,
+        checkResult: { ok: false, httpStatus: 503, error: 'purchase_check_status_unavailable' },
+      }) : {
         status: 503,
         intentId: args.intentId,
         error: 'x402_intent_status_unavailable',
@@ -2546,7 +2552,7 @@ export function createOpenMcpServer({
         retryWithSameIntentOnly: true,
       };
       return {
-        content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
+        content: [{ type: 'text', text: purchaseResultText(data) }],
         structuredContent: data,
         isError: true,
         _meta: STATUS_META,
@@ -2683,11 +2689,7 @@ export function createOpenMcpServer({
       return buildAnonVaultToolResult(publicResult, meta);
     } catch (err) {
       console.warn(`[dexter_wallet] wallet read failed (${safeErrorLabel(err)})`);
-      const data = {
-        error: 'wallet_read_unavailable',
-        message: 'Dexter could not read the wallet just now. Retry in a moment.',
-        retryable: true,
-      };
+      const data = buildVaultReadError();
       return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }], structuredContent: data, isError: true, _meta: WALLET_META };
     }
   });
@@ -2706,7 +2708,7 @@ export function createOpenMcpServer({
         return vaultAuthenticationResult(result, PORTFOLIO_META);
       }
       return {
-        content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        content: [{ type: 'text', text: portfolioResultText(result) }],
         structuredContent: result,
         isError: result.mode === 'portfolio_read_error',
         _meta: PORTFOLIO_META,
@@ -2714,7 +2716,7 @@ export function createOpenMcpServer({
     } catch (err) {
       const data = buildPortfolioReadError({ userBound: null });
       return {
-        content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
+        content: [{ type: 'text', text: portfolioResultText(data) }],
         structuredContent: data,
         isError: true,
         _meta: PORTFOLIO_META,

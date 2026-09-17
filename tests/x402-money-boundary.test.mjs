@@ -67,8 +67,8 @@ test('access uses the canonical check and never creates a legacy session wallet'
 
   assert.match(access, /runCanonicalX402Check\(args, session\)/);
   assert.match(access, /buildX402AccessModelResult\(checked\)/);
-  assert.match(canonical, /const requestId = randomUUID\(\)/);
-  assert.match(canonical, /sessionId: session\.sessionId,\s*requestId,/);
+  assert.match(canonical, /const checkRequestId = session\.authenticated && session\.sessionId \? randomUUID\(\) : undefined/);
+  assert.match(canonical, /sessionId: session\.sessionId,\s*requestId: checkRequestId,/);
   assert.equal((canonical.match(/checkEndpointPricing\(\{/g) || []).length, 1);
   assert.equal((canonical.match(/callOpenX402IntentApi\('check'/g) || []).length, 1);
   assert.doesNotMatch(serverSource, /resolveOrCreateSessionForWallet\(extra\)/);

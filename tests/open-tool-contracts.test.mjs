@@ -149,8 +149,8 @@ test('hosted paid guidance uses one opaque check-fetch-status path', () => {
 
   assert.match(fetchDescription, /opaque intentId/);
   assert.match(fetchDescription, /maxAmountAtomic/);
-  assert.match(fetchDescription, /dispatch\.boundary is crossed/);
-  assert.match(fetchDescription, /host-disabled\/pre-server invocation is not dispatch evidence/);
+  assert.match(fetchDescription, /current task and active permission/);
+  assert.match(fetchDescription, /same intent after uncertainty/);
   assert.match(fetchDescription, /x402_status/);
   assert.doesNotMatch(fetchDescription, /same URL|same method|same body|CrossPay/);
   assert.doesNotMatch(fetchDescription, /preparedPurchase|purchase mode|omit purchase/i);
@@ -190,14 +190,11 @@ test('discovery, search, and wallet contracts expose current truth without route
   assert.equal(Object.hasOwn(discovery.registrationOutputSchema.shape, 'providers'), true);
   assert.equal(Object.hasOwn(discovery.registrationOutputSchema.shape, 'mode'), true);
 
-  assert.match(search.description, /^Use this when the user wants to explore OpenDexter or Indexter, browse a provider's offerings, or find a service for a job/);
-  assert.match(search.description, /Call this tool exactly once/);
-  assert.match(search.description, /Find things to do[\s\S]*What should I try\?[\s\S]*Surprise me/i);
-  assert.match(search.description, /open an overview without a clarifying question/);
-  assert.match(search.description, /before asking for fulfillment details/);
-  assert.match(search.description, /Named-provider questions go to that provider[\s\S]*concrete jobs go to task search/);
-  assert.match(search.description, /at most twelve results/);
-  assert.match(search.description, /Actor results are catalog-only/);
+  assert.match(search.description, /Find services for the user's task/);
+  assert.match(search.description, /Search once before asking for later fulfillment details/);
+  assert.match(search.description, /Resolve query from the conversation/);
+  assert.match(search.description, /originalQuery/);
+  assert.match(search.description, /Actor listings remain catalog-only/);
   assert.equal(Object.hasOwn(search.registrationOutputSchema.shape, 'route'), true);
   assert.equal(Object.hasOwn(search.registrationOutputSchema.shape, 'results'), true);
   const validSearchOutput = {

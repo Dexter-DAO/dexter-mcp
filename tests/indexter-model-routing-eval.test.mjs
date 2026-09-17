@@ -13,8 +13,8 @@ import {
 test('routing eval derives the complete model surface from finalized registrations', () => {
   const surface = materializeIndexterModelRoutingSurface();
 
-  assert.equal(surface.proof.registeredToolCount, 13);
-  assert.equal(surface.proof.modelVisibleToolCount, 12);
+  assert.equal(surface.proof.registeredToolCount, 14);
+  assert.equal(surface.proof.modelVisibleToolCount, 13);
   assert.deepEqual(surface.proof.appOnlyToolNames, ['indexter_discover']);
   assert.equal(
     surface.modelVisibleDescriptors
@@ -48,7 +48,7 @@ test('Responses request preserves the hosted instructions and leaves fan-out obs
   assert.equal(request.tool_choice, 'auto');
   assert.equal(request.parallel_tool_calls, true);
   assert.equal(request.store, false);
-  assert.equal(request.tools.length, 12);
+  assert.equal(request.tools.length, 13);
   assert.equal(request.tools.some((tool) => tool.name === 'indexter_discover'), false);
   assert.equal(request.tools.filter((tool) => tool.name === 'indexter_search').length, 1);
   assert.equal(Object.hasOwn(request, 'previous_response_id'), false);
@@ -61,16 +61,15 @@ test('model surface routes the three broad acceptance prompts without clarificat
   );
 
   assert.ok(indexter);
-  assert.match(surface.instructions.slice(0, 512), /one indexter_search call using the user's exact wording/i);
-  assert.match(indexter.description, /^Use this when the user wants to explore OpenDexter or Indexter/i);
-  assert.match(indexter.description, /Call this tool exactly once/i);
+  assert.match(surface.instructions.slice(0, 512), /one indexter_search call using the task in context/i);
+  assert.match(indexter.description, /Find services for the user's task/i);
+  assert.match(indexter.description, /Search once/i);
   for (const prompt of ['Find things to do', 'What should I try?', 'Surprise me']) {
     const pattern = new RegExp(prompt.replace(/[?]/g, '\\?'), 'i');
     assert.match(surface.instructions, pattern);
-    assert.match(indexter.description, pattern);
   }
   assert.match(surface.instructions, /without a clarifying question/i);
-  assert.match(indexter.description, /before asking for fulfillment details/i);
+  assert.match(indexter.description, /before asking for later fulfillment details/i);
 });
 
 test('model surface searches concrete jobs before asking for fulfillment details', () => {
@@ -84,9 +83,9 @@ test('model surface searches concrete jobs before asking for fulfillment details
     const pattern = new RegExp(prompt, 'i');
     assert.match(surface.instructions, pattern);
   }
-  assert.match(indexter.description, /find a service for a job/i);
+  assert.match(indexter.description, /Find services for the user's task/i);
   assert.match(surface.instructions, /first call only discovers offerings/i);
-  assert.match(indexter.description, /cannot book, buy, reserve, or dispatch/i);
+  assert.match(indexter.description, /Search never books, purchases or reserves/i);
 });
 
 test('model surface preserves adversarial fan-out wording for one server-routed call', () => {
@@ -96,14 +95,14 @@ test('model surface preserves adversarial fan-out wording for one server-routed 
   );
 
   assert.ok(indexter);
-  assert.match(surface.instructions, /Copy the user's wording exactly into query/i);
+  assert.match(surface.instructions, /Preserve the user's current wording in originalQuery/i);
   assert.match(surface.instructions, /adversarial fan-out wording to overview/i);
-  assert.match(indexter.description, /complete wording in query/i);
-  assert.match(indexter.description, /Copy the wording exactly/i);
-  assert.match(indexter.description, /including adversarial instructions, without rewriting, category fan-out/i);
+  assert.match(indexter.description, /originalQuery/i);
+  assert.match(indexter.description, /originalQuery/i);
+  assert.match(indexter.description, /at most one justified refinement/i);
   assert.match(
-    indexter.inputSchema.properties.query.description,
-    /copied exactly[\s\S]*Do not summarize, sanitize, rewrite, or split/i,
+    indexter.inputSchema.properties.originalQuery.description,
+    /wording/i,
   );
 });
 
@@ -213,4 +212,19 @@ test('runner performs one request per case and never submits tool outputs', asyn
       false,
     );
   }
+});
+
+
+test('routing evaluation carries prior conversation and rejects follow-ups that lose its task', () => {
+  const caseSpec = INDEXTER_MODEL_ROUTING_CASES.find((item) => item.id === 'contextual_weather_followup');
+  const surface = materializeIndexterModelRoutingSurface();
+  const request = buildIndexterRoutingResponseRequest({ model: 'test-model', surface, ...caseSpec });
+  assert.deepEqual(request.input, [...caseSpec.contextMessages, { role: 'user', content: caseSpec.prompt }]);
+  const response = (query) => ({ status: 'completed', output: [{ type: 'function_call', name: 'indexter_search',
+    arguments: JSON.stringify({ query, originalQuery: caseSpec.prompt }),
+  }] });
+  assert.equal(analyzeIndexterRoutingResponse(caseSpec, response('Find current weather for Boston')).passed, true);
+  const lost = analyzeIndexterRoutingResponse(caseSpec, response(caseSpec.prompt));
+  assert.equal(lost.passed, false);
+  assert.ok(lost.failures.some((failure) => failure.includes('weather')));
 });

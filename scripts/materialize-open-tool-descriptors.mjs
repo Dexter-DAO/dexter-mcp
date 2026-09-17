@@ -127,12 +127,12 @@ const API_GOVERNED_CONTRACT_PATHS = Object.freeze([
 const EXPECTED_SOURCE_CONTRACTS = Object.freeze({
   apiCommit: 'fa0701b67625911b8ec97a5399f62ec97a69f976',
   apiTree: 'dcee95df1d92018b8fcd8b43645fe63211383274',
-  // Historical consumer fixtures remain pinned. This reviewed baseline adopts
-  // Vault 0.43.4, retains historical receipt validation, persists Send evidence
-  // before cosigning, and adds native MCP purchases. Later releases preserve
-  // these bytes over API_GOVERNED_CONTRACT_PATHS.
-  integratedGovernedCommit: '33ffd350e3ceb6ac6cd36ec48ebcf1552a4872dd',
-  integratedGovernedTree: '557ff0e749ab41157b01cb18fd6f6593fb8689a1',
+  // Historical consumer fixtures remain pinned. The accepted PR294–298
+  // baseline includes stock delivery recovery, native checkout recovery, and
+  // historical Send receipt recognition. Later releases must preserve these
+  // reviewed bytes over API_GOVERNED_CONTRACT_PATHS.
+  integratedGovernedCommit: 'b9a278ab13e9baa91cca210bdc237c942045097b',
+  integratedGovernedTree: 'c8139f896ce7f0e776f3da5443cb0d4d858629f0',
   apiFixtureSha256:
     'ad06690a3914e0ef0f359c4164eb62f78ca54abe6697a52672d739df63c2c352',
   apiCanonicalBodyDigest:

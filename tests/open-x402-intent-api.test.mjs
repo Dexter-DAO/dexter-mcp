@@ -317,6 +317,8 @@ test('rail-neutral owner approval becomes one safe hosted-consent continuation',
 
   assert.equal(readOpenX402ConsentUrl(source), consentUrl);
   assert.deepEqual(sanitizeOpenX402IntentResult(source), {
+    outcome: { resultAvailable: false, delivery: 'unknown', payment: 'unknown', commitment: null, purchaseReference: 'intent-1' },
+    continuation: { action: 'complete_authorization', url: consentUrl, message: 'Open the permission link for the missing authority, then continue the original task with this same intent.' },
     ok: false,
     intentId: 'intent-1',
     error: 'approval_required',
@@ -390,6 +392,8 @@ test('x402_fetch authorization projection exposes the valid Native Tab continuat
       reconciliation: { required: false, performed: false },
     },
   }), {
+    outcome: { resultAvailable: false, delivery: 'not_started', payment: 'not_started', commitment: null, purchaseReference: 'intent-native-tab-1' },
+    continuation: { action: 'complete_authorization', url: consentUrl, resume: { intentId: 'intent-native-tab-1', maxAmountAtomic: '50000' }, message: 'Open the permission link for the missing authority, then continue the original task with this same intent.' },
     ok: false,
     intentId: 'intent-native-tab-1',
     status: 'authorization_required',

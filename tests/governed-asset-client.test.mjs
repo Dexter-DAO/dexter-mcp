@@ -1788,7 +1788,7 @@ test('reconcile accepts every exact runtime outcome envelope', async () => {
         canReconcile: false,
         receiptPhases: [],
       },
-    }), true],
+    }), false],
     [409, reconcileResponse({
       outcome: 'unavailable',
       code: 'agent_reconciliation_adapter_required',
@@ -2781,4 +2781,56 @@ test('backend origin is an exact bounded origin with HTTP limited to loopback', 
       hostile,
     );
   }
+});
+
+test('missing stock permission retains approval destination and task identity through the model result', async () => {
+  const fixture = dynamicStockV2Fixture('nvidia', OPERATION_ID);
+  const requestId = `vspr_${'a'.repeat(36)}`;
+  const permissionRequest = {
+    namespace: 'dexter-stock-permission-request/v1', family: 'stocks', requestId,
+    approvalUrl: `https://dexter.cash/tabs/setup?request_id=${requestId}`,
+    expiresAt: '2026-09-17T07:00:00.000Z',
+  };
+  const refusal = {
+    namespace: 'dexter-governed-agent-action/v1', requestId: OPERATION_ID,
+    executed: false, attribution: null,
+    business: { ...fixture.prepared.business, requestedCompanyQuery: fixture.input.companyQuery,
+      lifecycle: 'refused', refusalOrEscalationReasons: ['grant_revision_inactive'] },
+    status: 'refused', code: 'grant_revision_inactive',
+    explanation: 'This connection needs trading permission.', retryable: false, permissionRequest,
+  };
+  const backend = await callGovernedAssetBackend({ apiBase: 'https://api.dexter.test', secret: SECRET,
+    operation: 'prepare', input: fixture.input, mcpSessionId: SESSION_ID, now: NOW,
+    fetchImpl: async () => jsonResponse(422, refusal) });
+  assert.equal(backend.body.code, 'grant_revision_inactive');
+  const envelope = buildGovernedAssetToolResult(backend);
+  const summary = JSON.parse(envelope.content[0].text);
+  assert.equal(envelope.isError, true);
+  assert.equal(summary.operationId, OPERATION_ID);
+  assert.equal(summary.retryable, false);
+  assert.equal(summary.nextActions[0].url, permissionRequest.approvalUrl);
+  assert.equal(summary.nextActions[0].expiresAt, permissionRequest.expiresAt);
+  assert.equal(summary.nextActions[0].action, 'open_approval');
+  assert.equal(summary.nextActions.some((action) => action.tool === 'dexter_execute_asset_action'), false);
+});
+
+test('retryable setup preparation retains original operation and never becomes an execution retry', async () => {
+  const fixture = dynamicStockV2Fixture('nvidia', OPERATION_ID);
+  const refusal = {
+    namespace: 'dexter-governed-agent-action/v1', requestId: OPERATION_ID,
+    executed: false, attribution: null,
+    business: { ...fixture.prepared.business, requestedCompanyQuery: fixture.input.companyQuery,
+      lifecycle: 'refused', refusalOrEscalationReasons: ['stock_trading_setup_pending'] },
+    status: 'refused', code: 'stock_trading_setup_pending',
+    explanation: 'Dexter is preparing this connection.', retryable: true,
+  };
+  const backend = await callGovernedAssetBackend({ apiBase: 'https://api.dexter.test', secret: SECRET,
+    operation: 'prepare', input: fixture.input, mcpSessionId: SESSION_ID, now: NOW,
+    fetchImpl: async () => jsonResponse(422, refusal) });
+  assert.equal(backend.body.code, 'stock_trading_setup_pending');
+  const summary = JSON.parse(buildGovernedAssetToolResult(backend).content[0].text);
+  assert.equal(summary.retryable, true);
+  assert.equal(summary.nextActions[0].action, 'retry_same_preparation');
+  assert.equal(summary.nextActions[0].operationId, OPERATION_ID);
+  assert.equal(summary.nextActions.some((action) => action.tool === 'dexter_execute_asset_action'), false);
 });
