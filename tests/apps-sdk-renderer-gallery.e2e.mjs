@@ -913,6 +913,18 @@ async function renderVariant({ browser, baseUrl, surface, device, theme }) {
     );
   }
 
+  if (TOOL_RESULT_FILE && surface.id === 'governed-action') {
+    const bodyText = await frame.locator('body').innerText();
+    if (surface.output.executionSucceeded === true
+      && ['confirmed', 'finalized'].includes(surface.output.confirmationCommitment)) {
+      assert.match(bodyText, surface.output.confirmationCommitment === 'finalized' ? /Finalized/ : /Confirmed/);
+      assert.doesNotMatch(bodyText, /awaiting confirmation|is being verified/);
+    } else if (surface.output.status === 'prepared') {
+      assert.match(bodyText, /Prepared/);
+      assert.doesNotMatch(bodyText, /Corporation sold/);
+    }
+  }
+
   if (surface.id === 'governed-history-empty') {
     assert.match(await frame.locator('body').innerText(), /No governed actions yet/i);
   }
@@ -994,14 +1006,21 @@ galleryTest('current OpenDexter renderers fill one deterministic host-frame gall
   assert.ok(browserType, `Unknown gallery browser: ${BROWSER_ENGINE}`);
   const allSurfaces = await buildRendererGallerySurfaces();
   if (TOOL_RESULT_FILE) {
-    assert.equal(SURFACE_FILTER, 'indexter-search', 'Recorded task results require the Search surface filter');
     const recorded = JSON.parse(await readFile(path.resolve(REPO_ROOT, TOOL_RESULT_FILE), 'utf8'));
-    assert.equal(recorded.structuredContent?.route, 'task');
-    assert.ok(recorded._meta?.indexterPayload?.data, 'Recorded result lacks its widget payload');
-    const searchSurface = allSurfaces.find(({ id }) => id === 'indexter-search');
-    searchSurface.output = recorded.structuredContent;
-    searchSurface.metadata = recorded._meta;
-    searchSurface.input = { query: process.env.DEXTER_RENDERER_GALLERY_QUERY || 'Find current weather and forecast APIs' };
+    if (SURFACE_FILTER === 'governed-action') {
+      assert.ok(recorded.namespace?.startsWith('dexter-governed-'), 'Expected a governed response');
+      const actionSurface = allSurfaces.find(({ id }) => id === 'governed-action');
+      actionSurface.output = recorded;
+      actionSurface.input = { intentId: recorded.intentId };
+    } else {
+      assert.equal(SURFACE_FILTER, 'indexter-search', 'Recorded results require the Search or governed-action surface');
+      assert.equal(recorded.structuredContent?.route, 'task');
+      assert.ok(recorded._meta?.indexterPayload?.data, 'Recorded result lacks its widget payload');
+      const searchSurface = allSurfaces.find(({ id }) => id === 'indexter-search');
+      searchSurface.output = recorded.structuredContent;
+      searchSurface.metadata = recorded._meta;
+      searchSurface.input = { query: process.env.DEXTER_RENDERER_GALLERY_QUERY || 'Find current weather and forecast APIs' };
+    }
   }
   const surfaces = SURFACE_FILTER
     ? allSurfaces.filter(({ id }) => id === SURFACE_FILTER)

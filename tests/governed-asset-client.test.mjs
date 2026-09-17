@@ -711,6 +711,40 @@ test('five public operations map to the exact existing API routes and bodies', (
   assert.equal(history.body, null);
 });
 
+test('dollar Sell forwards canonical human value under the existing request signature', () => {
+  for (const selector of [{ companyQuery: 'NVIDIA' }, { assetId: 'approved-token-42' }]) {
+    const input = {
+      operationId: OPERATION_ID, action: 'sell', ...selector,
+      valueUsd: '1.2500', maxSlippageBps: 50,
+    };
+    const request = governedBackendRequest('prepare', input);
+    assert.equal(request.method, 'POST');
+    assert.equal(request.originalUrl, PREPARE_PATH);
+    assert.equal(request.idempotencyKey, OPERATION_ID);
+    assert.deepEqual(request.body, {
+      action: 'sell', ...selector, valueUsd: '1.25', maxSlippageBps: 50,
+    });
+    assert.deepEqual(JSON.parse(request.bodyText), request.body);
+    assert.deepEqual(request, governedBackendRequest('prepare', { ...input, valueUsd: '1.25' }));
+    assert.equal('amountAtomic' in request.body, false);
+    assert.equal('operationId' in request.body, false);
+    const headers = buildGovernedBackendRequestAuth({
+      secret: SECRET, method: request.method, originalUrl: request.originalUrl,
+      body: request.body, mcpSessionId: SESSION_ID,
+      idempotencyKey: request.idempotencyKey, now: NOW,
+    });
+    assert.equal(headers['idempotency-key'], OPERATION_ID);
+    const verify = (body, requestHeaders = headers) => verifyGovernedBackendRequestAuth({
+      secret: SECRET, method: request.method, originalUrl: request.originalUrl,
+      body, headers: requestHeaders, now: NOW,
+    });
+    assert.equal(verify(request.body), true);
+    assert.equal(verify({ ...request.body, valueUsd: '2' }), false);
+    assert.equal(verify({ ...request.body, amountAtomic: '6589' }), false);
+    assert.equal(verify(request.body, { ...headers, 'idempotency-key': 'another-operation' }), false);
+  }
+});
+
 test('prepare client sends one exact request and preserves the canonical API body', async () => {
   const expected = preparedResponse();
   const calls = [];

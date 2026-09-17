@@ -10,6 +10,7 @@ import {
   GOVERNED_HISTORY_CURSOR_MAX_LENGTH,
   GOVERNED_OPERATION_SEMANTICS,
   GOVERNED_SHARE_QUANTITY_SCHEMA,
+  GOVERNED_VALUE_USD_SCHEMA,
   REGISTERED_GOVERNED_ASSET_TOOL_NAMES,
   assertNoGovernedAuthorityOverrides,
 } from '../lib/governed-asset-contract.mjs';
@@ -122,6 +123,54 @@ test('prepare accepts any canonical registry assetId and keeps denomination expl
   assert.match(buySchema.shape.amountAtomic.description, /6 decimals/i);
   assert.match(sellSchema.shape.amountAtomic.description, /selected-asset amount/i);
   assert.match(sellSchema.shape.amountAtomic.description, /server-certified decimals/i);
+});
+
+test('dollar Sell preserves human USD value for catalog and approved asset inputs', () => {
+  for (const selector of [{ companyQuery: 'NVIDIA' }, { assetId: 'approved-token-42' }]) {
+    for (const [valueUsd, normalized] of [
+      ['1', '1'],
+      ['1.00', '1'],
+      ['0.2500', '0.25'],
+      ['0.000000000000000001', '0.000000000000000001'],
+      ['12345678901234567890.123456789012345678', '12345678901234567890.123456789012345678'],
+    ]) {
+      const input = { operationId: OPERATION_ID, action: 'sell', ...selector, valueUsd };
+      assert.deepEqual(GOVERNED_ASSET_INPUT_SCHEMAS.prepare.parse(input), {
+        ...input, valueUsd: normalized,
+      });
+    }
+    const raw = { operationId: OPERATION_ID, action: 'sell', ...selector, amountAtomic: '6589' };
+    assert.deepEqual(GOVERNED_ASSET_INPUT_SCHEMAS.prepare.parse(raw), raw);
+  }
+  assert.match(GOVERNED_VALUE_USD_SCHEMA.description, /USD market value.*preparation/);
+  assert.match(GOVERNED_VALUE_USD_SCHEMA.description, /positive human decimal/);
+  assert.match(GOVERNED_VALUE_USD_SCHEMA.description, /Net USDC proceeds are approximate until the receipt/);
+});
+
+test('dollar Sell rejects conflicting modes, unsupported actions, and malformed decimals', () => {
+  for (const selector of [{ companyQuery: 'Tesla' }, { assetId: 'approved-token-42' }]) {
+    const input = { operationId: OPERATION_ID, action: 'sell', ...selector, valueUsd: '1' };
+    for (const valueUsd of [
+      undefined, null, 1, '', '0', '0.00', '-1', '+1', '01', '.25', '1.',
+      '1e2', '$1', '1,000', ' 1', '1 ', 'NaN', 'Infinity',
+      '123456789012345678901', '0.1234567890123456789', '9'.repeat(4096),
+    ]) {
+      assert.equal(GOVERNED_ASSET_INPUT_SCHEMAS.prepare.safeParse({ ...input, valueUsd }).success, false);
+    }
+    for (const extra of [
+      { amountAtomic: '6589' }, { shareQuantity: '1' }, { maximumSpendAtomic: '1000000' },
+      { companyQuery: 'Tesla', assetId: 'approved-token-42' },
+    ]) {
+      assert.equal(GOVERNED_ASSET_INPUT_SCHEMAS.prepare.safeParse({ ...input, ...extra }).success, false);
+    }
+    for (const action of ['buy', 'send']) {
+      assert.equal(GOVERNED_ASSET_INPUT_SCHEMAS.prepare.safeParse({ ...input, action }).success, false);
+      assert.equal(GOVERNED_ASSET_INPUT_SCHEMAS.prepare.safeParse({
+        ...input, action, amountAtomic: '1000000',
+        ...(action === 'send' ? { destinationOwner: ADDRESS } : {}),
+      }).success, false);
+    }
+  }
 });
 
 test('natural-language stock Buy and Sell use one strict companyQuery catalog mode', () => {

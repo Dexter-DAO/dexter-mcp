@@ -253,6 +253,19 @@ test('generated runtime instructions preserve human share quantities', () => {
   assert.doesNotMatch(runtime, /quantityAtomic/);
 });
 
+test('hosted Sell guidance keeps dollar value separate from token input and receipt proceeds', () => {
+  for (const instructions of [buildOpenServerInstructions(), WORKFLOW]) {
+    assert.match(instructions, /sell \$1 of NVIDIA/);
+    assert.match(instructions, /valueUsd[^\n]*"1"/);
+    assert.match(instructions, /USD market value[\s\S]*preparation/);
+    assert.match(instructions, /human decimal[\s\S]*token input|human decimal[\s\S]*token amount/);
+    assert.match(instructions, /Net USDC proceeds\s+are approximate until the receipt/i);
+    assert.match(instructions, /exactly one[\s\S]*valueUsd[\s\S]*amountAtomic/);
+    assert.match(instructions, /Non-stock Sell[\s\S]*valueUsd[\s\S]*assetId/);
+    assert.doesNotMatch(instructions, /Stock Sell (?:accepts|supports) (?:companyQuery plus )?direct token (?:amountAtomic|input) only/);
+  }
+});
+
 test('generated runtime instructions contain one coherent hosted contract without legacy drift', () => {
   const runtime = buildOpenServerInstructions();
 

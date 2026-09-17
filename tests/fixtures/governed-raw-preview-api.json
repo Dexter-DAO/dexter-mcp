@@ -1,0 +1,134 @@
+{
+  "provenance": {
+    "kind": "actual-api-preview-producer-with-synthetic-inputs",
+    "producerFunction": "buildUserPreparedResponse",
+    "apiSourceCommit": "94bbfbac2752b9ac85ce4faaff98c25ed2cc7da1",
+    "producerBundleSha256": "16093f95bfbd273d3c9942fd834708d27cac286943bb0d3fc539e7b186175623",
+    "userPrepareSha256": "ef533df08cc7976033c0db2507e5d30590b2f40e0cf15b90ff71f9fefdbfd83f",
+    "sourceEvidenceSha256": "d2c9cd3b9d0bbffda09636b8495e6c6bf56dcd38197addbaefe23397e80626dd",
+    "noNetworkOrFinancialCalls": true,
+    "syntheticParts": "Asset, plan, authority, session, and blocked simulation stub. Delegated HTTP/auth envelope is supplied separately by tests."
+  },
+  "cases": [
+    {
+      "action": "buy",
+      "preview": {
+        "action": "buy",
+        "assetId": "approved-token-42",
+        "symbol": "TOK",
+        "amountAtomic": "2000000",
+        "requestAmountKind": "input",
+        "requestedShareQuantity": null,
+        "expectedShareQuantity": null,
+        "minimumShareQuantity": null,
+        "shareQuantityUnit": null,
+        "shareQuantitySemantics": null,
+        "shareQuantityConversion": null,
+        "requestedMaximumSpendAtomic": null,
+        "maximumInputAmountAtomic": "2000000",
+        "overfillPossible": false,
+        "productIdentity": {
+          "assetId": "approved-token-42",
+          "assetClass": "token",
+          "companyName": null,
+          "productName": "Approved Token",
+          "symbol": "TOK",
+          "issuer": null,
+          "providerName": null,
+          "legalIssuerName": null,
+          "network": "solana-mainnet",
+          "mint": "Stake11111111111111111111111111111111111111",
+          "tokenProgram": "token-2022",
+          "decimals": 6,
+          "registryIdentityDigest": "7777777777777777777777777777777777777777777777777777777777777777"
+        },
+        "feeSummary": {
+          "summary": "Trading fees are included in this quote; network fee is calculated at execution.",
+          "platformFee": null,
+          "routeFees": [
+            {
+              "amountAtomic": "0",
+              "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+            },
+            {
+              "amountAtomic": "1250",
+              "mint": "Stake11111111111111111111111111111111111111"
+            }
+          ],
+          "networkFee": {
+            "status": "not-yet-calculated",
+            "amountLamports": null
+          }
+        },
+        "inputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "outputMint": "Stake11111111111111111111111111111111111111",
+        "destinationOwner": null,
+        "expectedOutputAtomic": "265000000",
+        "minimumOutputAtomic": "262000000",
+        "slippageBps": 50,
+        "priceImpactBps": 10,
+        "quoteExpiresAtUnixMs": 1785020430000
+      }
+    },
+    {
+      "action": "sell",
+      "preview": {
+        "action": "sell",
+        "assetId": "approved-token-42",
+        "symbol": "TOK",
+        "amountAtomic": "2000000",
+        "requestAmountKind": "input",
+        "requestedShareQuantity": null,
+        "expectedShareQuantity": null,
+        "minimumShareQuantity": null,
+        "shareQuantityUnit": null,
+        "shareQuantitySemantics": null,
+        "shareQuantityConversion": null,
+        "requestedMaximumSpendAtomic": null,
+        "maximumInputAmountAtomic": "2000000",
+        "overfillPossible": false,
+        "productIdentity": {
+          "assetId": "approved-token-42",
+          "assetClass": "token",
+          "companyName": null,
+          "productName": "Approved Token",
+          "symbol": "TOK",
+          "issuer": null,
+          "providerName": null,
+          "legalIssuerName": null,
+          "network": "solana-mainnet",
+          "mint": "Stake11111111111111111111111111111111111111",
+          "tokenProgram": "token-2022",
+          "decimals": 6,
+          "registryIdentityDigest": "7777777777777777777777777777777777777777777777777777777777777777"
+        },
+        "feeSummary": {
+          "summary": "Trading fees are included in this quote; network fee is calculated at execution.",
+          "platformFee": null,
+          "routeFees": [
+            {
+              "amountAtomic": "0",
+              "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+            },
+            {
+              "amountAtomic": "1250",
+              "mint": "Stake11111111111111111111111111111111111111"
+            }
+          ],
+          "networkFee": {
+            "status": "not-yet-calculated",
+            "amountLamports": null
+          }
+        },
+        "inputMint": "Stake11111111111111111111111111111111111111",
+        "outputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "destinationOwner": null,
+        "expectedOutputAtomic": "265000000",
+        "minimumOutputAtomic": "262000000",
+        "slippageBps": 50,
+        "priceImpactBps": 10,
+        "quoteExpiresAtUnixMs": 1785020430000
+      }
+    }
+  ]
+}

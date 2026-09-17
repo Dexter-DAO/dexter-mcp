@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { canonicalHash } from '../lib/governed-canonical-identity.mjs';
 
 import {
   formatAtomicDecimal,
@@ -17,6 +19,109 @@ import {
 } from './fixtures/governed-stock-v2.fixtures.mjs';
 
 const SIGNATURE = '5'.repeat(88);
+const USD_API = JSON.parse(readFileSync(new URL('./fixtures/governed-usd-value-api.json', import.meta.url)));
+
+function dollarSellFixture() {
+  // Synthetic lifecycle envelopes around the actual API-produced binding and summary.
+  const fixture = dynamicStockV2Fixture('nvidia', '019f981c-9215-7141-84f2-d89ffe9cbece');
+  const binding = structuredClone(USD_API.stock.binding);
+  Object.assign(fixture.prepared.business, { amountAtomic: binding.amountAtomic });
+  Object.assign(fixture.prepared.preview, {
+    amountAtomic: binding.amountAtomic, maximumInputAmountAtomic: binding.amountAtomic,
+    requestAmountKind: 'usd-value', usdValue: binding,
+    expectedOutputAtomic: '980000', minimumOutputAtomic: '950000',
+  });
+  fixture.execute.business.amountAtomic = binding.amountAtomic;
+  fixture.execute.tradeSummary = structuredClone(USD_API.stock.summary);
+  fixture.status.amountAtomic = binding.amountAtomic;
+  fixture.status.tradeSummary = structuredClone(USD_API.stock.summary);
+  fixture.status.stockV2Identity.tradeSummarySnapshotDigest = canonicalHash(USD_API.stock.snapshot);
+  fixture.reconcile.statusAfter = structuredClone(fixture.status);
+  fixture.history.items = [structuredClone(fixture.status)];
+  return fixture;
+}
+
+test('widget preserves actual API dollar binding through prepared and successful lifecycle responses', () => {
+  const fixture = dollarSellFixture();
+  const prepared = normalizeStockTrade(fixture.prepared);
+  assert.equal(prepared.stage, 'prepared');
+  assert.equal(prepared.requestAmountKind, 'usd-value');
+  assert.equal(prepared.requestedValueUsd, USD_API.stock.binding.requestedValueUsd);
+  assert.equal(prepared.usdValueObservedAtUnixMs, USD_API.stock.binding.preparedAtUnixMs);
+  assert.equal(prepared.amountDisplay, USD_API.stock.binding.displayAmount);
+  assert.equal(prepared.expectedOutput, '0.98');
+  assert.equal(prepared.minimumOutput, '0.95');
+
+  for (const operation of ['execute', 'status', 'reconcile', 'history']) {
+    const model = operation === 'history'
+      ? normalizeGovernedHistory(fixture.history).items[0]
+      : normalizeStockTrade(fixture[operation]);
+    assert.equal(model.stage, 'success', operation);
+    assert.equal(model.requestAmountKind, 'usd-value', operation);
+    assert.equal(model.requestedValueUsd, USD_API.stock.binding.requestedValueUsd);
+    assert.equal(model.isShareQuantityOrder, false);
+    assert.equal(model.amountDisplay, USD_API.stock.binding.rawDecimalAmount);
+    assert.equal(model.amountUnit, 'NVDAx (base quantity)');
+    assert.equal(model.expectedOutput, null, 'USD request is never actual or estimated USDC proceeds');
+    assert.equal(model.needsStatusCheck, false);
+    assert.equal(model.transactionSignature, SIGNATURE);
+  }
+});
+
+test('widget validates dollar evidence before trusting a matching stock summary hash', () => {
+  for (const mutate of [
+    summary => { delete summary.usdValue; },
+    summary => { summary.usdValue.requestedValueUsd = '2'; },
+    summary => { summary.usdValue.multiplier.value = '3'; },
+    summary => { summary.usdValue.displayAmount = '6589'; },
+    summary => { summary.usdValue.mint = '11111111111111111111111111111111'; },
+    summary => { summary.requestAmountKind = 'input'; },
+  ]) {
+    const fixture = dollarSellFixture();
+    mutate(fixture.status.tradeSummary);
+    const snapshot = structuredClone(USD_API.stock.snapshot);
+    snapshot.requestAmountKind = fixture.status.tradeSummary.requestAmountKind;
+    if (fixture.status.tradeSummary.usdValue === undefined) delete snapshot.usdValue;
+    else snapshot.usdValue = fixture.status.tradeSummary.usdValue;
+    fixture.status.stockV2Identity.tradeSummarySnapshotDigest = canonicalHash(snapshot);
+    assert.notEqual(normalizeStockTrade(fixture.status).stage, 'success');
+    fixture.execute.tradeSummary = structuredClone(fixture.status.tradeSummary);
+    assert.notEqual(normalizeStockTrade(fixture.execute).stage, 'success');
+  }
+  const fixture = dollarSellFixture();
+  fixture.status.stockV2Identity.tradeSummarySnapshotDigest = '0'.repeat(64);
+  assert.notEqual(normalizeStockTrade(fixture.status).stage, 'success');
+});
+
+test('prepared dollar quantities use each API observation decimals and effective scaling', () => {
+  for (const { name, binding } of USD_API.cases) {
+    const payload = dollarSellFixture().prepared;
+    Object.assign(payload.preview, {
+      amountAtomic: binding.amountAtomic, maximumInputAmountAtomic: binding.amountAtomic,
+      usdValue: structuredClone(binding),
+    });
+    Object.assign(payload.preview.productIdentity, {
+      mint: binding.mint, tokenProgram: binding.tokenProgram, decimals: binding.assetDecimals,
+    });
+    const model = normalizeStockTrade(payload);
+    assert.equal(model.amountDisplay, binding.displayAmount, name);
+    assert.equal(model.requestedValueUsd, binding.requestedValueUsd, name);
+    assert.equal(model.usdValueObservedAtUnixMs, binding.preparedAtUnixMs, name);
+  }
+});
+
+test('dollar request metadata does not alter uncertain dispatch or definite nonlanding states', () => {
+  const fixture = dollarSellFixture();
+  Object.assign(fixture.status, {
+    status: 'ambiguous', confirmationCommitment: null, executionSucceeded: null,
+  });
+  const pending = normalizeStockTrade(fixture.status);
+  assert.equal(pending.stage, 'pending');
+  assert.equal(pending.recovery.kind, 'reconcile');
+  assert.match(pending.recovery.sentence, /Do not execute again/);
+  fixture.status.definitiveNonlandingProof = true;
+  assert.equal(normalizeStockTrade(fixture.status).stage, 'failure');
+});
 
 function productIdentity() {
   return spcxProductIdentity();
