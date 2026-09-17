@@ -3400,7 +3400,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-pricing-04390b16",
+          "resourceUri": "ui://dexter/x402-pricing-00f4540d",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash",
@@ -3417,8 +3417,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/x402-pricing-04390b16",
-        "openai/outputTemplate": "ui://dexter/x402-pricing-04390b16",
+        "ui/resourceUri": "ui://dexter/x402-pricing-00f4540d",
+        "openai/outputTemplate": "ui://dexter/x402-pricing-00f4540d",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -3580,7 +3580,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-fetch-result-26414eee",
+          "resourceUri": "ui://dexter/x402-fetch-result-0bca08ca",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash",
@@ -3597,8 +3597,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/x402-fetch-result-26414eee",
-        "openai/outputTemplate": "ui://dexter/x402-fetch-result-26414eee",
+        "ui/resourceUri": "ui://dexter/x402-fetch-result-0bca08ca",
+        "openai/outputTemplate": "ui://dexter/x402-fetch-result-0bca08ca",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -3767,7 +3767,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-fetch-result-26414eee",
+          "resourceUri": "ui://dexter/x402-fetch-result-0bca08ca",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash",
@@ -3784,8 +3784,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/x402-fetch-result-26414eee",
-        "openai/outputTemplate": "ui://dexter/x402-fetch-result-26414eee",
+        "ui/resourceUri": "ui://dexter/x402-fetch-result-0bca08ca",
+        "openai/outputTemplate": "ui://dexter/x402-fetch-result-0bca08ca",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -4043,7 +4043,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-pricing-04390b16",
+          "resourceUri": "ui://dexter/x402-pricing-00f4540d",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash",
@@ -4060,8 +4060,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/x402-pricing-04390b16",
-        "openai/outputTemplate": "ui://dexter/x402-pricing-04390b16",
+        "ui/resourceUri": "ui://dexter/x402-pricing-00f4540d",
+        "openai/outputTemplate": "ui://dexter/x402-pricing-00f4540d",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -4823,7 +4823,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/dexter-wallet-6f8ec575",
+          "resourceUri": "ui://dexter/dexter-wallet-45230403",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash",
@@ -4842,8 +4842,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/dexter-wallet-6f8ec575",
-        "openai/outputTemplate": "ui://dexter/dexter-wallet-6f8ec575",
+        "ui/resourceUri": "ui://dexter/dexter-wallet-45230403",
+        "openai/outputTemplate": "ui://dexter/dexter-wallet-45230403",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -5328,7 +5328,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/portfolio-68e464ec",
+          "resourceUri": "ui://dexter/portfolio-d35d6a0e",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash"
@@ -5344,8 +5344,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/portfolio-68e464ec",
-        "openai/outputTemplate": "ui://dexter/portfolio-68e464ec",
+        "ui/resourceUri": "ui://dexter/portfolio-d35d6a0e",
+        "openai/outputTemplate": "ui://dexter/portfolio-d35d6a0e",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
