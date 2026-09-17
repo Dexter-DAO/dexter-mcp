@@ -921,8 +921,9 @@ async function renderVariant({ browser, baseUrl, surface, device, theme }) {
       assert.match(bodyText, /This response does not report an execution outcome/);
       assert.match(bodyText, /View details/);
       assert.doesNotMatch(bodyText, /awaiting confirmation|authority decision|stopped before completion|The action is unsigned|execution outcome remains open|View full receipt/);
-      if (surface.output.intentId) assert.match(bodyText, /Read the saved outcome for this intent/);
-      else assert.match(bodyText, /After maintenance, retry the original Prepare/);
+      assert.doesNotMatch(bodyText, /\bintent\b|request identifiers|\bPrepare\b|operation ID/);
+      if (surface.output.intentId) assert.match(bodyText, /Check the result of your original request\./);
+      else assert.match(bodyText, /Resume your original request after maintenance\./);
     } else if (surface.output.executionSucceeded === true
       && ['confirmed', 'finalized'].includes(surface.output.confirmationCommitment)) {
       assert.match(bodyText, surface.output.confirmationCommitment === 'finalized' ? /Finalized/ : /Confirmed/);

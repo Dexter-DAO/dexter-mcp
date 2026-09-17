@@ -1125,8 +1125,8 @@ export function normalizeGovernedAction(
     || policyDecision === 'approval_required';
   const recovery: GovernedActionViewModel['recovery'] = maintenance
     ? intentId
-      ? { kind: 'read', sentence: 'Read the saved outcome for this intent. Keep the original request identifiers.' }
-      : { kind: 'same-request', sentence: 'After maintenance, retry the original Prepare with the same operation ID and unchanged terms.' }
+      ? { kind: 'read', sentence: 'Check the result of your original request.' }
+      : { kind: 'same-request', sentence: 'Resume your original request after maintenance.' }
     : recoveryFor({
     stage,
     operation,
