@@ -340,9 +340,12 @@ curl -H "Authorization: Bearer <TOKEN_AI_MCP_TOKEN>" \
 
 | Mode | When to use | How |
 |------|-------------|-----|
-| **OAuth2 / OIDC** | Claude, ChatGPT, hosted connectors | Set `TOKEN_AI_MCP_OAUTH=true` and supply `TOKEN_AI_OIDC_*` (or Supabase) endpoints. Users sign in via the Dexter IdP; tokens are validated on every session. |
-| **Bearer token** | Service-to-service calls, Codex, Cursor | Define `TOKEN_AI_MCP_TOKEN`. Any request presenting the matching `Authorization: Bearer …` header is accepted without hitting the IdP. |
-| **Allow-any (demo)** | Local demos only | Set `TOKEN_AI_MCP_OAUTH_ALLOW_ANY=1`. Skips verification. **Never enable in production.** |
+| **OAuth2 / OIDC** | Claude, ChatGPT, hosted connectors | Set `TOKEN_AI_MCP_OAUTH=true` and supply `TOKEN_AI_OIDC_*` (or Supabase) endpoints. Users sign in via the Dexter IdP; credentials are checked on every HTTP request, including existing sessions. |
+| **Bearer token** | Service-to-service calls, Codex, Cursor | Define `TOKEN_AI_MCP_TOKEN` and send the matching `Authorization: Bearer <token>` header on every request. Tool permissions still apply. |
+
+Session IDs identify transport state. Each request must carry valid credentials for the session owner. Refreshed tokens for that owner can continue the session. The private server refuses MCP requests when no authentication method is configured.
+
+Provider validation may be cached for up to five minutes, shortened by token expiry when present. Revocation is subject to that cache and the provider's validation behavior.
 
 Metadata endpoints (for connector discovery):
 
