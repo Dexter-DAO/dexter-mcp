@@ -147,6 +147,14 @@ function exactTerms(model: GovernedActionViewModel): Term[] {
       terms.push({ label: 'Minimum', value: model.minimumOutput, detail: symbol });
     }
   } else if (model.action === 'sell') {
+    if (model.requestAmountKind === 'usd-value' && model.requestedValueUsd) {
+      const [whole, fraction = ''] = model.requestedValueUsd.split('.');
+      terms.push({
+        label: 'Requested',
+        value: `$${whole}.${fraction.padEnd(2, '0')}`,
+        detail: `of ${productName(model)}`,
+      });
+    }
     if (model.amountDisplay) {
       terms.push({ label: 'Sell', value: model.amountDisplay, detail: model.amountUnit ?? symbol });
     }

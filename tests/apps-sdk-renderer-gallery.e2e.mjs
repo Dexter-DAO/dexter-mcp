@@ -922,6 +922,18 @@ async function renderVariant({ browser, baseUrl, surface, device, theme }) {
     } else if (surface.output.status === 'prepared') {
       assert.match(bodyText, /Prepared/);
       assert.doesNotMatch(bodyText, /Corporation sold/);
+      const preview = surface.output.preview;
+      if (preview?.requestAmountKind === 'usd-value' && preview.usdValue) {
+        const [whole, fraction = ''] = preview.usdValue.requestedValueUsd.split('.');
+        const requested = frame.locator('.dx-action__terms > div').filter({
+          has: frame.locator('dt', { hasText: /^Requested$/ }),
+        });
+        assert.equal(await requested.locator('strong').innerText(), `$${whole}.${fraction.padEnd(2, '0')}`);
+        assert.equal(await requested.locator('dd span').innerText(), `of ${preview.productIdentity.companyName}`);
+        assert.equal(await frame.locator('.dx-action__terms dt').filter({ hasText: /^Sell$/ }).count(), 1);
+        assert.equal(await frame.locator('.dx-action__terms dt').filter({ hasText: /^Expected$/ }).count(), 1);
+        assert.equal(await frame.locator('.dx-action__terms dt').filter({ hasText: /^Minimum$/ }).count(), 1);
+      }
     }
   }
 
