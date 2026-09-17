@@ -218,8 +218,8 @@ if (RSA_PRIVATE_PEM) {
 // Keep transports per session
 const transports = new Map(); // sessionId -> transport
 const servers = new Map(); // sessionId -> McpServer instance
-const sessionUsers = new Map(); // sessionId -> identity (from IdP) or token preview
-const sessionIdentity = new Map(); // sessionId -> { issuer, sub, email }
+const sessionUsers = new Map(); // sessionId -> validated user or server credential label
+const sessionIdentity = new Map(); // sessionId -> pinned identity and authentication kind/issuer
 const sessionLabels = new Map(); // sessionId -> descriptive label (client-supplied)
 const sessionStartTimes = new Map(); // sessionId -> timestamp (ms)
 const sessionClientHints = new Map(); // sessionId -> inferred client label
@@ -605,11 +605,11 @@ async function validateSupabaseToken(token) {
     }
     const data = await response.json().catch(() => null);
     if (!data?.id) return null;
-    const payload = decodeJwtPayload(token) || {};
-    const expSeconds = typeof payload.exp === 'number' ? payload.exp : null;
-    const expires = expSeconds ? expSeconds * 1000 : Date.now() + 5 * 60 * 1000;
+    const expires = providerCacheExpiry(token);
     const entry = {
       user: String(data.id),
+      authKind: 'supabase',
+      authIssuer: SUPABASE_URL,
       claims: { sub: data.id, email: data.email || null, issuer: SUPABASE_URL },
       expires,
     };
@@ -724,6 +724,7 @@ function normalizeAcceptHeader(req){
 }
 
 function buildIdentityForRequest(sessionId, req){
+  if (req?.authenticatedIdentity) return req.authenticatedIdentity;
   try {
     if (sessionId && sessionIdentity.has(sessionId)) {
       const ident = sessionIdentity.get(sessionId);
@@ -748,7 +749,7 @@ function injectIdentityIntoBody(body, identity){
       if (!body.params.arguments || typeof body.params.arguments !== 'object') body.params.arguments = {};
       body.params.arguments.__issuer = String(identity.issuer||'');
       body.params.arguments.__sub = String(identity.sub||'');
-      if (identity.email) body.params.arguments.__email = String(identity.email);
+      body.params.arguments.__email = String(identity.email || '');
     }
   } catch {}
   return body;
@@ -1005,8 +1006,16 @@ async function forwardRegister(req, res) {
   res.end(buffer);
 }
 
+// A decoded expiry can only shorten provider validity; it never authenticates a token.
+function providerCacheExpiry(token) {
+  const exp = decodeJwtPayload(token)?.exp;
+  if (exp !== undefined && (typeof exp !== 'number' || !Number.isFinite(exp))) return 0;
+  return Math.min(Date.now() + 300000, exp === undefined ? Infinity : exp * 1000);
+}
+
 // Validate OAuth token via OIDC userinfo endpoint (preferred) or GitHub API when configured.
 async function validateTokenAndClaims(token) {
+  if (providerCacheExpiry(token) <= Date.now()) return null;
   // 0) Accept Dexter-signed MCP JWT (HS256) when MCP_JWT_SECRET is configured
   //    This is a short-lived per-user bearer minted by dexter-api.
   if (MCP_JWT_SECRET && typeof token === 'string' && token.split('.').length === 3) {
@@ -1016,7 +1025,7 @@ async function validateTokenAndClaims(token) {
         const claims = verified.payload;
         const user = String(claims.sub || claims.supabase_user_id || '');
         if (user) {
-          const entry = { user, claims, expires: (claims.exp ? claims.exp * 1000 : Date.now() + 5 * 60 * 1000) };
+          const entry = { user, claims, authKind: 'mcp-jwt', authIssuer: String(claims.iss || claims.issuer || 'dexter-mcp'), expires: providerCacheExpiry(token) };
           tokenCache.set(token, entry);
           return entry;
         }
@@ -1034,12 +1043,11 @@ async function validateTokenAndClaims(token) {
   }
   const prov = getProviderConfig();
   if (!prov) return null;
-  try { console.log('[oauth] validate token start', { token: token.slice(0, 8) + '…' }); } catch {}
 
   if (prov.type === 'oidc') {
     try {
       const url = new URL(prov.userinfo_endpoint);
-      const options = { hostname: url.hostname, path: url.pathname + (url.search||''), method: 'GET', headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' } };
+      const options = { hostname: url.hostname, port: url.port || undefined, path: url.pathname + (url.search||''), method: 'GET', headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' } };
       return await new Promise((resolve) => {
         const req = (url.protocol === 'https:' ? https : http).request(options, (r) => {
           let data='';
@@ -1054,7 +1062,7 @@ async function validateTokenAndClaims(token) {
                 if (Array.isArray(prov.allowed_users) && prov.allowed_users.length > 0 && !prov.allowed_users.includes(user)) {
                   return resolve(null);
                 }
-                const entry = { user, claims, expires: Date.now() + 300000 };
+                const entry = { user, claims, authKind: 'oidc', authIssuer: prov.issuer || prov.userinfo_endpoint, expires: providerCacheExpiry(token) };
                 tokenCache.set(token, entry);
                 resolve(entry);
               } else {
@@ -1095,7 +1103,7 @@ async function validateTokenAndClaims(token) {
               if (Array.isArray(prov.allowed_users) && prov.allowed_users.length > 0 && !prov.allowed_users.includes(identity)) {
                 return resolve(null);
               }
-              const entry = { user: identity, claims: user, expires: Date.now() + 300000 };
+              const entry = { user: identity, claims: user, authKind: 'github', authIssuer: 'https://github.com', expires: providerCacheExpiry(token) };
               tokenCache.set(token, entry);
               resolve(entry);
             } else {
@@ -1121,11 +1129,10 @@ function verifyHs256Jwt(token, secret) {
     if (!timingSafeEqualB64(expected, sigB64)) return null;
     const header = JSON.parse(base64UrlDecode(headerB64));
     const payload = JSON.parse(base64UrlDecode(payloadB64));
-    // exp check (seconds since epoch)
-    if (payload && typeof payload.exp === 'number') {
-      const nowSec = Math.floor(Date.now() / 1000);
-      if (nowSec >= payload.exp) return null;
-    }
+    if (header?.alg !== 'HS256' || !payload || typeof payload !== 'object') return null;
+    const nowSec = Math.floor(Date.now() / 1000);
+    if (payload.exp !== undefined && (typeof payload.exp !== 'number' || !Number.isFinite(payload.exp) || nowSec >= payload.exp)) return null;
+    if (payload.nbf !== undefined && (typeof payload.nbf !== 'number' || !Number.isFinite(payload.nbf) || nowSec < payload.nbf)) return null;
     return { header, payload };
   } catch {
     return null;
@@ -1459,93 +1466,52 @@ const server = http.createServer(async (req, res) => {
     const isMcpEndpoint = normalizedPath === '/mcp';
     if (!isRootEndpoint && !isMcpEndpoint) { res.writeHead(404).end('Not Found'); return; }
     
-    // Authentication check (supports session reuse without repeating Authorization)
-    const auth = String(req.headers['authorization'] || '');
-    // Some clients cannot set Authorization; accept alternate headers
-    const xAuth = String(req.headers['x-authorization'] || '');
-    const xUserToken = String(req.headers['x-user-token'] || '');
-    const incomingToken = (() => {
-      const fromAuth = auth.startsWith('Bearer ') ? auth.substring(7).trim() : '';
-      if (fromAuth) return fromAuth;
-      const rawXAuth = xAuth.replace(/^Bearer\s+/i, '').trim();
-      if (rawXAuth) return rawXAuth;
-      const rawXUser = xUserToken.replace(/^Bearer\s+/i, '').trim();
-      if (rawXUser) return rawXUser;
-      return '';
-    })();
+    // A session identifies transport state, not authority. Validate every request
+    // before reading its body, touching session state, or invoking the transport.
+    const credentialHeaders = ['authorization', 'x-authorization', 'x-user-token'];
+    const credentialHeader = credentialHeaders.find(name => req.headers[name] !== undefined);
+    const credential = credentialHeader ? String(req.headers[credentialHeader]).trim() : '';
+    const incomingToken = credentialHeader === 'authorization'
+      ? (/^Bearer\s+/i.test(credential) ? credential.replace(/^Bearer\s+/i, '').trim() : '')
+      : credential.replace(/^Bearer\s+/i, '').trim();
+    if (!incomingToken || incomingToken === 'undefined') return unauthorized(res, 'Authentication required', req);
     const sidIn = req.headers['mcp-session-id'];
     const hasSession = sidIn && transports.has(sidIn);
-    if (OAUTH_ENABLED) {
-      if (!hasSession) {
-        // New session: require bearer. Accept either:
-        // 1) Server bearer (TOKEN_AI_MCP_TOKEN) for non-OAuth clients
-        // 2) OAuth bearer validated via external OIDC provider
-        if (!incomingToken) return unauthorized(res, 'OAuth token required', req);
-        const token = incomingToken;
-        if (!token || token === 'undefined') {
-          try { console.log('[oauth] empty bearer for new session', { sid: sidIn || '∅' }); } catch {}
-          return unauthorized(res, 'Invalid token or user not authorized', req);
-        }
-        const SERVER_BEARER = String(process.env.TOKEN_AI_MCP_TOKEN||'');
-        if (SERVER_BEARER && token === SERVER_BEARER) {
-          const preview = `bearer:${token.slice(0,4)}…${token.slice(-4)}`;
-          req.oauthUser = preview;
-        } else {
-          const entry = await validateTokenAndClaims(token);
-          if (!entry) { console.log('[oauth] token rejected', { token: token.slice(0, 8) + '…' }); return unauthorized(res, 'Invalid token or user not authorized', req); }
-          req.oauthUser = entry.user;
-          try {
-            console.log('[oauth] token accepted', { user: entry.user, claims: entry.claims });
-            const prov = getProviderConfig(req);
-            if (prov) req.headers['x-user-issuer'] = prov.issuer || effectiveBaseUrl(req);
-            if (entry?.claims?.sub) req.headers['x-user-sub'] = String(entry.claims.sub);
-            if (entry?.claims?.email) req.headers['x-user-email'] = String(entry.claims.email);
-            if (!req.headers['x-user-sub'] && entry?.user) req.headers['x-user-sub'] = String(entry.user);
-          } catch {}
-        }
-      } else {
-        // Existing session: allow missing Authorization; user comes from sessionUsers
-        const remembered = sessionUsers.get(sidIn);
-        if (remembered) req.oauthUser = remembered;
-        if (remembered) {
-          try {
-            if (!req.headers['x-user-sub']) req.headers['x-user-sub'] = String(remembered);
-            if (!req.headers['x-user-issuer']) req.headers['x-user-issuer'] = effectiveBaseUrl(req);
-          } catch {}
-        }
-        // If Authorization present, refresh identity cache
-        if (incomingToken) {
-          const token = incomingToken;
-          if (!token || token === 'undefined') {
-            try { console.log('[oauth] empty bearer on existing session', { sid: sidIn || '∅' }); } catch {}
-          } else {
-            const SERVER_BEARER = String(process.env.TOKEN_AI_MCP_TOKEN||'');
-            if (SERVER_BEARER && token === SERVER_BEARER) {
-              const preview = `bearer:${token.slice(0,4)}…${token.slice(-4)}`;
-              req.oauthUser = preview;
-            } else {
-              const entry = await validateTokenAndClaims(token);
-              if (entry) {
-                req.oauthUser = entry.user;
-                try {
-                  const prov = getProviderConfig(req);
-                  if (prov) req.headers['x-user-issuer'] = prov.issuer || effectiveBaseUrl(req);
-                  if (entry?.claims?.sub) req.headers['x-user-sub'] = String(entry.claims.sub);
-                  if (entry?.claims?.email) req.headers['x-user-email'] = String(entry.claims.email);
-                  if (!req.headers['x-user-sub'] && entry?.user) req.headers['x-user-sub'] = String(entry.user);
-                } catch {}
-              }
-            }
-          }
-        }
-      }
-    } else if (TOKEN) {
-      // Fallback to simple bearer token for new sessions; allow reuse for existing sessions
-      if (!hasSession) {
-        if (!auth || auth !== `Bearer ${TOKEN}`) return unauthorized(res, 'Unauthorized', req);
+    let identity;
+    if (TOKEN && incomingToken === TOKEN) {
+      identity = { authKind: 'server-bearer', authIssuer: 'dexter-mcp', issuer: '', sub: '', email: '' };
+      req.oauthUser = 'bearer:server';
+    } else if (OAUTH_ENABLED) {
+      const entry = await validateTokenAndClaims(incomingToken);
+      if (!entry || entry.expires <= Date.now()) return unauthorized(res, 'Invalid token or user not authorized', req);
+      const provider = getProviderConfig(req);
+      identity = {
+        authKind: entry.authKind,
+        authIssuer: entry.authIssuer,
+        issuer: provider?.issuer || entry.authIssuer,
+        sub: String(entry.claims?.sub || entry.user),
+        email: typeof entry.claims?.email === 'string' ? entry.claims.email : '',
+      };
+      req.oauthUser = entry.user;
+    } else {
+      return unauthorized(res, 'Invalid token or user not authorized', req);
+    }
+    if (hasSession) {
+      const pinned = sessionIdentity.get(sidIn);
+      if (!pinned || pinned.authKind !== identity.authKind || pinned.authIssuer !== identity.authIssuer || pinned.sub !== identity.sub) {
+        return unauthorized(res, 'Token does not match this session', req);
       }
     }
-    
+    req.authenticatedIdentity = identity;
+    // Only the credential and identity just validated may reach wallet resolution.
+    req.headers['authorization'] = `Bearer ${incomingToken}`;
+    delete req.headers['x-authorization'];
+    delete req.headers['x-user-token'];
+    if (identity.authKind !== 'server-bearer') req.headers['x-user-token'] = incomingToken;
+    req.headers['x-user-issuer'] = identity.issuer;
+    req.headers['x-user-sub'] = identity.sub;
+    req.headers['x-user-email'] = identity.email;
+
     if (req.method === 'GET') {
       normalizeAcceptHeader(req);
       const sessionId = req.headers['mcp-session-id'];
@@ -1624,7 +1590,11 @@ const server = http.createServer(async (req, res) => {
       // New session: initialize (allow per-session toolsets via ?tools=)
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: () => randomUUID(),
-    onsessioninitialized: (sid) => { transports.set(sid, transport); },
+    onsessioninitialized: (sid) => {
+      sessionIdentity.set(sid, req.authenticatedIdentity);
+      sessionUsers.set(sid, req.oauthUser);
+      transports.set(sid, transport);
+    },
     onsessionclosed: (sid) => {
       transports.delete(sid);
       const started = sessionStartTimes.get(sid);
@@ -1742,15 +1712,8 @@ const server = http.createServer(async (req, res) => {
       const sid = transport.sessionId;
       if (sid) {
         servers.set(sid, mcpServer);
-        // Remember user for session so subsequent calls can omit Authorization
+        // The session principal was pinned atomically during initialization.
         if (req.oauthUser) {
-          sessionUsers.set(sid, req.oauthUser);
-          try {
-            const issuer = req.headers['x-user-issuer'] || effectiveBaseUrl(req);
-            const sub = req.headers['x-user-sub'] || (req.oauthUser ? String(req.oauthUser) : '');
-            const email = req.headers['x-user-email'] || '';
-            sessionIdentity.set(sid, { issuer, sub, email });
-          } catch {}
           // Seed per-session wallet override from OAuth mapping (if exists)
           try {
             const { sessionWalletOverrides } = await import('./toolsets/wallet/index.mjs');
