@@ -12,6 +12,14 @@
  */
 
 import { z } from 'zod';
+import { randomUUID } from 'node:crypto';
+import { extractMcpSessionId } from '../../lib/mcp-session-id.mjs';
+import { nativeMcpServerUrlSchema, nativeMcpTargetSchema, NATIVE_MCP_DISCOVERY_DESCRIPTION } from '../../lib/native-mcp-contract.mjs';
+import { discoverHostedMcpTools } from '../../lib/hosted-native-mcp.mjs';
+import { callOpenX402IntentApi, OPEN_X402_INTENT_ID_RE, sanitizeOpenX402IntentResult,
+  isOpenX402AuthorityRequired, projectOpenX402AuthorizationRequired } from '../../lib/open-x402-intent-api.mjs';
+import { buildHostedCheckModelResult } from '../../lib/open-check-result.mjs';
+import { applyOpenToolResultPolicy } from '../../lib/open-tool-contracts.mjs';
 import { fetchWithX402Json } from '../../clients/x402Client.mjs';
 import { createWidgetMeta } from '../widgetMeta.mjs';
 import { resolveWalletForRequest } from '../wallet/index.mjs';
@@ -388,7 +396,53 @@ function buildWalletReadError(address) {
 
 // ─── Registration ────────────────────────────────────────────────────────────
 
-export function registerX402ClientToolset(server) {
+export function registerX402ClientToolset(server, { callIntentApi = callOpenX402IntentApi } = {}) {
+  const governedResult = (name, data, meta = {}) => applyOpenToolResultPolicy(name, {
+    structuredContent: data, content: [{ type: 'text', text: JSON.stringify(data) }],
+    isError: data.ok === false || Number(data.httpStatus) >= 400, _meta: meta,
+  });
+  const sessionForIntent = (extra) => {
+    const sessionId = extractMcpSessionId(extra);
+    if (!sessionId) throw new Error('governed_principal_required');
+    return sessionId;
+  };
+  const intentFailure = (intentId) => ({ ok: false, intentId, error: 'x402_intent_unavailable',
+    dispatch: { boundary: 'unknown', evidence: 'backend_result_unavailable' },
+    reconciliation: { required: true, performed: false }, retryable: false, retryWithSameIntentOnly: true });
+  const authorityRefusal = (intentId) => ({ ok: false, ...(intentId ? { intentId } : {}),
+    error: 'governed_principal_required', authorizationRequired: true,
+    delivery: { state: 'not_dispatched' }, retryable: false, retryWithSameIntentOnly: true });
+
+  server.registerTool('x402_mcp_tools', {
+    title: 'MCP Tool Discovery', description: NATIVE_MCP_DISCOVERY_DESCRIPTION,
+    inputSchema: { serverUrl: nativeMcpServerUrlSchema },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    _meta: { category: 'x402.access', access: 'member' },
+  }, async ({ serverUrl }, extra) => {
+    try {
+      sessionForIntent(extra);
+      return governedResult('x402_mcp_tools', await discoverHostedMcpTools(serverUrl, callIntentApi));
+    } catch {
+      return governedResult('x402_mcp_tools', { ok: false, error: 'native_mcp_discovery_unavailable' });
+    }
+  });
+
+  server.registerTool('x402_status', {
+    title: 'Purchase Status',
+    description: 'Inspect delivery and payment for a checked purchase using its intentId. Use this after an uncertain x402_fetch result. Status retains the same purchase and reports whether reconciliation is still required.',
+    inputSchema: { intentId: z.string().regex(OPEN_X402_INTENT_ID_RE) },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    _meta: { category: 'x402.payments', access: 'member' },
+  }, async ({ intentId }, extra) => {
+    if (!extractMcpSessionId(extra)) return governedResult('x402_status', authorityRefusal(intentId));
+    try {
+      const { data, httpStatus } = await callIntentApi('status', { sessionId: sessionForIntent(extra), intentId });
+      return governedResult('x402_status', sanitizeOpenX402IntentResult(data, { intentId, httpStatus }));
+    } catch {
+      return governedResult('x402_status', intentFailure(intentId));
+    }
+  });
+
   // --- x402_search ---
   server.registerTool('x402_search', {
     title: 'Indexter Search',
@@ -490,11 +544,13 @@ export function registerX402ClientToolset(server) {
   server.registerTool('x402_fetch', {
     title: 'x402 Fetch',
     description:
-      'Call any x402 endpoint with authenticated automatic payment and return a normalized fetch-result payload.',
+      'Execute a checked purchase with intentId and its approved maxAmountAtomic ceiling. Use x402_status for an uncertain result and retain the same intent. The existing URL form calls an HTTP endpoint with authenticated automatic payment; keep the two forms separate.',
     annotations: { destructiveHint: true },
     inputSchema: {
-      url: z.string().url().describe('The x402 resource URL to call'),
-      method: z.enum(['GET', 'POST', 'PUT', 'DELETE']).default('GET').describe('HTTP method'),
+      intentId: z.string().regex(OPEN_X402_INTENT_ID_RE).optional().describe('Opaque intentId from x402_check.'),
+      maxAmountAtomic: z.string().regex(/^[1-9]\d{0,19}$/).optional().describe('Approved maximum charge in USDC base units for that intent.'),
+      url: z.string().url().optional().describe('Legacy HTTP resource URL; omit for intent purchases.'),
+      method: z.enum(['GET', 'POST', 'PUT', 'DELETE']).optional().describe('Legacy HTTP method; defaults to GET.'),
       params: z.record(z.any()).optional().describe('For GET: query params. For POST/PUT: JSON body fields.'),
       headers: z.record(z.string()).optional().describe('Optional custom request headers'),
     },
@@ -505,6 +561,28 @@ export function registerX402ClientToolset(server) {
       ...FETCH_META,
     },
   }, async (args, extra) => {
+    if (args.intentId !== undefined || args.maxAmountAtomic !== undefined) {
+      if (['url', 'method', 'params', 'headers'].some((key) => args[key] !== undefined)) {
+        return governedResult('x402_fetch', { ok: false, error: 'intent_target_exclusive' }, FETCH_META);
+      }
+      if (!args.intentId || !args.maxAmountAtomic) {
+        return governedResult('x402_fetch', { ok: false, error: 'intent_and_spending_ceiling_required',
+          delivery: { state: 'not_dispatched' }, retryable: false }, FETCH_META);
+      }
+      if (!extractMcpSessionId(extra)) return governedResult('x402_fetch', authorityRefusal(args.intentId), FETCH_META);
+      try {
+        const { data, httpStatus } = await callIntentApi('fetch', {
+          sessionId: sessionForIntent(extra), intentId: args.intentId, maxAmountAtomic: args.maxAmountAtomic,
+        });
+        const result = isOpenX402AuthorityRequired(data)
+          ? projectOpenX402AuthorizationRequired({ intentId: args.intentId, maxAmountAtomic: args.maxAmountAtomic, data })
+          : sanitizeOpenX402IntentResult(data, { intentId: args.intentId, httpStatus });
+        return governedResult('x402_fetch', result, FETCH_META);
+      } catch {
+        return governedResult('x402_fetch', intentFailure(args.intentId), FETCH_META);
+      }
+    }
+    if (!args.url) return governedResult('x402_fetch', { ok: false, error: 'purchase_target_required' }, FETCH_META);
     try {
       const result = await fetchWithSettlement(args, extra, true);
       return {
@@ -525,34 +603,38 @@ export function registerX402ClientToolset(server) {
   // --- x402_check ---
   server.registerTool('x402_check', {
     title: 'x402 Check',
-    description: 'Check if an endpoint requires x402 payment and return chain-level pricing options.',
+    description: 'Check an HTTP URL or the exact mcp target selected through x402_mcp_tools. Copy the discovered schema string verbatim and serialize the tool arguments once. An MCP check invokes the tool and may change provider state. A purchasable result returns intentId for x402_fetch with an approved maxAmountAtomic ceiling; inspect uncertain purchases with x402_status.',
     inputSchema: {
-      url: z.string().url().describe('The URL to check'),
-      method: z.enum(['GET', 'POST', 'PUT', 'DELETE']).default('GET').describe('HTTP method to probe with'),
+      url: z.string().url().optional().describe('HTTP URL; omit for an MCP tool check.'),
+      mcp: nativeMcpTargetSchema.optional(),
+      method: z.enum(['GET', 'POST', 'PUT', 'DELETE']).optional().describe('HTTP method, default GET; omit for mcp.'),
     },
-    annotations: { readOnlyHint: true },
-    _meta: {
-      category: 'x402.access',
-      access: 'guest',
-      tags: ['x402', 'check', 'pricing'],
-      ...CHECK_META,
-    },
-  }, async (args) => {
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
+    _meta: { category: 'x402.access', access: 'guest', tags: ['x402', 'check', 'pricing'], ...CHECK_META },
+  }, async (args, extra) => {
+    if (args.mcp !== undefined) {
+      if (args.url !== undefined || args.method !== undefined) {
+        return governedResult('x402_check', { ok: false, error: 'native_mcp_target_exclusive' }, CHECK_META);
+      }
+      if (!extractMcpSessionId(extra)) return governedResult('x402_check', { ok: false, error: 'governed_principal_required', retryable: false }, CHECK_META);
+      try {
+        const mcp = nativeMcpTargetSchema.parse(args.mcp);
+        const { data, httpStatus } = await callIntentApi('check', {
+          sessionId: sessionForIntent(extra), requestId: randomUUID(), mcp,
+        });
+        const result = buildHostedCheckModelResult({ checkResult: { ...data, httpStatus }, mcp });
+        return governedResult('x402_check', result, CHECK_META);
+      } catch {
+        return governedResult('x402_check', { ok: false, error: 'native_mcp_check_unavailable', retryable: false }, CHECK_META);
+      }
+    }
+    if (!args.url) return governedResult('x402_check', { ok: false, error: 'check_target_required' }, CHECK_META);
     try {
-      const result = await checkEndpointPricing(args);
-      return {
-        structuredContent: result,
-        content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        _meta: CHECK_META,
-      };
+      const result = await checkEndpointPricing({ url: args.url, method: args.method || 'GET' });
+      return { structuredContent: result, content: [{ type: 'text', text: JSON.stringify(result, null, 2) }], _meta: CHECK_META };
     } catch (err) {
       const data = { error: true, statusCode: 500, message: err.message || String(err) };
-      return {
-        structuredContent: data,
-        content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
-        isError: true,
-        _meta: CHECK_META,
-      };
+      return { structuredContent: data, content: [{ type: 'text', text: JSON.stringify(data, null, 2) }], isError: true, _meta: CHECK_META };
     }
   });
 

@@ -1,5 +1,7 @@
 // Sentry instrumentation (must be before all other imports)
 import './instrument.open-mcp.mjs';
+import { nativeMcpServerUrlSchema, NATIVE_MCP_DISCOVERY_DESCRIPTION, OPEN_X402_CHECK_DESCRIPTION, openX402CheckSchema } from './lib/native-mcp-contract.mjs';
+import { discoverHostedMcpTools } from './lib/hosted-native-mcp.mjs';
 
 /**
  * OpenDexter MCP Server — x402 Gateway
@@ -1504,11 +1506,11 @@ async function runCanonicalX402Check(args, session) {
     const checked = await callOpenX402IntentApi('check', {
       sessionId: session.sessionId,
       requestId,
-      ...(args.url ? { url: args.url } : { resourceId: args.resourceId }),
-      method: args.method || 'GET',
-      ...(Object.prototype.hasOwnProperty.call(args, 'body')
-        ? { body: args.body }
-        : {}),
+      ...(args.mcp ? { mcp: args.mcp } : {
+        ...(args.url ? { url: args.url } : { resourceId: args.resourceId }),
+        method: args.method || 'GET',
+        ...(Object.prototype.hasOwnProperty.call(args, 'body') ? { body: args.body } : {}),
+      }),
     });
     result = { ...checked.data, httpStatus: checked.httpStatus };
     if (
@@ -1532,8 +1534,8 @@ async function runCanonicalX402Check(args, session) {
       }];
     }
   } else {
-    if (args.resourceId) {
-      throw new Error('indexter_resource_check_requires_authenticated_session');
+    if (args.mcp || args.resourceId) {
+      throw new Error('governed_check_requires_authenticated_session');
     }
     result = await checkEndpointPricing({
       url: args.url,
@@ -1580,6 +1582,7 @@ async function runCanonicalX402Check(args, session) {
     checkResult: result,
     url: args.url,
     resourceId: args.resourceId,
+    mcp: args.mcp,
     method:
       result?.checkedRequest?.method
       ?? result?.resolvedMethod
@@ -1590,7 +1593,7 @@ async function runCanonicalX402Check(args, session) {
     enrichment,
     enrichmentSource,
   });
-  if (session.authenticated && session.sessionId) {
+  if (!args.mcp && session.authenticated && session.sessionId) {
     legacyIntentBridge.recordCheck({
       identity: oauthVaultIdentityOf(sessionMeta.get(session.sessionId)),
       sessionId: session.sessionId,
@@ -2551,32 +2554,25 @@ export function createOpenMcpServer({
     }
   });
 
+  registerOpenTool(server, 'x402_mcp_tools', {
+    title: 'MCP Tool Discovery',
+    description: NATIVE_MCP_DISCOVERY_DESCRIPTION,
+    inputSchema: { serverUrl: nativeMcpServerUrlSchema.describe('Exact public HTTPS Streamable HTTP MCP endpoint.') },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+  }, async ({ serverUrl }) => {
+    try {
+      const data = await discoverHostedMcpTools(serverUrl);
+      return { content: [{ type: 'text', text: JSON.stringify(data) }], structuredContent: data, isError: data.ok === false };
+    } catch {
+      const data = { ok: false, error: 'native_mcp_discovery_unavailable' };
+      return { content: [{ type: 'text', text: JSON.stringify(data) }], structuredContent: data, isError: true };
+    }
+  });
+
   registerOpenTool(server, 'x402_check', {
     title: 'Check Access Terms',
-    description: 'Check one exact request before paying. Supply either a public URL or a stable resourceId from the current Indexter result, never both. With resourceId, copy the canonical method from the same current result; OpenDexter resolves the private route server-side and rejects method drift before probing. For a non-GET request, pass body as the exact raw JSON string to preserve lexical bytes. A purchasable quote has quoteOnly=false and an opaque intentId for x402_fetch and x402_status. A quote with quoteOnly=true has no executable intent. A check never authorizes payment, and a non-GET probe may mutate the provider.',
-    inputSchema: z.object({
-      url: z.string().url().optional().describe('Exact public HTTPS URL to check. Omit when using an Indexter resourceId.'),
-      resourceId: z.string().regex(OPEN_INDEXTER_RESOURCE_ID_RE).optional().describe('Stable resourceId copied from the current Indexter discovery or search result. Omit url so OpenDexter can resolve the private route server-side.'),
-      method: z.enum(['GET', 'POST', 'PUT', 'DELETE']).optional().describe('Exact HTTP method. A direct URL defaults to GET. For resourceId, copy the canonical method from the same current Indexter result; OpenDexter rejects catalog drift before probing.'),
-      body: z.string().optional().describe('Exact raw JSON request-body string for POST, PUT, or DELETE. OpenDexter does not parse, canonicalize, or reserialize this string before intent custody.'),
-    }).strict().superRefine((value, context) => {
-      const hasUrl = typeof value.url === 'string';
-      const hasResourceId = typeof value.resourceId === 'string';
-      if (hasUrl === hasResourceId) {
-        context.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['url'],
-          message: 'Supply exactly one of url or resourceId',
-        });
-      }
-      if (hasResourceId && value.method === undefined) {
-        context.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['method'],
-          message: 'resourceId requires the canonical method from the current Indexter result',
-        });
-      }
-    }),
+    description: OPEN_X402_CHECK_DESCRIPTION,
+    inputSchema: openX402CheckSchema,
     annotations: {
       readOnlyHint: false,
       destructiveHint: true,
@@ -2591,6 +2587,7 @@ export function createOpenMcpServer({
         const unavailable = buildX402CheckBindingUnavailable({
           url: args.url,
           resourceId: args.resourceId,
+          mcp: args.mcp,
           method: args.method || 'GET',
           body: args.body,
           bodyProvided: Object.prototype.hasOwnProperty.call(args, 'body'),

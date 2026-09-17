@@ -15,11 +15,12 @@ The canonical `https://open.dexter.cash/mcp` resource requires OAuth
 `scope=vault` before MCP initialization, tool discovery, or invocation. One
 successful authorization covers discovery and search, exact request checks,
 wallet and portfolio reads, identity-gated access, payment, and governed
-actions. The authorized roster has thirteen tools. Twelve are model-visible;
+actions. The authorized roster has fourteen tools. Thirteen are model-visible;
 `indexter_discover` is app-only:
 
 - `indexter_discover`
 - `indexter_search`
+- `x402_mcp_tools`
 - `x402_check`
 - `x402_fetch`
 - `x402_status`
@@ -68,9 +69,15 @@ and Actor pagination use separate opaque cursors. A continuation call copies
 the relevant `page.nextCursor` exactly; callers must not decode, alter, or
 replace it with a numeric offset. Task search is capped and does not paginate.
 
+### `x402_mcp_tools`
+
+List advertised tools at a public HTTPS MCP server. Copy its `inputSchemaJson`
+verbatim into the selected `mcp` target. The [native MCP guide](NATIVE-MCP-BUYER.md)
+covers discovery, checking, purchase and recovery.
+
 ### `x402_check`
 
-Input:
+HTTP input (choose the separate `mcp` form for native MCP):
 
 ```ts
 (

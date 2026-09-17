@@ -85,8 +85,10 @@ const DESCRIPTOR_RELATIVE_PATH =
   'release/open-tool-descriptors.json';
 const RECONCILE_FIXTURE_PATH =
   'tests/fixtures/governed-agent-reconcile-advanced-final-fa0701b6.json';
-const BINDING_FIXTURE_CONSUMER_PATH =
+const HISTORICAL_BINDING_FIXTURE_CONSUMER_PATH =
   'tests/fixtures/governed-agent-trade-api-facilitator-binding-v1.json';
+const BINDING_FIXTURE_CONSUMER_PATH =
+  'tests/fixtures/governed-agent-trade-api-facilitator-binding-vault-0434.json';
 const BINDING_FIXTURE_API_PATH =
   'tests/fixtures/governed-agent-trade-api-facilitator-binding-v1.json';
 const BINDING_FIXTURE_FACILITATOR_PATH =
@@ -101,18 +103,36 @@ const PORTFOLIO_PROJECTION_FIXTURE_PATH =
 const API_GOVERNED_CONTRACT_PATHS = Object.freeze([
   'src/portfolio/governedWrites',
   'src/routes/governedDelegatedAssetActions.ts',
+  'src/routes/defaultGovernedOwnerSendProduction.ts',
+  'src/routes/governedOwnerSendExecution.ts',
+  'src/routes/x402PayAnon.ts',
+  'src/services/x402/nativeMcpTarget.ts',
+  'src/services/x402/nativeMcpTransport.ts',
+  'src/services/x402/opaquePurchaseCheckPersistence.ts',
+  'src/services/x402/opaquePurchaseCoordinator.ts',
+  'src/services/x402/nativeExactCoordinator.ts',
+  'src/services/x402/nativeExactLifecycle.ts',
+  'src/services/x402/nativeExactPersistence.ts',
+  'src/services/x402/nativeExactWire.ts',
+  'src/services/purchasingGateway/adapters.ts',
+  'src/services/purchasingGateway/defaultNativeExactGateway.ts',
+  'src/services/purchasingGateway/domain.ts',
+  'src/services/purchasingGateway/gatewayCreditFacilitatorCosign.ts',
+  'src/services/purchasingGateway/identity.ts',
+  'src/services/purchasingGateway/prepare.ts',
+  'src/utils/publicExternalFetch.ts',
   BINDING_FIXTURE_API_PATH,
 ]);
 
 const EXPECTED_SOURCE_CONTRACTS = Object.freeze({
   apiCommit: 'fa0701b67625911b8ec97a5399f62ec97a69f976',
   apiTree: 'dcee95df1d92018b8fcd8b43645fe63211383274',
-  // The historical consumer fixture remains pinned above. This reviewed API
-  // adds only the read-only listWalletActivityGovernedTransactions projection
-  // to the previous governed implementation. Later API releases must preserve
+  // Historical consumer fixtures remain pinned. This reviewed baseline adopts
+  // Vault 0.43.4, retains historical receipt validation, persists Send evidence
+  // before cosigning, and adds native MCP purchases. Later releases preserve
   // these bytes over API_GOVERNED_CONTRACT_PATHS.
-  integratedGovernedCommit: '3563384462e4d7d063a50942c88d589afe20aeae',
-  integratedGovernedTree: 'f5f34b460fa3c476b61e42578cf714e58e109673',
+  integratedGovernedCommit: '33ffd350e3ceb6ac6cd36ec48ebcf1552a4872dd',
+  integratedGovernedTree: '557ff0e749ab41157b01cb18fd6f6593fb8689a1',
   apiFixtureSha256:
     'ad06690a3914e0ef0f359c4164eb62f78ca54abe6697a52672d739df63c2c352',
   apiCanonicalBodyDigest:
@@ -121,8 +141,10 @@ const EXPECTED_SOURCE_CONTRACTS = Object.freeze({
     '9c4c29b0d911b490d53a375eca1ae302501397be9c56250591bafaeb34a4e625',
   portfolioProjectionCanonicalDigest:
     'f4a3f826aa1c08531d42da402f08df709642ea75a84fd74608be75cdba2fc28a',
-  bindingFixtureSha256:
+  historicalBindingFixtureSha256:
     '66bbd343637fe9b3af245b2ace823a9dff1d8032e2dd01da7ee4bd71cc1ff7d6',
+  bindingFixtureSha256:
+    '54b23f1650bf0b65861f4c7dbe9594cd1a4ea752915819792d7ae8d14d362848',
   mcpCommit: '0647bbdf081733ac3ca5ba82850c2c1db79307cb',
   mcpTree: '66dfac45954b4b0983c56bf967b063fa59e72d91',
 });
@@ -311,6 +333,13 @@ export async function readOpenDexterSourceContracts({
       'OpenDexter governed API consumer fixture differs from its source pin',
     );
   }
+  const historicalBindingBytes = await readFile(
+    resolve(sourceRoot, HISTORICAL_BINDING_FIXTURE_CONSUMER_PATH),
+  );
+  if (sha256(historicalBindingBytes)
+    !== EXPECTED_SOURCE_CONTRACTS.historicalBindingFixtureSha256) {
+    throw new Error('OpenDexter historical API binding fixture differs from its source pin');
+  }
   const bindingFixturePath = resolve(
     sourceRoot,
     sourceContracts.facilitator.bindingFixture.consumerPath,
@@ -377,10 +406,20 @@ export function deriveOpenDexterSourceContractsForAcceptedProduction({
   const derived = structuredClone(sourceContracts);
   derived.integratedApiRelease.commit = acceptedProduction.api.sourceCommit;
   derived.integratedApiRelease.tree = acceptedProduction.api.sourceTree;
+  derived.integratedApiRelease.governedContractCommit =
+    EXPECTED_SOURCE_CONTRACTS.integratedGovernedCommit;
+  derived.integratedApiRelease.governedContractTree =
+    EXPECTED_SOURCE_CONTRACTS.integratedGovernedTree;
   derived.portfolioProjection.commit = acceptedProduction.api.sourceCommit;
   derived.portfolioProjection.tree = acceptedProduction.api.sourceTree;
   derived.facilitator.commit = acceptedProduction.facilitator.sourceCommit;
   derived.facilitator.tree = acceptedProduction.facilitator.sourceTree;
+  derived.facilitator.bindingFixture = {
+    consumerPath: BINDING_FIXTURE_CONSUMER_PATH,
+    apiPath: BINDING_FIXTURE_API_PATH,
+    facilitatorPath: BINDING_FIXTURE_FACILITATOR_PATH,
+    sha256: EXPECTED_SOURCE_CONTRACTS.bindingFixtureSha256,
+  };
   return verifyExactOpenDexterSourceContractsShape(
     derived,
     acceptedProduction,
@@ -1010,6 +1049,43 @@ export async function reviewedSourceContractRemoteRefs({
   }
 }
 
+/** Verify historical and current producer fixtures against their own frozen bytes. */
+export async function verifyOpenDexterBindingFixtureSources({
+  sourceRoot = repositoryRoot,
+  apiSourceRoot,
+  facilitatorSourceRoot,
+  apiCommit = EXPECTED_SOURCE_CONTRACTS.apiCommit,
+  integratedApiCommit,
+  facilitatorCommit,
+  runCommand = execFileAsync,
+  environment = reviewedReleaseToolEnvironment({ env: process.env }),
+} = {}) {
+  const [historicalBytes, currentBytes] = await Promise.all([
+    readFile(resolve(sourceRoot, HISTORICAL_BINDING_FIXTURE_CONSUMER_PATH)),
+    readFile(resolve(sourceRoot, BINDING_FIXTURE_CONSUMER_PATH)),
+  ]);
+  if (apiCommit !== EXPECTED_SOURCE_CONTRACTS.apiCommit
+    || sha256(historicalBytes)
+      !== EXPECTED_SOURCE_CONTRACTS.historicalBindingFixtureSha256
+    || sha256(currentBytes) !== EXPECTED_SOURCE_CONTRACTS.bindingFixtureSha256) {
+    throw new Error('OpenDexter binding fixture differs from its source pin');
+  }
+  for (const [root, object, path, expected] of [
+    [apiSourceRoot, apiCommit, BINDING_FIXTURE_API_PATH, historicalBytes],
+    [apiSourceRoot, integratedApiCommit, BINDING_FIXTURE_API_PATH, currentBytes],
+    [facilitatorSourceRoot, facilitatorCommit, BINDING_FIXTURE_FACILITATOR_PATH, currentBytes],
+  ]) {
+    const bytes = await gitBlob({ root, object, path, runCommand, environment });
+    if (!bytes.equals(expected)) {
+      throw new Error('OpenDexter API-facilitator binding fixture source bytes differ');
+    }
+  }
+  return Object.freeze({
+    historicalSha256: EXPECTED_SOURCE_CONTRACTS.historicalBindingFixtureSha256,
+    currentSha256: EXPECTED_SOURCE_CONTRACTS.bindingFixtureSha256,
+  });
+}
+
 /**
  * Prove the exact API/facilitator sources that one hosted descriptor claims.
  * Both roots are mandatory inputs: release proof must never discover a mutable
@@ -1118,41 +1194,14 @@ export async function verifyOpenDexterCrossRepositorySourceContracts({
   }
 
   const fixture = contracts.facilitator.bindingFixture;
-  const localFixture = await readFile(resolve(sourceRoot, fixture.consumerPath));
-  const sourceFixtures = await Promise.all([
-    gitBlob({
-      root: explicitApiRoot,
-      object: contracts.api.commit,
-      path: fixture.apiPath,
-      runCommand,
-      environment: cleanGitEnvironment,
-    }),
-    gitBlob({
-      root: explicitApiRoot,
-      object: contracts.integratedApiRelease.commit,
-      path: fixture.apiPath,
-      runCommand,
-      environment: cleanGitEnvironment,
-    }),
-    gitBlob({
-      root: explicitFacilitatorRoot,
-      object: contracts.facilitator.commit,
-      path: fixture.facilitatorPath,
-      runCommand,
-      environment: cleanGitEnvironment,
-    }),
-  ]);
-  for (const sourceFixture of sourceFixtures) {
-    if (
-      !sourceFixture.equals(localFixture)
-      || createHash('sha256').update(sourceFixture).digest('hex')
-        !== fixture.sha256
-    ) {
-      throw new Error(
-        'OpenDexter API-facilitator binding fixture source bytes differ',
-      );
-    }
-  }
+  await verifyOpenDexterBindingFixtureSources({
+    sourceRoot, apiSourceRoot: explicitApiRoot,
+    facilitatorSourceRoot: explicitFacilitatorRoot,
+    apiCommit: contracts.api.commit,
+    integratedApiCommit: contracts.integratedApiRelease.commit,
+    facilitatorCommit: contracts.facilitator.commit,
+    runCommand, environment: cleanGitEnvironment,
+  });
   const projection = contracts.portfolioProjection;
   const localProjectionFixture = await readFile(
     resolve(sourceRoot, projection.fixture.consumerPath),

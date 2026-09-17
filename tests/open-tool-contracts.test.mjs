@@ -31,6 +31,7 @@ import {
 const EXPECTED_TOOLS = [
   'indexter_discover',
   'indexter_search',
+  'x402_mcp_tools',
   'x402_check',
   'x402_fetch',
   'x402_status',
@@ -69,7 +70,7 @@ function outputUnknownKeys(schema) {
   return undefined;
 }
 
-test('contract is exactly the canonical hosted thirteen', () => {
+test('contract is exactly the canonical hosted fourteen', () => {
   assert.deepEqual(OPEN_TOOL_NAMES, EXPECTED_TOOLS);
   assert.deepEqual(Object.keys(OPEN_TOOL_CONTRACTS).sort(), [...EXPECTED_TOOLS].sort());
   assert.doesNotMatch(OPEN_TOOL_NAMES.join(','), /card_/);
@@ -79,6 +80,7 @@ test('contract is exactly the canonical hosted thirteen', () => {
       [
         'indexter_discover',
         'indexter_search',
+        'x402_mcp_tools',
         'x402_check',
         'x402_fetch',
         'x402_status',
@@ -863,7 +865,7 @@ test('both supported registration APIs close after finalization', () => {
   );
 });
 
-test('behavior annotations reflect the canonical thirteen operations', () => {
+test('behavior annotations reflect the canonical fourteen operations', () => {
   assert.deepEqual(OPEN_TOOL_CONTRACTS.indexter_discover.annotations, {
     readOnlyHint: true,
     destructiveHint: false,
@@ -1258,6 +1260,7 @@ test('real SDK tools/list exposes executable schemas, OAuth, annotations, and me
       [
         'indexter_discover',
         'indexter_search',
+        'x402_mcp_tools',
         'x402_check',
         'x402_fetch',
         'x402_status',
@@ -1362,7 +1365,7 @@ test('real SDK tools/list exposes executable schemas, OAuth, annotations, and me
 });
 
 for (const clientName of ['Generic MCP', 'ChatGPT', 'Claude']) {
-  test(`${clientName} connected discovery receives the same raw thirteen and no retired calls`, async () => {
+  test(`${clientName} connected discovery receives the same raw fourteen and no retired calls`, async () => {
     const server = new McpServer({
       name: 'host-discovery-test',
       version: '0.4.0',
@@ -1510,7 +1513,7 @@ test('vault-bound hosted discovery retains the exact protected roster', async ()
   assert.deepEqual(OPEN_OAUTH_PROMOTED_TOOL_NAMES, OPEN_TOOL_NAMES);
 });
 
-test('the contract exposes zero tools anonymously and all thirteen after OAuth', () => {
+test('the contract exposes zero tools anonymously and all fourteen after OAuth', () => {
   assert.deepEqual(OPEN_ANONYMOUS_TOOL_NAMES, []);
   assert.deepEqual(OPEN_OAUTH_PROMOTED_TOOL_NAMES, OPEN_TOOL_NAMES);
   for (const name of OPEN_TOOL_NAMES) {

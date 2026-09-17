@@ -1,3 +1,4 @@
+import { openX402CheckSchema } from '../lib/native-mcp-contract.mjs';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
@@ -50,10 +51,10 @@ test('authenticated status accepts only the same opaque intent', () => {
 test('authenticated check accepts an exact raw body string and no prepared purchase', () => {
   const source = registration('x402_check', 'x402_access');
   const schema = inputSchema(source);
-  assert.match(schema, /url:\s*z\.string\(\)\.url\(\)/);
-  assert.match(schema, /method:\s*z\.enum/);
-  assert.match(schema, /body:\s*z\.string\(\)\.optional\(\)/);
-  assert.doesNotMatch(schema, /sampleInputBody|preparedPurchase|purchaseOptions|challenge/);
+  assert.match(schema, /inputSchema: openX402CheckSchema/);
+  assert.equal(openX402CheckSchema.safeParse({ url: 'https://seller.example/tool', method: 'POST', body: '{ "amount": 1.00 }' }).success, true);
+  assert.equal(openX402CheckSchema.safeParse({ url: 'https://seller.example/tool', body: { amount: 1 } }).success, false);
+  assert.equal(openX402CheckSchema.safeParse({ url: 'https://seller.example/tool', preparedPurchase: {} }).success, false);
   assert.match(source, /Object\.prototype\.hasOwnProperty\.call\(args, 'body'\)/);
   assert.match(source, /runCanonicalX402Check\(args, session\)/);
 });
