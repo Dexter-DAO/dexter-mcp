@@ -139,9 +139,10 @@ const EXPECTED_SOURCE_CONTRACTS = Object.freeze({
   // receipt outcomes, and observation-only purchase continuation. PR302 adds
   // required payment-identifier admission while preserving existing recovery.
   // PR304 adds dollar Sell sizing, quote corroboration and frozen recovery.
+  // PR306 retains validated Send release history without a count-only cutoff.
   // Later releases must preserve these API_GOVERNED_CONTRACT_PATHS bytes.
-  integratedGovernedCommit: '21f365b0fd33302b1b03ea6bb9f5c4ecd1241159',
-  integratedGovernedTree: '7df84a14bd9e9f5bd99fc6e7711ee516f4d3fbf3',
+  integratedGovernedCommit: '61cc13057c19d3cfa3fbedc64e15082334ae429c',
+  integratedGovernedTree: '9ee214a14c7cd86427457a503610d0dd9badbfbd',
   apiFixtureSha256:
     'ad06690a3914e0ef0f359c4164eb62f78ca54abe6697a52672d739df63c2c352',
   apiCanonicalBodyDigest:
