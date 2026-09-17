@@ -995,13 +995,14 @@ async function verifySourceRepository({
  */
 export async function reviewedSourceContractRemoteRefs({
   remote,
+  includePeeledTags = false,
   runCommand = execFileAsync,
   environment = process.env,
 } = {}) {
   const token = environment?.GITHUB_PERSONAL_ACCESS_TOKEN
     || environment?.GH_TOKEN;
   if (!token) {
-    return reviewedGitRemoteRefs({ remote, runCommand, environment });
+    return reviewedGitRemoteRefs({ remote, includePeeledTags, runCommand, environment });
   }
   if (
     typeof token !== 'string'
@@ -1041,7 +1042,8 @@ export async function reviewedSourceContractRemoteRefs({
       '--git-dir=/dev/null',
       '-c', 'credential.helper=',
       '-c', 'core.attributesFile=/dev/null',
-      'ls-remote', '--refs', remote, 'refs/heads/*', 'refs/tags/*',
+      'ls-remote', ...(includePeeledTags ? [] : ['--refs']),
+      remote, 'refs/heads/*', 'refs/tags/*',
     ], {
       cwd: workspace,
       encoding: 'utf8',

@@ -133,6 +133,7 @@ async function remoteAdvertisesCommit(
     try {
       refs = await reviewedGitRemoteRefs({
         remote,
+        includePeeledTags: true,
         runCommand: hardenedRemoteRefsRunner(runCommand, {
           HOME: anonymousHome,
           GIT_ASKPASS: anonymousAskpass,
@@ -156,6 +157,7 @@ async function remoteAdvertisesCommit(
       try {
         refs = await reviewedSourceContractRemoteRefs({
           remote,
+          includePeeledTags: true,
           runCommand: hardenedRemoteRefsRunner(runCommand),
           environment,
         });

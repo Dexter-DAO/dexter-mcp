@@ -365,16 +365,16 @@ test('hosted source declares one exact internal dependency train', async () => {
     [
       '@dexterai/x402-core@1.5.2',
       '@dexterai/mcp-instructions@2.4.2-rc.1',
-      '@dexterai/x402-mcp-tools@0.9.0-rc.2',
-      '@dexterai/vault@0.43.3-rc.1',
+      '@dexterai/x402-mcp-tools@0.9.2',
+      '@dexterai/vault@0.43.4',
     ],
   );
   assert.deepEqual(
     manifest.runtimePackages.map(({ name, version }) =>
       `${name}@${version}`),
     [
-      '@dexterai/x402@6.0.0-rc.4',
-      '@modelcontextprotocol/sdk@1.29.0',
+      '@dexterai/x402@6.0.3',
+      '@modelcontextprotocol/sdk@1.30.0',
       '@modelcontextprotocol/ext-apps@1.6.0',
       'zod@3.25.76',
     ],
@@ -384,7 +384,7 @@ test('hosted source declares one exact internal dependency train', async () => {
   assert.equal(manifest.node, '^20.19.0 || >=22.12.0');
   assert.deepEqual(manifest.repositories.hosted, {
     remote: 'https://github.com/Dexter-DAO/dexter-mcp.git',
-    provenanceCommit: '7cbcaf3bab45de67000f18391af2cb57c5628ba4',
+    provenanceCommit: 'ac38fa4d7f6ffdc195451083032d6a7342794dda',
   });
   assert.deepEqual(
     manifest.sourcePackages.map(({ install }) => install),
@@ -397,10 +397,10 @@ test('hosted source declares one exact internal dependency train', async () => {
   );
   assert.deepEqual(manifest.repositories['opendexter-ide'], {
     remote: 'https://github.com/Dexter-DAO/opendexter-ide.git',
-    provenanceCommit: '1fe25b170ef17ed15f62ee73cd5128978d8868f9',
+    provenanceCommit: '8b3609de4c9b108b98b5e53206d6f0f62707cf9f',
     rootWorkspaceBuild: {
       packageLockSha256:
-        '8bd1f28803e84d2d8e9d0e53c82c2835d337e62a4fada13c49f8a05b63a59a60',
+        '19f4db824e55d0d41c460e16645e5a86cb9c9efa55b55e8d42e4299e8fc0e083',
       buildOrder: [
         { workspace: '@dexterai/mcp-instructions', script: 'build' },
         { workspace: '@dexterai/dextercard', script: 'build' },
@@ -415,7 +415,7 @@ test('hosted source declares one exact internal dependency train', async () => {
     ],
     [
       '@dexterai/x402-mcp-tools',
-      '13bfb95fc1eae30588879a0ac173d1e473ac9117d44464116245b8882709d5e9',
+      '94b378e38c7356e59bdcf293f8400e8734b4db88c8dfe2b7b88ff6b24d9b0038',
     ],
   ]) {
     const artifact = manifest.sourcePackages.find(
@@ -427,29 +427,29 @@ test('hosted source declares one exact internal dependency train', async () => {
   }
   assert.deepEqual(manifest.repositories['vault-sdk'], {
     remote: 'https://github.com/Dexter-DAO/dexter-vault-sdk.git',
-    provenanceCommit: 'cbf56cfb84ec78fe4086cdd665a777f78077efd0',
+    provenanceCommit: '169f034670a48e2fc9fe99feb75fb29820d775cc',
   });
   assert.deepEqual(
     manifest.sourcePackages.find(({ name }) => name === '@dexterai/vault'),
     {
       name: '@dexterai/vault',
-      version: '0.43.3-rc.1',
-      rootSpecifier: '0.43.3-rc.1',
+      version: '0.43.4',
+      rootSpecifier: '0.43.4',
       source: 'vault-sdk',
       path: '.',
       entrypoint: 'dist/index.js',
-      treeHash: '806e479d12f648e1b69281bec8ed3c01c163a026',
+      treeHash: 'c46036ff432eac4bd4880d4e415eb1546c7126b0',
       packedArtifact: {
         buildScript: 'build',
         packLifecycleScripts: {
           prepack: 'npm run build && npm run typecheck',
         },
-        integrity: 'sha512-KBxgQf3pEuz+7fsmyjIlm7xYxa/h1d+2ULoG/EpzTHolxcEuLyPLv4Kz8nbzOTJK8ca7SggHeWIiio/ek3IOiQ==',
-        shasum: '8822a0b9840cf4e29a33daf311824919272c3bdf',
-        size: 624351,
-        unpackedSize: 3068434,
-        entryCount: 91,
-        tgzSha256: '1eca5e65d5a2efc2a3fa2bad63b57d1080fa8fd2e33d14a370d7291e749d59d4',
+        integrity: 'sha512-71pTR1dbinhJ83+M+VlDCg7ie8CVJddfl9Xnv+zBXLArH8DnCswsNHwNOpfgjqZuW8Pi1v5yFKC2Rvj4QF/qCQ==',
+        shasum: '6e7c41e1e936ac431ddb1e287b2a85b12a6cf1cf',
+        size: 662755,
+        unpackedSize: 3307479,
+        entryCount: 93,
+        tgzSha256: 'e7aa72743579d78fcce2d113c7fd04a45aa7f65edfd2e7e900fa88685461cac2',
       },
       install: { source: 'registry', release: 'registry' },
     },
@@ -876,7 +876,7 @@ test('source preflight retries one canonical private GitHub remote through isola
             assert.equal(remoteLookups, 2);
             assert.equal(args.includes('--git-dir=/dev/null'), true);
             assert.equal(args.includes('credential.helper='), true);
-            assert.equal(args.includes('--refs'), true);
+            assert.equal(args.includes('--refs'), false);
             assert.deepEqual(args.slice(-3), [
               remote,
               'refs/heads/*',

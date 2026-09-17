@@ -9,13 +9,13 @@
   "repositories": {
     "hosted": {
       "remote": "https://github.com/Dexter-DAO/dexter-mcp.git",
-      "provenanceCommit": "7cbcaf3bab45de67000f18391af2cb57c5628ba4"
+      "provenanceCommit": "ac38fa4d7f6ffdc195451083032d6a7342794dda"
     },
     "opendexter-ide": {
       "remote": "https://github.com/Dexter-DAO/opendexter-ide.git",
-      "provenanceCommit": "1fe25b170ef17ed15f62ee73cd5128978d8868f9",
+      "provenanceCommit": "8b3609de4c9b108b98b5e53206d6f0f62707cf9f",
       "rootWorkspaceBuild": {
-        "packageLockSha256": "8bd1f28803e84d2d8e9d0e53c82c2835d337e62a4fada13c49f8a05b63a59a60",
+        "packageLockSha256": "19f4db824e55d0d41c460e16645e5a86cb9c9efa55b55e8d42e4299e8fc0e083",
         "buildOrder": [
           {
             "workspace": "@dexterai/mcp-instructions",
@@ -34,7 +34,7 @@
     },
     "vault-sdk": {
       "remote": "https://github.com/Dexter-DAO/dexter-vault-sdk.git",
-      "provenanceCommit": "cbf56cfb84ec78fe4086cdd665a777f78077efd0"
+      "provenanceCommit": "169f034670a48e2fc9fe99feb75fb29820d775cc"
     }
   },
   "sourcePackages": [
@@ -45,7 +45,7 @@
       "source": "hosted",
       "path": "packages/x402-core",
       "entrypoint": "dist/index.js",
-      "treeHash": "5dc03dce9f7890453c94e55ac50dd474fb5ddc5b",
+      "treeHash": "61e5a9a98111dee101673b9e3b1143e43bd6c3d2",
       "install": {
         "source": "workspace",
         "release": "workspace"
@@ -76,21 +76,21 @@
     },
     {
       "name": "@dexterai/x402-mcp-tools",
-      "version": "0.9.0-rc.2",
-      "rootSpecifier": "0.9.0-rc.2",
+      "version": "0.9.2",
+      "rootSpecifier": "0.9.2",
       "source": "opendexter-ide",
       "path": "packages/x402-mcp-tools",
       "entrypoint": "dist/index.js",
-      "treeHash": "78854a5a5a6d5d47ffe8cf1f65f85d23136dc9a8",
+      "treeHash": "4e2a01b4202ebc583400121d7f70623f9e275dc0",
       "packedArtifact": {
         "buildMode": "root-workspace",
         "buildScript": "build",
-        "integrity": "sha512-RZm2BjeshtvfqyvZQBtVaH4p0eZlGA15qN4ooioL0svynIA/JLp9NoztT8R3yB34Ix571MZNM/Fdb5+nWmWq8g==",
-        "shasum": "a913eef0b4f3676ff94efa225f32c8c2905334b5",
-        "size": 70359,
-        "unpackedSize": 284258,
+        "integrity": "sha512-TMqkVQyZk6MT+z70lCF21vpsi1Yb6o6YRK+WJHnf11Qff9G4VQ+LTjzeEIWq/PA2bBSfYgiRxxCbUCZk+X3IJA==",
+        "shasum": "cb868beafc3eb94c91ddbf91811e3205a4ae22c3",
+        "size": 71631,
+        "unpackedSize": 291822,
         "entryCount": 21,
-        "tgzSha256": "13bfb95fc1eae30588879a0ac173d1e473ac9117d44464116245b8882709d5e9"
+        "tgzSha256": "94b378e38c7356e59bdcf293f8400e8734b4db88c8dfe2b7b88ff6b24d9b0038"
       },
       "install": {
         "source": "linked-source",
@@ -99,23 +99,23 @@
     },
     {
       "name": "@dexterai/vault",
-      "version": "0.43.3-rc.1",
-      "rootSpecifier": "0.43.3-rc.1",
+      "version": "0.43.4",
+      "rootSpecifier": "0.43.4",
       "source": "vault-sdk",
       "path": ".",
       "entrypoint": "dist/index.js",
-      "treeHash": "806e479d12f648e1b69281bec8ed3c01c163a026",
+      "treeHash": "c46036ff432eac4bd4880d4e415eb1546c7126b0",
       "packedArtifact": {
         "buildScript": "build",
         "packLifecycleScripts": {
           "prepack": "npm run build && npm run typecheck"
         },
-        "integrity": "sha512-KBxgQf3pEuz+7fsmyjIlm7xYxa/h1d+2ULoG/EpzTHolxcEuLyPLv4Kz8nbzOTJK8ca7SggHeWIiio/ek3IOiQ==",
-        "shasum": "8822a0b9840cf4e29a33daf311824919272c3bdf",
-        "size": 624351,
-        "unpackedSize": 3068434,
-        "entryCount": 91,
-        "tgzSha256": "1eca5e65d5a2efc2a3fa2bad63b57d1080fa8fd2e33d14a370d7291e749d59d4"
+        "integrity": "sha512-71pTR1dbinhJ83+M+VlDCg7ie8CVJddfl9Xnv+zBXLArH8DnCswsNHwNOpfgjqZuW8Pi1v5yFKC2Rvj4QF/qCQ==",
+        "shasum": "6e7c41e1e936ac431ddb1e287b2a85b12a6cf1cf",
+        "size": 662755,
+        "unpackedSize": 3307479,
+        "entryCount": 93,
+        "tgzSha256": "e7aa72743579d78fcce2d113c7fd04a45aa7f65edfd2e7e900fa88685461cac2"
       },
       "install": {
         "source": "registry",
@@ -126,13 +126,13 @@
   "runtimePackages": [
     {
       "name": "@dexterai/x402",
-      "version": "6.0.0-rc.4",
-      "rootSpecifier": "6.0.0-rc.4"
+      "version": "6.0.3",
+      "rootSpecifier": "6.0.3"
     },
     {
       "name": "@modelcontextprotocol/sdk",
-      "version": "1.29.0",
-      "rootSpecifier": "1.29.0"
+      "version": "1.30.0",
+      "rootSpecifier": "1.30.0"
     },
     {
       "name": "@modelcontextprotocol/ext-apps",
