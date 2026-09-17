@@ -181,9 +181,13 @@ for (const [name, url] of [
     assert.equal(result.isError, true);
     assert.equal(result.structuredContent, undefined);
     const publicBody = JSON.parse(result.content[0].text);
-    assert.deepEqual(publicBody, body);
+    assert.equal(publicBody.code, body.code);
+    assert.equal(publicBody.operationId, OPERATION_ID);
+    assert.equal(publicBody.status, 'refused');
     assert.deepEqual(result._meta['dexter/governedWidgetResult'], body);
-    assert.equal(publicBody.permissionRequest.approvalUrl, url);
+    assert.equal(publicBody.nextActions[0].url, url);
+    assert.equal(publicBody.nextActions[0].expiresAt, body.permissionRequest.expiresAt);
+    assert.equal(publicBody.nextActions.some(step => step.tool === 'dexter_execute_asset_action'), false);
     assert.match(result.content[0].text, /https:\/\/dexter.cash\/tabs\/setup/);
     assert.equal(Object.hasOwn(publicBody, 'eligibilityPolicyDigest'), false);
   });

@@ -1595,3 +1595,41 @@ test('array projection rejects unsupported shapes and credentials without silent
   } })] }).featuredOfferings[0];
   assert.deepEqual(bounded.requestInput.fields[0], { name: 'references', location: 'body', type: 'array', required: false, items: { type: 'string' }, minItems: 0, maxItems: 32 });
 });
+
+
+test('published GET inputs request input review without implying missing user authority', () => {
+  const input = endpoint(201, { inputSchema: {
+    type: 'object', required: ['city'], properties: { city: { type: 'string' } },
+  } });
+  const result = buildIndexterToolResult({ route: 'task', originalQuery: 'same thing for Boston', payload: {
+    success: true, strongResults: [input], relatedResults: [],
+  } });
+  assert.equal(result.structuredContent.originalQuery, 'same thing for Boston');
+  const { action, requestInput } = result.structuredContent.results[0];
+  assert.equal(action.kind, 'review_endpoint');
+  assert.deepEqual(requestInput.fields, [{ name: 'city', location: 'query', type: 'string', required: true }]);
+  assert.deepEqual(action.review, {
+    inputReviewRequired: true, authorityReviewRequired: false,
+    authorizationBasis: 'current_task_and_active_permissions', nextAction: 'use_known_inputs_and_check',
+  });
+  assert.equal(action.safety.checkMayAffectProvider, false);
+  assert.equal(OPEN_TOOL_CONTRACTS.indexter_search.outputSchema.safeParse(result.structuredContent).success, true);
+});
+
+test('consequential request review retains reservation and confirmation facts without requiring a fresh approval turn', () => {
+  const source = discoveryEndpoint(202, { execution: endpointExecution({
+    confirmationRequired: true, quoteMayCreateProviderReservation: true,
+    effect: 'Creates the requested reservation.',
+  }) });
+  const projected = projectIndexterDiscoveryEndpointActions({ featuredOfferings: [source] });
+  const action = projected.featuredOfferings[0].action;
+  assert.equal(action.safety.confirmationRequired, true);
+  assert.equal(action.safety.checkMayCreateProviderReservation, true);
+  assert.deepEqual(action.review, {
+    inputReviewRequired: false, authorityReviewRequired: true,
+    authorizationBasis: 'current_task_and_active_permissions', nextAction: 'verify_consequence_coverage_then_check',
+  });
+  const roundtrip = buildIndexterToolResult({ route: 'overview', payload: { ...discoveryPayload(), featuredOfferings: projected.featuredOfferings } });
+  const endpoint = roundtrip.structuredContent.results.find((item) => item.kind === 'endpoint');
+  assert.deepEqual(endpoint.action.review, action.review);
+});

@@ -180,7 +180,7 @@ test('failed or ambiguous checks never publish a provisional claim as an intent'
   assert.equal(structuredContent.executionGuidance.readyForFetch, false);
   assert.equal(
     structuredContent.executionGuidance.supportedPath,
-    'provider_error',
+    'check_pending',
   );
 });
 

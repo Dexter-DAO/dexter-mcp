@@ -17,6 +17,7 @@ const EXPECTED_TOOLS = [
   'x402_fetch',
   'x402_status',
   'x402_check',
+  'x402_mcp_tools',
   'x402_access',
   'dexter_wallet',
   'dexter_wallet_portfolio',
@@ -43,7 +44,7 @@ test('hosted skill resources are loaded from this release checkout', () => {
   assert.doesNotMatch(SERVER, /opendexter-ide.*opendexter-plugin.*skills/s);
 });
 
-test('hosted workflow names only the thirteen connected product tools', () => {
+test('hosted workflow names only the fourteen connected product tools', () => {
   for (const name of EXPECTED_TOOLS) {
     assert.match(WORKFLOW, new RegExp(`\\\`${name}\\\``));
   }
@@ -53,7 +54,7 @@ test('hosted workflow names only the thirteen connected product tools', () => {
     [...toolNames].sort(),
     EXPECTED_TOOLS.map((name) => `\`${name}\``).sort(),
   );
-  assert.doesNotMatch(WORKFLOW, /\bcard_[a-z0-9_]+\b|\bDextercard\b/i);
+  assert.doesNotMatch(WORKFLOW, /\bcard_[a-z0-9_]+\b/i);
   assert.doesNotMatch(
     WORKFLOW,
     /\b(?:x402_pay|x402_compose_skill|promote_skill|dexter_passkey(?:_probe)?)\b/,
@@ -139,12 +140,11 @@ test('generated runtime instructions put the complete safety boundary first', ()
   const runtime = buildOpenServerInstructions();
   const first512 = runtime.slice(0, 512);
 
-  assert.match(first512, /one indexter_search call using the user's exact wording/);
+  assert.match(first512, /one indexter_search call using the task in context/);
   assert.match(first512, /Search cannot execute the job/);
-  assert.match(first512, /Use live tools, never memory/);
   assert.match(first512, /context, not authority/);
-  assert.match(first512, /review-required endpoint check/);
-  assert.match(first512, /current instruction or bounded authority/);
+  assert.match(first512, /missing consequential decision/);
+  assert.match(first512, /current instructions and active wallet permissions/);
   assert.match(first512, /Never retry uncertain or post-dispatch work/);
 
   assert.match(runtime, /self-custodial Dexter Wallet/);
@@ -152,7 +152,7 @@ test('generated runtime instructions put the complete safety boundary first', ()
   assert.match(SERVER, /const SERVER_INSTRUCTIONS = buildOpenServerInstructions\(\)/);
 });
 
-test('generated runtime instructions route the complete thirteen-tool product', () => {
+test('generated runtime instructions route the complete fourteen-tool product', () => {
   const runtime = buildOpenServerInstructions();
 
   assert.deepEqual(mentionedOpenDexterTools(runtime), [...EXPECTED_TOOLS].sort());
@@ -178,7 +178,7 @@ test('generated runtime instructions route the complete thirteen-tool product', 
 test('generated runtime instructions preserve exact consequence and recovery boundaries', () => {
   const runtime = buildOpenServerInstructions();
 
-  assert.match(runtime, /every review_endpoint action,[\s\S]*provider-stated effect[\s\S]*create a reservation[\s\S]*Obtain confirmation/);
+  assert.match(runtime, /every review_endpoint action,[\s\S]*create a reservation[\s\S]*provider-stated effect[\s\S]*Proceed when covered/);
   assert.match(runtime, /Approval to check is not payment approval/);
   assert.match(runtime, /requestInput is the complete server-sanitized list/);
   assert.match(runtime, /Use only each field's name, location, primitive type, and required flag/);
@@ -188,7 +188,7 @@ test('generated runtime instructions preserve exact consequence and recovery bou
   assert.match(runtime, /Any path field, managed query field, GET body field,[\s\S]*must stop before x402_check/);
   assert.match(runtime, /Never automatically repeat a check whose action says checkMayAffectProvider after an uncertain provider submission/);
   assert.match(runtime, /second such call[\s\S]*requires fresh explicit confirmation[\s\S]*duplicate submission/);
-  assert.match(runtime, /non-GET access call may change provider state[\s\S]*explain and confirm/);
+  assert.match(runtime, /non-GET access call may change provider state[\s\S]*Use existing task authority/);
   assert.match(runtime, /purchasable paid check returns an opaque intentId bound to the authenticated session/);
   assert.match(runtime, /current instruction or existing bounded policy covers the exact seller, selected endpoint, method, body,[\s\S]*maxAmountAtomic/);
   assert.match(runtime, /If it already does, do not ask for another payment approval/);
@@ -217,7 +217,7 @@ test('generated runtime instructions preserve current wallet and authority truth
 
   assert.match(runtime, /requires OpenDexter OAuth before initialization or tool discovery/);
   assert.match(runtime, /native OpenDexter Connect action/);
-  assert.match(runtime, /registers thirteen tools[\s\S]*Twelve are model-visible/);
+  assert.match(runtime, /registers fourteen tools[\s\S]*Thirteen are model-visible/);
   assert.match(runtime, /Connected label[\s\S]*successful authenticated tool discovery or a successful tool call proves wallet authorization/);
   assert.match(runtime, /Connected appears without authorization[\s\S]*plugin or integration settings/);
   assert.match(runtime, /plugin or integration settings[\s\S]*Authorize or Authenticate/);
