@@ -255,12 +255,19 @@ the task still permits. The user need not restart an ordinary read.
    `maximumSpendAtomic` without `shareQuantity`. If the user says "exactly,"
    "no more than," or otherwise forbids receiving extra shares, explain that
    this route guarantees a minimum and may overfill; ask whether an at-least
-   target is acceptable instead of silently weakening the request. Stock Sell
-   supports direct token input only: pass `companyQuery` plus `amountAtomic`
-   using the server-certified decimals; it does not accept `shareQuantity`.
-   For non-stock Sell and Send, pass `assetId` plus `amountAtomic`. Send has no
-   memo. Tool presence and input acceptance are not runtime capability; only
-   the exact Prepare result is.
+   target is acceptable instead of silently weakening the request.
+   For Sell, "sell $1 of NVIDIA" uses `companyQuery: "NVIDIA"` and
+   `valueUsd: "1"`. This is the USD market value to sell at preparation.
+   Keep it as a human decimal; Dexter sizes the token input from the latest
+   reported USD price and checks the selected value against the current sale quote. The executable quote supplies expected and minimum USDC
+   proceeds. Net USDC proceeds are approximate until the receipt.
+   Non-stock Sell accepts `valueUsd` with the canonical `assetId`.
+   For token-input Stock Sell, pass `companyQuery` plus `amountAtomic` using
+   the server-certified decimals. Use exactly one
+   of `valueUsd` and `amountAtomic`; Sell does not accept `shareQuantity`.
+   For non-stock Sell and Send with raw token input, pass `assetId` plus
+   `amountAtomic`. Send has no memo. Tool presence and input acceptance are not
+   runtime capability; only the exact Prepare result is.
 3. Read the returned `intentId`, policy result, approval state, expiry, and
    preview. A prepared stock result must include the exact release binding in
    top-level `stockRuntime` and the frozen catalog pin in

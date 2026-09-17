@@ -28,7 +28,7 @@ function assertSupportedNextArguments(steps) {
   }
 }
 
-test('confirmed trade with actual proceeds offers same-attempt recovery and current holdings without calling either', () => {
+test('confirmed trade with actual proceeds continues finality and current holdings without submission guidance', () => {
   const fixture = receiptFixture({ captured: true });
   const { normalized, presentation } = output('status', fixture.status);
   assert.equal(normalized.isError, false);
@@ -40,6 +40,9 @@ test('confirmed trade with actual proceeds offers same-attempt recovery and curr
   assert.deepEqual(recovery.arguments, { intentId: fixture.status.intentId });
   assert.match(recovery.condition, /original task/);
   assert.match(recovery.condition, /status-only/);
+  assert.match(recovery.reason, /has succeeded/);
+  assert.match(recovery.reason, /finalization/);
+  assert.doesNotMatch(recovery.reason, /submit|recovery|repair/);
   assert.ok(presentation.nextActions.some((next) => next.tool === 'dexter_wallet_portfolio'));
   assertSupportedNextArguments(presentation.nextActions);
 });
@@ -50,7 +53,51 @@ test('pending Reconcile result continues observation without immediately proposi
   assert.equal(presentation.recoveryOutcome, 'pending');
   assert.equal(presentation.nextActions[0].tool, 'dexter_asset_action_status');
   assert.equal(presentation.nextActions.some((next) => next.tool === 'dexter_reconcile_asset_action'), false);
+  assert.match(presentation.nextActions[0].reason, /action has succeeded.*finality update is pending/);
+  assert.doesNotMatch(presentation.nextActions[0].reason, /Recovery remains uncertain/);
   assertSupportedNextArguments(presentation.nextActions);
+});
+
+test('confirmed pending Reconcile explains pending finality while preserving the exact API response', () => {
+  const body = receiptFixture().reconcile;
+  body.explanation = 'The same durable attempt is still ambiguous; no signing or submission request was repeated.';
+  refreshReconcileDigest(body);
+  const original = structuredClone(body);
+  const { normalized, result, presentation } = output('reconcile', body, 202);
+  assert.equal(normalized.isError, false);
+  assert.match(presentation.summary, /Sale confirmed/);
+  assert.equal(presentation.actual.credit.amount, '265.000123');
+  assert.equal(presentation.recoveryMessage, 'The action has succeeded and its finality update is pending.');
+  assert.doesNotMatch(presentation.recoveryMessage, /ambiguous|submit|recovery|repair/i);
+  assert.deepEqual(presentation.nextActions.map(next => next.tool), ['dexter_asset_action_status']);
+  assert.deepEqual(result.structuredContent, original);
+});
+
+test('an unresolved action preserves same-attempt recovery and its possible submission meaning', () => {
+  const state = receiptFixture().status;
+  delete state.receiptOutcome;
+  Object.assign(state, { status: 'ambiguous', ledgerState: 'ambiguous', landingProof: false,
+    executionSucceeded: null, confirmationSlot: null, confirmationCommitment: null,
+    settlementFinalized: false, reconciliationKind: null, reconciliationEvidenceDigest: null,
+    submitted: null, receiptPhases: ['dispatch_fenced', 'uncertain'] });
+  const { normalized, presentation } = output('status', state);
+  assert.equal(normalized.isError, false, JSON.stringify(normalized.body));
+  const recovery = presentation.nextActions.find((next) => next.tool === 'dexter_reconcile_asset_action');
+  assert.ok(recovery);
+  assert.match(recovery.reason, /may submit its already-signed transaction/);
+  assert.equal(presentation.actual, undefined);
+  assertSupportedNextArguments(presentation.nextActions);
+
+  const pending = receiptFixture().reconcile;
+  pending.statusAfter = state;
+  pending.explanation = 'The same durable attempt is still ambiguous; no signing or submission request was repeated.';
+  refreshReconcileDigest(pending);
+  const afterReconcile = output('reconcile', pending, 202);
+  assert.equal(afterReconcile.normalized.isError, false, JSON.stringify(afterReconcile.normalized.body));
+  assert.equal(afterReconcile.presentation.recoveryMessage, pending.explanation);
+  assert.match(afterReconcile.presentation.nextActions[0].reason, /Recovery remains uncertain/);
+  assert.equal(afterReconcile.presentation.actual, undefined);
+  assert.deepEqual(afterReconcile.result.structuredContent, pending);
 });
 
 test('valid HTTP409 not-required recovery remains a no-op success through normalization', () => {

@@ -1,0 +1,1288 @@
+{
+  "provenance": {
+    "kind": "synthetic-inputs-with-actual-api-producer-output",
+    "sourceState": "Current API working tree, identified by emittedSourceFiles hashes",
+    "producerBundleSha256": "b95a094beb6497cb97543800bc7f95563e0712faaa26c0a687b317927c0cd0de",
+    "emittedSourceFiles": [
+      {
+        "path": "../dexter-api-dollar-sell-20260917/src/portfolio/governedWrites/governedUsdValue.ts",
+        "sha256": "23e678b1709fd34e1104d1018554ca46577f6314498d8599f0357c7cc313afad"
+      },
+      {
+        "path": "../dexter-api-dollar-sell-20260917/src/portfolio/decimal.ts",
+        "sha256": "bbaddbb5a3d535c57de3f131cd8a5477fea324d373515e3a218896333c41009a"
+      },
+      {
+        "path": "../dexter-api-dollar-sell-20260917/src/portfolio/approvedAssets.ts",
+        "sha256": "8874ae0a400fc1792b66ccfb5e1d600acd3ce1244f257ee91a363793e2e416f7"
+      },
+      {
+        "path": "../dexter-api-dollar-sell-20260917/src/portfolio/governedWrites/governedAssetRegistry.ts",
+        "sha256": "d0ca2dfcf8880b1161184f536cc46bc353bd150454e810c97949ae8496047c76"
+      },
+      {
+        "path": "../dexter-api-dollar-sell-20260917/src/portfolio/governedWrites/canonicalIdentity.ts",
+        "sha256": "f5523935fa1eec46ae9316488a272dafd4c9516181e72946930c2b8b7c49be3b"
+      },
+      {
+        "path": "../dexter-api-dollar-sell-20260917/src/portfolio/governedWrites/stockSelectionPin.ts",
+        "sha256": "4d10e55a12246504827419ed10596548ff74653e601b645e4936ce26cc9474bd"
+      },
+      {
+        "path": "../dexter-api-dollar-sell-20260917/src/portfolio/governedWrites/stockQuoteAttestation.ts",
+        "sha256": "aa5f470067d22af79acfb45253370fbf173ce54521bae8260dd4295069725043"
+      },
+      {
+        "path": "../dexter-api-dollar-sell-20260917/src/portfolio/governedWrites/stockQuoteAttestorContract.ts",
+        "sha256": "b95327fe78b711b05f97a439e237c40d884fbbe0f6f20cccd15993d9c07454af"
+      },
+      {
+        "path": "../dexter-api-dollar-sell-20260917/src/portfolio/governedWrites/stockQuoteAttestorExact.ts",
+        "sha256": "e6bd991d48d74d29b8f84d2250eae5fc7150763bbf9684722679caeab87a0924"
+      },
+      {
+        "path": "../dexter-api-dollar-sell-20260917/src/portfolio/governedWrites/stockQuoteV2Preimage.ts",
+        "sha256": "3b583eda8cb76ab474e7c6a29402071a8d1602fe7d84197ed18e09a2b916eab9"
+      },
+      {
+        "path": "../dexter-api-dollar-sell-20260917/src/portfolio/governedWrites/governedShareQuantity.ts",
+        "sha256": "9a7221fd5829fe20112118b57d69de8f8d57adeffc453bd0411cb71e841c87eb"
+      },
+      {
+        "path": "../dexter-api-dollar-sell-20260917/src/portfolio/governedWrites/governedStockTradeSummary.ts",
+        "sha256": "5fb04b2a76ffbf4b08fc8ee600095e1d68040ee373501668f2dea624b3b6eae7"
+      }
+    ],
+    "generatorSha256": "13d941b996cf04c8e933fc381befc6b89c62256b12bc66b7824a56c016d5a6c0",
+    "noNetworkOrFinancialCalls": true
+  },
+  "cases": [
+    {
+      "name": "legacy-fraction",
+      "input": {
+        "requestedValueUsd": "1",
+        "assetState": {
+          "tokenProgram": "spl-token",
+          "mint": "Stake11111111111111111111111111111111111111",
+          "mintDecimals": 6,
+          "rawDataDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedSlot": 350000000,
+          "observedAtUnixMs": 1785020400000
+        },
+        "balance": {
+          "amountAtomic": "18446744073709551615",
+          "observedSlot": 350000000,
+          "observedAtUnixMs": 1785020400000
+        },
+        "price": {
+          "mint": "Stake11111111111111111111111111111111111111",
+          "usdPrice": "3",
+          "quantityUnit": "raw-decimals",
+          "source": "fixture-price-observation",
+          "marketBlockId": 123,
+          "expiresAtUnixMs": 1785020420000,
+          "retrievedAtUnixMs": 1785020400000,
+          "settlementUsdPrice": {
+            "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "usdPrice": "1",
+            "source": "fixture-price-observation",
+            "retrievedAtUnixMs": 1785020400000,
+            "marketBlockId": 124
+          }
+        },
+        "nowUnixMs": 1785020400000
+      },
+      "binding": {
+        "namespace": "dexter-governed-usd-value/v1",
+        "semantics": "approximate-input-market-value",
+        "requestedValueUsd": "1",
+        "selectedReferenceValueUsd": "0.999999",
+        "rounding": "floor",
+        "amountAtomic": "333333",
+        "rawDecimalAmount": "0.333333",
+        "displayAmount": "0.333333",
+        "amountModel": "raw-decimals",
+        "mint": "Stake11111111111111111111111111111111111111",
+        "tokenProgram": "spl-token",
+        "assetDecimals": 6,
+        "mintStateDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "mintObservedSlot": 350000000,
+        "mintObservedAtUnixMs": 1785020400000,
+        "preparedAtUnixMs": 1785020400000,
+        "price": {
+          "mint": "Stake11111111111111111111111111111111111111",
+          "usdPrice": "3",
+          "quantityUnit": "raw-decimals",
+          "source": "fixture-price-observation",
+          "retrievedAtUnixMs": 1785020400000,
+          "marketBlockId": 123,
+          "expiresAtUnixMs": 1785020420000,
+          "settlementUsdPrice": {
+            "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "usdPrice": "1",
+            "source": "fixture-price-observation",
+            "retrievedAtUnixMs": 1785020400000,
+            "marketBlockId": 124
+          }
+        },
+        "balance": {
+          "amountAtomic": "18446744073709551615",
+          "observedSlot": 350000000,
+          "observedAtUnixMs": 1785020400000
+        },
+        "multiplier": {
+          "observedSlot": 350000000,
+          "observedAtUnixMs": 1785020400000,
+          "mintStateDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "source": "identity",
+          "value": "1",
+          "currentValue": "1",
+          "scheduledValue": null,
+          "scheduledEffectiveTimestampUnixSeconds": null,
+          "effectiveTimestampUnixSeconds": null,
+          "nextValue": null,
+          "nextEffectiveTimestampUnixSeconds": null
+        }
+      }
+    },
+    {
+      "name": "legacy-zero-decimals",
+      "input": {
+        "requestedValueUsd": "10",
+        "assetState": {
+          "tokenProgram": "spl-token",
+          "mint": "Stake11111111111111111111111111111111111111",
+          "mintDecimals": 0,
+          "rawDataDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedSlot": 350000000,
+          "observedAtUnixMs": 1785020400000
+        },
+        "balance": {
+          "amountAtomic": "18446744073709551615",
+          "observedSlot": 350000000,
+          "observedAtUnixMs": 1785020400000
+        },
+        "price": {
+          "mint": "Stake11111111111111111111111111111111111111",
+          "usdPrice": "3",
+          "quantityUnit": "raw-decimals",
+          "source": "fixture-price-observation",
+          "marketBlockId": 123,
+          "expiresAtUnixMs": 1785020420000,
+          "retrievedAtUnixMs": 1785020400000,
+          "settlementUsdPrice": {
+            "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "usdPrice": "1",
+            "source": "fixture-price-observation",
+            "retrievedAtUnixMs": 1785020400000,
+            "marketBlockId": 124
+          }
+        },
+        "nowUnixMs": 1785020400000
+      },
+      "binding": {
+        "namespace": "dexter-governed-usd-value/v1",
+        "semantics": "approximate-input-market-value",
+        "requestedValueUsd": "10",
+        "selectedReferenceValueUsd": "9",
+        "rounding": "floor",
+        "amountAtomic": "3",
+        "rawDecimalAmount": "3",
+        "displayAmount": "3",
+        "amountModel": "raw-decimals",
+        "mint": "Stake11111111111111111111111111111111111111",
+        "tokenProgram": "spl-token",
+        "assetDecimals": 0,
+        "mintStateDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "mintObservedSlot": 350000000,
+        "mintObservedAtUnixMs": 1785020400000,
+        "preparedAtUnixMs": 1785020400000,
+        "price": {
+          "mint": "Stake11111111111111111111111111111111111111",
+          "usdPrice": "3",
+          "quantityUnit": "raw-decimals",
+          "source": "fixture-price-observation",
+          "retrievedAtUnixMs": 1785020400000,
+          "marketBlockId": 123,
+          "expiresAtUnixMs": 1785020420000,
+          "settlementUsdPrice": {
+            "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "usdPrice": "1",
+            "source": "fixture-price-observation",
+            "retrievedAtUnixMs": 1785020400000,
+            "marketBlockId": 124
+          }
+        },
+        "balance": {
+          "amountAtomic": "18446744073709551615",
+          "observedSlot": 350000000,
+          "observedAtUnixMs": 1785020400000
+        },
+        "multiplier": {
+          "observedSlot": 350000000,
+          "observedAtUnixMs": 1785020400000,
+          "mintStateDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "source": "identity",
+          "value": "1",
+          "currentValue": "1",
+          "scheduledValue": null,
+          "scheduledEffectiveTimestampUnixSeconds": null,
+          "effectiveTimestampUnixSeconds": null,
+          "nextValue": null,
+          "nextEffectiveTimestampUnixSeconds": null
+        }
+      }
+    },
+    {
+      "name": "legacy-eight-decimals",
+      "input": {
+        "requestedValueUsd": "0.01",
+        "assetState": {
+          "tokenProgram": "spl-token",
+          "mint": "Stake11111111111111111111111111111111111111",
+          "mintDecimals": 8,
+          "rawDataDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedSlot": 350000000,
+          "observedAtUnixMs": 1785020400000
+        },
+        "balance": {
+          "amountAtomic": "18446744073709551615",
+          "observedSlot": 350000000,
+          "observedAtUnixMs": 1785020400000
+        },
+        "price": {
+          "mint": "Stake11111111111111111111111111111111111111",
+          "usdPrice": "3",
+          "quantityUnit": "raw-decimals",
+          "source": "fixture-price-observation",
+          "marketBlockId": 123,
+          "expiresAtUnixMs": 1785020420000,
+          "retrievedAtUnixMs": 1785020400000,
+          "settlementUsdPrice": {
+            "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "usdPrice": "1",
+            "source": "fixture-price-observation",
+            "retrievedAtUnixMs": 1785020400000,
+            "marketBlockId": 124
+          }
+        },
+        "nowUnixMs": 1785020400000
+      },
+      "binding": {
+        "namespace": "dexter-governed-usd-value/v1",
+        "semantics": "approximate-input-market-value",
+        "requestedValueUsd": "0.01",
+        "selectedReferenceValueUsd": "0.00999999",
+        "rounding": "floor",
+        "amountAtomic": "333333",
+        "rawDecimalAmount": "0.00333333",
+        "displayAmount": "0.00333333",
+        "amountModel": "raw-decimals",
+        "mint": "Stake11111111111111111111111111111111111111",
+        "tokenProgram": "spl-token",
+        "assetDecimals": 8,
+        "mintStateDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "mintObservedSlot": 350000000,
+        "mintObservedAtUnixMs": 1785020400000,
+        "preparedAtUnixMs": 1785020400000,
+        "price": {
+          "mint": "Stake11111111111111111111111111111111111111",
+          "usdPrice": "3",
+          "quantityUnit": "raw-decimals",
+          "source": "fixture-price-observation",
+          "retrievedAtUnixMs": 1785020400000,
+          "marketBlockId": 123,
+          "expiresAtUnixMs": 1785020420000,
+          "settlementUsdPrice": {
+            "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "usdPrice": "1",
+            "source": "fixture-price-observation",
+            "retrievedAtUnixMs": 1785020400000,
+            "marketBlockId": 124
+          }
+        },
+        "balance": {
+          "amountAtomic": "18446744073709551615",
+          "observedSlot": 350000000,
+          "observedAtUnixMs": 1785020400000
+        },
+        "multiplier": {
+          "observedSlot": 350000000,
+          "observedAtUnixMs": 1785020400000,
+          "mintStateDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "source": "identity",
+          "value": "1",
+          "currentValue": "1",
+          "scheduledValue": null,
+          "scheduledEffectiveTimestampUnixSeconds": null,
+          "effectiveTimestampUnixSeconds": null,
+          "nextValue": null,
+          "nextEffectiveTimestampUnixSeconds": null
+        }
+      }
+    },
+    {
+      "name": "precise-eighteen-decimals",
+      "input": {
+        "requestedValueUsd": "1",
+        "assetState": {
+          "tokenProgram": "spl-token",
+          "mint": "Stake11111111111111111111111111111111111111",
+          "mintDecimals": 18,
+          "rawDataDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedSlot": 350000000,
+          "observedAtUnixMs": 1785020400000
+        },
+        "balance": {
+          "amountAtomic": "18446744073709551615",
+          "observedSlot": 350000000,
+          "observedAtUnixMs": 1785020400000
+        },
+        "price": {
+          "mint": "Stake11111111111111111111111111111111111111",
+          "usdPrice": "1.000000000000000001",
+          "quantityUnit": "raw-decimals",
+          "source": "fixture-price-observation",
+          "marketBlockId": 123,
+          "expiresAtUnixMs": 1785020420000,
+          "retrievedAtUnixMs": 1785020400000,
+          "settlementUsdPrice": {
+            "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "usdPrice": "1",
+            "source": "fixture-price-observation",
+            "retrievedAtUnixMs": 1785020400000,
+            "marketBlockId": 124
+          }
+        },
+        "nowUnixMs": 1785020400000
+      },
+      "binding": {
+        "namespace": "dexter-governed-usd-value/v1",
+        "semantics": "approximate-input-market-value",
+        "requestedValueUsd": "1",
+        "selectedReferenceValueUsd": "0.999999999999999999999999999999999999",
+        "rounding": "floor",
+        "amountAtomic": "999999999999999999",
+        "rawDecimalAmount": "0.999999999999999999",
+        "displayAmount": "0.999999999999999999",
+        "amountModel": "raw-decimals",
+        "mint": "Stake11111111111111111111111111111111111111",
+        "tokenProgram": "spl-token",
+        "assetDecimals": 18,
+        "mintStateDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "mintObservedSlot": 350000000,
+        "mintObservedAtUnixMs": 1785020400000,
+        "preparedAtUnixMs": 1785020400000,
+        "price": {
+          "mint": "Stake11111111111111111111111111111111111111",
+          "usdPrice": "1.000000000000000001",
+          "quantityUnit": "raw-decimals",
+          "source": "fixture-price-observation",
+          "retrievedAtUnixMs": 1785020400000,
+          "marketBlockId": 123,
+          "expiresAtUnixMs": 1785020420000,
+          "settlementUsdPrice": {
+            "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "usdPrice": "1",
+            "source": "fixture-price-observation",
+            "retrievedAtUnixMs": 1785020400000,
+            "marketBlockId": 124
+          }
+        },
+        "balance": {
+          "amountAtomic": "18446744073709551615",
+          "observedSlot": 350000000,
+          "observedAtUnixMs": 1785020400000
+        },
+        "multiplier": {
+          "observedSlot": 350000000,
+          "observedAtUnixMs": 1785020400000,
+          "mintStateDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "source": "identity",
+          "value": "1",
+          "currentValue": "1",
+          "scheduledValue": null,
+          "scheduledEffectiveTimestampUnixSeconds": null,
+          "effectiveTimestampUnixSeconds": null,
+          "nextValue": null,
+          "nextEffectiveTimestampUnixSeconds": null
+        }
+      }
+    },
+    {
+      "name": "unscaled-token-2022",
+      "input": {
+        "requestedValueUsd": "1",
+        "assetState": {
+          "tokenProgram": "token-2022",
+          "mint": "Stake11111111111111111111111111111111111111",
+          "mintDecimals": 6,
+          "rawDataDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedSlot": 350000000,
+          "observedAtUnixMs": 1785020400000,
+          "extensions": []
+        },
+        "balance": {
+          "amountAtomic": "18446744073709551615",
+          "observedSlot": 350000000,
+          "observedAtUnixMs": 1785020400000
+        },
+        "price": {
+          "mint": "Stake11111111111111111111111111111111111111",
+          "usdPrice": "3",
+          "quantityUnit": "raw-decimals",
+          "source": "fixture-price-observation",
+          "marketBlockId": 123,
+          "expiresAtUnixMs": 1785020420000,
+          "retrievedAtUnixMs": 1785020400000,
+          "settlementUsdPrice": {
+            "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "usdPrice": "1",
+            "source": "fixture-price-observation",
+            "retrievedAtUnixMs": 1785020400000,
+            "marketBlockId": 124
+          }
+        },
+        "nowUnixMs": 1785020400000
+      },
+      "binding": {
+        "namespace": "dexter-governed-usd-value/v1",
+        "semantics": "approximate-input-market-value",
+        "requestedValueUsd": "1",
+        "selectedReferenceValueUsd": "0.999999",
+        "rounding": "floor",
+        "amountAtomic": "333333",
+        "rawDecimalAmount": "0.333333",
+        "displayAmount": "0.333333",
+        "amountModel": "raw-decimals",
+        "mint": "Stake11111111111111111111111111111111111111",
+        "tokenProgram": "token-2022",
+        "assetDecimals": 6,
+        "mintStateDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "mintObservedSlot": 350000000,
+        "mintObservedAtUnixMs": 1785020400000,
+        "preparedAtUnixMs": 1785020400000,
+        "price": {
+          "mint": "Stake11111111111111111111111111111111111111",
+          "usdPrice": "3",
+          "quantityUnit": "raw-decimals",
+          "source": "fixture-price-observation",
+          "retrievedAtUnixMs": 1785020400000,
+          "marketBlockId": 123,
+          "expiresAtUnixMs": 1785020420000,
+          "settlementUsdPrice": {
+            "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "usdPrice": "1",
+            "source": "fixture-price-observation",
+            "retrievedAtUnixMs": 1785020400000,
+            "marketBlockId": 124
+          }
+        },
+        "balance": {
+          "amountAtomic": "18446744073709551615",
+          "observedSlot": 350000000,
+          "observedAtUnixMs": 1785020400000
+        },
+        "multiplier": {
+          "observedSlot": 350000000,
+          "observedAtUnixMs": 1785020400000,
+          "mintStateDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "source": "identity",
+          "value": "1",
+          "currentValue": "1",
+          "scheduledValue": null,
+          "scheduledEffectiveTimestampUnixSeconds": null,
+          "effectiveTimestampUnixSeconds": null,
+          "nextValue": null,
+          "nextEffectiveTimestampUnixSeconds": null
+        }
+      }
+    },
+    {
+      "name": "scaled-current",
+      "input": {
+        "requestedValueUsd": "1",
+        "assetState": {
+          "tokenProgram": "token-2022",
+          "mint": "Stake11111111111111111111111111111111111111",
+          "mintDecimals": 6,
+          "rawDataDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedSlot": 350000000,
+          "observedAtUnixMs": 1785020400000,
+          "extensions": [
+            "scaledUiAmountConfig"
+          ],
+          "scaledUiMultiplier": "2",
+          "scaledUiNewMultiplier": "3",
+          "scaledUiNewMultiplierEffectiveTimestamp": 1785020430
+        },
+        "balance": {
+          "amountAtomic": "18446744073709551615",
+          "observedSlot": 350000000,
+          "observedAtUnixMs": 1785020400000
+        },
+        "price": {
+          "mint": "Stake11111111111111111111111111111111111111",
+          "usdPrice": "3",
+          "quantityUnit": "scaled-ui",
+          "source": "fixture-price-observation",
+          "marketBlockId": 123,
+          "expiresAtUnixMs": 1785020420000,
+          "retrievedAtUnixMs": 1785020400000,
+          "settlementUsdPrice": {
+            "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "usdPrice": "1",
+            "source": "fixture-price-observation",
+            "retrievedAtUnixMs": 1785020400000,
+            "marketBlockId": 124
+          }
+        },
+        "nowUnixMs": 1785020400000
+      },
+      "binding": {
+        "namespace": "dexter-governed-usd-value/v1",
+        "semantics": "approximate-input-market-value",
+        "requestedValueUsd": "1",
+        "selectedReferenceValueUsd": "0.999996",
+        "rounding": "floor",
+        "amountAtomic": "166666",
+        "rawDecimalAmount": "0.166666",
+        "displayAmount": "0.333332",
+        "amountModel": "scaled-ui-amount",
+        "mint": "Stake11111111111111111111111111111111111111",
+        "tokenProgram": "token-2022",
+        "assetDecimals": 6,
+        "mintStateDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "mintObservedSlot": 350000000,
+        "mintObservedAtUnixMs": 1785020400000,
+        "preparedAtUnixMs": 1785020400000,
+        "price": {
+          "mint": "Stake11111111111111111111111111111111111111",
+          "usdPrice": "3",
+          "quantityUnit": "scaled-ui",
+          "source": "fixture-price-observation",
+          "retrievedAtUnixMs": 1785020400000,
+          "marketBlockId": 123,
+          "expiresAtUnixMs": 1785020420000,
+          "settlementUsdPrice": {
+            "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "usdPrice": "1",
+            "source": "fixture-price-observation",
+            "retrievedAtUnixMs": 1785020400000,
+            "marketBlockId": 124
+          }
+        },
+        "balance": {
+          "amountAtomic": "18446744073709551615",
+          "observedSlot": 350000000,
+          "observedAtUnixMs": 1785020400000
+        },
+        "multiplier": {
+          "observedSlot": 350000000,
+          "observedAtUnixMs": 1785020400000,
+          "mintStateDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "source": "token-2022-scaled-ui-current",
+          "value": "2",
+          "currentValue": "2",
+          "scheduledValue": "3",
+          "scheduledEffectiveTimestampUnixSeconds": 1785020430,
+          "effectiveTimestampUnixSeconds": null,
+          "nextValue": "3",
+          "nextEffectiveTimestampUnixSeconds": 1785020430
+        }
+      }
+    },
+    {
+      "name": "scaled-scheduled",
+      "input": {
+        "requestedValueUsd": "10",
+        "assetState": {
+          "tokenProgram": "token-2022",
+          "mint": "Stake11111111111111111111111111111111111111",
+          "mintDecimals": 8,
+          "rawDataDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedSlot": 350000000,
+          "observedAtUnixMs": 1785020400000,
+          "extensions": [
+            "scaledUiAmountConfig"
+          ],
+          "scaledUiMultiplier": "1",
+          "scaledUiNewMultiplier": "1.5",
+          "scaledUiNewMultiplierEffectiveTimestamp": 0
+        },
+        "balance": {
+          "amountAtomic": "18446744073709551615",
+          "observedSlot": 350000000,
+          "observedAtUnixMs": 1785020400000
+        },
+        "price": {
+          "mint": "Stake11111111111111111111111111111111111111",
+          "usdPrice": "3",
+          "quantityUnit": "scaled-ui",
+          "source": "fixture-price-observation",
+          "marketBlockId": 123,
+          "expiresAtUnixMs": 1785020420000,
+          "retrievedAtUnixMs": 1785020400000,
+          "settlementUsdPrice": {
+            "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "usdPrice": "1",
+            "source": "fixture-price-observation",
+            "retrievedAtUnixMs": 1785020400000,
+            "marketBlockId": 124
+          }
+        },
+        "nowUnixMs": 1785020400000
+      },
+      "binding": {
+        "namespace": "dexter-governed-usd-value/v1",
+        "semantics": "approximate-input-market-value",
+        "requestedValueUsd": "10",
+        "selectedReferenceValueUsd": "9.99999999",
+        "rounding": "floor",
+        "amountAtomic": "222222222",
+        "rawDecimalAmount": "2.22222222",
+        "displayAmount": "3.33333333",
+        "amountModel": "scaled-ui-amount",
+        "mint": "Stake11111111111111111111111111111111111111",
+        "tokenProgram": "token-2022",
+        "assetDecimals": 8,
+        "mintStateDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "mintObservedSlot": 350000000,
+        "mintObservedAtUnixMs": 1785020400000,
+        "preparedAtUnixMs": 1785020400000,
+        "price": {
+          "mint": "Stake11111111111111111111111111111111111111",
+          "usdPrice": "3",
+          "quantityUnit": "scaled-ui",
+          "source": "fixture-price-observation",
+          "retrievedAtUnixMs": 1785020400000,
+          "marketBlockId": 123,
+          "expiresAtUnixMs": 1785020420000,
+          "settlementUsdPrice": {
+            "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "usdPrice": "1",
+            "source": "fixture-price-observation",
+            "retrievedAtUnixMs": 1785020400000,
+            "marketBlockId": 124
+          }
+        },
+        "balance": {
+          "amountAtomic": "18446744073709551615",
+          "observedSlot": 350000000,
+          "observedAtUnixMs": 1785020400000
+        },
+        "multiplier": {
+          "observedSlot": 350000000,
+          "observedAtUnixMs": 1785020400000,
+          "mintStateDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "source": "token-2022-scaled-ui-scheduled",
+          "value": "1.5",
+          "currentValue": "1",
+          "scheduledValue": "1.5",
+          "scheduledEffectiveTimestampUnixSeconds": 0,
+          "effectiveTimestampUnixSeconds": 0,
+          "nextValue": null,
+          "nextEffectiveTimestampUnixSeconds": null
+        }
+      }
+    },
+    {
+      "name": "scaled-raw-price",
+      "input": {
+        "requestedValueUsd": "1",
+        "assetState": {
+          "tokenProgram": "token-2022",
+          "mint": "Stake11111111111111111111111111111111111111",
+          "mintDecimals": 8,
+          "rawDataDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedSlot": 350000000,
+          "observedAtUnixMs": 1785020400000,
+          "extensions": [
+            "scaledUiAmountConfig"
+          ],
+          "scaledUiMultiplier": "1.5",
+          "scaledUiNewMultiplier": "1.5",
+          "scaledUiNewMultiplierEffectiveTimestamp": 0
+        },
+        "balance": {
+          "amountAtomic": "18446744073709551615",
+          "observedSlot": 350000000,
+          "observedAtUnixMs": 1785020400000
+        },
+        "price": {
+          "mint": "Stake11111111111111111111111111111111111111",
+          "usdPrice": "3",
+          "quantityUnit": "raw-decimals",
+          "source": "fixture-price-observation",
+          "marketBlockId": 123,
+          "expiresAtUnixMs": 1785020420000,
+          "retrievedAtUnixMs": 1785020400000,
+          "settlementUsdPrice": {
+            "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "usdPrice": "1",
+            "source": "fixture-price-observation",
+            "retrievedAtUnixMs": 1785020400000,
+            "marketBlockId": 124
+          }
+        },
+        "nowUnixMs": 1785020400000
+      },
+      "binding": {
+        "namespace": "dexter-governed-usd-value/v1",
+        "semantics": "approximate-input-market-value",
+        "requestedValueUsd": "1",
+        "selectedReferenceValueUsd": "0.99999999",
+        "rounding": "floor",
+        "amountAtomic": "33333333",
+        "rawDecimalAmount": "0.33333333",
+        "displayAmount": "0.499999995",
+        "amountModel": "scaled-ui-amount",
+        "mint": "Stake11111111111111111111111111111111111111",
+        "tokenProgram": "token-2022",
+        "assetDecimals": 8,
+        "mintStateDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "mintObservedSlot": 350000000,
+        "mintObservedAtUnixMs": 1785020400000,
+        "preparedAtUnixMs": 1785020400000,
+        "price": {
+          "mint": "Stake11111111111111111111111111111111111111",
+          "usdPrice": "3",
+          "quantityUnit": "raw-decimals",
+          "source": "fixture-price-observation",
+          "retrievedAtUnixMs": 1785020400000,
+          "marketBlockId": 123,
+          "expiresAtUnixMs": 1785020420000,
+          "settlementUsdPrice": {
+            "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "usdPrice": "1",
+            "source": "fixture-price-observation",
+            "retrievedAtUnixMs": 1785020400000,
+            "marketBlockId": 124
+          }
+        },
+        "balance": {
+          "amountAtomic": "18446744073709551615",
+          "observedSlot": 350000000,
+          "observedAtUnixMs": 1785020400000
+        },
+        "multiplier": {
+          "observedSlot": 350000000,
+          "observedAtUnixMs": 1785020400000,
+          "mintStateDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "source": "token-2022-scaled-ui-scheduled",
+          "value": "1.5",
+          "currentValue": "1.5",
+          "scheduledValue": "1.5",
+          "scheduledEffectiveTimestampUnixSeconds": 0,
+          "effectiveTimestampUnixSeconds": 0,
+          "nextValue": null,
+          "nextEffectiveTimestampUnixSeconds": null
+        }
+      }
+    },
+    {
+      "name": "price-preserves-reported-decimal",
+      "input": {
+        "requestedValueUsd": "1",
+        "assetState": {
+          "tokenProgram": "spl-token",
+          "mint": "Stake11111111111111111111111111111111111111",
+          "mintDecimals": 6,
+          "rawDataDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedSlot": 350000000,
+          "observedAtUnixMs": 1785020400000
+        },
+        "balance": {
+          "amountAtomic": "18446744073709551615",
+          "observedSlot": 350000000,
+          "observedAtUnixMs": 1785020400000
+        },
+        "price": {
+          "mint": "Stake11111111111111111111111111111111111111",
+          "usdPrice": "3.00",
+          "quantityUnit": "raw-decimals",
+          "source": "fixture-price-observation",
+          "marketBlockId": 123,
+          "expiresAtUnixMs": 1785020420000,
+          "retrievedAtUnixMs": 1785020400000,
+          "settlementUsdPrice": {
+            "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "usdPrice": "1",
+            "source": "fixture-price-observation",
+            "retrievedAtUnixMs": 1785020400000,
+            "marketBlockId": 124
+          }
+        },
+        "nowUnixMs": 1785020400000
+      },
+      "binding": {
+        "namespace": "dexter-governed-usd-value/v1",
+        "semantics": "approximate-input-market-value",
+        "requestedValueUsd": "1",
+        "selectedReferenceValueUsd": "0.999999",
+        "rounding": "floor",
+        "amountAtomic": "333333",
+        "rawDecimalAmount": "0.333333",
+        "displayAmount": "0.333333",
+        "amountModel": "raw-decimals",
+        "mint": "Stake11111111111111111111111111111111111111",
+        "tokenProgram": "spl-token",
+        "assetDecimals": 6,
+        "mintStateDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "mintObservedSlot": 350000000,
+        "mintObservedAtUnixMs": 1785020400000,
+        "preparedAtUnixMs": 1785020400000,
+        "price": {
+          "mint": "Stake11111111111111111111111111111111111111",
+          "usdPrice": "3.00",
+          "quantityUnit": "raw-decimals",
+          "source": "fixture-price-observation",
+          "retrievedAtUnixMs": 1785020400000,
+          "marketBlockId": 123,
+          "expiresAtUnixMs": 1785020420000,
+          "settlementUsdPrice": {
+            "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "usdPrice": "1",
+            "source": "fixture-price-observation",
+            "retrievedAtUnixMs": 1785020400000,
+            "marketBlockId": 124
+          }
+        },
+        "balance": {
+          "amountAtomic": "18446744073709551615",
+          "observedSlot": 350000000,
+          "observedAtUnixMs": 1785020400000
+        },
+        "multiplier": {
+          "observedSlot": 350000000,
+          "observedAtUnixMs": 1785020400000,
+          "mintStateDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "source": "identity",
+          "value": "1",
+          "currentValue": "1",
+          "scheduledValue": null,
+          "scheduledEffectiveTimestampUnixSeconds": null,
+          "effectiveTimestampUnixSeconds": null,
+          "nextValue": null,
+          "nextEffectiveTimestampUnixSeconds": null
+        }
+      }
+    },
+    {
+      "name": "precise-reference-value",
+      "input": {
+        "requestedValueUsd": "2",
+        "assetState": {
+          "tokenProgram": "token-2022",
+          "mint": "Stake11111111111111111111111111111111111111",
+          "mintDecimals": 0,
+          "rawDataDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedSlot": 350000000,
+          "observedAtUnixMs": 1785020400000,
+          "extensions": [
+            "scaledUiAmountConfig"
+          ],
+          "scaledUiMultiplier": "1.0000000000000000000000000000000000000000000000000000000000000001",
+          "scaledUiNewMultiplier": "1.0000000000000000000000000000000000000000000000000000000000000001",
+          "scaledUiNewMultiplierEffectiveTimestamp": 0
+        },
+        "balance": {
+          "amountAtomic": "2",
+          "observedSlot": 350000000,
+          "observedAtUnixMs": 1785020400000
+        },
+        "price": {
+          "mint": "Stake11111111111111111111111111111111111111",
+          "usdPrice": "1.0000000000000000000000000000000000000000000000000000000000000001",
+          "quantityUnit": "scaled-ui",
+          "source": "fixture-price-observation",
+          "marketBlockId": 123,
+          "expiresAtUnixMs": 1785020420000,
+          "retrievedAtUnixMs": 1785020400000,
+          "settlementUsdPrice": {
+            "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "usdPrice": "1",
+            "source": "fixture-price-observation",
+            "retrievedAtUnixMs": 1785020400000,
+            "marketBlockId": 124
+          }
+        },
+        "nowUnixMs": 1785020400000
+      },
+      "binding": {
+        "namespace": "dexter-governed-usd-value/v1",
+        "semantics": "approximate-input-market-value",
+        "requestedValueUsd": "2",
+        "selectedReferenceValueUsd": "1.00000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000001",
+        "rounding": "floor",
+        "amountAtomic": "1",
+        "rawDecimalAmount": "1",
+        "displayAmount": "1.0000000000000000000000000000000000000000000000000000000000000001",
+        "amountModel": "scaled-ui-amount",
+        "mint": "Stake11111111111111111111111111111111111111",
+        "tokenProgram": "token-2022",
+        "assetDecimals": 0,
+        "mintStateDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "mintObservedSlot": 350000000,
+        "mintObservedAtUnixMs": 1785020400000,
+        "preparedAtUnixMs": 1785020400000,
+        "price": {
+          "mint": "Stake11111111111111111111111111111111111111",
+          "usdPrice": "1.0000000000000000000000000000000000000000000000000000000000000001",
+          "quantityUnit": "scaled-ui",
+          "source": "fixture-price-observation",
+          "retrievedAtUnixMs": 1785020400000,
+          "marketBlockId": 123,
+          "expiresAtUnixMs": 1785020420000,
+          "settlementUsdPrice": {
+            "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "usdPrice": "1",
+            "source": "fixture-price-observation",
+            "retrievedAtUnixMs": 1785020400000,
+            "marketBlockId": 124
+          }
+        },
+        "balance": {
+          "amountAtomic": "2",
+          "observedSlot": 350000000,
+          "observedAtUnixMs": 1785020400000
+        },
+        "multiplier": {
+          "observedSlot": 350000000,
+          "observedAtUnixMs": 1785020400000,
+          "mintStateDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "source": "token-2022-scaled-ui-scheduled",
+          "value": "1.0000000000000000000000000000000000000000000000000000000000000001",
+          "currentValue": "1.0000000000000000000000000000000000000000000000000000000000000001",
+          "scheduledValue": "1.0000000000000000000000000000000000000000000000000000000000000001",
+          "scheduledEffectiveTimestampUnixSeconds": 0,
+          "effectiveTimestampUnixSeconds": 0,
+          "nextValue": null,
+          "nextEffectiveTimestampUnixSeconds": null
+        }
+      }
+    },
+    {
+      "name": "settlement-nonpeg",
+      "input": {
+        "requestedValueUsd": "1",
+        "assetState": {
+          "tokenProgram": "spl-token",
+          "mint": "Stake11111111111111111111111111111111111111",
+          "mintDecimals": 6,
+          "rawDataDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedSlot": 350000000,
+          "observedAtUnixMs": 1785020400000
+        },
+        "balance": {
+          "amountAtomic": "18446744073709551615",
+          "observedSlot": 350000000,
+          "observedAtUnixMs": 1785020400000
+        },
+        "price": {
+          "mint": "Stake11111111111111111111111111111111111111",
+          "usdPrice": "3",
+          "quantityUnit": "raw-decimals",
+          "source": "fixture-price-observation",
+          "marketBlockId": 123,
+          "expiresAtUnixMs": 1785020420000,
+          "retrievedAtUnixMs": 1785020400000,
+          "settlementUsdPrice": {
+            "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "usdPrice": "0.98",
+            "source": "fixture-price-observation",
+            "retrievedAtUnixMs": 1785020400000,
+            "marketBlockId": null
+          }
+        },
+        "nowUnixMs": 1785020400000
+      },
+      "binding": {
+        "namespace": "dexter-governed-usd-value/v1",
+        "semantics": "approximate-input-market-value",
+        "requestedValueUsd": "1",
+        "selectedReferenceValueUsd": "0.999999",
+        "rounding": "floor",
+        "amountAtomic": "333333",
+        "rawDecimalAmount": "0.333333",
+        "displayAmount": "0.333333",
+        "amountModel": "raw-decimals",
+        "mint": "Stake11111111111111111111111111111111111111",
+        "tokenProgram": "spl-token",
+        "assetDecimals": 6,
+        "mintStateDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "mintObservedSlot": 350000000,
+        "mintObservedAtUnixMs": 1785020400000,
+        "preparedAtUnixMs": 1785020400000,
+        "price": {
+          "mint": "Stake11111111111111111111111111111111111111",
+          "usdPrice": "3",
+          "quantityUnit": "raw-decimals",
+          "source": "fixture-price-observation",
+          "retrievedAtUnixMs": 1785020400000,
+          "marketBlockId": 123,
+          "expiresAtUnixMs": 1785020420000,
+          "settlementUsdPrice": {
+            "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "usdPrice": "0.98",
+            "source": "fixture-price-observation",
+            "retrievedAtUnixMs": 1785020400000,
+            "marketBlockId": null
+          }
+        },
+        "balance": {
+          "amountAtomic": "18446744073709551615",
+          "observedSlot": 350000000,
+          "observedAtUnixMs": 1785020400000
+        },
+        "multiplier": {
+          "observedSlot": 350000000,
+          "observedAtUnixMs": 1785020400000,
+          "mintStateDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "source": "identity",
+          "value": "1",
+          "currentValue": "1",
+          "scheduledValue": null,
+          "scheduledEffectiveTimestampUnixSeconds": null,
+          "effectiveTimestampUnixSeconds": null,
+          "nextValue": null,
+          "nextEffectiveTimestampUnixSeconds": null
+        }
+      }
+    }
+  ],
+  "stock": {
+    "binding": {
+      "namespace": "dexter-governed-usd-value/v1",
+      "semantics": "approximate-input-market-value",
+      "requestedValueUsd": "1",
+      "selectedReferenceValueUsd": "0.999996",
+      "rounding": "floor",
+      "amountAtomic": "166666",
+      "rawDecimalAmount": "0.166666",
+      "displayAmount": "0.333332",
+      "amountModel": "scaled-ui-amount",
+      "mint": "Stake11111111111111111111111111111111111111",
+      "tokenProgram": "token-2022",
+      "assetDecimals": 6,
+      "mintStateDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "mintObservedSlot": 350000000,
+      "mintObservedAtUnixMs": 1785020400000,
+      "preparedAtUnixMs": 1785020400000,
+      "price": {
+        "mint": "Stake11111111111111111111111111111111111111",
+        "usdPrice": "3",
+        "quantityUnit": "scaled-ui",
+        "source": "fixture-price-observation",
+        "retrievedAtUnixMs": 1785020400000,
+        "marketBlockId": 123,
+        "expiresAtUnixMs": 1785020420000,
+        "settlementUsdPrice": {
+          "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "usdPrice": "1",
+          "source": "fixture-price-observation",
+          "retrievedAtUnixMs": 1785020400000,
+          "marketBlockId": 124
+        }
+      },
+      "balance": {
+        "amountAtomic": "18446744073709551615",
+        "observedSlot": 350000000,
+        "observedAtUnixMs": 1785020400000
+      },
+      "multiplier": {
+        "observedSlot": 350000000,
+        "observedAtUnixMs": 1785020400000,
+        "mintStateDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "source": "token-2022-scaled-ui-current",
+        "value": "2",
+        "currentValue": "2",
+        "scheduledValue": "3",
+        "scheduledEffectiveTimestampUnixSeconds": 1785020430,
+        "effectiveTimestampUnixSeconds": null,
+        "nextValue": "3",
+        "nextEffectiveTimestampUnixSeconds": 1785020430
+      }
+    },
+    "snapshot": {
+      "namespace": "dexter-governed-stock-prepare-summary-snapshot/v1",
+      "action": "sell",
+      "assetId": "xstocks-nvda",
+      "symbol": "NVDAx",
+      "amountAtomic": "166666",
+      "requestAmountKind": "usd-value",
+      "usdValue": {
+        "namespace": "dexter-governed-usd-value/v1",
+        "semantics": "approximate-input-market-value",
+        "requestedValueUsd": "1",
+        "selectedReferenceValueUsd": "0.999996",
+        "rounding": "floor",
+        "amountAtomic": "166666",
+        "rawDecimalAmount": "0.166666",
+        "displayAmount": "0.333332",
+        "amountModel": "scaled-ui-amount",
+        "mint": "Stake11111111111111111111111111111111111111",
+        "tokenProgram": "token-2022",
+        "assetDecimals": 6,
+        "mintStateDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "mintObservedSlot": 350000000,
+        "mintObservedAtUnixMs": 1785020400000,
+        "preparedAtUnixMs": 1785020400000,
+        "price": {
+          "mint": "Stake11111111111111111111111111111111111111",
+          "usdPrice": "3",
+          "quantityUnit": "scaled-ui",
+          "source": "fixture-price-observation",
+          "retrievedAtUnixMs": 1785020400000,
+          "marketBlockId": 123,
+          "expiresAtUnixMs": 1785020420000,
+          "settlementUsdPrice": {
+            "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "usdPrice": "1",
+            "source": "fixture-price-observation",
+            "retrievedAtUnixMs": 1785020400000,
+            "marketBlockId": 124
+          }
+        },
+        "balance": {
+          "amountAtomic": "18446744073709551615",
+          "observedSlot": 350000000,
+          "observedAtUnixMs": 1785020400000
+        },
+        "multiplier": {
+          "observedSlot": 350000000,
+          "observedAtUnixMs": 1785020400000,
+          "mintStateDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "source": "token-2022-scaled-ui-current",
+          "value": "2",
+          "currentValue": "2",
+          "scheduledValue": "3",
+          "scheduledEffectiveTimestampUnixSeconds": 1785020430,
+          "effectiveTimestampUnixSeconds": null,
+          "nextValue": "3",
+          "nextEffectiveTimestampUnixSeconds": 1785020430
+        }
+      },
+      "requestedShareQuantity": null,
+      "shareQuantityUnit": null,
+      "shareQuantitySemantics": null,
+      "requestedMaximumSpendAtomic": null,
+      "overfillPossible": false,
+      "productIdentity": {
+        "assetId": "xstocks-nvda",
+        "assetClass": "stock",
+        "companyName": "NVIDIA Corporation",
+        "productName": "NVIDIA Tokenized Stock",
+        "symbol": "NVDAx",
+        "providerName": "Backed Finance",
+        "legalIssuerName": "Backed Assets (JE) Limited",
+        "issuer": "Backed Assets (JE) Limited",
+        "mint": "Stake11111111111111111111111111111111111111",
+        "tokenProgram": "token-2022",
+        "decimals": 6,
+        "network": "solana-mainnet",
+        "registryIdentityDigest": "7777777777777777777777777777777777777777777777777777777777777777"
+      }
+    },
+    "summary": {
+      "namespace": "dexter-governed-stock-trade-summary/v1",
+      "action": "sell",
+      "assetId": "xstocks-nvda",
+      "symbol": "NVDAx",
+      "amountAtomic": "166666",
+      "requestAmountKind": "usd-value",
+      "usdValue": {
+        "namespace": "dexter-governed-usd-value/v1",
+        "semantics": "approximate-input-market-value",
+        "requestedValueUsd": "1",
+        "selectedReferenceValueUsd": "0.999996",
+        "rounding": "floor",
+        "amountAtomic": "166666",
+        "rawDecimalAmount": "0.166666",
+        "displayAmount": "0.333332",
+        "amountModel": "scaled-ui-amount",
+        "mint": "Stake11111111111111111111111111111111111111",
+        "tokenProgram": "token-2022",
+        "assetDecimals": 6,
+        "mintStateDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "mintObservedSlot": 350000000,
+        "mintObservedAtUnixMs": 1785020400000,
+        "preparedAtUnixMs": 1785020400000,
+        "price": {
+          "mint": "Stake11111111111111111111111111111111111111",
+          "usdPrice": "3",
+          "quantityUnit": "scaled-ui",
+          "source": "fixture-price-observation",
+          "retrievedAtUnixMs": 1785020400000,
+          "marketBlockId": 123,
+          "expiresAtUnixMs": 1785020420000,
+          "settlementUsdPrice": {
+            "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "usdPrice": "1",
+            "source": "fixture-price-observation",
+            "retrievedAtUnixMs": 1785020400000,
+            "marketBlockId": 124
+          }
+        },
+        "balance": {
+          "amountAtomic": "18446744073709551615",
+          "observedSlot": 350000000,
+          "observedAtUnixMs": 1785020400000
+        },
+        "multiplier": {
+          "observedSlot": 350000000,
+          "observedAtUnixMs": 1785020400000,
+          "mintStateDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "source": "token-2022-scaled-ui-current",
+          "value": "2",
+          "currentValue": "2",
+          "scheduledValue": "3",
+          "scheduledEffectiveTimestampUnixSeconds": 1785020430,
+          "effectiveTimestampUnixSeconds": null,
+          "nextValue": "3",
+          "nextEffectiveTimestampUnixSeconds": 1785020430
+        }
+      },
+      "requestedShareQuantity": null,
+      "expectedShareQuantity": null,
+      "minimumShareQuantity": null,
+      "shareQuantityUnit": null,
+      "shareQuantitySemantics": null,
+      "requestedMaximumSpendAtomic": null,
+      "overfillPossible": false,
+      "productIdentity": {
+        "assetId": "xstocks-nvda",
+        "assetClass": "stock",
+        "companyName": "NVIDIA Corporation",
+        "productName": "NVIDIA Tokenized Stock",
+        "symbol": "NVDAx",
+        "providerName": "Backed Finance",
+        "legalIssuerName": "Backed Assets (JE) Limited",
+        "issuer": "Backed Assets (JE) Limited",
+        "mint": "Stake11111111111111111111111111111111111111",
+        "tokenProgram": "token-2022",
+        "decimals": 6,
+        "network": "solana-mainnet",
+        "registryIdentityDigest": "7777777777777777777777777777777777777777777777777777777777777777"
+      },
+      "feeSummary": {
+        "summary": "Trading fees are included in this quote; network fee is calculated at execution.",
+        "platformFee": null,
+        "routeFees": [
+          {
+            "amountAtomic": "0",
+            "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+          },
+          {
+            "amountAtomic": "1250",
+            "mint": "Stake11111111111111111111111111111111111111"
+          }
+        ],
+        "networkFee": {
+          "status": "not-yet-calculated",
+          "amountLamports": null
+        }
+      }
+    }
+  }
+}

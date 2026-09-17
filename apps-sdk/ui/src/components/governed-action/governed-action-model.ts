@@ -1,5 +1,9 @@
 import { sha256 } from '@noble/hashes/sha256';
 import { bytesToHex, utf8ToBytes } from '@noble/hashes/utils';
+import {
+  GOVERNED_USD_VALUE_BINDING_SCHEMA,
+  usdValueMatchesAsset,
+} from '../../../../../lib/governed-usd-value.mjs';
 
 export type GovernedActionStage = 'prepared' | 'pending' | 'success' | 'failure';
 
@@ -58,7 +62,9 @@ export type GovernedActionViewModel = {
   createdAt: string | null;
   lastActivityAt: string | null;
   product: GovernedAssetIdentity;
-  requestAmountKind: 'input' | 'share-quantity';
+  requestAmountKind: 'input' | 'share-quantity' | 'usd-value';
+  requestedValueUsd: string | null;
+  usdValueObservedAtUnixMs: number | null;
   isShareQuantityOrder: boolean;
   requestedShareQuantity: string | null;
   expectedShareQuantity: string | null;
@@ -483,6 +489,7 @@ function stockTradeSummarySnapshotDigest(summary: UnknownRecord): string | null 
       symbol: summary.symbol,
       amountAtomic: summary.amountAtomic,
       requestAmountKind: summary.requestAmountKind,
+      ...(summary.usdValue === undefined ? {} : { usdValue: summary.usdValue }),
       requestedShareQuantity: summary.requestedShareQuantity,
       shareQuantityUnit: summary.shareQuantityUnit,
       shareQuantitySemantics: summary.shareQuantitySemantics,
@@ -508,6 +515,15 @@ function stockTradeSummarySnapshotDigest(summary: UnknownRecord): string | null 
   } catch {
     return null;
   }
+}
+
+function validatedUsdValue(summary: UnknownRecord | null): UnknownRecord | null {
+  if (summary?.requestAmountKind !== 'usd-value') return null;
+  const product = record(summary.productIdentity);
+  const parsed = GOVERNED_USD_VALUE_BINDING_SCHEMA.safeParse(summary.usdValue);
+  if (!parsed.success || product === null
+    || !usdValueMatchesAsset(parsed.data, summary.action, summary.amountAtomic, product)) return null;
+  return parsed.data;
 }
 
 function exactSuccessEnvelopeIdentity(input: {
@@ -555,6 +571,9 @@ function exactSuccessEnvelopeIdentity(input: {
       );
   }
   if (product === null || !exactGovernedAssetIdentity(product)) return false;
+  if (input.tradeSummary.requestAmountKind === 'usd-value'
+    ? validatedUsdValue(input.tradeSummary) === null
+    : input.tradeSummary.usdValue !== undefined) return false;
   return exactStringAgreement(
     input.tradeSummary.action,
     input.status.action,
@@ -940,13 +959,16 @@ export function normalizeGovernedAction(
     status.minimumShareQuantity,
     root.minimumShareQuantity,
   );
-  const requestAmountKind = firstString(
+  const amountKind = firstString(
     tradeSummary?.requestAmountKind,
     preview?.requestAmountKind,
-  ) === 'share-quantity'
-    || requestedShares !== null
-    ? 'share-quantity' as const
-    : 'input' as const;
+  );
+  const usdValue = validatedUsdValue(tradeSummary ?? preview);
+  const requestAmountKind = amountKind === 'usd-value'
+    ? 'usd-value' as const
+    : amountKind === 'share-quantity' || requestedShares !== null
+      ? 'share-quantity' as const
+      : 'input' as const;
   const rawStatus = (
     firstString(status.status, business?.lifecycle, root.status, root.outcome)
     ?? (preview ? 'prepared' : 'unknown')
@@ -1023,7 +1045,9 @@ export function normalizeGovernedAction(
     : null;
   const inputAssetAmount = action === 'buy' || product.decimals === null
     ? null
-    : formatAtomicDecimal(quotedInputAtomic, product.decimals, product.decimals);
+    : stage === 'prepared' && usdValue !== null
+      ? firstDecimal(usdValue.displayAmount)
+      : formatAtomicDecimal(quotedInputAtomic, product.decimals, product.decimals);
   const amountDisplay = action === 'buy'
     ? quotedSpend
     : inputAssetAmount ?? groupedInteger(quotedInputAtomic);
@@ -1032,7 +1056,9 @@ export function normalizeGovernedAction(
     ? 'USDC'
     : product.decimals === null
       ? `${selectedAssetLabel} base units`
-      : selectedAssetLabel;
+      : usdValue?.amountModel === 'scaled-ui-amount' && stage !== 'prepared'
+        ? `${selectedAssetLabel} (base quantity)`
+        : selectedAssetLabel;
   const outputDecimals = action === 'buy'
     ? product.decimals
     : action === 'sell'
@@ -1132,6 +1158,8 @@ export function normalizeGovernedAction(
     lastActivityAt: firstString(status.lastActivityAt, root.lastActivityAt),
     product,
     requestAmountKind,
+    requestedValueUsd: firstDecimal(usdValue?.requestedValueUsd),
+    usdValueObservedAtUnixMs: safeInteger(usdValue?.preparedAtUnixMs, 0),
     isShareQuantityOrder: requestAmountKind === 'share-quantity',
     requestedShareQuantity: requestedShares,
     expectedShareQuantity: expectedShares,
