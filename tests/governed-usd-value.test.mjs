@@ -240,8 +240,20 @@ test('an approved non-stock asset uses the same USD binding without a catalog st
   assert.equal(presentation.preview.input.amount, API.stock.binding.displayAmount);
   assert.equal(presentation.preview.input.symbol, 'TOK');
   assert.equal(presentation.preview.requestedValue.amount, '1');
-  f.prepared.preview.productIdentity.mint = '11111111111111111111111111111111';
-  assert.equal(normalize('prepare', input, f.prepared).isError, true);
+  for (const [field, value] of [
+    ['assetId', 'different-approved-token'],
+    ['mint', '11111111111111111111111111111111'],
+  ]) {
+    const contradictory = structuredClone(f.prepared);
+    contradictory.preview.productIdentity[field] = value;
+    const rejected = normalize('prepare', input, contradictory);
+    assert.equal(rejected.isError, true, field);
+    assert.equal(rejected.body.code, 'governed_backend_response_invalid', field);
+    const projected = buildGovernedAssetToolResult(rejected);
+    assert.equal(projected.isError, true, field);
+    assert.equal(projected.structuredContent, undefined, field);
+    assert.equal(JSON.parse(projected.content[0].text).preview, undefined, field);
+  }
 });
 
 test('dollar Sell rejects substituted requested value, raw amount, asset, or request mode', () => {
