@@ -20,6 +20,9 @@ import {
 import {
   readExpectedOpenReleaseRoster,
 } from '../lib/open-release-identity.mjs';
+import {
+  reviewedSourceContractRemoteRefs,
+} from '../scripts/materialize-open-tool-descriptors.mjs';
 
 const execFileAsync = promisify(execFile);
 
@@ -182,6 +185,75 @@ test('remote proof ignores caller-CWD local, global, system, and injected Git re
     process.chdir(originalCwd);
     await rm(correctSource, { recursive: true, force: true });
     await rm(wrongSource, { recursive: true, force: true });
+    await rm(fixture, { recursive: true, force: true });
+  }
+});
+
+test('remote provenance includes annotated tag commits while retaining exact advertised refs', async () => {
+  const source = await committedRepository(
+    'opendexter-annotated-release-',
+    { 'source.txt': 'reviewed package source\n' },
+  );
+  const fixture = await mkdtemp(join(tmpdir(), 'opendexter-tag-remote-'));
+  const remote = resolve(fixture, 'source.git');
+  try {
+    await git(source, 'branch', '-M', 'main');
+    const taggedCommit = await git(source, 'rev-parse', 'HEAD');
+    await git(source, 'tag', '-a', 'v0.43.4', '-m', 'reviewed release');
+    const tagObject = await git(source, 'rev-parse', 'refs/tags/v0.43.4');
+    await git(source, 'commit', '--quiet', '--allow-empty', '-m', 'untagged ancestor');
+    const unadvertisedCommit = await git(source, 'rev-parse', 'HEAD');
+    await git(source, 'commit', '--quiet', '--allow-empty', '-m', 'lightweight release');
+    const lightweightCommit = await git(source, 'rev-parse', 'HEAD');
+    await git(source, 'tag', 'v-next');
+    await git(source, 'commit', '--quiet', '--allow-empty', '-m', 'current main');
+    const mainCommit = await git(source, 'rev-parse', 'HEAD');
+    await execFileAsync('git', ['clone', '--quiet', '--bare', source, remote]);
+
+    const rows = (await reviewedGitRemoteRefs({ remote, includePeeledTags: true })).trim().split('\n')
+      .map(line => line.split(/\s+/));
+    const advertised = new Map(rows.map(([oid, ref]) => [ref, oid]));
+    assert.equal(advertised.get('refs/tags/v0.43.4'), tagObject);
+    assert.notEqual(tagObject, taggedCommit);
+    assert.equal(advertised.get('refs/tags/v0.43.4^{}'), taggedCommit);
+    assert.equal(advertised.get('refs/tags/v-next'), lightweightCommit);
+    assert.equal(advertised.get('refs/heads/main'), mainCommit);
+    assert.equal(advertised.has('HEAD'), false);
+    assert.equal(advertised.has('refs/tags/not-published'), false);
+    assert.equal(rows.some(([oid]) => oid === unadvertisedCommit), false);
+    assert.equal(rows.some(([oid]) => oid === 'f'.repeat(40)), false);
+    const defaultRows = await reviewedGitRemoteRefs({ remote });
+    assert.equal(defaultRows.includes('^{}'), false);
+    assert.equal(defaultRows.includes(taggedCommit), false);
+    const authenticatedCalls = [];
+    const authenticatedRows = (await reviewedSourceContractRemoteRefs({
+      remote,
+      includePeeledTags: true,
+      environment: {
+        ...process.env,
+        GITHUB_PERSONAL_ACCESS_TOKEN: 'local-fixture-no-network-token',
+      },
+      runCommand: async (command, args, options) => {
+        authenticatedCalls.push({ args, options });
+        return execFileAsync(command, args, options);
+      },
+    })).trim().split('\n').map(line => line.split(/\s+/));
+    assert.deepEqual(authenticatedRows, rows);
+    const lookup = authenticatedCalls.find(({ args }) => args.includes('ls-remote'));
+    assert.ok(lookup);
+    assert.equal(lookup.options.env.GIT_CONFIG_NOSYSTEM, '1');
+    assert.equal(lookup.options.env.GIT_CONFIG_GLOBAL, '/dev/null');
+    assert.equal(lookup.options.env.GIT_ASKPASS_REQUIRE, 'force');
+    assert.equal(lookup.args.includes('credential.helper='), true);
+    assert.equal(lookup.args.some(arg => arg.includes('local-fixture-no-network-token')), false);
+    const defaultAuthenticatedRows = await reviewedSourceContractRemoteRefs({
+      remote,
+      environment: { ...process.env, GH_TOKEN: 'local-fixture-no-network-token' },
+    });
+    assert.equal(defaultAuthenticatedRows.includes('^{}'), false);
+    assert.equal(defaultAuthenticatedRows.includes(taggedCommit), false);
+  } finally {
+    await rm(source, { recursive: true, force: true });
     await rm(fixture, { recursive: true, force: true });
   }
 });
