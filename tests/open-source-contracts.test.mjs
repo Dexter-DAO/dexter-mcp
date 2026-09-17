@@ -243,7 +243,8 @@ function createCrossRepositoryHarness(t, options = {}) {
       assert.equal(gitArgs[4], contracts.integratedApiRelease.governedContractCommit);
       assert.equal(gitArgs[5], contracts.integratedApiRelease.commit);
       if (typeof options.governedDrift === 'string') {
-        assert.ok(gitArgs.slice(7).includes(options.governedDrift));
+        assert.ok(gitArgs.slice(7).some((path) => options.governedDrift === path
+          || options.governedDrift.startsWith(`${path}/`)));
       }
       return response(
         options.governedDrift
@@ -838,6 +839,13 @@ test('cross-repository source verifier rejects every identity and byte attack', 
     ['non-ancestor release', { nonAncestor: true }, /does not descend/],
     ['governed byte drift', { governedDrift: true }, /changes the frozen/],
     ...[
+      'src/portfolio/governedWrites/governedAgentTradeSolanaDispatch.ts',
+      'src/portfolio/governedWrites/stockVaultV2ExecutionRuntime.ts',
+      'src/portfolio/governedWrites/stockV2PrepareRuntime.ts',
+      'src/portfolio/governedWrites/governedReceiptOutcome.ts',
+      'src/portfolio/governedWrites/delegatedAgentService.ts',
+      'src/services/x402/nativeExactCoordinator.ts',
+      'src/services/x402/nativeExactLifecycle.ts',
       'src/services/x402/nativeMcpTarget.ts',
       'src/services/x402/nativeMcpTransport.ts',
       'src/services/x402/opaquePurchaseCoordinator.ts',
