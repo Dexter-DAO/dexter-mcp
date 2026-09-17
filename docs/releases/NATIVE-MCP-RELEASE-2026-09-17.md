@@ -66,12 +66,12 @@ If archive finalization changes the descriptor, review that exact diff, commit
 and push it, then verify the resulting clean commit:
 
 ```bash
-"$MCP_NODE" "$MCP_NPM" run verify:release:source
+"$MCP_NODE" "$MCP_NPM" run verify:open-tool-descriptors
 ```
 
 Merge PR 86 after these checks. Move the root-owned release checkout to the
 merged commit, confirm its tree matches the reviewed source, and repeat the
-source verification for that final commit. Retain the proof and command output.
+descriptor and backend-source verification for that final commit. Retain the proof and command output.
 
 ## Build and activate
 
