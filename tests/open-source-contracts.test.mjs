@@ -46,7 +46,7 @@ const API_ORIGIN = 'https://github.com/Dexter-DAO/dexter-api.git';
 const FACILITATOR_ORIGIN =
   'https://github.com/Dexter-DAO/dexter-facilitator.git';
 const BINDING_FIXTURE_PATH = fileURLToPath(new URL(
-  './fixtures/governed-agent-trade-api-facilitator-binding-v1.json',
+  './fixtures/governed-agent-trade-api-facilitator-binding-vault-0434.json',
   import.meta.url,
 ));
 const PORTFOLIO_PROJECTION_FIXTURE_PATH = fileURLToPath(new URL(
@@ -180,6 +180,9 @@ function createCrossRepositoryHarness(t, options = {}) {
 
   const contracts = manifest();
   const fixtureBytes = readFileSync(BINDING_FIXTURE_PATH);
+  const historicalFixtureBytes = readFileSync(new URL(
+    './fixtures/governed-agent-trade-api-facilitator-binding-v1.json', import.meta.url,
+  ));
   const projectionFixtureBytes = readFileSync(
     PORTFOLIO_PROJECTION_FIXTURE_PATH,
   );
@@ -239,9 +242,12 @@ function createCrossRepositoryHarness(t, options = {}) {
     if (gitArgs[0] === 'diff') {
       assert.equal(gitArgs[4], contracts.integratedApiRelease.governedContractCommit);
       assert.equal(gitArgs[5], contracts.integratedApiRelease.commit);
+      if (typeof options.governedDrift === 'string') {
+        assert.ok(gitArgs.slice(7).includes(options.governedDrift));
+      }
       return response(
         options.governedDrift
-          ? 'src/routes/governedDelegatedAssetActions.ts\n'
+          ? `${typeof options.governedDrift === 'string' ? options.governedDrift : 'src/routes/governedDelegatedAssetActions.ts'}\n`
           : '',
         commandOptions,
       );
@@ -274,7 +280,7 @@ function createCrossRepositoryHarness(t, options = {}) {
       return response(
         options.fixtureDrift === driftKey
           ? Buffer.concat([fixtureBytes, Buffer.from('hostile')])
-          : fixtureBytes,
+          : driftKey === 'api-contract' ? historicalFixtureBytes : fixtureBytes,
         commandOptions,
       );
     }
@@ -340,7 +346,7 @@ test('sourceContracts/v3 has one exact immutable shape and exact local fixtures'
   assert.equal(fixtureBytes.byteLength, 1049);
   assert.equal(
     createHash('sha256').update(fixtureBytes).digest('hex'),
-    '66bbd343637fe9b3af245b2ace823a9dff1d8032e2dd01da7ee4bd71cc1ff7d6',
+    '54b23f1650bf0b65861f4c7dbe9594cd1a4ea752915819792d7ae8d14d362848',
   );
 
   const extra = structuredClone(sourceContracts);
@@ -822,7 +828,7 @@ test('cross-repository source verifier accepts only the exact frozen graph', asy
       commit: harness.contracts.facilitator.commit,
     },
     bindingFixtureSha256:
-      '66bbd343637fe9b3af245b2ace823a9dff1d8032e2dd01da7ee4bd71cc1ff7d6',
+      '54b23f1650bf0b65861f4c7dbe9594cd1a4ea752915819792d7ae8d14d362848',
   });
 });
 
@@ -831,7 +837,19 @@ test('cross-repository source verifier rejects every identity and byte attack', 
     ['wrong tree', { wrongTree: true }, /commit\/tree identity mismatch/],
     ['non-ancestor release', { nonAncestor: true }, /does not descend/],
     ['governed byte drift', { governedDrift: true }, /changes the frozen/],
+    ...[
+      'src/services/x402/nativeMcpTarget.ts',
+      'src/services/x402/nativeMcpTransport.ts',
+      'src/services/x402/opaquePurchaseCoordinator.ts',
+      'src/services/x402/nativeExactPersistence.ts',
+      'src/services/purchasingGateway/identity.ts',
+      'src/services/purchasingGateway/prepare.ts',
+      'src/utils/publicExternalFetch.ts',
+      'src/routes/defaultGovernedOwnerSendProduction.ts',
+      'src/routes/governedOwnerSendExecution.ts',
+    ].map(path => [path, { governedDrift: path }, /changes the frozen/]),
     ['API fixture drift', { fixtureDrift: 'api-contract' }, /source bytes differ/],
+    ['current API fixture drift', { fixtureDrift: 'api-integrated' }, /source bytes differ/],
     ['facilitator fixture drift', { fixtureDrift: 'facilitator' }, /source bytes differ/],
     ['portfolio fixture drift', { projectionFixtureDrift: true }, /projection source bytes differ/],
     ['portfolio source missing', {
