@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { callGovernedAssetBackend } from '../lib/governed-asset-client.mjs';
@@ -13,6 +14,8 @@ const RAW = JSON.parse(readFileSync(new URL('./fixtures/governed-raw-preview-api
 const USD = JSON.parse(readFileSync(new URL('./fixtures/governed-usd-value-api.json', import.meta.url)));
 const RECOVERY = JSON.parse(readFileSync(new URL('./fixtures/governed-preview-amount-observation-api.json', import.meta.url)));
 const stockFee = action => structuredClone(API.cases.find(c => c.name === `backpack-spcx-${action}`).feeSummary);
+const delegatedFixtureRoot = new URL('./fixtures/governed-jupiter-service-fee-delegated/', import.meta.url);
+const delegatedFixture = name => JSON.parse(readFileSync(new URL(name, delegatedFixtureRoot)));
 
 // Only the captured quote/fee fragments are producer output; surrounding
 // authority, asset catalog and lifecycle records are existing synthetic fixtures.
@@ -46,6 +49,70 @@ function reject(f, label) {
   assert.equal(r.structuredContent, undefined, label);
   assert.equal(JSON.parse(r.content[0].text).code, 'governed_backend_response_invalid', label);
 }
+
+test('complete producer fresh/recovered Buy and Sell responses cross the client and MCP envelope unchanged', async () => {
+  // Actual delegatedStockLifecycle projection over disposable-PG producer
+  // records and synthetic provider/runtime attribution. These are not live
+  // responses; the captured manifest preserves the producer's exact provenance.
+  const manifest = delegatedFixture('manifest.json');
+  for (const [name, hash] of Object.entries(manifest.files)) {
+    assert.equal(createHash('sha256').update(readFileSync(new URL(name, delegatedFixtureRoot))).digest('hex'), hash, name);
+  }
+  for (const action of ['buy', 'sell']) {
+    const prefix = `delegated-stock-fee-${action}`;
+    const proof = delegatedFixture(`${prefix}-proof.json`);
+    const first = delegatedFixture(`${prefix}-prepared.json`);
+    const replay = delegatedFixture(`${prefix}-recovered.json`);
+    assert.deepEqual(first, proof.prepared);
+    assert.deepEqual(replay, proof.recovered);
+    assert.deepEqual(replay, { ...first, replayed: true });
+    const input = { operationId: first.requestId, ...proof.request };
+    for (const body of [first, replay]) {
+      let calls = 0;
+      const normalized = await callGovernedAssetBackend({ apiBase: 'https://api.dexter.test',
+        secret: 'test-only-secret-at-least-thirty-two-characters', operation: 'prepare', input,
+        mcpSessionId: 'fee-consumer-session', now: 1787270400000,
+        fetchImpl: async () => { calls++; return new Response(JSON.stringify(body), { status: 200 }); } });
+      const result = buildGovernedAssetToolResult(normalized);
+      assert.equal(calls, 1);
+      assert.equal(result.isError, false, `${action}/${body.replayed}`);
+      assert.deepEqual(result.structuredContent, body);
+      const shown = JSON.parse(result.content[0].text);
+      assert.deepEqual(shown.preview.quotedFees, proof.producer.tradeSummary.feeSummary);
+      assert.deepEqual(body.preview.feeSummary.serviceFee, proof.producer.quote.serviceFee);
+      assert.deepEqual(body.preview.feeSummary, proof.runtimeReceipt.result.preview.feeSummary);
+      for (const key of ['expectedOutputAtomic', 'minimumOutputAtomic']) {
+        assert.equal(result.structuredContent.preview[key], proof.producer.quote[key]);
+      }
+      assert.equal(Object.hasOwn(shown, 'actual'), false);
+      assert.equal(Object.hasOwn(result.structuredContent, 'receiptOutcome'), false);
+    }
+  }
+});
+
+test('complete producer responses still refuse fee tampering and product identity mismatch', () => {
+  const mutations = [
+    body => { body.preview.feeSummary.platformFee.amountAtomic = '1'; },
+    body => { body.preview.feeSummary.platformFee.mint = '11111111111111111111111111111111'; },
+    body => { delete body.preview.feeSummary.serviceFee.side; },
+    body => { body.preview.feeSummary.serviceFee.extra = true; },
+    body => { body.preview.feeSummary.ownerSwapFee = { version: 'unsupported-owner-fee' }; },
+    body => { body.preview.productIdentity.assetId = 'different-catalog-stock'; },
+    body => { body.preview.productIdentity.mint = '11111111111111111111111111111111'; },
+  ];
+  for (const action of ['buy', 'sell']) {
+    const prefix = `delegated-stock-fee-${action}`;
+    const proof = delegatedFixture(`${prefix}-proof.json`);
+    for (const phase of ['prepared', 'recovered']) {
+      for (const [index, mutate] of mutations.entries()) {
+        const body = delegatedFixture(`${prefix}-${phase}.json`);
+        const input = { operationId: body.requestId, ...proof.request };
+        mutate(body);
+        reject({ input, prepared: body }, `${action}/${phase}/${index}`);
+      }
+    }
+  }
+});
 
 test('actual stock and token Buy/Sell fee fragments cross the real client and Prepare envelope unchanged', async () => {
   for (const c of API.cases) {

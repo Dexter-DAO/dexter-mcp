@@ -1,0 +1,18 @@
+{
+  "basis": "Synthetic attestor/provider material from the disposable PostgreSQL producer. Complete responses use composed delegated runtime attribution and the actual normal fresh-prepare/recovery projector. No mainnet transaction or deployed response was observed.",
+  "source": {
+    "producer": "scripts/test-stock-intent-binding-postgres.mjs --emit-cases-json, STOCK_TEST_EMBEDDED_SERVICE_FEE=1",
+    "projector": "src/portfolio/governedWrites/delegatedStockLifecycle.ts",
+    "test": "src/portfolio/governedWrites/__tests__/delegatedStockLifecycle.test.ts",
+    "testResult": "83 passed",
+    "postgresProof": "output/fee-sponsor/embedded-fee-postgres/qualification.json"
+  },
+  "files": {
+    "delegated-stock-fee-buy-prepared.json": "103a799ce3699a3b361f9c0e416d89b6d595d2f5a0775fff3f0fcfadea56765e",
+    "delegated-stock-fee-buy-recovered.json": "17e52c4b9e884a77256e61323ed1c93cf1fcc64ac4ce341e785957d08ae7168f",
+    "delegated-stock-fee-buy-proof.json": "680186b7ab5f2e6e924ef21a69e7de64825a7b4e9e751ae5f44e815d7cc90846",
+    "delegated-stock-fee-sell-prepared.json": "546ce64b2b8d07b1dffeec57682000561edb85688025ce2e15490842d5b40c9a",
+    "delegated-stock-fee-sell-recovered.json": "a600903bd2c0fe40960e0e6b1475817b4c0ed3122256ca1b9ecdc698f9141da3",
+    "delegated-stock-fee-sell-proof.json": "4bc24afc5ee7a17bf4e855ad305d5de3d555e6b73e7fa492f4a9a6c6ca3291cf"
+  }
+}
