@@ -219,3 +219,23 @@ test('prepared continuation never reuses the Prepare operation identity even if 
   assertSupportedNextArguments(presentation.nextActions);
   assert.deepEqual(preparedOutput(fixture).presentation.nextActions[0].arguments, next.arguments);
 });
+
+
+test('unavailable action through another connection is a failed read without replacement guidance', () => {
+  const body = {
+    namespace: 'dexter-governed-agent-http-refusal/v1', status: 'refused', code: 'execution_not_found',
+    explanation: 'Dexter refused the request because its exact governed identity or current state could not be proven.',
+    executed: false, signed: false, submitted: false, settlementFinalized: false,
+  };
+  const normalized = normalizeGovernedAssetResult({ operation: 'status', input: { intentId: receiptFixture().status.intentId }, httpStatus: 404, body });
+  assert.equal(normalized.body.code, 'execution_not_found');
+  const result = buildGovernedAssetToolResult(normalized);
+  assert.equal(result.isError, true);
+  assert.deepEqual(result._meta['dexter/governedWidgetResult'], body);
+  const presentation = JSON.parse(result.content[0].text);
+  assert.equal(presentation.actual, undefined);
+  assert.match(presentation.summary, /outcome is unknown/);
+  assert.equal(presentation.nextActions[0].action, 'inspect_original_connection');
+  assert.equal(presentation.nextActions.some(step => step.tool === 'dexter_execute_asset_action'), false);
+  assert.match(presentation.nextActions[0].reason, /does not establish that execution failed/);
+});
