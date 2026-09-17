@@ -109,6 +109,7 @@ const API_GOVERNED_CONTRACT_PATHS = Object.freeze([
   'src/routes/x402IntentServiceAuth.ts',
   'src/services/x402/nativeMcpTarget.ts',
   'src/services/x402/nativeMcpTransport.ts',
+  'src/services/x402/swigExactPayment.ts',
   'src/services/x402/opaquePurchaseCheckPersistence.ts',
   'src/services/x402/opaquePurchaseCoordinator.ts',
   'src/services/x402/nativeExactCoordinator.ts',
@@ -131,10 +132,11 @@ const EXPECTED_SOURCE_CONTRACTS = Object.freeze({
   // Historical consumer fixtures remain pinned. The accepted PR294–298
   // baseline and reviewed PR299 producer include stock delivery recovery,
   // native checkout recovery, historical Send receipt recognition, readable
-  // receipt outcomes, and observation-only purchase continuation. Later
-  // releases must preserve these reviewed API_GOVERNED_CONTRACT_PATHS bytes.
-  integratedGovernedCommit: '64dc058fdc9b6929fd34d0eb48a39ef5edb87ec3',
-  integratedGovernedTree: '1ab982e4f8b32ce6a7318ac960c064f0521afc5f',
+  // receipt outcomes, and observation-only purchase continuation. PR302 adds
+  // required payment-identifier admission while preserving existing recovery.
+  // Later releases must preserve these API_GOVERNED_CONTRACT_PATHS bytes.
+  integratedGovernedCommit: 'e564d6000429f49868ebcb020075e3492080e415',
+  integratedGovernedTree: '48e0a21b7acbc748902c426873fa9167c7d3cdb8',
   apiFixtureSha256:
     'ad06690a3914e0ef0f359c4164eb62f78ca54abe6697a52672d739df63c2c352',
   apiCanonicalBodyDigest:
