@@ -106,6 +106,7 @@ const API_GOVERNED_CONTRACT_PATHS = Object.freeze([
   'src/routes/defaultGovernedOwnerSendProduction.ts',
   'src/routes/governedOwnerSendExecution.ts',
   'src/routes/x402PayAnon.ts',
+  'src/routes/x402IntentServiceAuth.ts',
   'src/services/x402/nativeMcpTarget.ts',
   'src/services/x402/nativeMcpTransport.ts',
   'src/services/x402/opaquePurchaseCheckPersistence.ts',
@@ -128,11 +129,12 @@ const EXPECTED_SOURCE_CONTRACTS = Object.freeze({
   apiCommit: 'fa0701b67625911b8ec97a5399f62ec97a69f976',
   apiTree: 'dcee95df1d92018b8fcd8b43645fe63211383274',
   // Historical consumer fixtures remain pinned. The accepted PR294–298
-  // baseline includes stock delivery recovery, native checkout recovery, and
-  // historical Send receipt recognition. Later releases must preserve these
-  // reviewed bytes over API_GOVERNED_CONTRACT_PATHS.
-  integratedGovernedCommit: 'b9a278ab13e9baa91cca210bdc237c942045097b',
-  integratedGovernedTree: 'c8139f896ce7f0e776f3da5443cb0d4d858629f0',
+  // baseline and reviewed PR299 producer include stock delivery recovery,
+  // native checkout recovery, historical Send receipt recognition, readable
+  // receipt outcomes, and observation-only purchase continuation. Later
+  // releases must preserve these reviewed API_GOVERNED_CONTRACT_PATHS bytes.
+  integratedGovernedCommit: '64dc058fdc9b6929fd34d0eb48a39ef5edb87ec3',
+  integratedGovernedTree: '1ab982e4f8b32ce6a7318ac960c064f0521afc5f',
   apiFixtureSha256:
     'ad06690a3914e0ef0f359c4164eb62f78ca54abe6697a52672d739df63c2c352',
   apiCanonicalBodyDigest:
