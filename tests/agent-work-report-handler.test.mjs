@@ -161,10 +161,13 @@ async function connect(t, { backendResult, backendError, backendOverride, sessio
 test('actual registration advertises strict report inputs and all three output branches', async (t) => {
   const { listed } = await connect(t);
   assert.equal(listed.inputSchema.type, 'object');
-  assert.equal(listed.inputSchema.additionalProperties, false);
-  assert.deepEqual(Object.keys(listed.inputSchema.properties).sort(),
-    ['operationId', 'expectedRevision', 'state', 'summary', 'ttlSeconds'].sort());
-  assert.equal(listed.inputSchema.properties.expectedRevision.default, 0);
+  assert.equal(listed.inputSchema.anyOf.length, 2);
+  for (const branch of listed.inputSchema.anyOf) {
+    assert.equal(branch.additionalProperties, false);
+    assert.deepEqual(Object.keys(branch.properties).sort(),
+      ['operationId', 'expectedRevision', 'state', 'summary', 'ttlSeconds'].sort());
+  }
+  assert.equal(listed.inputSchema.anyOf[0].properties.expectedRevision.default, 0);
   assert.equal(listed.outputSchema.type, 'object');
   assert.equal(listed.outputSchema.anyOf.length, 3);
   assert.deepEqual(listed.outputSchema.anyOf.map((branch) => branch.properties.namespace.const), [
@@ -192,9 +195,26 @@ test('SDK applies first-report defaults and handler uses the transport session',
   assert.equal(sdk.backendCalls[0].mcpSessionId, SESSION_ID);
   assert.equal(sdk.backendCalls[0].apiBase, 'https://api.example.invalid');
   assert.equal(Object.hasOwn(sdk.backendCalls[0].input, 'ttlSeconds'), false);
-  assert.match(result.content[0].text, /Work report saved/);
-  assert.match(result.content[0].text, /Agent-reported state: working/);
-  assert.match(result.content[0].text, /Financial outcomes remain in their transaction receipts/);
+  assert.match(result.content[0].text, /Work update saved: Reviewing deployment logs/);
+  assert.match(result.content[0].text, /Reported status: Working/);
+});
+
+test('advertised input and SDK agree when each work state requires a description', async (t) => {
+  const sdk = await connect(t);
+  const validate = new AjvJsonSchemaValidator().getValidator(sdk.listed.inputSchema);
+  for (const state of ['working', 'waiting', 'blocked', 'completed', 'failed', 'idle']) {
+    for (const supplied of [{}, { summary: null }, { summary: INPUT.summary }]) {
+      const input = { operationId: OPERATION_ID, state, ...supplied };
+      const valid = state === 'idle' || supplied.summary === INPUT.summary;
+      assert.equal(validate(input).valid, valid, `${state}: ${JSON.stringify(supplied)}`);
+      assert.equal(AGENT_WORK_REPORT_INPUT_SCHEMA.safeParse(input).success, valid);
+      const previousCalls = sdk.backendCalls.length;
+      const result = await sdk.call(input);
+      assert.equal(result.isError, !valid);
+      assert.equal(sdk.backendCalls.length, previousCalls + Number(valid));
+      if (valid) sdk.assertOutput(result, acknowledgment({ ...input, expectedRevision: 0 }));
+    }
+  }
 });
 
 test('SDK and advertised schemas preserve API-valid Unicode report text through acknowledgments and conflicts', async (t) => {
@@ -317,7 +337,7 @@ test('a lost HTTP response recovers through the same SDK operation and original 
   const result = await sdk.call();
   sdk.assertOutput(result, recovered);
   assert.equal(result.isError, false);
-  assert.match(result.content[0].text, /Original work report recovered/);
+  assert.match(result.content[0].text, /Saved work update recovered: Reviewing deployment logs/);
   assert.equal(requests.length, 2);
   assertSignedRequest(requests[1], INPUT);
   assert.equal(requests[1].options.body, requests[0].options.body);
@@ -330,8 +350,8 @@ for (const state of ['waiting', 'blocked', 'completed', 'failed']) {
     const input = { ...INPUT, state };
     const result = await sdk.call(input);
     sdk.assertOutput(result, acknowledgment(input));
-    assert.match(result.content[0].text, new RegExp(`Agent-reported state: ${state}`));
-    assert.match(result.content[0].text, /Financial outcomes remain in their transaction receipts/);
+    assert.match(result.content[0].text, new RegExp(`Reported status: ${state[0].toUpperCase()}${state.slice(1)}`));
+    assert.ok(result.content[0].text.includes(input.summary));
   });
 }
 
@@ -343,8 +363,8 @@ test('replay preserves the original ID and timestamps through result policy', as
   assert.equal(result.structuredContent.report.reportId, OPERATION_ID);
   assert.equal(result.structuredContent.report.observedAt, OBSERVED_AT);
   assert.equal(result.structuredContent.report.expiresAt, EXPIRES_AT);
-  assert.match(result.content[0].text, /Original work report recovered/);
-  assert.match(result.content[0].text, /newer report may already be current/);
+  assert.match(result.content[0].text, /Saved work update recovered: Reviewing deployment logs/);
+  assert.match(result.content[0].text, /A newer update may already exist/);
   assert.equal(sdk.backendCalls.length, 1);
 });
 
@@ -487,7 +507,7 @@ for (const [label, summary] of CREDENTIAL_SUMMARIES) {
     sdk.assertOutput(result, buildAgentWorkReportLocalError({ input, code: 'response_invalid' }));
     assert.equal(result.isError, true);
     assert.match(result.content[0].text, /same operationId and identical content/);
-    assert.doesNotMatch(JSON.stringify(result), /open_abcdefghijklmnopqrstuvwx|dlt_0123456789abcdef|synthetic-(?:credential-)?not-real|Work report saved/);
+    assert.doesNotMatch(JSON.stringify(result), /open_abcdefghijklmnopqrstuvwx|dlt_0123456789abcdef|synthetic-(?:credential-)?not-real|Work update saved/);
     assert.equal(sdk.backendCalls.length, 1);
   });
 }
@@ -508,7 +528,7 @@ for (const [name, mutateResult] of [
     assert.equal(result.isError, true);
     assert.equal(result.structuredContent, undefined);
     assert.equal(sdk.backendCalls.length, 1);
-    assert.doesNotMatch(result.content[0].text, /Work report saved/);
+    assert.doesNotMatch(result.content[0].text, /Work update saved/);
   });
 }
 
@@ -570,7 +590,7 @@ for (const [name, fixture] of Object.entries(producerHttp).filter(([name]) => na
     if (name === 'replayAfterNewer') {
       assert.ok(now > Date.parse(result.structuredContent.report.expiresAt));
       assert.deepEqual(result.structuredContent.report, producerHttp.accepted.body.report);
-      assert.match(result.content[0].text, /newer report may already be current/);
+      assert.match(result.content[0].text, /A newer update may already exist/);
     }
     if (name === 'unavailable') {
       assert.equal(result.structuredContent.retryWithSameOperationOnly, true);
