@@ -27,6 +27,7 @@ import {
 import {
   assertOpenDexterPrivateReceiptChildEnvironment,
   createOpenDexterPrivateSourceAdvertisementReceipt,
+  deriveOpenDexterSourceContractsForAcceptedProduction,
   hasExactOpenDexterSourceContractsShape,
   isSafeOpenDexterPrivateSourceReceiptStat,
   readOpenDexterSourceContracts,
@@ -178,7 +179,15 @@ function createCrossRepositoryHarness(t, options = {}) {
   mkdirSync(facilitatorRoot);
   t.after(() => rmSync(workspace, { recursive: true, force: true }));
 
-  const contracts = manifest();
+  // Derive the reviewed policy in memory so this mocked Git boundary can
+  // exercise future source protections before accepted files are generated.
+  // This is not evidence that the current production commit descends from it.
+  const contracts = deriveOpenDexterSourceContractsForAcceptedProduction({
+    sourceContracts: manifest(),
+    acceptedProduction: JSON.parse(readFileSync(new URL(
+      '../release/opendexter-accepted-production.json', import.meta.url,
+    ))),
+  });
   const fixtureBytes = readFileSync(BINDING_FIXTURE_PATH);
   const historicalFixtureBytes = readFileSync(new URL(
     './fixtures/governed-agent-trade-api-facilitator-binding-v1.json', import.meta.url,
@@ -839,6 +848,13 @@ test('cross-repository source verifier rejects every identity and byte attack', 
     ['non-ancestor release', { nonAncestor: true }, /does not descend/],
     ['governed byte drift', { governedDrift: true }, /changes the frozen/],
     ...[
+      'src/app.ts',
+      'src/server.ts',
+      'src/runtimeRole.ts',
+      'src/portfolio/governedWrites/stockVaultV2AttemptStore.ts',
+      'src/portfolio/governedWrites/stockVaultV2ExecutionProduction.ts',
+      'src/portfolio/governedWrites/stockVaultV2FinalityWorker.ts',
+      'src/portfolio/governedWrites/stockVaultV2RpcTransport.ts',
       'src/marketData/priceUnits.ts',
       'src/portfolio/enrichment.ts',
       'src/portfolio/decimal.ts',
