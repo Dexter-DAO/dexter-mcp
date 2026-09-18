@@ -96,6 +96,8 @@ for (const [name, input] of [
   ['long TTL', { ...INPUT, ttlSeconds: 901 }],
   ['fractional TTL', { ...INPUT, ttlSeconds: 30.5 }],
   ['invalid operation ID', { ...INPUT, operationId: 'report-operation-001' }],
+  ['uppercase operation ID', { ...INPUT, operationId: OPERATION_ID.toUpperCase() }],
+  ['mixed-case operation ID', { ...INPUT, operationId: OPERATION_ID.replace('f', 'F') }],
   ['unsupported state', { ...INPUT, state: 'executed' }],
   ...['agentId', 'vaultPda', 'userId', 'mcpSessionId', 'grantId', 'balance', 'credential', 'session', 'wallet'].map((key) => [key, { ...INPUT, [key]: OTHER_ID }]),
 ]) {
@@ -231,6 +233,8 @@ test('positive expected revision may conflict with no prior report', async () =>
 for (const [name, mutate, status = 200] of [
   ['operation ID mismatch', (body) => { body.operationId = OTHER_ID; }],
   ['report ID mismatch', (body) => { body.report.reportId = OTHER_ID; }],
+  ['uppercase acknowledgment IDs', (body) => { body.operationId = body.operationId.toUpperCase(); body.report.reportId = body.report.reportId.toUpperCase(); }],
+  ['mixed-case report ID', (body) => { body.report.reportId = body.report.reportId.replace('f', 'F'); }],
   ['different summary', (body) => { body.report.summary = 'Different report'; }],
   ['different state', (body) => { body.report.state = 'completed'; }],
   ['different revision', (body) => { body.report.revision = 3; }],
@@ -271,6 +275,13 @@ test('omitted TTL requires 300 seconds for a fresh acknowledgment but preserves 
 for (const [name, body, status] of [
   ['wrong HTTP code', apiError('agent_work_store_unavailable'), 409],
   ['wrong operation ID', apiError('agent_work_store_unavailable', { operationId: OTHER_ID }), 503],
+  ['uppercase error operation ID', apiError('agent_work_store_unavailable', { operationId: OPERATION_ID.toUpperCase() }), 503],
+  ['uppercase current report ID', apiError('agent_work_revision_conflict', {
+    currentRevision: 1, currentReport: acknowledgment({ ...INPUT, operationId: OTHER_ID.toUpperCase() }).report,
+  }), 409],
+  ['mixed-case current report ID', apiError('agent_work_revision_conflict', {
+    currentRevision: 1, currentReport: acknowledgment({ ...INPUT, operationId: OTHER_ID.replace('f', 'F') }).report,
+  }), 409],
   ['retryable invalid request', apiError('agent_work_invalid_request', { retryable: true }), 400],
   ['store failure without same-operation restriction', apiError('agent_work_store_unavailable', { retryWithSameOperationOnly: false }), 503],
   ['null conflict revision', apiError('agent_work_revision_conflict'), 409],

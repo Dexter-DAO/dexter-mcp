@@ -45,8 +45,9 @@ public `dexter_authorize_asset_action` tool.
 ## Agent work reporting
 
 `dexter_report_work` writes a self-report for the connected agent. Its strict
-input is `operationId`, `expectedRevision` (default zero), `state`, `summary`
-and optional `ttlSeconds`. States are working, waiting, blocked, completed,
+input is `operationId` (a lowercase UUID), `expectedRevision` (default zero),
+`state`, `summary` and optional `ttlSeconds`. Uppercase IDs are rejected without
+normalization. States are working, waiting, blocked, completed,
 failed and idle. Summary is already-trimmed plain text on one line, 1 to 200
 characters; idle may omit it. Freshness defaults to 300 seconds and accepts
 30 to 900 seconds. TTL absence stays absent in the signed request.

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createHmac } from 'node:crypto';
+import { createHash, createHmac } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { runInNewContext } from 'node:vm';
@@ -147,12 +147,12 @@ async function connect(t, { backendResult, backendError, backendOverride, sessio
     listed,
     backendCalls,
     call: (input = INPUT) => client.callTool({ name: AGENT_WORK_REPORT_TOOL_NAME, arguments: input }),
-    assertOutput(result, expected) {
+    assertOutput(result, expected, requestOperationId = OPERATION_ID) {
       assert.deepEqual(result.structuredContent, expected);
       assert.equal(AGENT_WORK_REPORT_OUTPUT_SCHEMA.safeParse(result.structuredContent).success, true);
       const validation = validateOutput(result.structuredContent);
       assert.equal(validation.valid, true, validation.errorMessage);
-      assert.equal(result._meta['dexter/agentWorkReportRequest'].operationId, OPERATION_ID);
+      assert.equal(result._meta['dexter/agentWorkReportRequest'].operationId, requestOperationId);
       assert.equal(result._meta['dexter/toolInvocation'].toolName, AGENT_WORK_REPORT_TOOL_NAME);
     },
   };
@@ -206,18 +206,18 @@ test('SDK normalizes idle without inventing a server receipt timestamp or TTL', 
   sdk.assertOutput(result, acknowledgment(normalized));
 });
 
-function assertSignedRequest({ url, options }, expectedInput) {
+function assertSignedRequest({ url, options }, expectedInput, requestTime = REQUEST_TIME) {
   const path = '/api/passkey-vault/agents/self/work';
   assert.equal(url, `https://api.example.invalid${path}`);
   assert.equal(options.method, 'POST');
   assert.equal(options.redirect, 'error');
   assert.equal(options.headers['mcp-session-id'], SESSION_ID);
   assert.equal(options.headers['idempotency-key'], expectedInput.operationId);
-  assert.equal(options.headers['x-internal-timestamp'], String(REQUEST_TIME));
+  assert.equal(options.headers['x-internal-timestamp'], String(requestTime));
   assert.equal(options.body, JSON.stringify(expectedInput));
   assert.equal(Object.hasOwn(JSON.parse(options.body), 'ttlSeconds'), false);
   const transcript = [
-    'dexter-governed-agent-internal/v1', String(REQUEST_TIME), SESSION_ID,
+    'dexter-governed-agent-internal/v1', String(requestTime), SESSION_ID,
     'POST', path, expectedInput.operationId, canonicalHash(expectedInput),
   ].join('\n');
   assert.equal(options.headers['x-internal-signature'],
@@ -479,3 +479,111 @@ for (const [name, mutateResult] of [
     assert.doesNotMatch(result.content[0].text, /Work report saved/);
   });
 }
+
+// Exact Wallet producer export. Request shapes come from operation() at line 21
+// and the HTTP case construction at lines 205-212 in
+// dexter-api/src/agentRuntime/__tests__/agentWorkReport.pg.test.ts.
+// Producer source SHA256: 46ce0845d3ed62ad7b712521ad551055d98b03ef1b382022a693a74be8b9fbbc.
+const producerBytes = readFileSync(new URL('./fixtures/agent-work-report-producer.json', import.meta.url));
+const producer = JSON.parse(producerBytes);
+const producerHttp = producer.fixtures.http;
+const producerRequestOverrides = {
+  newer: { expectedRevision: 1, state: 'completed', summary: 'Deployment review complete' },
+  changed: { summary: 'Changed report' },
+  noHead: { expectedRevision: 4 },
+  unavailable: { expectedRevision: 2 },
+  recovered: { expectedRevision: 2 },
+  invalidRequest: { expectedRevision: 3, summary: ' padded ' },
+};
+function producerInput(name) {
+  return { ...INPUT, operationId: producerHttp[name].body.operationId, ...producerRequestOverrides[name] };
+}
+
+test('Wallet producer fixture preserves the original export and failure attribution', () => {
+  assert.equal(createHash('sha256').update(producerBytes).digest('hex'),
+    '1aeaf7c223c334b831b1a1386c81bb454aea9e1dc5cc104265245e6d34f92aa0');
+  assert.deepEqual(Object.keys(producerHttp), [
+    'accepted', 'replay', 'newer', 'replayAfterNewer', 'conflict', 'changed',
+    'revoked', 'noHead', 'invalidRuntime', 'unavailable', 'recovered', 'invalidRequest',
+  ]);
+  assert.match(producer.qualification, /Actual Express\/HMAC\/PostgreSQL producer with disposable seeded identities/);
+  assert.match(producer.fixtures.failureAttribution.unavailable, /AFTER PostgreSQL COMMIT/);
+  assert.match(producer.fixtures.failureAttribution.revoked, /absent disposable session/);
+  assert.deepEqual(producerHttp.replayAfterNewer.body,
+    { ...producerHttp.accepted.body, replayed: true });
+  assert.equal(producerHttp.recovered.body.operationId, producerHttp.unavailable.body.operationId);
+});
+
+for (const [name, fixture] of Object.entries(producerHttp).filter(([name]) => name !== 'invalidRequest')) {
+  test(`Wallet HTTP producer ${name} passes through the actual client, handler and SDK`, async (t) => {
+    const input = producerInput(name);
+    const now = name === 'replayAfterNewer'
+      ? Date.parse(fixture.body.report.expiresAt) + 24 * 60 * 60 * 1_000
+      : REQUEST_TIME;
+    const requests = [];
+    const sdk = await connect(t, {
+      backendOverride: (args) => callAgentWorkReportBackend({ ...args, now,
+        fetchImpl: async (url, options) => {
+          requests.push({ url, options });
+          return Response.json(fixture.body, { status: fixture.status });
+        },
+      }),
+    });
+    const result = await sdk.call(input);
+    sdk.assertOutput(result, fixture.body, input.operationId);
+    assert.equal(result.isError, fixture.status !== 200);
+    assert.equal(requests.length, 1);
+    assert.equal(sdk.backendCalls.length, 1);
+    assertSignedRequest(requests[0], input, now);
+    if (name === 'replayAfterNewer') {
+      assert.ok(now > Date.parse(result.structuredContent.report.expiresAt));
+      assert.deepEqual(result.structuredContent.report, producerHttp.accepted.body.report);
+      assert.match(result.content[0].text, /newer report may already be current/);
+    }
+    if (name === 'unavailable') {
+      assert.equal(result.structuredContent.retryWithSameOperationOnly, true);
+      assert.match(result.content[0].text, /same operationId and identical content/);
+    }
+  });
+}
+
+test('the exact producer invalidRequest input is refused by the SDK before HTTP', async (t) => {
+  const sdk = await connect(t, { backendOverride: () => assert.fail('invalid input reached the client') });
+  const result = await sdk.call(producerInput('invalidRequest'));
+  assert.equal(result.isError, true);
+  assert.equal(result.structuredContent, undefined);
+  assert.equal(sdk.backendCalls.length, 0);
+});
+
+test('producer invalidRequest body is compatible as a response to a well-formed request only', async (t) => {
+  // This projects the recorded 400 envelope. It does not claim that the strict
+  // MCP input would send the producer's rejected padded summary.
+  const fixture = producerHttp.invalidRequest;
+  const input = { ...producerInput('invalidRequest'), summary: INPUT.summary };
+  const requests = [];
+  const sdk = await connect(t, {
+    backendOverride: (args) => callAgentWorkReportBackend({ ...args, now: REQUEST_TIME,
+      fetchImpl: async (url, options) => {
+        requests.push({ url, options });
+        return Response.json(fixture.body, { status: fixture.status });
+      },
+    }),
+  });
+  const result = await sdk.call(input);
+  sdk.assertOutput(result, fixture.body, input.operationId);
+  assert.equal(result.isError, true);
+  assert.equal(requests.length, 1);
+  assertSignedRequest(requests[0], input);
+});
+
+test('advertised and runtime UUID rules reject uppercase spelling before dispatch', async (t) => {
+  const sdk = await connect(t);
+  const input = { ...producerInput('accepted'), operationId: producerHttp.accepted.body.operationId.toUpperCase() };
+  const validateInput = new AjvJsonSchemaValidator().getValidator(sdk.listed.inputSchema);
+  assert.equal(validateInput(producerInput('accepted')).valid, true);
+  assert.equal(validateInput(input).valid, false);
+  const result = await sdk.call(input);
+  assert.equal(result.isError, true);
+  assert.equal(result.structuredContent, undefined);
+  assert.equal(sdk.backendCalls.length, 0);
+});
