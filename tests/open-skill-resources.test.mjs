@@ -21,6 +21,7 @@ const EXPECTED_TOOLS = [
   'x402_access',
   'dexter_wallet',
   'dexter_wallet_portfolio',
+  'dexter_report_work',
   'dexter_prepare_asset_action',
   'dexter_execute_asset_action',
   'dexter_asset_action_status',
@@ -44,7 +45,7 @@ test('hosted skill resources are loaded from this release checkout', () => {
   assert.doesNotMatch(SERVER, /opendexter-ide.*opendexter-plugin.*skills/s);
 });
 
-test('hosted workflow names only the fourteen connected product tools', () => {
+test('hosted workflow names only the fifteen connected product tools', () => {
   for (const name of EXPECTED_TOOLS) {
     assert.match(WORKFLOW, new RegExp(`\\\`${name}\\\``));
   }
@@ -145,14 +146,14 @@ test('generated runtime instructions put the complete safety boundary first', ()
   assert.match(first512, /context, not authority/);
   assert.match(first512, /missing consequential decision/);
   assert.match(first512, /current instructions and active wallet permissions/);
-  assert.match(first512, /Never retry uncertain or post-dispatch work/);
+  assert.match(first512, /For uncertain purchases or asset actions, inspect the same intent or status before any further execution/);
 
   assert.match(runtime, /self-custodial Dexter Wallet/);
   assert.match(runtime, /continuing principal retains the assets, obligations, receipts, and history/);
   assert.match(SERVER, /const SERVER_INSTRUCTIONS = buildOpenServerInstructions\(\)/);
 });
 
-test('generated runtime instructions route the complete fourteen-tool product', () => {
+test('generated runtime instructions route the complete fifteen-tool product', () => {
   const runtime = buildOpenServerInstructions();
 
   assert.deepEqual(mentionedOpenDexterTools(runtime), [...EXPECTED_TOOLS].sort());
@@ -217,7 +218,7 @@ test('generated runtime instructions preserve current wallet and authority truth
 
   assert.match(runtime, /requires OpenDexter OAuth before initialization or tool discovery/);
   assert.match(runtime, /native OpenDexter Connect action/);
-  assert.match(runtime, /registers fourteen tools[\s\S]*Thirteen are model-visible/);
+  assert.match(runtime, /registers fifteen tools[\s\S]*Fourteen are model-visible/);
   assert.match(runtime, /Connected label[\s\S]*successful authenticated tool discovery or a successful tool call proves wallet authorization/);
   assert.match(runtime, /Connected appears without authorization[\s\S]*plugin or integration settings/);
   assert.match(runtime, /plugin or integration settings[\s\S]*Authorize or Authenticate/);
@@ -275,13 +276,15 @@ test('generated runtime instructions contain one coherent hosted contract withou
     '# Discover and search with Indexter',
     '# Use x402 services',
     '# Wallet and governed assets',
+    '# Report current work',
     '# Finality and global safety',
   ]) {
     assert.equal(countOccurrences(runtime, heading), 1, heading);
   }
 
   assert.equal(countOccurrences(runtime, 'native OpenDexter Connect action'), 1);
-  assert.equal(countOccurrences(runtime, 'Never retry uncertain or post-dispatch work'), 1);
+  assert.equal(countOccurrences(runtime,
+    'For uncertain purchases or asset actions, inspect the same intent or status before any further execution.'), 1);
   assert.doesNotMatch(
     runtime,
     /\b(?:x402_pay|x402_compose_skill|promote_skill|dexter_passkey(?:_probe)?)\b/,
