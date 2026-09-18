@@ -101,6 +101,9 @@ const PORTFOLIO_PROJECTION_SOURCE_PATHS = Object.freeze([
 const PORTFOLIO_PROJECTION_FIXTURE_PATH =
   'tests/fixtures/opendexter-portfolio-v1-zero-holding-approved-action-targets.json';
 const API_GOVERNED_CONTRACT_PATHS = Object.freeze([
+  'src/app.ts',
+  'src/server.ts',
+  'src/runtimeRole.ts',
   'src/portfolio/governedWrites',
   'src/marketData/priceUnits.ts',
   'src/portfolio/enrichment.ts',
@@ -140,9 +143,11 @@ const EXPECTED_SOURCE_CONTRACTS = Object.freeze({
   // required payment-identifier admission while preserving existing recovery.
   // PR304 adds dollar Sell sizing, quote corroboration and frozen recovery.
   // PR306 retains validated Send release history without a count-only cutoff.
+  // The composed history and roster source adds observation of finality for
+  // existing confirmed stock attempts, including worker startup and shutdown.
   // Later releases must preserve these API_GOVERNED_CONTRACT_PATHS bytes.
-  integratedGovernedCommit: '61cc13057c19d3cfa3fbedc64e15082334ae429c',
-  integratedGovernedTree: '9ee214a14c7cd86427457a503610d0dd9badbfbd',
+  integratedGovernedCommit: 'fc2bc22a821939b3da92372d2cd309e00773c207',
+  integratedGovernedTree: '1ff7a7332103c083e87d1b6486bd551586fd482b',
   apiFixtureSha256:
     'ad06690a3914e0ef0f359c4164eb62f78ca54abe6697a52672d739df63c2c352',
   apiCanonicalBodyDigest:
