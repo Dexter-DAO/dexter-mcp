@@ -1,0 +1,89 @@
+name: ci-skill-integrity
+
+# Capability-integrity gate for the skill catalog.
+#
+# skills-lock.json records where a skill came from (source repo + a one-time
+# hash) but is not regenerated or checked anywhere, so a skill edited AFTER
+# admission (a "rug pull": an added exfil endpoint) passes silently — and four
+# of the five skills in the catalog have no entry at all.
+#
+# eyebrow closes that gap WITHOUT becoming a noisy gate. eyebrowlock.json
+# fingerprints every skills/<slug>/SKILL.md (including the symlinked pay skill
+# and its .claude/skills view, plus AGENTS.md): a canonical content hash over
+# the whole skill directory AND its declared egress (the hosts it reaches from
+# curl / wget / WebFetch call lines). Per eyebrow.policy.json this job fails
+# only when an artifact, relative to the lockfile:
+#   - gains new reach (a new egress host), or
+#   - introduces a new CRITICAL finding.
+# A skill's wording can change freely (allowContentDrift) — prose edits are
+# reported but do not fail the build. That is deliberate: this repo edits its
+# skills routinely, and gating on every byte would get the gate disabled,
+# exactly like an over-broad scanner. Today every skill's egress set is empty,
+# which makes the gate maximally sensitive in the direction that matters: ANY
+# first network endpoint appearing on a call line trips it.
+#
+# Scope, stated honestly: the egress parser is line-based and host-granular. A
+# URL split across lines, assembled from shell vars, or a new PATH on an
+# already-listed host is not caught here — that is reviewer territory. This
+# gate is defense-in-depth for the common shape (a new endpoint appearing on a
+# call line), not a parser of everything bash can do.
+#
+# Refresh the lockfile when a skill legitimately changes its reach:
+#   eyebrow scan --path . --lockfile eyebrowlock.json
+# and commit eyebrowlock.json in the same PR. The diff on that file is the
+# audit trail of what changed and who approved it. See docs/skill-integrity.md.
+#
+# The action is pinned by commit SHA (immutable); the `version` input selects
+# the eyebrow release to install, and the published checksums guard download
+# integrity in transit. eyebrow.policy.json is picked up automatically (the
+# action's default --policy path).
+on:
+  pull_request:
+    paths:
+      - 'skills/**'
+      - '.agents/skills/**'
+      - '.claude/skills/**'
+      - 'AGENTS.md'
+      - 'eyebrowlock.json'
+      - 'eyebrow.policy.json'
+      - '.github/workflows/ci-skill-integrity.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'skills/**'
+      - '.agents/skills/**'
+      - '.claude/skills/**'
+      - 'AGENTS.md'
+      - 'eyebrowlock.json'
+      - 'eyebrow.policy.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # A skill added without regenerating the lockfile would otherwise be
+      # silently ungated (drift is advisory by policy, and a brand-new skill
+      # has no baseline to expand against). This makes coverage itself a hard
+      # gate.
+      - name: lockfile covers every skill
+        run: |
+          missing=0
+          for f in skills/*/SKILL.md; do
+            slug=$(basename "$(dirname "$f")")
+            grep -q "\"discoveredFrom\": \"skills/$slug/SKILL.md\"" eyebrowlock.json || {
+              echo "::error::skills/$slug has no eyebrowlock.json entry — run: eyebrow scan --path . --lockfile eyebrowlock.json and commit the result"
+              missing=1
+            }
+          done
+          exit "$missing"
+      - name: eyebrow verify (drift / rug-pull gate)
+        uses: alexverify/eyebrow/action@b2cebcb8bdd555b5f64ba9bf43a4c7bbb59b112b # v0.4.2
+        with:
+          version: v0.4.2
+          path: .
+          lockfile: eyebrowlock.json
