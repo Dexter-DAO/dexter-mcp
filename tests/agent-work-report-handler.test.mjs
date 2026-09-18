@@ -197,6 +197,38 @@ test('SDK applies first-report defaults and handler uses the transport session',
   assert.match(result.content[0].text, /Financial outcomes remain in their transaction receipts/);
 });
 
+test('SDK and advertised schemas preserve API-valid Unicode report text through acknowledgments and conflicts', async (t) => {
+  for (const summary of ['a'.repeat(200), '🚀'.repeat(101), '🚀'.repeat(200), 'a🚀'.repeat(100)]) {
+    const input = { ...INPUT, summary };
+    const sdk = await connect(t);
+    const inputValidation = new AjvJsonSchemaValidator().getValidator(sdk.listed.inputSchema)(input);
+    assert.equal(inputValidation.valid, true, inputValidation.errorMessage);
+    const result = await sdk.call(input);
+    assert.equal(result.isError, false);
+    sdk.assertOutput(result, acknowledgment(input));
+    assert.equal(sdk.backendCalls[0].input.summary, summary);
+
+    const currentReport = { ...acknowledgment(input).report, reportId: OTHER_ID, revision: 2 };
+    const conflict = apiError('agent_work_revision_conflict', { currentRevision: 2, currentReport });
+    const conflictSdk = await connect(t, { backendResult: conflict });
+    const conflictResult = await conflictSdk.call();
+    assert.equal(conflictResult.isError, true);
+    conflictSdk.assertOutput(conflictResult, conflict);
+  }
+});
+
+test('SDK and advertised schemas reject reports above the API code-point limit without dispatch', async (t) => {
+  const sdk = await connect(t);
+  const validateInput = new AjvJsonSchemaValidator().getValidator(sdk.listed.inputSchema);
+  for (const summary of ['a'.repeat(201), '🚀'.repeat(201), `${'a🚀'.repeat(100)}z`]) {
+    const input = { ...INPUT, summary };
+    assert.equal(validateInput(input).valid, false);
+    const result = await sdk.call(input);
+    assert.equal(result.isError, true);
+    assert.equal(sdk.backendCalls.length, 0);
+  }
+});
+
 test('SDK normalizes idle without inventing a server receipt timestamp or TTL', async (t) => {
   const sdk = await connect(t);
   const input = { operationId: OPERATION_ID, state: 'idle' };
