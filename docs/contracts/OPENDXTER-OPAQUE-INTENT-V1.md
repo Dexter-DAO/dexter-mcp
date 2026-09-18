@@ -15,7 +15,7 @@ The canonical `https://open.dexter.cash/mcp` resource requires OAuth
 `scope=vault` before MCP initialization, tool discovery, or invocation. One
 successful authorization covers discovery and search, exact request checks,
 wallet and portfolio reads, identity-gated access, payment, and governed
-actions. The authorized roster has fourteen tools. Thirteen are model-visible;
+actions. The authorized roster has fifteen tools. Fourteen are model-visible;
 `indexter_discover` is app-only:
 
 - `indexter_discover`
@@ -32,6 +32,7 @@ actions. The authorized roster has fourteen tools. Thirteen are model-visible;
 - `dexter_asset_action_status`
 - `dexter_reconcile_asset_action`
 - `dexter_wallet_history`
+- `dexter_report_work`
 
 Each tool carries the OAuth security scheme and requires the current vault
 Bearer on every invocation. The authenticated MCP session supplies the durable
@@ -40,6 +41,25 @@ wallet binding used by wallet, portfolio, payment, and governed-action tools.
 There are no public aliases, tab tools, purchase-mode selectors,
 `PreparedPurchase` inputs, card tools, model-callable owner-decision tools, or
 public `dexter_authorize_asset_action` tool.
+
+## Agent work reporting
+
+`dexter_report_work` writes a self-report for the connected agent. Its strict
+input is `operationId` (a lowercase UUID), `expectedRevision` (default zero),
+`state`, `summary` and optional `ttlSeconds`. Uppercase IDs are rejected without
+normalization. States are working, waiting, blocked, completed,
+failed and idle. Summary is already-trimmed plain text on one line, 1 to 200
+characters; idle may omit it. Freshness defaults to 300 seconds and accepts
+30 to 900 seconds. TTL absence stays absent in the signed request.
+
+The acknowledgment preserves the operation ID, accepted revision, statement,
+server observation time and original expiry. A replay never refreshes its
+expiry or replaces a newer report. Revision conflicts return the current
+revision and report; a deliberate update uses a new operation and that revision.
+Connection identity determines the reporting agent and wallet independently
+of spending admission. A missing response preserves the original operation
+for recovery. A report describes the agent's work; financial outcomes remain
+in their receipts.
 
 ## Public purchase wire contract
 

@@ -16,7 +16,7 @@ import {
   buildOpenMcpAuthorizationServerMetadata,
 } from '../lib/open-tool-auth.mjs';
 
-test('well-known manifest advertises the required fourteen-tool OAuth contract', () => {
+test('well-known manifest advertises the required fifteen-tool OAuth contract', () => {
   const manifest = buildOpenMcpManifest();
   assert.equal(manifest.name, 'OpenDexter');
   assert.equal(manifest.namespace, 'opendexter');
@@ -39,7 +39,7 @@ test('well-known manifest advertises the required fourteen-tool OAuth contract',
   assert.equal(manifest.rosters.anonymous.length, 0);
   assert.deepEqual(manifest.rosters.oauthPromotes, OPEN_TOOL_NAMES);
   assert.deepEqual(manifest.tools.map((tool) => tool.name), OPEN_TOOL_NAMES);
-  assert.equal(manifest.tools.length, 14);
+  assert.equal(manifest.tools.length, 15);
   assert.match(manifest.description, /autonomous governed Buy and Sell/);
   assert.match(manifest.description, /preserved Send input fails closed at Prepare/);
   assert.match(manifest.description, /exact Prepare response is authoritative/);
@@ -75,11 +75,11 @@ test('manifest, server identity, and package use one release version', async () 
   );
   assert.equal(
     packageJson.dependencies['@dexterai/x402-mcp-tools'],
-    '0.9.0-rc.2',
+    '0.9.2',
   );
   assert.equal(
     packageJson.dependencies['@modelcontextprotocol/sdk'],
-    '1.29.0',
+    '1.30.0',
   );
   assert.equal(packageJson.dependencies.zod, '3.25.76');
   assert.equal(
@@ -119,7 +119,7 @@ test('hosted source documentation states the current opaque-intent product contr
   for (const name of OPEN_TOOL_NAMES) {
     assert.ok(currentContract.includes(`\`${name}\``), name);
   }
-  assert.match(currentContract, /fourteen(?:-tool| tools)/i);
+  assert.match(currentContract, /fifteen(?:-tool| tools)/i);
 
   for (const name of [
     'indexter_discover',
@@ -130,6 +130,7 @@ test('hosted source documentation states the current opaque-intent product contr
     'x402_access',
     'dexter_wallet',
     'dexter_wallet_portfolio',
+    'dexter_report_work',
     'dexter_prepare_asset_action',
     'dexter_execute_asset_action',
     'dexter_asset_action_status',
@@ -141,6 +142,8 @@ test('hosted source documentation states the current opaque-intent product contr
   assert.match(readme, /health-reported\s+release identity and 14-tool server roster/i);
   assert.match(readme, /authenticated `tools\/list`/i);
   assert.match(readme, /13[- ]model-visible(?: tools)? plus one app-only/i);
+  assert.match(readme, /authorized server roster is 15 registered tools/i);
+  assert.match(readme, /visibility metadata exposes 14 of these tools to the model/i);
   assert.match(readme, /replaces only\s+`dexter-open-mcp`/i);
   assert.match(readme, /full `dexter-mcp` PID, path,\s+configuration, and restart counters remain unchanged/i);
   assert.doesNotMatch(readme, /deletes both named PM2\s+processes/i);

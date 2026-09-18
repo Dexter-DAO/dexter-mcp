@@ -115,7 +115,7 @@ portfolio reads, identity-gated access, payment, and governed actions on the
 same connection. Consequential calls still require the exact user instruction
 or bounded policy authority described below.
 
-The authorized server roster is 14 registered tools:
+The authorized server roster is 15 registered tools:
 
 1) `indexter_discover`
 2) `indexter_search`
@@ -131,11 +131,21 @@ The authorized server roster is 14 registered tools:
 12) `dexter_asset_action_status`
 13) `dexter_reconcile_asset_action`
 14) `dexter_wallet_history`
+15) `dexter_report_work`
+
+`dexter_report_work` records the connected agent's current work statement with
+server observation and expiry times. Reporting uses the existing connection
+identity without requiring funds or spending permission. Keep the acknowledged
+revision for the next update, and reuse the exact operation and content after
+an uncertain response. A revision conflict returns the current report so the
+agent can decide whether a new update is still appropriate. Reported completion
+is separate from transaction finality; expired reports show the age of the
+statement. The owner roster displays these reports through its existing API.
 
 Every tool in this roster carries the OAuth security scheme and requires the
 current vault Bearer on each invocation. Compatibility aliases,
 composed-skill, passkey-probe, and card tools stay outside this hosted roster.
-The MCP Apps visibility metadata exposes 13 of these tools to the model in
+The MCP Apps visibility metadata exposes 14 of these tools to the model in
 clients that honor it. The remaining registered tool, `indexter_discover`, is
 reserved for app browsing. Text-only clients use `indexter_search` and its
 structured result; MCP Apps clients render the widget, with additional
@@ -286,7 +296,7 @@ and the exact Prepare response remains authoritative.
 versioned local stdio package for Codex, Claude Code, and other agents. It uses
 a user-controlled local signer instead of the hosted connector's OAuth and
 session binding. This hosted source contract does not assert that a published
-npm version has adopted the fourteen-tool hosted boundary. Its package,
+npm version has adopted the hosted tool boundary. Its package,
 install guidance, and seller-side `opendexter audition <url>` command live in
 [Dexter-DAO/opendexter-ide](https://github.com/Dexter-DAO/opendexter-ide).
 
@@ -295,7 +305,7 @@ install guidance, and seller-side `opendexter audition <url>` command live in
 | Transport | Hosted HTTP MCP | Local stdio MCP |
 | Authorization | OAuth required before discovery and use | Local process and signer |
 | Wallet identity | Durable passkey wallet bound to the authenticated MCP session | User-controlled local signer |
-| Executable roster | Fourteen tools on one authorized connection | Independently versioned; verify the installed package |
+| Executable roster | Fifteen tools on one authorized connection | Independently versioned; verify the installed package |
 | Seller onboarding | Not exposed as a hosted tool | `opendexter audition <url>` |
 | Best for | ChatGPT, Claude, hosted agents | Codex, Claude Code, CLI agents |
 
