@@ -91,6 +91,7 @@ export type GovernedActionViewModel = {
   solscanUrl: string | null;
   confirmationCommitment: 'confirmed' | 'finalized' | null;
   executionSucceeded: boolean | null;
+  confirmedExecutionOutcome: boolean;
   finalizedEvidence: boolean;
   accountDeltaObserved: boolean | null;
   accountDeltaMatchesExpected: boolean | null;
@@ -811,6 +812,7 @@ function stageCopy(input: {
 
 function recoveryFor(input: {
   stage: GovernedActionStage;
+  confirmedOutcome: boolean;
   operation: GovernedActionOperation;
   rawStatus: string;
   retry: string | null;
@@ -821,7 +823,7 @@ function recoveryFor(input: {
   definitiveNonlandingProof: boolean;
   reconcileOutcome: string | null;
 }): GovernedActionViewModel['recovery'] {
-  if (input.stage === 'success' || input.definitiveNonlandingProof) {
+  if (input.confirmedOutcome || input.definitiveNonlandingProof) {
     return { kind: 'none', sentence: null };
   }
 
@@ -1127,8 +1129,19 @@ export function normalizeGovernedAction(
   const approvalRequired = approvalStatus === 'owner-approval-required'
     || firstBoolean(ownerDecisionRecord?.required) === true
     || policyDecision === 'approval_required';
+  const confirmedExecutionOutcome = stage === 'success' || (
+    stage === 'failure'
+    && commitment !== null
+    && executionSucceeded === false
+    && identityExact
+    && !definitiveNonlandingProof
+    && status.landingProof !== false
+    && root.landingProof !== false
+    && (status.landingProof === true || root.landingProof === true || business?.settlement === 'landed')
+  );
   const recovery = recoveryFor({
     stage,
+    confirmedOutcome: confirmedExecutionOutcome,
     operation,
     rawStatus,
     retry: firstString(root.retry),
@@ -1214,6 +1227,7 @@ export function normalizeGovernedAction(
     solscanUrl: signature ? `https://solscan.io/tx/${signature}` : null,
     confirmationCommitment: commitment,
     executionSucceeded,
+    confirmedExecutionOutcome,
     finalizedEvidence: commitment === 'finalized',
     accountDeltaObserved: firstBoolean(delta?.observed),
     accountDeltaMatchesExpected: firstBoolean(delta?.matchesExpected),
