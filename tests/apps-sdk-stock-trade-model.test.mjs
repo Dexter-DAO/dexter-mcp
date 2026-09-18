@@ -17,6 +17,8 @@ import {
 import {
   dynamicStockV2Fixture,
 } from './fixtures/governed-stock-v2.fixtures.mjs';
+import { receiptFixture, refreshReconcileDigest } from './fixtures/governed-receipt-outcome.fixtures.mjs';
+import { normalizeGovernedAssetResult } from '../lib/governed-asset-result.mjs';
 
 const SIGNATURE = '5'.repeat(88);
 const USD_API = JSON.parse(readFileSync(new URL('./fixtures/governed-usd-value-api.json', import.meta.url)));
@@ -223,6 +225,8 @@ test('confirmed signature plus successful execution is success', () => {
   assert.ok(model);
   assert.equal(model.operation, 'execute');
   assert.equal(model.stage, 'success');
+  assert.equal(model.confirmedExecutionOutcome, true);
+  assert.equal(model.landingProof, null);
   assert.equal(model.stageLabel, 'Confirmed');
   assert.equal(model.headline, '10 shares of SpaceX bought');
   assert.match(model.supporting, /successful execution/);
@@ -381,6 +385,77 @@ test('failed execution is failure even with confirmed chain evidence', () => {
   assert.ok(model);
   assert.equal(model.stage, 'failure');
   assert.equal(model.stageLabel, 'Failed');
+});
+
+test('strict confirmed failure keeps receipt evidence without recovery or a finality gate', () => {
+  const fixture = receiptFixture();
+  delete fixture.status.receiptOutcome;
+  Object.assign(fixture.status, { executionSucceeded: false, reconciliationKind: 'landed_program_error' });
+  fixture.reconcile.statusAfter = structuredClone(fixture.status);
+  fixture.reconcile.explanation = 'The same durable attempt is still ambiguous; no signing or submission request was repeated.';
+  refreshReconcileDigest(fixture.reconcile);
+  for (const [operation, body, httpStatus] of [
+    ['status', fixture.status, 200], ['reconcile', fixture.reconcile, 202],
+  ]) {
+    const normalized = normalizeGovernedAssetResult({ operation, body, httpStatus,
+      input: { intentId: fixture.status.intentId } });
+    assert.equal(normalized.isError, false);
+    const model = normalizeStockTrade(normalized.body);
+    assert.equal(model.stage, 'failure');
+    assert.equal(model.stageLabel, 'Failed');
+    assert.equal(model.confirmedExecutionOutcome, true);
+    assert.equal(model.executionSucceeded, false);
+    assert.equal(model.confirmationCommitment, 'confirmed');
+    assert.equal(model.settlementFinalized, false);
+    assert.equal(model.needsStatusCheck, false);
+    assert.deepEqual(model.recovery, { kind: 'none', sentence: null });
+    assert.equal(model.intentId, fixture.status.intentId);
+    assert.equal(model.transactionSignature, fixture.status.transactionSignature);
+    if (operation === 'reconcile') {
+      assert.equal(model.reconcileOutcome, 'pending');
+      assert.equal(model.explanation, fixture.reconcile.explanation);
+    }
+  }
+  const unconfirmed = normalizeStockTrade({ ...fixture.status, confirmationCommitment: 'processed' });
+  assert.equal(unconfirmed.confirmationCommitment, null);
+  assert.equal(unconfirmed.confirmedExecutionOutcome, false);
+  assert.equal(unconfirmed.recovery.kind, 'reconcile');
+});
+
+test('landed business execution proves confirmed failure without a top-level landing flag', () => {
+  const payload = executionPayload();
+  Object.assign(payload.business, { executionSucceeded: false, settlement: 'landed', programError: true });
+  const model = normalizeStockTrade(payload);
+  assert.equal(model.confirmedExecutionOutcome, true);
+  assert.equal(model.landingProof, null);
+  assert.equal(model.recovery.kind, 'none');
+});
+
+test('saved widget contradictions cannot suppress recovery as confirmed failure', () => {
+  const fixture = receiptFixture();
+  delete fixture.status.receiptOutcome;
+  Object.assign(fixture.status, { executionSucceeded: false, reconciliationKind: 'landed_program_error' });
+  for (const [name, mutate, recoveryKind] of [
+    ['ambiguous without landing proof', body => Object.assign(body, {
+      landingProof: false, ledgerState: 'ambiguous', status: 'ambiguous',
+    }), 'reconcile'],
+    ['definitive nonlanding', body => { body.definitiveNonlandingProof = true; }, 'none'],
+    ['different durable identity', body => {
+      body.stockV2Identity.intentId = '11111111-1111-4111-8111-111111111111';
+    }, 'reconcile'],
+  ]) {
+    const body = structuredClone(fixture.status);
+    mutate(body);
+    const strict = normalizeGovernedAssetResult({ operation: 'status', httpStatus: 200,
+      input: { intentId: fixture.status.intentId }, body });
+    assert.equal(strict.isError, true, name);
+    const model = normalizeStockTrade(body);
+    assert.equal(model.confirmedExecutionOutcome, false, name);
+    assert.equal(model.recovery.kind, recoveryKind, name);
+    if (body.definitiveNonlandingProof) {
+      assert.equal(model.supporting, 'Dexter proved that this transaction did not land.');
+    }
+  }
 });
 
 test('atomic decimal formatting keeps financial values exact', () => {

@@ -63,7 +63,8 @@ test('confirmed trade with actual proceeds continues finality and current holdin
   assert.match(recovery.condition, /original task/);
   assert.match(recovery.condition, /status-only/);
   assert.match(recovery.reason, /has succeeded/);
-  assert.match(recovery.reason, /finalization/);
+  assert.match(recovery.reason, /finalization/i);
+  assert.match(recovery.reason, /is complete/);
   assert.doesNotMatch(recovery.reason, /submit|recovery|repair/);
   assert.ok(presentation.nextActions.some((next) => next.tool === 'dexter_wallet_portfolio'));
   assertSupportedNextArguments(presentation.nextActions);
@@ -89,9 +90,9 @@ test('confirmed pending Reconcile explains pending finality while preserving the
   assert.equal(normalized.isError, false);
   assert.match(presentation.summary, /Sale confirmed/);
   assert.equal(presentation.actual.credit.amount, '265.000123');
-  assert.equal(presentation.recoveryMessage, 'The action has succeeded and its finality update is pending.');
+  assert.equal(presentation.recoveryMessage, 'The action has succeeded and is complete. Its transaction finality update is pending.');
   assert.doesNotMatch(presentation.recoveryMessage, /ambiguous|submit|recovery|repair/i);
-  assert.deepEqual(presentation.nextActions.map(next => next.tool), ['dexter_asset_action_status']);
+  assert.deepEqual(presentation.nextActions.map(next => next.tool), ['dexter_asset_action_status', 'dexter_wallet_portfolio']);
   assertDetailedBody(result, original);
 });
 
@@ -154,6 +155,42 @@ test('confirmed landed program error remains failure and never reports an actual
   assert.match(presentation.summary, /landed/);
   assert.match(presentation.summary, /failed/);
   assert.doesNotMatch(presentation.summary, /Sale confirmed/);
+  assert.deepEqual(presentation.nextActions.map(next => next.tool), ['dexter_asset_action_status']);
+  assert.doesNotMatch(presentation.nextActions[0].reason, /submit|recovery|uncertain/i);
+});
+
+test('confirmed failure remains terminal through Status, History and pending Reconcile', () => {
+  const fixture = receiptFixture();
+  const failed = fixture.status;
+  delete failed.receiptOutcome;
+  Object.assign(failed, { executionSucceeded: false, reconciliationKind: 'landed_program_error' });
+  fixture.history.items = [structuredClone(failed)];
+  fixture.reconcile.statusAfter = structuredClone(failed);
+  fixture.reconcile.explanation = 'The same durable attempt is still ambiguous; no signing or submission request was repeated.';
+  refreshReconcileDigest(fixture.reconcile);
+
+  for (const [operation, body, httpStatus] of [
+    ['status', failed, 200], ['history', fixture.history, 200], ['reconcile', fixture.reconcile, 202],
+  ]) {
+    const original = structuredClone(body);
+    const { normalized, result, presentation } = output(operation, body, httpStatus);
+    assert.equal(normalized.isError, false, operation);
+    assertDetailedBody(result, original);
+    const action = operation === 'history' ? presentation.items[0] : presentation;
+    assert.equal(action.intentId, failed.intentId);
+    assert.equal(action.status, 'confirmed', 'Raw confirmation status remains evidence');
+    assert.match(action.summary, /action failed/);
+    assert.equal(action.actual, undefined);
+    assert.deepEqual(action.nextActions.map(next => next.tool), ['dexter_asset_action_status']);
+    assert.deepEqual(action.nextActions[0].arguments, { intentId: failed.intentId });
+    assert.doesNotMatch(action.nextActions[0].reason, /submit|recovery|uncertain/i);
+    assertSupportedNextArguments(action.nextActions);
+    if (operation === 'reconcile') {
+      assert.equal(action.recoveryOutcome, 'pending');
+      assert.equal(action.recoveryMessage, 'The action failed. Its transaction finality update is pending.');
+      assert.equal(result.structuredContent.explanation, original.explanation);
+    }
+  }
 });
 
 test('a malformed execution response retains uncertain identity and only same-intent inspection', () => {

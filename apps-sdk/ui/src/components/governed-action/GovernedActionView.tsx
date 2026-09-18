@@ -120,6 +120,7 @@ type Term = {
   value: string;
   detail?: string;
   presentation?: 'identity';
+  wrap?: boolean;
 };
 
 function exactTerms(model: GovernedActionViewModel): Term[] {
@@ -307,16 +308,16 @@ function Authority({ model }: { model: GovernedActionViewModel }) {
 }
 
 function executionSentence(model: GovernedActionViewModel): string {
-  if (model.stage === 'success') {
-    return model.confirmationCommitment === 'finalized'
-      ? 'Finalized on Solana with successful execution.'
-      : 'Confirmed on Solana with successful execution.';
+  if (model.confirmedExecutionOutcome) {
+    const commitment = model.confirmationCommitment === 'finalized' ? 'Finalized' : 'Confirmed';
+    const outcome = model.executionSucceeded === true ? 'successful' : 'failed';
+    return `${commitment} on Solana with ${outcome} execution.`;
   }
   if (model.definitiveNonlandingProof) return 'Dexter proved that the transaction did not land.';
   if (model.stage === 'prepared') return 'The action is unsigned and has not been submitted.';
+  if (model.stage === 'failure') return 'The action stopped without successful execution.';
   if (model.rawStatus === 'signed') return 'The transaction is signed; submission and landing remain unproven.';
   if (model.submitted === true) return 'The transaction was submitted; landing and execution remain unproven.';
-  if (model.stage === 'failure') return 'The action stopped without successful execution.';
   return 'The execution outcome remains open.';
 }
 
@@ -363,6 +364,9 @@ function Execution({ model }: { model: GovernedActionViewModel }) {
 
 function ReceiptDetails({ model }: { model: GovernedActionViewModel }) {
   const fields: Term[] = [
+    model.confirmedExecutionOutcome && model.explanation
+      ? { label: 'Original explanation', value: model.explanation, wrap: true }
+      : null,
     { label: 'Operation', value: operationLabel(model.operation) },
     model.intentId ? { label: 'Intent', value: shortenSolanaIdentity(model.intentId, 7) ?? model.intentId } : null,
     model.attemptId ? { label: 'Attempt', value: shortenSolanaIdentity(model.attemptId, 7) ?? model.attemptId } : null,
@@ -405,7 +409,7 @@ function ReceiptDetails({ model }: { model: GovernedActionViewModel }) {
         {fields.map((field) => (
           <div key={`${field.label}:${field.value}`}>
             <dt>{field.label}</dt>
-            <dd title={field.value}>{field.value}</dd>
+            <dd title={field.value} style={field.wrap ? { whiteSpace: 'normal', overflowWrap: 'anywhere' } : undefined}>{field.value}</dd>
           </div>
         ))}
       </dl>
@@ -555,7 +559,7 @@ export function GovernedActionDetail({
           <Execution model={model} />
           <AssetIdentity model={model} />
 
-          {model.explanation && model.explanation !== model.supporting ? (
+          {model.explanation && model.explanation !== model.supporting && !model.confirmedExecutionOutcome ? (
             <p className="dx-action__explanation" role={model.stage === 'failure' ? 'alert' : undefined}>
               {model.explanation}
             </p>
