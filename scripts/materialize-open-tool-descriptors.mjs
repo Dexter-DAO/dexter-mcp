@@ -105,6 +105,11 @@ const API_GOVERNED_CONTRACT_PATHS = Object.freeze([
   'src/server.ts',
   'src/runtimeRole.ts',
   'src/portfolio/governedWrites',
+  'src/economicWallet/agentWorkReportV1.ts',
+  'src/agentRuntime/agentWorkReportIdentity.ts',
+  'src/agentRuntime/agentWorkReportStore.ts',
+  'src/routes/agentWorkReport.ts',
+  'src/prisma.ts',
   'src/marketData/priceUnits.ts',
   'src/portfolio/enrichment.ts',
   'src/portfolio/decimal.ts',
@@ -145,9 +150,10 @@ const EXPECTED_SOURCE_CONTRACTS = Object.freeze({
   // PR306 retains validated Send release history without a count-only cutoff.
   // The composed history and roster source adds observation of finality for
   // existing confirmed stock attempts, including worker startup and shutdown.
+  // Reviewed work reporting adds its schema, identity, store and route wiring.
   // Later releases must preserve these API_GOVERNED_CONTRACT_PATHS bytes.
-  integratedGovernedCommit: 'fc2bc22a821939b3da92372d2cd309e00773c207',
-  integratedGovernedTree: '1ff7a7332103c083e87d1b6486bd551586fd482b',
+  integratedGovernedCommit: '8f3e2134e11b6c5995351dda55af64da00501992',
+  integratedGovernedTree: 'a66c3365469eb1e40738ab1bb371ce37cbb5958f',
   apiFixtureSha256:
     'ad06690a3914e0ef0f359c4164eb62f78ca54abe6697a52672d739df63c2c352',
   apiCanonicalBodyDigest:

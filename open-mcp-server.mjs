@@ -1,5 +1,8 @@
 // Sentry instrumentation (must be before all other imports)
 import './instrument.open-mcp.mjs';
+import { AGENT_WORK_REPORT_TOOL_NAME, AGENT_WORK_REPORT_INPUT_SCHEMA } from './lib/agent-work-report-contract.mjs';
+import { callAgentWorkReportBackend, buildAgentWorkReportLocalError } from './lib/agent-work-report-client.mjs';
+import { buildAgentWorkReportModelResult } from './lib/agent-work-report-result.mjs';
 import { nativeMcpServerUrlSchema, NATIVE_MCP_DISCOVERY_DESCRIPTION, OPEN_X402_CHECK_DESCRIPTION, openX402CheckSchema } from './lib/native-mcp-contract.mjs';
 import { discoverHostedMcpTools } from './lib/hosted-native-mcp.mjs';
 
@@ -2212,6 +2215,29 @@ async function dexterPortfolio(_args, extra) {
   };
 }
 
+async function agentWorkReport(args, extra) {
+  const sessionId = extra ? extractMcpSessionId(extra) : null;
+  if (!sessionId) {
+    const { structuredContent: _authenticationBody, ...challenge } =
+      vaultAuthenticationResult(buildVaultAuthenticationRequired({
+        tool: AGENT_WORK_REPORT_TOOL_NAME, reason: 'no_mcp_session',
+      }));
+    return challenge;
+  }
+  let result;
+  try {
+    result = await callAgentWorkReportBackend({
+      apiBase: API_BASE_FALLBACK,
+      secret: GOVERNED_AGENT_ACTIONS_HMAC_SECRET,
+      input: args,
+      mcpSessionId: sessionId,
+    });
+  } catch {
+    result = buildAgentWorkReportLocalError({ input: args, code: 'configuration_unavailable' });
+  }
+  return buildAgentWorkReportModelResult({ input: args, result });
+}
+
 async function governedAssetAction(operation, args, extra) {
   const tool = GOVERNED_ASSET_TOOL_NAMES[operation];
   const sessionId = extra ? extractMcpSessionId(extra) : null;
@@ -2723,6 +2749,10 @@ export function createOpenMcpServer({
       };
     }
   });
+
+  registerOpenTool(server, AGENT_WORK_REPORT_TOOL_NAME, {
+    inputSchema: AGENT_WORK_REPORT_INPUT_SCHEMA,
+  }, agentWorkReport);
 
   for (const operation of ['prepare', 'execute', 'status', 'reconcile', 'history']) {
     const tool = GOVERNED_ASSET_TOOL_NAMES[operation];

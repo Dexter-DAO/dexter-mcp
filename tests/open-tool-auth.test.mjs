@@ -41,6 +41,7 @@ const TOOL_ROSTER = [
   'x402_access',
   'dexter_wallet',
   'dexter_wallet_portfolio',
+  'dexter_report_work',
   'dexter_prepare_asset_action',
   'dexter_execute_asset_action',
   'dexter_asset_action_status',
@@ -83,6 +84,10 @@ test('protected-call classification follows the per-tool auth declaration', () =
   });
   assert.deepEqual(findVaultProtectedToolCall(call('dexter_wallet_portfolio')), {
     name: 'dexter_wallet_portfolio',
+    id: 1,
+  });
+  assert.deepEqual(findVaultProtectedToolCall(call('dexter_report_work')), {
+    name: 'dexter_report_work',
     id: 1,
   });
   assert.deepEqual(findVaultProtectedToolCall([

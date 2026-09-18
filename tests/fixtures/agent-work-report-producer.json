@@ -1,0 +1,288 @@
+{
+  "qualification": "Actual Express/HMAC/PostgreSQL producer with disposable seeded identities; no financial/provider/production action.",
+  "fixtures": {
+    "catalog": {
+      "database": "agent_work_report_test_20260918_0500",
+      "version": "17.6 (Debian 17.6-1.pgdg13+1)",
+      "namespace_columns": 1,
+      "report_constraints": 2
+    },
+    "firstAccepted": {
+      "namespace": "dexter-agent-work-report-ack/v1",
+      "operationId": "73f933bd-a3ed-4547-a9fe-356f758bc252",
+      "replayed": false,
+      "report": {
+        "reportId": "73f933bd-a3ed-4547-a9fe-356f758bc252",
+        "revision": 1,
+        "state": "working",
+        "summary": "Reviewing deployment logs",
+        "source": "agent_report",
+        "observedAt": "2026-09-18T05:10:50.885Z",
+        "expiresAt": "2026-09-18T05:15:50.885Z"
+      }
+    },
+    "newerAccepted": {
+      "namespace": "dexter-agent-work-report-ack/v1",
+      "operationId": "80ffbe2f-f935-43e3-af7c-cbbd147c803d",
+      "replayed": false,
+      "report": {
+        "reportId": "80ffbe2f-f935-43e3-af7c-cbbd147c803d",
+        "revision": 2,
+        "state": "completed",
+        "summary": "Deployment review complete",
+        "source": "agent_report",
+        "observedAt": "2026-09-18T05:10:50.908Z",
+        "expiresAt": "2026-09-18T05:15:50.908Z"
+      }
+    },
+    "originalReplayAfterReconnect": {
+      "namespace": "dexter-agent-work-report-ack/v1",
+      "operationId": "81d0afad-1ee2-4ea8-99d7-cbf0ea3e2a53",
+      "replayed": true,
+      "report": {
+        "reportId": "81d0afad-1ee2-4ea8-99d7-cbf0ea3e2a53",
+        "revision": 1,
+        "state": "working",
+        "summary": "Reviewing deployment logs",
+        "source": "agent_report",
+        "observedAt": "2026-09-18T05:10:50.903Z",
+        "expiresAt": "2026-09-18T05:15:50.903Z"
+      }
+    },
+    "noHeadConflict": {
+      "namespace": "dexter-agent-work-report-error/v1",
+      "code": "agent_work_revision_conflict",
+      "retryable": false,
+      "operationId": "1152634c-1d00-4545-a8d4-f1e10c5d9128",
+      "retryWithSameOperationOnly": false,
+      "currentRevision": 0,
+      "currentReport": null
+    },
+    "lostResponseRecovery": {
+      "namespace": "dexter-agent-work-report-ack/v1",
+      "operationId": "058a9e30-56a3-4974-8ea2-116ad0167b68",
+      "replayed": true,
+      "report": {
+        "reportId": "058a9e30-56a3-4974-8ea2-116ad0167b68",
+        "revision": 1,
+        "state": "working",
+        "summary": "Reviewing deployment logs",
+        "source": "agent_report",
+        "observedAt": "2026-09-18T05:10:51.066Z",
+        "expiresAt": "2026-09-18T05:15:51.066Z"
+      }
+    },
+    "expiredView": {
+      "namespace": "dexter-agent-work-report-view/v1",
+      "status": "expired",
+      "report": {
+        "reportId": "77b09cc2-7f5f-4fb0-a7d8-b3f4f44b8ff8",
+        "revision": 1,
+        "state": "working",
+        "summary": "Reviewing deployment logs",
+        "source": "agent_report",
+        "observedAt": "2026-09-18T05:10:51.090Z",
+        "expiresAt": "2026-09-18T05:15:51.090Z"
+      }
+    },
+    "reportCatalog": [
+      {
+        "relname": "agent_work_report_heads",
+        "relrowsecurity": true,
+        "anon_read": false,
+        "authenticated_write": false
+      },
+      {
+        "relname": "agent_work_reports",
+        "relrowsecurity": true,
+        "anon_read": false,
+        "authenticated_write": false
+      }
+    ],
+    "http": {
+      "accepted": {
+        "status": 200,
+        "body": {
+          "namespace": "dexter-agent-work-report-ack/v1",
+          "operationId": "8d5d096e-e466-46b4-92ee-72b6f2e99063",
+          "replayed": false,
+          "report": {
+            "reportId": "8d5d096e-e466-46b4-92ee-72b6f2e99063",
+            "revision": 1,
+            "state": "working",
+            "summary": "Reviewing deployment logs",
+            "source": "agent_report",
+            "observedAt": "2026-09-18T05:10:51.152Z",
+            "expiresAt": "2026-09-18T05:15:51.152Z"
+          }
+        }
+      },
+      "replay": {
+        "status": 200,
+        "body": {
+          "namespace": "dexter-agent-work-report-ack/v1",
+          "operationId": "8d5d096e-e466-46b4-92ee-72b6f2e99063",
+          "replayed": true,
+          "report": {
+            "reportId": "8d5d096e-e466-46b4-92ee-72b6f2e99063",
+            "revision": 1,
+            "state": "working",
+            "summary": "Reviewing deployment logs",
+            "source": "agent_report",
+            "observedAt": "2026-09-18T05:10:51.152Z",
+            "expiresAt": "2026-09-18T05:15:51.152Z"
+          }
+        }
+      },
+      "newer": {
+        "status": 200,
+        "body": {
+          "namespace": "dexter-agent-work-report-ack/v1",
+          "operationId": "c4ac9173-dc96-4668-8859-e0a40c89841d",
+          "replayed": false,
+          "report": {
+            "reportId": "c4ac9173-dc96-4668-8859-e0a40c89841d",
+            "revision": 2,
+            "state": "completed",
+            "summary": "Deployment review complete",
+            "source": "agent_report",
+            "observedAt": "2026-09-18T05:10:51.181Z",
+            "expiresAt": "2026-09-18T05:15:51.181Z"
+          }
+        }
+      },
+      "replayAfterNewer": {
+        "status": 200,
+        "body": {
+          "namespace": "dexter-agent-work-report-ack/v1",
+          "operationId": "8d5d096e-e466-46b4-92ee-72b6f2e99063",
+          "replayed": true,
+          "report": {
+            "reportId": "8d5d096e-e466-46b4-92ee-72b6f2e99063",
+            "revision": 1,
+            "state": "working",
+            "summary": "Reviewing deployment logs",
+            "source": "agent_report",
+            "observedAt": "2026-09-18T05:10:51.152Z",
+            "expiresAt": "2026-09-18T05:15:51.152Z"
+          }
+        }
+      },
+      "conflict": {
+        "status": 409,
+        "body": {
+          "namespace": "dexter-agent-work-report-error/v1",
+          "code": "agent_work_revision_conflict",
+          "retryable": false,
+          "operationId": "dd40a60e-5850-4b16-a966-85893af9258a",
+          "retryWithSameOperationOnly": false,
+          "currentRevision": 1,
+          "currentReport": {
+            "reportId": "8d5d096e-e466-46b4-92ee-72b6f2e99063",
+            "revision": 1,
+            "state": "working",
+            "summary": "Reviewing deployment logs",
+            "source": "agent_report",
+            "observedAt": "2026-09-18T05:10:51.152Z",
+            "expiresAt": "2026-09-18T05:15:51.152Z"
+          }
+        }
+      },
+      "changed": {
+        "status": 409,
+        "body": {
+          "namespace": "dexter-agent-work-report-error/v1",
+          "code": "agent_work_idempotency_conflict",
+          "retryable": false,
+          "operationId": "8d5d096e-e466-46b4-92ee-72b6f2e99063",
+          "retryWithSameOperationOnly": false,
+          "currentRevision": null,
+          "currentReport": null
+        }
+      },
+      "revoked": {
+        "status": 403,
+        "body": {
+          "namespace": "dexter-agent-work-report-error/v1",
+          "code": "agent_work_identity_invalid",
+          "retryable": false,
+          "operationId": "92b6b881-2be0-49e4-933c-539fb2d059c5",
+          "retryWithSameOperationOnly": false,
+          "currentRevision": null,
+          "currentReport": null
+        }
+      },
+      "noHead": {
+        "status": 409,
+        "body": {
+          "namespace": "dexter-agent-work-report-error/v1",
+          "code": "agent_work_revision_conflict",
+          "retryable": false,
+          "operationId": "6d2a892c-0595-480b-8e5b-c53e7c4d2b13",
+          "retryWithSameOperationOnly": false,
+          "currentRevision": 0,
+          "currentReport": null
+        }
+      },
+      "invalidRuntime": {
+        "status": 401,
+        "body": {
+          "namespace": "dexter-agent-work-report-error/v1",
+          "code": "agent_work_runtime_auth_invalid",
+          "retryable": false,
+          "operationId": "a6fc830b-3b2c-4647-ac19-146052e565c7",
+          "retryWithSameOperationOnly": false,
+          "currentRevision": null,
+          "currentReport": null
+        }
+      },
+      "unavailable": {
+        "status": 503,
+        "body": {
+          "namespace": "dexter-agent-work-report-error/v1",
+          "code": "agent_work_store_unavailable",
+          "retryable": true,
+          "operationId": "a35085f0-e811-47f1-994e-51db45069162",
+          "retryWithSameOperationOnly": true,
+          "currentRevision": null,
+          "currentReport": null
+        }
+      },
+      "recovered": {
+        "status": 200,
+        "body": {
+          "namespace": "dexter-agent-work-report-ack/v1",
+          "operationId": "a35085f0-e811-47f1-994e-51db45069162",
+          "replayed": true,
+          "report": {
+            "reportId": "a35085f0-e811-47f1-994e-51db45069162",
+            "revision": 3,
+            "state": "working",
+            "summary": "Reviewing deployment logs",
+            "source": "agent_report",
+            "observedAt": "2026-09-18T05:10:51.199Z",
+            "expiresAt": "2026-09-18T05:15:51.199Z"
+          }
+        }
+      },
+      "invalidRequest": {
+        "status": 400,
+        "body": {
+          "namespace": "dexter-agent-work-report-error/v1",
+          "code": "agent_work_invalid_request",
+          "retryable": false,
+          "operationId": "2b126ecb-bce6-4fed-ba57-70b730e287a9",
+          "retryWithSameOperationOnly": false,
+          "currentRevision": null,
+          "currentReport": null
+        }
+      }
+    },
+    "failureAttribution": {
+      "unavailable": "Injected transport exception AFTER PostgreSQL COMMIT; recovered uses the same operation and real stored acknowledgment.",
+      "invalidRuntime": "Deliberately invalid HMAC signature.",
+      "revoked": "Deliberately absent disposable session.",
+      "timestamps": "Actual PostgreSQL clock_timestamp, sampled once and truncated to UTC milliseconds."
+    }
+  }
+}

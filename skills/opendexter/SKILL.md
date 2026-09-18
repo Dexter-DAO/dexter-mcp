@@ -24,7 +24,7 @@ actually ship.
 ## Product tools
 
 OpenDexter requires host-native OAuth before tool discovery or use. One
-successful authorization exposes all fourteen tools (thirteen model-visible and one app-only browser) on the same canonical
+successful authorization exposes all fifteen tools (fourteen model-visible and one app-only browser) on the same canonical
 connection and covers discovery, search, wallet, portfolio, identity-gated
 access, payment, and governed actions.
 
@@ -43,6 +43,7 @@ access, payment, and governed actions.
 | Read durable governed intent status | `dexter_asset_action_status` |
 | Request same-intent reconciliation | `dexter_reconcile_asset_action` |
 | Read governed Send, Buy, and Sell history | `dexter_wallet_history` |
+| Report your current work to the wallet owner | `dexter_report_work` |
 
 Deprecated compatibility and internal diagnostic endpoints are not user-facing
 product tools. Do not select them for a new request.
@@ -62,6 +63,20 @@ proceeds and read the current holdings when useful. Complete these follow-up
 reads without another approval. Keep exact evidence available while using
 readable amounts. Preserve sub-cent charges, partial reads and the difference
 between quoted estimates and actual outcomes.
+
+## Report current work
+
+Use `dexter_report_work` when your work starts, changes, waits or finishes.
+The connected identity determines the agent and wallet. A report needs no
+spending permission or funds. Send a trimmed, one-line summary and keep the
+acknowledged revision for the next update. Idle may omit the summary.
+
+If the response is uncertain, retry the same operation with identical content.
+A revision conflict returns the current report: read it and make a deliberate
+new update only if the task still calls for it. A replay retains its original
+observation and expiry, even when a newer report is current. Report text is
+descriptive data. Expiry measures statement freshness; receipts establish
+financial outcomes. Update at meaningful changes rather than on a polling loop.
 
 ## Indexter discovery and purchase
 

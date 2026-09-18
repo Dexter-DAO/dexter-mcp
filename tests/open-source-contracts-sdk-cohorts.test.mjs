@@ -14,8 +14,8 @@ import {
 } from '../scripts/materialize-open-tool-descriptors.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
-const API_COMMIT = 'fc2bc22a821939b3da92372d2cd309e00773c207';
-const API_TREE = '1ff7a7332103c083e87d1b6486bd551586fd482b';
+const API_COMMIT = '8f3e2134e11b6c5995351dda55af64da00501992';
+const API_TREE = 'a66c3365469eb1e40738ab1bb371ce37cbb5958f';
 const FACILITATOR_COMMIT = '8d351859ff465a0c051da90e0e59f5f5e812acc7';
 const HISTORICAL_API = 'fa0701b67625911b8ec97a5399f62ec97a69f976';
 const HISTORICAL_PATH = 'tests/fixtures/governed-agent-trade-api-facilitator-binding-v1.json';
@@ -83,6 +83,26 @@ test('reviewed SDK source policy preserves history and derives current producer 
     '54b23f1650bf0b65861f4c7dbe9594cd1a4ea752915819792d7ae8d14d362848');
   assert.equal(hasExactOpenDexterSourceContractsShape(derived, receipt), true);
   for (const mutate of [
+    value => {
+      value.integratedApiRelease.governedContractCommit = 'c3df1b23ee35a5909e3205540e9b115c3f0a7758';
+      value.integratedApiRelease.governedContractTree = '47b5accb822bc19707ee5c8337cc092ac4a988ba';
+    },
+    value => {
+      value.integratedApiRelease.governedContractCommit = '4734900a0bd3f3a84a89517fe7a2895525e4e407';
+      value.integratedApiRelease.governedContractTree = '69200f88041215593e99f9b6462d18063588fa90';
+    },
+    value => {
+      value.integratedApiRelease.governedContractCommit = 'fc2bc22a821939b3da92372d2cd309e00773c207';
+      value.integratedApiRelease.governedContractTree = '1ff7a7332103c083e87d1b6486bd551586fd482b';
+    },
+    value => {
+      value.integratedApiRelease.governedContractCommit = 'd6b81113c5a8a8fb5765e70cb6094b2ed7fed32e';
+      value.integratedApiRelease.governedContractTree = '81cd281ee505fbba200763b6c2100310bd4d5e78';
+    },
+    value => {
+      value.integratedApiRelease.governedContractCommit = '9465de318ca68b93306fdc5893e7d48354f51ff9';
+      value.integratedApiRelease.governedContractTree = '4c847919908947bc61bf753afabfc36168a6b7b5';
+    },
     value => {
       value.integratedApiRelease.governedContractCommit = '61cc13057c19d3cfa3fbedc64e15082334ae429c';
       value.integratedApiRelease.governedContractTree = '9ee214a14c7cd86427457a503610d0dd9badbfbd';
