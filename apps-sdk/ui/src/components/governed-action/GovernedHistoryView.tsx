@@ -23,6 +23,7 @@ import { useIntrinsicHeight } from '../x402/useIntrinsicHeight';
 import { GovernedActionDetail } from './GovernedActionView';
 import {
   normalizeGovernedHistory,
+  selectGovernedWidgetResult,
   type GovernedActionViewModel,
 } from './governed-action-model';
 
@@ -64,9 +65,7 @@ function HistoryLoading({
 export function GovernedHistoryView() {
   const output = useToolOutput<unknown>();
   const responseMetadata = useToolResponseMetadata<Record<string, unknown>>();
-  const renderOutput = output
-    ?? responseMetadata?.['dexter/governedWidgetResult']
-    ?? null;
+  const renderOutput = selectGovernedWidgetResult(output, responseMetadata);
   const theme = useAdaptiveTheme();
   const displayMode = useAdaptiveDisplayMode();
   const hostCapabilities = useAdaptiveHostCapabilities();

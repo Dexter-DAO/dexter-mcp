@@ -151,6 +151,16 @@ function record(value: unknown): UnknownRecord | null {
     : null;
 }
 
+/** Preserve raw result evidence and recover ordinary errors from widget metadata. */
+export function selectGovernedWidgetResult(
+  output: unknown,
+  responseMetadata: unknown,
+): unknown {
+  if (typeof record(output)?.namespace === 'string') return output;
+  const errorBody = record(record(responseMetadata)?.['dexter/governedWidgetResult']);
+  return errorBody ?? output ?? null;
+}
+
 function stringValue(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }

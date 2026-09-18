@@ -170,6 +170,13 @@ prepared-purchase JSON.
 `x402_status` accepts only the same `intentId` and reads state without
 redispatching.
 
+For supported USDC payments, Fetch and Status already return readable amounts in
+`outcome.amount.displayAmount`, with `symbol`, `decimals`, and the original
+`amountAtomic`. Read `outcome.amount.basis` to distinguish a requested payment
+from a confirmed payment. The existing `continuation` supplies the next action,
+message, and any returned same-intent status arguments. These fields describe
+payment and delivery separately.
+
 If execution authority is missing, the hosted consent handoff must preserve
 the same intent. Only a returned `dispatch.boundary: "crossed"` permits the
 agent to say the merchant request was dispatched. A missing result or
@@ -203,6 +210,25 @@ Execute exposes top-level `tradeSummary`; Status exposes top-level
 same Status shape in `items`; Reconcile carries it in `statusAfter`. Stock
 success requires a canonical 64-byte Solana signature, confirmed or finalized
 commitment, `executionSucceeded: true`, and exact public-identity binding.
+
+Governed tool responses declare the existing human presentation in
+`structuredContent.presentation`. Action results expose `summary`, `status`,
+and `nextActions`; History pages expose those fields per entry in
+`presentation.items`, alongside `presentation.nextCursor`. The existing JSON
+text presentation remains available to historical consumers. Clients that
+validate against a cached `tools/list` schema must refresh that schema when
+adopting this output contract.
+
+`presentation.preview.basis: "estimated_quote"` identifies preparation terms.
+`presentation.actual` contains recorded receipt amounts or an explicit reason
+they are unavailable. A saved quote remains an estimate after execution.
+Successful responses and landed program errors retain detailed backend fields
+at their original `structuredContent` paths. Ordinary normalized governed
+errors carry `{ presentation }` there and preserve the validated error body in
+`_meta["dexter/governedWidgetResult"]` for widgets. Existing IDs, evidence,
+recovery restrictions, and history records remain intact. Use each
+`nextActions` entry's returned arguments and conditions. Authentication and
+SDK input-validation errors keep their existing protocol responses.
 
 `dexter_execute_asset_action` accepts only `operationId` and the prepared
 `intentId`; the API request body is exactly `{}` and the operation ID becomes

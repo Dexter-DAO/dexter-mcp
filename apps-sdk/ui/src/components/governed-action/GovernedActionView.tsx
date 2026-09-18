@@ -17,6 +17,7 @@ import {
   displayShareQuantity,
   formatAtomicDecimal,
   normalizeGovernedAction,
+  selectGovernedWidgetResult,
   shortenSolanaIdentity,
   type GovernedActionStage,
   type GovernedActionViewModel,
@@ -589,9 +590,7 @@ export function GovernedActionDetail({
 export function GovernedActionView() {
   const output = useToolOutput<unknown>();
   const responseMetadata = useToolResponseMetadata<Record<string, unknown>>();
-  const renderOutput = output
-    ?? responseMetadata?.['dexter/governedWidgetResult']
-    ?? null;
+  const renderOutput = selectGovernedWidgetResult(output, responseMetadata);
   const input = useToolInput<unknown>();
   const theme = useAdaptiveTheme();
   const displayMode = useAdaptiveDisplayMode();

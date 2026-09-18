@@ -6,6 +6,7 @@ import { GOVERNED_USD_VALUE_BINDING_SCHEMA } from '../lib/governed-usd-value.mjs
 import {
   GOVERNED_STOCK_TRADE_SUMMARY_SCHEMA,
   buildGovernedAssetToolResult,
+  governedDetailedBody,
   governedStockPrepareSummarySnapshot,
   normalizeGovernedAssetResult,
 } from '../lib/governed-asset-result.mjs';
@@ -126,8 +127,9 @@ test('dollar Sell normalizes the actual API binding through Prepare and model re
   const result = normalize('prepare', f.input, f.prepared);
   assert.equal(result.isError, false);
   const toolResult = buildGovernedAssetToolResult(result);
-  assert.deepEqual(toolResult.structuredContent, f.prepared);
+  assert.deepEqual(governedDetailedBody(toolResult.structuredContent), f.prepared);
   const presentation = JSON.parse(toolResult.content[0].text);
+  assert.deepEqual(toolResult.structuredContent.presentation, presentation);
   assert.deepEqual(presentation.preview.requestedValue, {
     amount: '1', currency: 'USD', basis: 'market_value_at_preparation',
     priceRetrievedAtUnixMs: API.stock.binding.price.retrievedAtUnixMs,
@@ -169,7 +171,8 @@ test('readable dollar Sell text uses each API producer decimal and multiplier ob
     assert.equal(result.isError, false, name);
     const toolResult = buildGovernedAssetToolResult(result);
     const presentation = JSON.parse(toolResult.content[0].text);
-    assert.deepEqual(toolResult.structuredContent, f.prepared, name);
+    assert.deepEqual(governedDetailedBody(toolResult.structuredContent), f.prepared, name);
+    assert.deepEqual(toolResult.structuredContent.presentation, presentation, name);
     assert.equal(presentation.preview.selectedReferenceValue.amount, binding.selectedReferenceValueUsd, name);
     for (const amount of [presentation.preview.input, presentation.preview.maximumInput]) {
       assert.equal(amount.amount, binding.displayAmount, name);
@@ -207,8 +210,9 @@ test('a stored successful receipt takes precedence over requested USD and quoted
     const result = normalize(operation, input, body, code);
     assert.equal(result.isError, false, operation);
     const toolResult = buildGovernedAssetToolResult(result);
-    assert.deepEqual(toolResult.structuredContent, body, operation);
+    assert.deepEqual(governedDetailedBody(toolResult.structuredContent), body, operation);
     const text = JSON.parse(toolResult.content[0].text);
+    assert.deepEqual(toolResult.structuredContent.presentation, text, operation);
     const presentation = operation === 'history' ? text.items[0] : text;
     assert.equal(presentation.actual.credit.amount, '0.970001', operation);
     assert.match(presentation.summary, /Received 0\.970001 USDC/);
@@ -251,7 +255,8 @@ test('an approved non-stock asset uses the same USD binding without a catalog st
     assert.equal(rejected.body.code, 'governed_backend_response_invalid', field);
     const projected = buildGovernedAssetToolResult(rejected);
     assert.equal(projected.isError, true, field);
-    assert.equal(projected.structuredContent, undefined, field);
+    assert.deepEqual(projected.structuredContent, { presentation: JSON.parse(projected.content[0].text) }, field);
+    assert.deepEqual(projected._meta['dexter/governedWidgetResult'], rejected.body, field);
     assert.equal(JSON.parse(projected.content[0].text).preview, undefined, field);
   }
 });

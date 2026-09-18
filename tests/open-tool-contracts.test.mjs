@@ -62,6 +62,10 @@ function outputUnknownKeys(schema) {
   const visited = new Set();
   while (current && typeof current === 'object' && !visited.has(current)) {
     visited.add(current);
+    if (current._def?.options) {
+      const keys = current._def.options.map(outputUnknownKeys);
+      return keys.every((key) => key === keys[0]) ? keys[0] : undefined;
+    }
     if (current._def?.unknownKeys !== undefined) {
       return current._def.unknownKeys;
     }
@@ -1252,8 +1256,9 @@ test('real SDK tools/list exposes executable schemas, OAuth, annotations, and me
     const toolContract = OPEN_TOOL_CONTRACTS[listed.name];
     assert.equal(listed.title, toolContract.title);
     assert.equal(listed.outputSchema.type, 'object');
-    assert.equal(
-      listed.outputSchema.additionalProperties,
+    const outputBranches = listed.outputSchema.anyOf ?? [listed.outputSchema];
+    for (const outputBranch of outputBranches) assert.equal(
+      outputBranch.additionalProperties,
       [
         'indexter_discover',
         'indexter_search',

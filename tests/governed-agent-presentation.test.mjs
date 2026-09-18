@@ -5,6 +5,28 @@ import { GOVERNED_ASSET_INPUT_SCHEMAS, GOVERNED_ASSET_TOOL_NAMES } from '../lib/
 import { buildVaultReadError } from '../lib/wallet-read-recovery.mjs';
 import { receiptFixture, OPERATION_ID, refreshReconcileDigest } from './fixtures/governed-receipt-outcome.fixtures.mjs';
 import { dynamicStockV2Fixture } from './fixtures/governed-stock-v2.fixtures.mjs';
+import { presentGovernedAgentResult } from '../lib/governed-agent-presentation.mjs';
+
+function assertPresentationParity(result, body) {
+  const presentation = JSON.parse(result.content[0].text);
+  assert.deepEqual(result.structuredContent.presentation, presentation);
+  assert.deepEqual(presentation, JSON.parse(JSON.stringify(presentGovernedAgentResult(body))));
+  return presentation;
+}
+
+function assertDetailedBody(result, expected) {
+  const { presentation, ...detail } = result.structuredContent;
+  assert.ok(presentation);
+  assert.deepEqual(detail, expected);
+  assertPresentationParity(result, expected);
+}
+
+function assertOrdinaryError(result, expected) {
+  const presentation = assertPresentationParity(result, expected);
+  assert.equal(result.isError, true);
+  assert.deepEqual(result.structuredContent, { presentation });
+  assert.deepEqual(result._meta['dexter/governedWidgetResult'], expected);
+}
 
 function output(operation, body, httpStatus = 200) {
   const input = operation === 'history' ? {} : { intentId: body.intentId,
@@ -12,7 +34,7 @@ function output(operation, body, httpStatus = 200) {
   };
   const normalized = normalizeGovernedAssetResult({ operation, input, httpStatus, body });
   const result = buildGovernedAssetToolResult(normalized);
-  return { normalized, result, presentation: JSON.parse(result.content[0].text) };
+  return { normalized, result, presentation: assertPresentationParity(result, normalized.body) };
 }
 
 function assertSupportedNextArguments(steps) {
@@ -70,7 +92,7 @@ test('confirmed pending Reconcile explains pending finality while preserving the
   assert.equal(presentation.recoveryMessage, 'The action has succeeded and its finality update is pending.');
   assert.doesNotMatch(presentation.recoveryMessage, /ambiguous|submit|recovery|repair/i);
   assert.deepEqual(presentation.nextActions.map(next => next.tool), ['dexter_asset_action_status']);
-  assert.deepEqual(result.structuredContent, original);
+  assertDetailedBody(result, original);
 });
 
 test('an unresolved action preserves same-attempt recovery and its possible submission meaning', () => {
@@ -97,7 +119,7 @@ test('an unresolved action preserves same-attempt recovery and its possible subm
   assert.equal(afterReconcile.presentation.recoveryMessage, pending.explanation);
   assert.match(afterReconcile.presentation.nextActions[0].reason, /Recovery remains uncertain/);
   assert.equal(afterReconcile.presentation.actual, undefined);
-  assert.deepEqual(afterReconcile.result.structuredContent, pending);
+  assertDetailedBody(afterReconcile.result, pending);
 });
 
 test('valid HTTP409 not-required recovery remains a no-op success through normalization', () => {
@@ -116,7 +138,7 @@ test('valid HTTP409 not-required recovery remains a no-op success through normal
   assert.equal(normalized.isError, false);
   assert.equal(result.isError, false);
   assert.equal(presentation.recoveryOutcome, 'not-required');
-  assert.deepEqual(result.structuredContent, body);
+  assertDetailedBody(result, body);
 });
 
 test('confirmed landed program error remains failure and never reports an actual successful fill', () => {
@@ -140,7 +162,7 @@ test('a malformed execution response retains uncertain identity and only same-in
   const { normalized, result, presentation } = output('execute', body);
   assert.equal(normalized.body.status, 'unknown');
   assert.equal(result.isError, true);
-  assert.equal(result.structuredContent, undefined);
+  assertOrdinaryError(result, normalized.body);
   assert.equal(presentation.intentId, body.intentId);
   assert.equal(presentation.operationId, OPERATION_ID);
   assert.equal(presentation.retry, 'reconcile_same_intent_only');
@@ -152,8 +174,8 @@ test('a lost Reconcile response does not become an automatic mutation retry', ()
   const fixture = receiptFixture();
   const failure = buildGovernedAssetFailure({ operation: 'reconcile', input: { intentId: fixture.status.intentId }, code: 'governed_backend_transport_failed' });
   const result = buildGovernedAssetToolResult(failure);
-  const presentation = JSON.parse(result.content[0].text);
-  assert.equal(result.isError, true);
+  const presentation = assertPresentationParity(result, failure.body);
+  assertOrdinaryError(result, failure.body);
   assert.equal(presentation.retry, 'manual_same_intent_only');
   assert.deepEqual(presentation.nextActions.map((next) => next.tool), ['dexter_asset_action_status']);
   assertSupportedNextArguments(presentation.nextActions);
@@ -191,14 +213,14 @@ function preparedOutput(fixture) {
     httpStatus: 200, body: fixture.prepared });
   assert.equal(normalized.isError, false, JSON.stringify(normalized.body));
   const result = buildGovernedAssetToolResult(normalized);
-  return { result, presentation: JSON.parse(result.content[0].text) };
+  return { result, presentation: assertPresentationParity(result, normalized.body) };
 }
 
 test('covered Prepare exposes estimated terms and stable executable continuation at the result boundary', () => {
   const fixture = dynamicStockV2Fixture('tesla', OPERATION_ID);
   const original = structuredClone(fixture.prepared);
   const { result, presentation } = preparedOutput(fixture);
-  assert.deepEqual(result.structuredContent, original);
+  assertDetailedBody(result, original);
   assert.deepEqual(presentation.approval, { status: 'not-required', reasons: [] });
   assert.equal(presentation.effectiveExpiresAt, original.effectiveExpiresAt);
   assert.equal(presentation.preview.quoteExpiresAtUnixMs, original.preview.quoteExpiresAtUnixMs);
@@ -230,7 +252,7 @@ test('prepared owner escalation retains exact reasons and the missing direct han
   fixture.prepared.approval = { status: 'owner-approval-required', reasons: ['amount_limit_exceeded'] };
   const { result, presentation } = preparedOutput(fixture);
   assert.deepEqual(presentation.approval, fixture.prepared.approval);
-  assert.deepEqual(result.structuredContent, fixture.prepared);
+  assertDetailedBody(result, fixture.prepared);
   assert.match(presentation.summary, /needs owner approval/);
   assert.equal(presentation.nextActions.some((next) => next.tool === 'dexter_execute_asset_action'), false);
   assert.equal(presentation.nextActions[0].url, 'https://dexter.cash/wallet');
@@ -254,7 +276,7 @@ test('prepared sell preserves varying mint precision while tiny estimated USDC p
   assert.equal(presentation.preview.expectedOutput.symbol, 'USDC');
   assert.equal(presentation.preview.minimumOutput.amount, '0.000001');
   assert.equal(presentation.actual, undefined);
-  assert.deepEqual(result.structuredContent, fixture.prepared);
+  assertDetailedBody(result, fixture.prepared);
 });
 
 test('prepared continuation never reuses the Prepare operation identity even if its label matches the suggested Execute identity', () => {
@@ -278,8 +300,8 @@ test('unavailable action through another connection is a failed read without rep
   assert.equal(normalized.body.code, 'execution_not_found');
   const result = buildGovernedAssetToolResult(normalized);
   assert.equal(result.isError, true);
-  assert.deepEqual(result._meta['dexter/governedWidgetResult'], body);
-  const presentation = JSON.parse(result.content[0].text);
+  assertOrdinaryError(result, body);
+  const presentation = assertPresentationParity(result, body);
   assert.equal(presentation.actual, undefined);
   assert.match(presentation.summary, /outcome is unknown/);
   assert.equal(presentation.nextActions[0].action, 'inspect_original_connection');

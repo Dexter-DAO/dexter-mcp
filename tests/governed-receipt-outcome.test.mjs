@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { normalizeGovernedAssetResult, buildGovernedAssetToolResult } from '../lib/governed-asset-result.mjs';
+import { normalizeGovernedAssetResult, buildGovernedAssetToolResult, governedDetailedBody } from '../lib/governed-asset-result.mjs';
 import { GOVERNED_RECEIPT_OUTCOME_SCHEMA } from '../lib/governed-receipt-outcome.mjs';
 import { receiptFixture, OPERATION_ID, CAPTURED_SALE, refreshReconcileDigest } from './fixtures/governed-receipt-outcome.fixtures.mjs';
 
@@ -22,7 +22,8 @@ for (const operation of ['execute', 'status', 'history', 'reconcile']) {
     assert.equal(item.actual.debit.amount, null);
     assert.equal(item.actual.debit.baseTokenAmount, '0.006589');
     assert.equal(item.actual.receiptDigest, CAPTURED_SALE.receiptDigest);
-    assert.deepEqual(output.structuredContent, fixture[operation]);
+    assert.deepEqual(governedDetailedBody(output.structuredContent), fixture[operation]);
+    assert.deepEqual(output.structuredContent.presentation, presentation);
     assert.doesNotMatch(item.actual.fees, /(?:^|\s)0(?:\s|$)/);
   });
 }
