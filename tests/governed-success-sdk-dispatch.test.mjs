@@ -4,9 +4,12 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { normalizeObjectSchema } from '@modelcontextprotocol/sdk/server/zod-compat.js';
+import { AjvJsonSchemaValidator } from '@modelcontextprotocol/sdk/validation/ajv';
 import {
   installOpenToolContracts,
+  finalizeOpenToolContracts,
   OPEN_TOOL_CONTRACTS,
+  OPEN_TOOL_NAMES,
 } from '../lib/open-tool-contracts.mjs';
 import {
   GOVERNED_ASSET_INPUT_SCHEMAS,
@@ -15,10 +18,28 @@ import {
 import {
   buildGovernedAssetToolResult,
   GOVERNED_ASSET_TOOL_OUTPUT_SCHEMAS,
+  GOVERNED_PRESENTED_OUTPUT_SCHEMAS,
+  GOVERNED_PRESENTED_SUCCESS_SCHEMAS,
   normalizeGovernedAssetResult,
 } from '../lib/governed-asset-result.mjs';
 import { canonicalHash } from '../lib/governed-canonical-identity.mjs';
 import { dynamicStockV2Fixture } from './fixtures/governed-stock-v2.fixtures.mjs';
+import { presentGovernedAgentResult } from '../lib/governed-agent-presentation.mjs';
+
+function assertPresentedDetail(result, expected) {
+  const { presentation, ...detail } = result.structuredContent;
+  assert.deepEqual(detail, expected);
+  assert.deepEqual(presentation, JSON.parse(result.content[0].text));
+  assert.deepEqual(presentation, JSON.parse(JSON.stringify(presentGovernedAgentResult(expected))));
+}
+
+function assertPresentedError(result, expected) {
+  const presentation = JSON.parse(result.content[0].text);
+  assert.equal(result.isError, true);
+  assert.deepEqual(result.structuredContent, { presentation });
+  assert.deepEqual(presentation, JSON.parse(JSON.stringify(presentGovernedAgentResult(expected))));
+  assert.deepEqual(result._meta['dexter/governedWidgetResult'], expected);
+}
 
 const OPERATION_ID = '219f981c-9215-4141-84f2-d89ffe9cbece';
 const category = {
@@ -67,7 +88,7 @@ async function dispatch(t, operation, input, body, { bypassBackendValidation = f
   const server = new McpServer({ name: 'governed-success-regression', version: '1.0.0' });
   installOpenToolContracts(server);
   let calls = 0;
-  server.registerTool(name, { inputSchema: GOVERNED_ASSET_INPUT_SCHEMAS[operation] }, async (args) => {
+  const registered = server.registerTool(name, { inputSchema: GOVERNED_ASSET_INPUT_SCHEMAS[operation] }, async (args) => {
     calls += 1;
     const result = bypassBackendValidation
       ? { body, isError: false }
@@ -79,12 +100,32 @@ async function dispatch(t, operation, input, body, { bypassBackendValidation = f
         });
     return buildGovernedAssetToolResult(result);
   });
+  for (const other of OPEN_TOOL_NAMES.filter((tool) => tool !== name)) {
+    server.registerTool(other, { inputSchema: {} }, async () => ({ content: [{ type: 'text', text: '{}' }] }));
+  }
+  finalizeOpenToolContracts(server);
+  assert.equal(registered.outputSchema, OPEN_TOOL_CONTRACTS[name].registrationOutputSchema);
+  assert.equal(normalizeObjectSchema(registered.outputSchema), registered.outputSchema);
+  assert.equal(registered.governedOutputSchema, GOVERNED_PRESENTED_OUTPUT_SCHEMAS[operation]);
   const client = new Client({ name: 'governed-success-client', version: '1.0.0' });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
   await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+  const listed = (await client.listTools()).tools.find((tool) => tool.name === name);
+  assert.equal(listed.outputSchema.type, 'object');
+  assert.equal(listed.outputSchema.anyOf.length, 2);
+  const [successSchema, errorSchema] = listed.outputSchema.anyOf;
+  assert.ok(successSchema.required.includes('presentation'));
+  assert.deepEqual(errorSchema.required, ['presentation']);
+  assert.deepEqual(Object.keys(errorSchema.properties), ['presentation']);
+  assert.equal(errorSchema.additionalProperties, false);
   const result = await client.callTool({ name, arguments: input });
-  return { result, calls };
+  if (result.structuredContent !== undefined) {
+    const validate = new AjvJsonSchemaValidator().getValidator(listed.outputSchema);
+    const validation = validate(result.structuredContent);
+    assert.equal(validation.valid, true, validation.errorMessage);
+  }
+  return { result, calls, listed, registered };
 }
 
 for (const authority of ['legacy', 'category']) {
@@ -94,7 +135,7 @@ for (const authority of ['legacy', 'category']) {
       const { result, calls } = await dispatch(t, 'prepare', fixture.input, fixture.prepared);
       assert.equal(calls, 1);
       assert.equal(result.isError, false, JSON.stringify(result.content));
-      assert.deepEqual(result.structuredContent, fixture.prepared);
+      assertPresentedDetail(result, fixture.prepared);
       assert.equal(result._meta['dexter/toolInvocation'].toolName, GOVERNED_ASSET_TOOL_NAMES.prepare);
     });
   }
@@ -107,19 +148,23 @@ for (const authority of ['legacy', 'category']) {
       const { result, calls } = await dispatch(t, operation, input, fixture[operation]);
       assert.equal(calls, 1);
       assert.equal(result.isError, false, JSON.stringify(result.content));
-      assert.deepEqual(result.structuredContent, fixture[operation]);
+      assertPresentedDetail(result, fixture[operation]);
     });
   }
 }
 
 test('Prepare registers a plain strict object while retaining full runtime refinements', () => {
   const contract = OPEN_TOOL_CONTRACTS.dexter_prepare_asset_action;
-  assert.equal(contract.outputSchema, GOVERNED_ASSET_TOOL_OUTPUT_SCHEMAS.prepare);
+  assert.equal(contract.outputSchema, GOVERNED_PRESENTED_OUTPUT_SCHEMAS.prepare);
   assert.equal(normalizeObjectSchema(contract.registrationOutputSchema), contract.registrationOutputSchema);
   const fixture = fixtureFor('amount', 'category');
-  delete fixture.prepared.stockRuntime;
-  assert.equal(contract.registrationOutputSchema.safeParse(fixture.prepared).success, true);
-  assert.equal(contract.outputSchema.safeParse(fixture.prepared).success, false);
+  const presented = buildGovernedAssetToolResult({ body: fixture.prepared, isError: false }).structuredContent;
+  delete presented.stockRuntime;
+  assert.equal(contract.registrationOutputSchema.safeParse(presented).success, true);
+  assert.equal(contract.outputSchema.safeParse(presented).success, false);
+  assert.equal(GOVERNED_PRESENTED_SUCCESS_SCHEMAS.prepare.safeParse(presented).success, false);
+  const { presentation, ...detail } = presented;
+  assert.equal(GOVERNED_ASSET_TOOL_OUTPUT_SCHEMAS.prepare.safeParse(detail).success, false);
 });
 
 for (const [name, mutate] of [
@@ -144,7 +189,54 @@ test('real SDK rejects invalid Prepare input before calling the backend', async 
   const { result, calls } = await dispatch(t, 'prepare', { ...fixture.input, shareQuantity: '1' }, fixture.prepared);
   assert.equal(calls, 0);
   assert.equal(result.isError, true);
+  assert.equal(result.structuredContent, undefined);
   assert.doesNotMatch(JSON.stringify(result.content), /_zod/);
+});
+
+for (const operation of ['status', 'reconcile', 'history']) {
+  test('real SDK returns a declared ordinary failure for ' + operation, async (t) => {
+    const fixture = fixtureFor('quantity', 'category');
+    const intentId = operation === 'history' ? null : fixture.prepared.intentId;
+    const input = intentId === null ? { limit: 25 } : { intentId };
+    const { result, calls } = await dispatch(t, operation, input, { unexpected: true }, { httpStatus: 502 });
+    assert.equal(calls, 1);
+    const expected = {
+      namespace: 'opendexter-governed-backend-failure/v1',
+      operation,
+      status: operation === 'reconcile' ? 'unknown' : 'unavailable',
+      operationId: null,
+      intentId,
+      code: 'governed_backend_response_invalid',
+      explanation: operation === 'reconcile'
+        ? 'Dexter returned an invalid reconciliation response. Do not retry automatically; inspect the same intent.'
+        : 'Dexter returned a response that did not match the governed contract.',
+      retry: operation === 'reconcile' ? 'manual_same_intent_only' : 'read_again',
+    };
+    assertPresentedError(result, expected);
+    const presentation = result.structuredContent.presentation;
+    assert.equal(presentation.intentId, intentId);
+    assert.equal(presentation.operationId, null);
+    if (intentId === null) {
+      assert.equal(presentation.nextActions[0].action, 'read_again');
+      assert.equal(presentation.nextActions[0].operationId, null);
+    } else {
+      assert.equal(presentation.nextActions[0].tool, 'dexter_asset_action_status');
+      assert.deepEqual(presentation.nextActions[0].arguments, { intentId });
+    }
+  });
+}
+
+test('real SDK preserves a valid History page returned with HTTP500 as a declared error', async (t) => {
+  const fixture = fixtureFor('quantity', 'category');
+  const original = structuredClone(fixture.history);
+  assert.equal(original.nextCursor, null);
+  const { result, calls } = await dispatch(t, 'history', { limit: 25 }, fixture.history, { httpStatus: 500 });
+  assert.equal(calls, 1);
+  assertPresentedError(result, original);
+  assert.deepEqual(result.structuredContent.presentation.items,
+    original.items.map((item) => JSON.parse(JSON.stringify(presentGovernedAgentResult(item)))));
+  assert.equal(result.structuredContent.presentation.nextCursor, null);
+  assert.equal(result.structuredContent.presentation.items.length, original.items.length);
 });
 
 const BACKPACK_POLICY_DIGEST = 'cfc50c0ac6c17db0dd8b8d471055a0d9dc8691c23d01b4e380aed1beb7be4a47';
@@ -179,7 +271,7 @@ for (const [name, url] of [
     const { result, calls } = await dispatch(t, 'prepare', input, body, { httpStatus: 422 });
     assert.equal(calls, 1);
     assert.equal(result.isError, true);
-    assert.equal(result.structuredContent, undefined);
+    assertPresentedError(result, body);
     const publicBody = JSON.parse(result.content[0].text);
     assert.equal(publicBody.code, body.code);
     assert.equal(publicBody.operationId, OPERATION_ID);
@@ -213,7 +305,7 @@ for (const [name, url] of [
     const { result, calls } = await dispatch(t, 'prepare', input, body, { httpStatus: 422 });
     assert.equal(calls, 1);
     assert.equal(result.isError, true);
-    assert.equal(result.structuredContent, undefined);
+    assertPresentedError(result, result._meta['dexter/governedWidgetResult']);
     const publicBody = JSON.parse(result.content[0].text);
     assert.equal(publicBody.code, 'governed_backend_response_invalid');
     assert.equal(Object.hasOwn(publicBody, 'permissionRequest'), false);

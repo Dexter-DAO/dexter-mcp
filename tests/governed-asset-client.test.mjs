@@ -28,6 +28,7 @@ import {
   GOVERNED_ASSET_TOOL_OUTPUT_SCHEMAS,
   GOVERNED_STOCK_TRADE_SUMMARY_SCHEMA,
   buildGovernedAssetToolResult,
+  governedDetailedBody,
 } from '../lib/governed-asset-result.mjs';
 import { applyOpenToolResultPolicy } from '../lib/open-tool-contracts.mjs';
 import {
@@ -786,7 +787,9 @@ test('prepare client sends one exact request and preserves the canonical API bod
   assert.equal(result.isError, false);
   assert.deepEqual(result.body, expected);
   assert.equal('correlationId' in result.body, false);
-  assert.deepEqual(buildGovernedAssetToolResult(result).structuredContent, expected);
+  const toolResult = buildGovernedAssetToolResult(result);
+  assert.deepEqual(governedDetailedBody(toolResult.structuredContent), expected);
+  assert.deepEqual(toolResult.structuredContent.presentation, JSON.parse(toolResult.content[0].text));
 });
 
 test('generic approved asset identity passes without a named-token output enum', async () => {
@@ -1482,15 +1485,13 @@ test('governed result policy preserves valid opaque identities that resemble bea
       true,
       `${operation} fixture`,
     );
-    const result = applyOpenToolResultPolicy(toolName, {
-      content: [{ type: 'text', text: JSON.stringify(body) }],
-      structuredContent: body,
-      isError: false,
-    });
-    assert.deepEqual(result.structuredContent, body, operation);
+    const result = applyOpenToolResultPolicy(toolName,
+      buildGovernedAssetToolResult({ body, isError: false }));
+    assert.deepEqual(governedDetailedBody(result.structuredContent), body, operation);
+    assert.deepEqual(result.structuredContent.presentation, JSON.parse(result.content[0].text), operation);
     assert.equal(
       GOVERNED_ASSET_TOOL_OUTPUT_SCHEMAS[operation]
-        .safeParse(result.structuredContent).success,
+        .safeParse(governedDetailedBody(result.structuredContent)).success,
       true,
       `${operation} projected output`,
     );
@@ -2444,7 +2445,7 @@ test('an execute transport failure is one call and reconciliation-only', async (
   });
   assert.equal(result.isError, true);
   const toolResult = buildGovernedAssetToolResult(result);
-  assert.equal(toolResult.structuredContent, undefined);
+  assert.deepEqual(toolResult.structuredContent, { presentation: JSON.parse(toolResult.content[0].text) });
   assert.deepEqual(
     toolResult._meta['dexter/governedWidgetResult'],
     result.body,
@@ -2525,12 +2526,13 @@ test('landed program errors remain structured so the receipt can render failure'
   );
 
   assert.equal(projected.isError, true);
-  assert.deepEqual(projected.structuredContent, failed);
+  assert.deepEqual(governedDetailedBody(projected.structuredContent), failed);
+  assert.deepEqual(projected.structuredContent.presentation, JSON.parse(projected.content[0].text));
   assert.equal(projected.structuredContent.business.executionSucceeded, false);
   assert.equal(projected.structuredContent.business.programError, true);
 });
 
-test('schema-valid execute refusals remain text-only', () => {
+test('schema-valid execute refusals expose presentation and retain detailed widget evidence', () => {
   const refused = canonicalExecuteVariants()
     .find(([, body]) => body.status === 'refused')[1];
   assert.equal(
@@ -2549,7 +2551,8 @@ test('schema-valid execute refusals remain text-only', () => {
   );
 
   assert.equal(projected.isError, true);
-  assert.equal(projected.structuredContent, undefined);
+  assert.deepEqual(projected.structuredContent, { presentation: JSON.parse(projected.content[0].text) });
+  assert.deepEqual(projected._meta['dexter/governedWidgetResult'], refused);
   assert.equal(JSON.parse(projected.content[0].text).status, 'refused');
 });
 
@@ -2728,7 +2731,7 @@ test('current Send refusal stops at Prepare with no executable continuation', as
   }
   const toolResult = buildGovernedAssetToolResult(result);
   assert.equal(toolResult.isError, true);
-  assert.equal(toolResult.structuredContent, undefined);
+  assert.deepEqual(toolResult.structuredContent, { presentation: JSON.parse(toolResult.content[0].text) });
   assert.deepEqual(
     toolResult._meta['dexter/governedWidgetResult'],
     result.body,

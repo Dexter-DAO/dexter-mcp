@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { buildGovernedAssetToolResult, normalizeGovernedAssetResult } from '../lib/governed-asset-result.mjs';
+import { buildGovernedAssetToolResult, governedDetailedBody, normalizeGovernedAssetResult } from '../lib/governed-asset-result.mjs';
 import { dynamicStockV2Fixture } from './fixtures/governed-stock-v2.fixtures.mjs';
 
 const API = JSON.parse(readFileSync(new URL('./fixtures/governed-raw-preview-api.json', import.meta.url)));
@@ -29,7 +29,9 @@ test('raw Buy and Sell accept exact current API-produced previews without changi
     assert.equal(Object.hasOwn(f.prepared.preview, 'usdValue'), false);
     const result = normalize(f);
     assert.equal(result.isError, false, action);
-    assert.deepEqual(buildGovernedAssetToolResult(result).structuredContent, f.prepared);
+    const toolResult = buildGovernedAssetToolResult(result);
+    assert.deepEqual(governedDetailedBody(toolResult.structuredContent), f.prepared);
+    assert.deepEqual(toolResult.structuredContent.presentation, JSON.parse(toolResult.content[0].text));
   }
 });
 
