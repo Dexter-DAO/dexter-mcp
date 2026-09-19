@@ -915,7 +915,17 @@ async function renderVariant({ browser, baseUrl, surface, device, theme }) {
 
   if (TOOL_RESULT_FILE && surface.id === 'governed-action') {
     const bodyText = await frame.locator('body').innerText();
-    if (surface.output.executionSucceeded === true
+    const evidence = surface.metadata?.['dexter/governedWidgetResult'] ?? surface.output;
+    if (evidence.namespace === 'opendexter-governed-maintenance/v1') {
+      assert.match(bodyText, /Maintenance/);
+      assert.match(bodyText, /Vault operations are temporarily unavailable/);
+      assert.match(bodyText, /This response does not report an execution outcome/);
+      assert.match(bodyText, /View details/);
+      assert.doesNotMatch(bodyText, /awaiting confirmation|authority decision|stopped before completion|The action is unsigned|execution outcome remains open|View full receipt/);
+      assert.doesNotMatch(bodyText, /\bintent\b|request identifiers|\bPrepare\b|operation ID/);
+      if (evidence.intentId) assert.match(bodyText, /Check the result of your original request\./);
+      else assert.match(bodyText, /Resume your original request after maintenance\./);
+    } else if (surface.output.executionSucceeded === true
       && ['confirmed', 'finalized'].includes(surface.output.confirmationCommitment)) {
       assert.match(bodyText, surface.output.confirmationCommitment === 'finalized' ? /Finalized/ : /Confirmed/);
       assert.doesNotMatch(bodyText, /awaiting confirmation|is being verified/);
@@ -1020,10 +1030,16 @@ galleryTest('current OpenDexter renderers fill one deterministic host-frame gall
   if (TOOL_RESULT_FILE) {
     const recorded = JSON.parse(await readFile(path.resolve(REPO_ROOT, TOOL_RESULT_FILE), 'utf8'));
     if (SURFACE_FILTER === 'governed-action') {
-      assert.ok(recorded.namespace?.startsWith('dexter-governed-'), 'Expected a governed response');
+      const evidence = recorded._meta?.['dexter/governedWidgetResult'] ?? recorded;
+      assert.ok(evidence.namespace?.startsWith('dexter-governed-')
+        || evidence.namespace === 'opendexter-governed-maintenance/v1', 'Expected a governed response');
       const actionSurface = allSurfaces.find(({ id }) => id === 'governed-action');
-      actionSurface.output = recorded;
-      actionSurface.input = { intentId: recorded.intentId };
+      actionSurface.output = recorded.structuredContent ?? recorded;
+      actionSurface.metadata = recorded._meta;
+      actionSurface.input = { intentId: evidence.intentId, operationId: evidence.operationId };
+      if (evidence.operation && evidence.operation !== 'prepare') {
+        actionSurface.tools = [evidence.operation === 'execute' ? 'dexter_execute_asset_action' : 'dexter_reconcile_asset_action'];
+      }
     } else {
       assert.equal(SURFACE_FILTER, 'indexter-search', 'Recorded results require the Search or governed-action surface');
       assert.equal(recorded.structuredContent?.route, 'task');

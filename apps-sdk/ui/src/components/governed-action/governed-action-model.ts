@@ -1021,6 +1021,8 @@ export function normalizeGovernedAction(
     definitiveNonlandingProof,
     identityExact,
   });
+  const maintenance = namespace === 'opendexter-governed-maintenance/v1'
+    && rawStatus === 'paused' && root.code === 'VAULT_PROGRAM_TRANSITION_HELD';
   const localFailure = namespace === 'opendexter-governed-backend-failure/v1';
   const stage = localFailure
     ? operation === 'execute' || operation === 'reconcile'
@@ -1076,7 +1078,11 @@ export function normalizeGovernedAction(
     : action === 'sell'
       ? 6
       : null;
-  const copy = stageCopy({
+  const copy = maintenance ? {
+    stageLabel: 'Maintenance',
+    headline: 'Vault operations are temporarily unavailable',
+    supporting: 'Affected actions can resume after maintenance. Saved results remain available.',
+  } : stageCopy({
     stage,
     operation,
     action,
@@ -1139,7 +1145,11 @@ export function normalizeGovernedAction(
     && root.landingProof !== false
     && (status.landingProof === true || root.landingProof === true || business?.settlement === 'landed')
   );
-  const recovery = recoveryFor({
+  const recovery: GovernedActionViewModel['recovery'] = maintenance
+    ? intentId
+      ? { kind: 'read', sentence: 'Check the result of your original request.' }
+      : { kind: 'same-request', sentence: 'Resume your original request after maintenance.' }
+    : recoveryFor({
     stage,
     confirmedOutcome: confirmedExecutionOutcome,
     operation,
