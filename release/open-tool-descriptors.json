@@ -9830,7 +9830,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/governed-action-e10c5e77",
+          "resourceUri": "ui://dexter/governed-action-7e40a0ac",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash"
@@ -9846,8 +9846,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/governed-action-e10c5e77",
-        "openai/outputTemplate": "ui://dexter/governed-action-e10c5e77",
+        "ui/resourceUri": "ui://dexter/governed-action-7e40a0ac",
+        "openai/outputTemplate": "ui://dexter/governed-action-7e40a0ac",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -12288,7 +12288,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/governed-action-e10c5e77",
+          "resourceUri": "ui://dexter/governed-action-7e40a0ac",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash"
@@ -12304,8 +12304,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/governed-action-e10c5e77",
-        "openai/outputTemplate": "ui://dexter/governed-action-e10c5e77",
+        "ui/resourceUri": "ui://dexter/governed-action-7e40a0ac",
+        "openai/outputTemplate": "ui://dexter/governed-action-7e40a0ac",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -15105,7 +15105,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/governed-action-e10c5e77",
+          "resourceUri": "ui://dexter/governed-action-7e40a0ac",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash"
@@ -15121,8 +15121,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/governed-action-e10c5e77",
-        "openai/outputTemplate": "ui://dexter/governed-action-e10c5e77",
+        "ui/resourceUri": "ui://dexter/governed-action-7e40a0ac",
+        "openai/outputTemplate": "ui://dexter/governed-action-7e40a0ac",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -18019,7 +18019,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/governed-action-e10c5e77",
+          "resourceUri": "ui://dexter/governed-action-7e40a0ac",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash"
@@ -18035,8 +18035,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/governed-action-e10c5e77",
-        "openai/outputTemplate": "ui://dexter/governed-action-e10c5e77",
+        "ui/resourceUri": "ui://dexter/governed-action-7e40a0ac",
+        "openai/outputTemplate": "ui://dexter/governed-action-7e40a0ac",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -20904,7 +20904,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/governed-history-057594c5",
+          "resourceUri": "ui://dexter/governed-history-51453705",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash"
@@ -20920,8 +20920,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/governed-history-057594c5",
-        "openai/outputTemplate": "ui://dexter/governed-history-057594c5",
+        "ui/resourceUri": "ui://dexter/governed-history-51453705",
+        "openai/outputTemplate": "ui://dexter/governed-history-51453705",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
