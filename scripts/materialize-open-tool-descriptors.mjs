@@ -105,6 +105,11 @@ const API_GOVERNED_CONTRACT_PATHS = Object.freeze([
   'src/server.ts',
   'src/runtimeRole.ts',
   'src/portfolio/governedWrites',
+  'src/portfolio/spotExecution/raydium.ts',
+  'src/portfolio/spotExecution/selection.ts',
+  'src/services/crosspayOrchestrator.ts',
+  'src/services/vaultProgramTransitionHold.ts',
+  'src/services/vaultProgramTransitionTransaction.ts',
   'src/economicWallet/agentWorkReportV1.ts',
   'src/agentRuntime/agentWorkReportIdentity.ts',
   'src/agentRuntime/agentWorkReportStore.ts',
@@ -115,6 +120,8 @@ const API_GOVERNED_CONTRACT_PATHS = Object.freeze([
   'src/portfolio/decimal.ts',
   'src/routes/defaultGovernedDelegatedAssetActions.ts',
   'src/routes/governedDelegatedAssetActions.ts',
+  'src/routes/governedAssetPrepare.ts',
+  'src/routes/defaultGovernedOwnerNativeSolProduction.ts',
   'src/routes/defaultGovernedOwnerSendProduction.ts',
   'src/routes/governedOwnerSendExecution.ts',
   'src/routes/x402PayAnon.ts',
@@ -125,6 +132,7 @@ const API_GOVERNED_CONTRACT_PATHS = Object.freeze([
   'src/services/x402/opaquePurchaseCheckPersistence.ts',
   'src/services/x402/opaquePurchaseCoordinator.ts',
   'src/services/x402/nativeExactCoordinator.ts',
+  'src/services/x402/nativeExactFacilitator.ts',
   'src/services/x402/nativeExactLifecycle.ts',
   'src/services/x402/nativeExactPersistence.ts',
   'src/services/x402/nativeExactWire.ts',
@@ -151,9 +159,12 @@ const EXPECTED_SOURCE_CONTRACTS = Object.freeze({
   // The composed history and roster source adds observation of finality for
   // existing confirmed stock attempts, including worker startup and shutdown.
   // Reviewed work reporting adds its schema, identity, store and route wiring.
+  // The reviewed owner composition retains the delegated preview and fee
+  // contracts, transition holds and historical recovery. Its currency release
+  // constant binds the finalized program readback and generated admission.
   // Later releases must preserve these API_GOVERNED_CONTRACT_PATHS bytes.
-  integratedGovernedCommit: '8f3e2134e11b6c5995351dda55af64da00501992',
-  integratedGovernedTree: 'a66c3365469eb1e40738ab1bb371ce37cbb5958f',
+  integratedGovernedCommit: '372dacdebce2ddbd9d8531d05aab85f602ea6bf5',
+  integratedGovernedTree: 'b2ea9b6393d6b63801a8abcfd160fcdc4beb81c9',
   apiFixtureSha256:
     'ad06690a3914e0ef0f359c4164eb62f78ca54abe6697a52672d739df63c2c352',
   apiCanonicalBodyDigest:

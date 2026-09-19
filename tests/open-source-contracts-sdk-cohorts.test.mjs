@@ -14,8 +14,8 @@ import {
 } from '../scripts/materialize-open-tool-descriptors.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
-const API_COMMIT = '8f3e2134e11b6c5995351dda55af64da00501992';
-const API_TREE = 'a66c3365469eb1e40738ab1bb371ce37cbb5958f';
+const API_COMMIT = '372dacdebce2ddbd9d8531d05aab85f602ea6bf5';
+const API_TREE = 'b2ea9b6393d6b63801a8abcfd160fcdc4beb81c9';
 const FACILITATOR_COMMIT = '8d351859ff465a0c051da90e0e59f5f5e812acc7';
 const HISTORICAL_API = 'fa0701b67625911b8ec97a5399f62ec97a69f976';
 const HISTORICAL_PATH = 'tests/fixtures/governed-agent-trade-api-facilitator-binding-v1.json';
@@ -83,6 +83,42 @@ test('reviewed SDK source policy preserves history and derives current producer 
     '54b23f1650bf0b65861f4c7dbe9594cd1a4ea752915819792d7ae8d14d362848');
   assert.equal(hasExactOpenDexterSourceContractsShape(derived, receipt), true);
   for (const mutate of [
+    value => {
+      value.integratedApiRelease.governedContractCommit = '4577cf153bfc5572b941f3eca6f3c78601988ca2';
+      value.integratedApiRelease.governedContractTree = '9acc9189a9203cc8f8e1c8b987cd893e1174ceda';
+    },
+    value => {
+      value.integratedApiRelease.governedContractCommit = '950477b669d46b29641b173a922ede567b92c035';
+      value.integratedApiRelease.governedContractTree = '03151880e7111bda9d8d5b9f60f498b86fa524ba';
+    },
+    value => {
+      value.integratedApiRelease.governedContractCommit = '8f3e2134e11b6c5995351dda55af64da00501992';
+      value.integratedApiRelease.governedContractTree = 'a66c3365469eb1e40738ab1bb371ce37cbb5958f';
+    },
+    value => {
+      value.integratedApiRelease.governedContractCommit = '9cce040c55c0e4072c29ba7270ab2db22445fbe0';
+      value.integratedApiRelease.governedContractTree = 'f318e6ad2dec4a0351cd5b44dd0668f863da423d';
+    },
+    value => {
+      value.integratedApiRelease.governedContractCommit = 'ddf10a86d3bd0956c5a868c341a929914c14bac4';
+      value.integratedApiRelease.governedContractTree = '8476dcc0063fe32a0b96b81ed4f3dabbaa990f86';
+    },
+    value => {
+      value.integratedApiRelease.governedContractCommit = '9a20fee4e1c283bd5ae85565ab65e422d1083fd1';
+      value.integratedApiRelease.governedContractTree = '6aae2094dbdb34f58b3727521336c5bf0e30aaac';
+    },
+    value => {
+      value.integratedApiRelease.governedContractCommit = '8c3f3269f478a89b0e09b73a373cdefd2581e4a1';
+      value.integratedApiRelease.governedContractTree = '5b1187a121632b1386389cd70fe60be718de2461';
+    },
+    value => {
+      value.integratedApiRelease.governedContractCommit = '481d5edce8c58d26abc06f6c9a5b74506773590c';
+      value.integratedApiRelease.governedContractTree = 'ef40206f53c1c470450162128c1cf1b27f916d82';
+    },
+    value => {
+      value.integratedApiRelease.governedContractCommit = '868982e31ea06f98d3b6b68ced44b74fe42c00b7';
+      value.integratedApiRelease.governedContractTree = '438748027a773ea2f93ff0dd5806ee28d173eb0d';
+    },
     value => {
       value.integratedApiRelease.governedContractCommit = 'c3df1b23ee35a5909e3205540e9b115c3f0a7758';
       value.integratedApiRelease.governedContractTree = '47b5accb822bc19707ee5c8337cc092ac4a988ba';
