@@ -1,0 +1,745 @@
+{
+  "basis": "synthetic provider/SQL producer with composed delegated attribution; actual normal fresh/recovery projector",
+  "sourceCaseName": "fee-output-sell",
+  "request": {
+    "action": "sell",
+    "companyQuery": "fixture corp",
+    "amountAtomic": "10000000"
+  },
+  "producer": {
+    "tradeSummary": {
+      "action": "sell",
+      "amountAtomic": "10000000",
+      "assetId": "catalog-fixture-stock",
+      "expectedShareQuantity": null,
+      "feeSummary": {
+        "networkFee": {
+          "amountLamports": null,
+          "status": "not-yet-calculated"
+        },
+        "platformFee": {
+          "amountAtomic": "11257500",
+          "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+        },
+        "routeFees": [],
+        "serviceFee": {
+          "feeAccount": "4iYFsZcZXQLTfykuzRwY19SxRja53Vm6jSf6CuTx6Kjt",
+          "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "owner": "4nTZ1s5a7hdgp51RRjGTJ2DiftnGiZSvHrKkGHWYqf4b",
+          "quotedFeeAmountAtomic": "11257500",
+          "rateBps": 75,
+          "side": "output",
+          "tokenProgram": "spl-token",
+          "version": "dexter-jupiter-service-fee/v1"
+        },
+        "summary": "Trading fees are included in this quote; network fee is calculated at execution."
+      },
+      "minimumShareQuantity": null,
+      "namespace": "dexter-governed-stock-trade-summary/v1",
+      "overfillPossible": false,
+      "productIdentity": {
+        "assetClass": "stock",
+        "assetId": "catalog-fixture-stock",
+        "companyName": "Fixture Corp",
+        "decimals": 6,
+        "issuer": "Trek Nexus Markets Ltd",
+        "legalIssuerName": "Trek Nexus Markets Ltd",
+        "mint": "2xea9jWJ9eca3dFiefTeSPP85c6qXqunCqL2h2JNffMW",
+        "network": "solana-mainnet",
+        "productName": "Fixture Corp Tokenized Stock",
+        "providerName": "Backpack Securities",
+        "registryIdentityDigest": "b0f2b6e024f0b6f3aa74c7e170a478d4a2f099e624d9fb604eae901724abf3d0",
+        "symbol": "FIXT",
+        "tokenProgram": "token-2022"
+      },
+      "requestAmountKind": "input",
+      "requestedMaximumSpendAtomic": null,
+      "requestedShareQuantity": null,
+      "shareQuantitySemantics": null,
+      "shareQuantityUnit": null,
+      "symbol": "FIXT"
+    },
+    "tradeSummaryDigest": "4f419cdb96680c66c8ccc10a9f174cf7a8d79e111661237562028a4980dc1bf1",
+    "quote": {
+      "expectedOutputAtomic": "1489742500",
+      "expiresAtUnixMs": 1787270430000,
+      "feeSummary": {
+        "networkFee": {
+          "amountLamports": null,
+          "status": "not-yet-calculated"
+        },
+        "platformFee": {
+          "amountAtomic": "11257500",
+          "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+        },
+        "routeFees": [],
+        "serviceFee": {
+          "feeAccount": "4iYFsZcZXQLTfykuzRwY19SxRja53Vm6jSf6CuTx6Kjt",
+          "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "owner": "4nTZ1s5a7hdgp51RRjGTJ2DiftnGiZSvHrKkGHWYqf4b",
+          "quotedFeeAmountAtomic": "11257500",
+          "rateBps": 75,
+          "side": "output",
+          "tokenProgram": "spl-token",
+          "version": "dexter-jupiter-service-fee/v1"
+        },
+        "summary": "Trading fees are included in this quote; network fee is calculated at execution."
+      },
+      "inputAmountAtomic": "10000000",
+      "inputMint": "2xea9jWJ9eca3dFiefTeSPP85c6qXqunCqL2h2JNffMW",
+      "instructionBundleDigest": "0aaca083516ffee02b0483da14320be70bee420db1a38c45d260717b5066a7bd",
+      "minimumOutputAtomic": "1474845075",
+      "outputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "priceImpactBps": 10,
+      "provider": "jupiter-v2",
+      "quoteId": "cab19982-6798-8378-9b01-a6a13e82027a",
+      "routeDigest": "0118deea44865871c4a7926d57a85bedb6f9b8d70d7cac85ec8c97125b8e8197",
+      "routeProgramIds": [
+        "2RJD1KnDRGEkvuFfAGrJ7PD28LRE9LRDjZznDywagzmr",
+        "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4"
+      ],
+      "serviceFee": {
+        "feeAccount": "4iYFsZcZXQLTfykuzRwY19SxRja53Vm6jSf6CuTx6Kjt",
+        "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "owner": "4nTZ1s5a7hdgp51RRjGTJ2DiftnGiZSvHrKkGHWYqf4b",
+        "quotedFeeAmountAtomic": "11257500",
+        "rateBps": 75,
+        "side": "output",
+        "tokenProgram": "spl-token",
+        "version": "dexter-jupiter-service-fee/v1"
+      },
+      "slippageBps": 100,
+      "venueIds": [
+        "GoonFi V2"
+      ]
+    },
+    "coordinateDigest": "0fe917521527bc488e660df50741ed47db229335d344ae4207784d88682f5da0",
+    "planDigest": "37dc9cfcc2a20c2734863194e8205d3c75fa1b786414af7ecd020f978687f18f",
+    "metadata": {
+      "requestIdentityHash": "49ab78c191f475825d8ccc6905ab42ccb930683de8bfec17c21893f70174ef58",
+      "intentHash": "a811fdcdbae0df5e172da4f34e1d4b51b2eb7d1056ddcb5c20921dbc9f85b2fd",
+      "preparedPlanHash": "f7243299c520fd1858ae56a28215da8b9fc8870373e96ed355efebf14a899123",
+      "instructionPlanDigest": "e33931d6f1b00e3df4f7ebb6058b68ea78e79eab6235a4ae2d5d8c53e656853f",
+      "quoteCommitmentDigest": "887999a532afe6a08bd6f3bf61137757acef7a608bbb24c55dab3ac68bd72f86",
+      "genericRuntimeReleaseDigest": "6666666666666666666666666666666666666666666666666666666666666666",
+      "genericAvailabilityReceiptDigest": "b8578567143c9015af8c8bf9209388c74a0f52666ad3cbe2910b18bc279e37f2",
+      "canonicalIdentity": {
+        "accountSetDigest": "aa12ce367fa75b4231b6ea2a60ded08286848dbc0b6fcc91cd3af5fd2f99af63",
+        "action": "sell",
+        "actor": "agent",
+        "amountAtomic": "10000000",
+        "assetId": "catalog-fixture-stock",
+        "assetMint": "2xea9jWJ9eca3dFiefTeSPP85c6qXqunCqL2h2JNffMW",
+        "authorityDecisionDigest": "8888888888888888888888888888888888888888888888888888888888888888",
+        "destinationOwner": null,
+        "genesisHash": "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d",
+        "instructionBundleDigest": "0aaca083516ffee02b0483da14320be70bee420db1a38c45d260717b5066a7bd",
+        "instructionPlanDigest": "e33931d6f1b00e3df4f7ebb6058b68ea78e79eab6235a4ae2d5d8c53e656853f",
+        "intentHash": "a811fdcdbae0df5e172da4f34e1d4b51b2eb7d1056ddcb5c20921dbc9f85b2fd",
+        "namespace": "dexter-governed-asset-prepared-plan/v1",
+        "policyId": "governed-stock-category-v2",
+        "policyRevision": "stock-category-v2:029900d9e3a6db9cc76219969fe8be5dc96fc489e23ea64de6eec12c11cf86e1",
+        "quoteCommitmentDigest": "887999a532afe6a08bd6f3bf61137757acef7a608bbb24c55dab3ac68bd72f86",
+        "quoteId": "cab19982-6798-8378-9b01-a6a13e82027a",
+        "quoteRouteDigest": "0118deea44865871c4a7926d57a85bedb6f9b8d70d7cac85ec8c97125b8e8197",
+        "requestId": "stock.prepare.fee-output-sell",
+        "requestIdentityHash": "49ab78c191f475825d8ccc6905ab42ccb930683de8bfec17c21893f70174ef58",
+        "sessionBindingDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "stateDigest": "a60df8d9f3459eebd69806a40b82c1801d935ce84ee47a771b5c3eb547eac1c5",
+        "stateObservedSlot": 100,
+        "stockSelection": {
+          "assetId": "catalog-fixture-stock",
+          "companyName": "Fixture Corp",
+          "decimals": 6,
+          "executionProfileDigest": "5555555555555555555555555555555555555555555555555555555555555555",
+          "executionProfileVersionId": "33333333-3333-4333-8333-333333333333",
+          "executionReleaseId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "legalIssuerName": "Trek Nexus Markets Ltd",
+          "mint": "2xea9jWJ9eca3dFiefTeSPP85c6qXqunCqL2h2JNffMW",
+          "namespace": "dexter-governed-stock-selection-pin/v1",
+          "normalizedCompanyQuery": "fixture corp",
+          "onchainVersionDigest": "4444444444444444444444444444444444444444444444444444444444444444",
+          "onchainVersionId": "99999999-9999-4999-8999-999999999999",
+          "productName": "Fixture Corp Tokenized Stock",
+          "productSymbol": "FIXT",
+          "productVersionDigest": "6666666666666666666666666666666666666666666666666666666666666666",
+          "productVersionId": "88888888-8888-4888-8888-888888888888",
+          "providerName": "Backpack Securities",
+          "registryIdentityDigest": "b0f2b6e024f0b6f3aa74c7e170a478d4a2f099e624d9fb604eae901724abf3d0",
+          "releaseDigest": "438a10841dddb0efe78a25412b12a4e05fbeabc89e60a1d1e07a3d935492925f",
+          "selectedVariantId": "77777777-7777-4777-8777-777777777777",
+          "selectionDigest": "3333333333333333333333333333333333333333333333333333333333333333",
+          "selectionEventId": "12345678-1234-4234-8234-1234567890ac",
+          "selectionSequence": "1",
+          "tokenProgram": "token-2022",
+          "underlyingId": "12345678-1234-4234-8234-1234567890ab",
+          "underlyingIdentityDigest": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        "tokenProgram": "token-2022",
+        "vaultPda": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+        "walletAddress": "YMN9Qj5jPNp7j14VPcML1B6xGgcPWVZUGLFU3Mnyfaf"
+      },
+      "authorityDecisionIntentHash": "a811fdcdbae0df5e172da4f34e1d4b51b2eb7d1056ddcb5c20921dbc9f85b2fd",
+      "authorityDecisionDigest": "8888888888888888888888888888888888888888888888888888888888888888",
+      "stateObservedSlot": 100,
+      "stateDigest": "a60df8d9f3459eebd69806a40b82c1801d935ce84ee47a771b5c3eb547eac1c5",
+      "accountSetDigest": "aa12ce367fa75b4231b6ea2a60ded08286848dbc0b6fcc91cd3af5fd2f99af63",
+      "agentId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      "grantId": "66666666-6666-4666-8666-666666666666",
+      "grantRevision": 1,
+      "grantRevisionDigest": "2222222222222222222222222222222222222222222222222222222222222222",
+      "grantRuleId": "ee3905b2-a312-863f-babd-3adfc3b6ac89",
+      "authorityPrincipalBindingDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    },
+    "feeSummaryDigest": "c77eca19f766500c1f591e8508c9372123aebed56edf1a63f3beba0aec99e62f"
+  },
+  "runtimeReceipt": {
+    "namespace": "dexter-delegated-stock-prepare-runtime-result/v2",
+    "runtimeReleaseDigest": "7777777777777777777777777777777777777777777777777777777777777777",
+    "requestClaimDigest": "3f704a4d701913b6e741d499b64be1eb4a7c8fc85b18d4fbef8413bd8cb68f01",
+    "durableIdentityDigest": "dcc129c32a9c11d894b9a308642643c4f2c05ea09cf662a0464c3b48adabb5b6",
+    "result": {
+      "namespace": "dexter-governed-agent-action/v1",
+      "status": "prepared",
+      "executed": false,
+      "requestId": "stock-route-request-0001",
+      "intentId": "00000000-0000-4000-8000-000000000105",
+      "planId": "f7243299c520fd1858ae56a28215da8b9fc8870373e96ed355efebf14a899123",
+      "replayed": false,
+      "attribution": {
+        "actor": "agent",
+        "runtime": {
+          "source": "mcp-link-token",
+          "agentId": "00000000-0000-4000-8000-000000000102",
+          "linkTokenId": "00000000-0000-4000-8000-000000000101",
+          "surfaceBindingDigest": "1111111111111111111111111111111111111111111111111111111111111111",
+          "sessionBindingDigest": "2222222222222222222222222222222222222222222222222222222222222222"
+        },
+        "wallet": {
+          "vaultPda": "HqznL4EpJTbWZmqqetb4sJPftBUN1s6uNdQURBAfAsBr",
+          "swigAddress": "2iXtA8oeZqUU5pofxK971TCEvFGfems2AcDRaZHKD2pQ",
+          "walletAddress": "5eUm8K9YiCqAxtyZgmmN1NGhmD3D2C9Azp2Za7nxwhiN"
+        },
+        "grant": {
+          "authorityNamespace": "stock-category-v2",
+          "id": "00000000-0000-4000-8000-000000000103",
+          "revision": 3,
+          "revisionDigest": "3333333333333333333333333333333333333333333333333333333333333333",
+          "categoryRuleId": "00000000-0000-4000-8000-000000000104",
+          "categoryRuleDigest": "3333333333333333333333333333333333333333333333333333333333333333",
+          "grantBindingId": "00000000-0000-4000-8000-000000000118",
+          "apiRuntimeAdmissionDigest": "7777777777777777777777777777777777777777777777777777777777777777",
+          "attestorVerifierTrustSetDigest": "8888888888888888888888888888888888888888888888888888888888888888",
+          "graphConfigAccount": "7LSfLv2S6K7zMPrgmJDkZoJNhWvWRzpU7qt9uMR5yz8G",
+          "graphConfigAccountDataSha256": "9999999999999999999999999999999999999999999999999999999999999999",
+          "riskPolicyDigest": "4444444444444444444444444444444444444444444444444444444444444444",
+          "validFrom": "2026-08-20T00:00:00.000Z",
+          "expiresAt": "2026-08-22T00:00:00.000Z"
+        }
+      },
+      "approval": {
+        "status": "not-required",
+        "reasons": []
+      },
+      "effectiveExpiresAt": "2026-08-21T00:00:30.000Z",
+      "riskEvidenceDigest": "5555555555555555555555555555555555555555555555555555555555555555",
+      "authoritySnapshotDigest": "6666666666666666666666666666666666666666666666666666666666666666",
+      "preview": {
+        "action": "sell",
+        "assetId": "catalog-fixture-stock",
+        "symbol": "FIXT",
+        "amountAtomic": "10000000",
+        "requestAmountKind": "input",
+        "requestedShareQuantity": null,
+        "expectedShareQuantity": null,
+        "minimumShareQuantity": null,
+        "shareQuantityUnit": null,
+        "shareQuantitySemantics": null,
+        "shareQuantityConversion": null,
+        "requestedMaximumSpendAtomic": null,
+        "maximumInputAmountAtomic": "10000000",
+        "overfillPossible": false,
+        "productIdentity": {
+          "assetClass": "stock",
+          "assetId": "catalog-fixture-stock",
+          "companyName": "Fixture Corp",
+          "decimals": 6,
+          "issuer": "Trek Nexus Markets Ltd",
+          "legalIssuerName": "Trek Nexus Markets Ltd",
+          "mint": "2xea9jWJ9eca3dFiefTeSPP85c6qXqunCqL2h2JNffMW",
+          "network": "solana-mainnet",
+          "productName": "Fixture Corp Tokenized Stock",
+          "providerName": "Backpack Securities",
+          "registryIdentityDigest": "b0f2b6e024f0b6f3aa74c7e170a478d4a2f099e624d9fb604eae901724abf3d0",
+          "symbol": "FIXT",
+          "tokenProgram": "token-2022"
+        },
+        "stockSelection": {
+          "assetId": "catalog-fixture-stock",
+          "companyName": "Fixture Corp",
+          "decimals": 6,
+          "executionProfileDigest": "5555555555555555555555555555555555555555555555555555555555555555",
+          "executionProfileVersionId": "33333333-3333-4333-8333-333333333333",
+          "executionReleaseId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "legalIssuerName": "Trek Nexus Markets Ltd",
+          "mint": "2xea9jWJ9eca3dFiefTeSPP85c6qXqunCqL2h2JNffMW",
+          "namespace": "dexter-governed-stock-selection-pin/v1",
+          "normalizedCompanyQuery": "fixture corp",
+          "onchainVersionDigest": "4444444444444444444444444444444444444444444444444444444444444444",
+          "onchainVersionId": "99999999-9999-4999-8999-999999999999",
+          "productName": "Fixture Corp Tokenized Stock",
+          "productSymbol": "FIXT",
+          "productVersionDigest": "6666666666666666666666666666666666666666666666666666666666666666",
+          "productVersionId": "88888888-8888-4888-8888-888888888888",
+          "providerName": "Backpack Securities",
+          "registryIdentityDigest": "b0f2b6e024f0b6f3aa74c7e170a478d4a2f099e624d9fb604eae901724abf3d0",
+          "releaseDigest": "438a10841dddb0efe78a25412b12a4e05fbeabc89e60a1d1e07a3d935492925f",
+          "selectedVariantId": "77777777-7777-4777-8777-777777777777",
+          "selectionDigest": "3333333333333333333333333333333333333333333333333333333333333333",
+          "selectionEventId": "12345678-1234-4234-8234-1234567890ac",
+          "selectionSequence": "1",
+          "tokenProgram": "token-2022",
+          "underlyingId": "12345678-1234-4234-8234-1234567890ab",
+          "underlyingIdentityDigest": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        "feeSummary": {
+          "networkFee": {
+            "amountLamports": null,
+            "status": "not-yet-calculated"
+          },
+          "platformFee": {
+            "amountAtomic": "11257500",
+            "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+          },
+          "routeFees": [],
+          "serviceFee": {
+            "feeAccount": "4iYFsZcZXQLTfykuzRwY19SxRja53Vm6jSf6CuTx6Kjt",
+            "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "owner": "4nTZ1s5a7hdgp51RRjGTJ2DiftnGiZSvHrKkGHWYqf4b",
+            "quotedFeeAmountAtomic": "11257500",
+            "rateBps": 75,
+            "side": "output",
+            "tokenProgram": "spl-token",
+            "version": "dexter-jupiter-service-fee/v1"
+          },
+          "summary": "Trading fees are included in this quote; network fee is calculated at execution."
+        },
+        "inputMint": "2xea9jWJ9eca3dFiefTeSPP85c6qXqunCqL2h2JNffMW",
+        "outputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "destinationOwner": null,
+        "expectedOutputAtomic": "1489742500",
+        "minimumOutputAtomic": "1474845075",
+        "slippageBps": 100,
+        "priceImpactBps": 10,
+        "quoteExpiresAtUnixMs": 1787270430000
+      },
+      "account": {
+        "status": "required",
+        "rentLedgerState": "reserved",
+        "tokenAccountAddress": "6q6ZrFEmXcPA5GdmjbPybcrVKteXxgwXSVN6hsb7RMJN",
+        "ownerAddress": "5eUm8K9YiCqAxtyZgmmN1NGhmD3D2C9Azp2Za7nxwhiN",
+        "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "tokenProgram": "spl-token",
+        "payerAddress": "GhFJh9xhWQULf6W1WJLNTViiTWEs4wAj3FevZ616wxL2",
+        "exactRentLamports": "2039280",
+        "fundingPolicy": "user-funded-nonreclaimable",
+        "rentLedgerId": "00000000-0000-4000-8000-000000000118",
+        "rentLedgerReplayed": false,
+        "fundedLamports": null
+      },
+      "business": {
+        "action": "sell",
+        "assetId": "catalog-fixture-stock",
+        "requestedCompanyQuery": "fixture corp",
+        "amountAtomic": "10000000",
+        "destinationOwner": null,
+        "protocolId": "jupiter-v2",
+        "lifecycle": "prepared",
+        "settlement": "not-submitted",
+        "finality": "not-final",
+        "executionSucceeded": null,
+        "programError": false,
+        "refusalOrEscalationReasons": [],
+        "ambiguity": {
+          "status": "none",
+          "retrySameRequestOnly": false
+        },
+        "reconciliation": {
+          "required": false,
+          "availableToOwner": false
+        }
+      },
+      "execution": {
+        "status": "not-executed",
+        "signed": false,
+        "submitted": false
+      }
+    }
+  },
+  "prepared": {
+    "namespace": "dexter-governed-agent-action/v1",
+    "status": "prepared",
+    "executed": false,
+    "requestId": "stock-route-request-0001",
+    "intentId": "00000000-0000-4000-8000-000000000105",
+    "planId": "f7243299c520fd1858ae56a28215da8b9fc8870373e96ed355efebf14a899123",
+    "replayed": false,
+    "attribution": {
+      "actor": "agent",
+      "runtime": {
+        "source": "mcp-link-token",
+        "agentId": "00000000-0000-4000-8000-000000000102",
+        "linkTokenId": "00000000-0000-4000-8000-000000000101",
+        "surfaceBindingDigest": "1111111111111111111111111111111111111111111111111111111111111111",
+        "sessionBindingDigest": "2222222222222222222222222222222222222222222222222222222222222222"
+      },
+      "wallet": {
+        "vaultPda": "HqznL4EpJTbWZmqqetb4sJPftBUN1s6uNdQURBAfAsBr",
+        "swigAddress": "2iXtA8oeZqUU5pofxK971TCEvFGfems2AcDRaZHKD2pQ",
+        "walletAddress": "5eUm8K9YiCqAxtyZgmmN1NGhmD3D2C9Azp2Za7nxwhiN"
+      },
+      "grant": {
+        "id": "00000000-0000-4000-8000-000000000103",
+        "revision": 3,
+        "revisionDigest": "3333333333333333333333333333333333333333333333333333333333333333",
+        "authorityNamespace": "stock-category-v2",
+        "categoryRuleId": "00000000-0000-4000-8000-000000000104",
+        "categoryRuleDigest": "3333333333333333333333333333333333333333333333333333333333333333",
+        "grantBindingId": "00000000-0000-4000-8000-000000000118",
+        "apiRuntimeAdmissionDigest": "7777777777777777777777777777777777777777777777777777777777777777",
+        "attestorVerifierTrustSetDigest": "8888888888888888888888888888888888888888888888888888888888888888",
+        "graphConfigAccount": "7LSfLv2S6K7zMPrgmJDkZoJNhWvWRzpU7qt9uMR5yz8G",
+        "graphConfigAccountDataSha256": "9999999999999999999999999999999999999999999999999999999999999999",
+        "riskPolicyDigest": "4444444444444444444444444444444444444444444444444444444444444444",
+        "validFrom": "2026-08-20T00:00:00.000Z",
+        "expiresAt": "2026-08-22T00:00:00.000Z"
+      }
+    },
+    "approval": {
+      "status": "not-required",
+      "reasons": []
+    },
+    "effectiveExpiresAt": "2026-08-21T00:00:30.000Z",
+    "riskEvidenceDigest": "5555555555555555555555555555555555555555555555555555555555555555",
+    "authoritySnapshotDigest": "6666666666666666666666666666666666666666666666666666666666666666",
+    "stockRuntime": {
+      "namespace": "dexter-delegated-stock-prepare-runtime-binding/v2",
+      "runtimeReleaseDigest": "7777777777777777777777777777777777777777777777777777777777777777",
+      "requestClaimDigest": "3f704a4d701913b6e741d499b64be1eb4a7c8fc85b18d4fbef8413bd8cb68f01",
+      "durableIdentityDigest": "dcc129c32a9c11d894b9a308642643c4f2c05ea09cf662a0464c3b48adabb5b6"
+    },
+    "preview": {
+      "action": "sell",
+      "assetId": "catalog-fixture-stock",
+      "symbol": "FIXT",
+      "amountAtomic": "10000000",
+      "requestAmountKind": "input",
+      "requestedShareQuantity": null,
+      "expectedShareQuantity": null,
+      "minimumShareQuantity": null,
+      "shareQuantityUnit": null,
+      "shareQuantitySemantics": null,
+      "shareQuantityConversion": null,
+      "requestedMaximumSpendAtomic": null,
+      "maximumInputAmountAtomic": "10000000",
+      "overfillPossible": false,
+      "productIdentity": {
+        "assetId": "catalog-fixture-stock",
+        "assetClass": "stock",
+        "companyName": "Fixture Corp",
+        "productName": "Fixture Corp Tokenized Stock",
+        "symbol": "FIXT",
+        "providerName": "Backpack Securities",
+        "legalIssuerName": "Trek Nexus Markets Ltd",
+        "issuer": "Trek Nexus Markets Ltd",
+        "mint": "2xea9jWJ9eca3dFiefTeSPP85c6qXqunCqL2h2JNffMW",
+        "tokenProgram": "token-2022",
+        "decimals": 6,
+        "network": "solana-mainnet",
+        "registryIdentityDigest": "b0f2b6e024f0b6f3aa74c7e170a478d4a2f099e624d9fb604eae901724abf3d0"
+      },
+      "stockSelection": {
+        "namespace": "dexter-governed-stock-selection-pin/v1",
+        "normalizedCompanyQuery": "fixture corp",
+        "companyName": "Fixture Corp",
+        "productName": "Fixture Corp Tokenized Stock",
+        "productSymbol": "FIXT",
+        "providerName": "Backpack Securities",
+        "legalIssuerName": "Trek Nexus Markets Ltd",
+        "underlyingId": "12345678-1234-4234-8234-1234567890ab",
+        "underlyingIdentityDigest": "1111111111111111111111111111111111111111111111111111111111111111",
+        "selectionEventId": "12345678-1234-4234-8234-1234567890ac",
+        "selectionSequence": "1",
+        "selectionDigest": "3333333333333333333333333333333333333333333333333333333333333333",
+        "selectedVariantId": "77777777-7777-4777-8777-777777777777",
+        "assetId": "catalog-fixture-stock",
+        "productVersionId": "88888888-8888-4888-8888-888888888888",
+        "productVersionDigest": "6666666666666666666666666666666666666666666666666666666666666666",
+        "onchainVersionId": "99999999-9999-4999-8999-999999999999",
+        "onchainVersionDigest": "4444444444444444444444444444444444444444444444444444444444444444",
+        "executionProfileVersionId": "33333333-3333-4333-8333-333333333333",
+        "executionProfileDigest": "5555555555555555555555555555555555555555555555555555555555555555",
+        "executionReleaseId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "releaseDigest": "438a10841dddb0efe78a25412b12a4e05fbeabc89e60a1d1e07a3d935492925f",
+        "registryIdentityDigest": "b0f2b6e024f0b6f3aa74c7e170a478d4a2f099e624d9fb604eae901724abf3d0",
+        "mint": "2xea9jWJ9eca3dFiefTeSPP85c6qXqunCqL2h2JNffMW",
+        "tokenProgram": "token-2022",
+        "decimals": 6
+      },
+      "feeSummary": {
+        "networkFee": {
+          "amountLamports": null,
+          "status": "not-yet-calculated"
+        },
+        "platformFee": {
+          "amountAtomic": "11257500",
+          "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+        },
+        "routeFees": [],
+        "serviceFee": {
+          "feeAccount": "4iYFsZcZXQLTfykuzRwY19SxRja53Vm6jSf6CuTx6Kjt",
+          "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "owner": "4nTZ1s5a7hdgp51RRjGTJ2DiftnGiZSvHrKkGHWYqf4b",
+          "quotedFeeAmountAtomic": "11257500",
+          "rateBps": 75,
+          "side": "output",
+          "tokenProgram": "spl-token",
+          "version": "dexter-jupiter-service-fee/v1"
+        },
+        "summary": "Trading fees are included in this quote; network fee is calculated at execution."
+      },
+      "inputMint": "2xea9jWJ9eca3dFiefTeSPP85c6qXqunCqL2h2JNffMW",
+      "outputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "destinationOwner": null,
+      "expectedOutputAtomic": "1489742500",
+      "minimumOutputAtomic": "1474845075",
+      "slippageBps": 100,
+      "priceImpactBps": 10,
+      "quoteExpiresAtUnixMs": 1787270430000
+    },
+    "account": {
+      "status": "required",
+      "rentLedgerState": "reserved",
+      "tokenAccountAddress": "6q6ZrFEmXcPA5GdmjbPybcrVKteXxgwXSVN6hsb7RMJN",
+      "ownerAddress": "5eUm8K9YiCqAxtyZgmmN1NGhmD3D2C9Azp2Za7nxwhiN",
+      "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "tokenProgram": "spl-token",
+      "payerAddress": "GhFJh9xhWQULf6W1WJLNTViiTWEs4wAj3FevZ616wxL2",
+      "exactRentLamports": "2039280",
+      "fundingPolicy": "user-funded-nonreclaimable",
+      "rentLedgerId": "00000000-0000-4000-8000-000000000118",
+      "rentLedgerReplayed": false,
+      "fundedLamports": null
+    },
+    "business": {
+      "action": "sell",
+      "assetId": "catalog-fixture-stock",
+      "requestedCompanyQuery": "fixture corp",
+      "amountAtomic": "10000000",
+      "destinationOwner": null,
+      "protocolId": "jupiter-v2",
+      "lifecycle": "prepared",
+      "settlement": "not-submitted",
+      "finality": "not-final",
+      "executionSucceeded": null,
+      "programError": false,
+      "refusalOrEscalationReasons": [],
+      "ambiguity": {
+        "status": "none",
+        "retrySameRequestOnly": false
+      },
+      "reconciliation": {
+        "required": false,
+        "availableToOwner": false
+      }
+    },
+    "execution": {
+      "status": "not-executed",
+      "signed": false,
+      "submitted": false
+    }
+  },
+  "recovered": {
+    "namespace": "dexter-governed-agent-action/v1",
+    "status": "prepared",
+    "executed": false,
+    "requestId": "stock-route-request-0001",
+    "intentId": "00000000-0000-4000-8000-000000000105",
+    "planId": "f7243299c520fd1858ae56a28215da8b9fc8870373e96ed355efebf14a899123",
+    "replayed": true,
+    "attribution": {
+      "actor": "agent",
+      "runtime": {
+        "source": "mcp-link-token",
+        "agentId": "00000000-0000-4000-8000-000000000102",
+        "linkTokenId": "00000000-0000-4000-8000-000000000101",
+        "surfaceBindingDigest": "1111111111111111111111111111111111111111111111111111111111111111",
+        "sessionBindingDigest": "2222222222222222222222222222222222222222222222222222222222222222"
+      },
+      "wallet": {
+        "vaultPda": "HqznL4EpJTbWZmqqetb4sJPftBUN1s6uNdQURBAfAsBr",
+        "swigAddress": "2iXtA8oeZqUU5pofxK971TCEvFGfems2AcDRaZHKD2pQ",
+        "walletAddress": "5eUm8K9YiCqAxtyZgmmN1NGhmD3D2C9Azp2Za7nxwhiN"
+      },
+      "grant": {
+        "id": "00000000-0000-4000-8000-000000000103",
+        "revision": 3,
+        "revisionDigest": "3333333333333333333333333333333333333333333333333333333333333333",
+        "authorityNamespace": "stock-category-v2",
+        "categoryRuleId": "00000000-0000-4000-8000-000000000104",
+        "categoryRuleDigest": "3333333333333333333333333333333333333333333333333333333333333333",
+        "grantBindingId": "00000000-0000-4000-8000-000000000118",
+        "apiRuntimeAdmissionDigest": "7777777777777777777777777777777777777777777777777777777777777777",
+        "attestorVerifierTrustSetDigest": "8888888888888888888888888888888888888888888888888888888888888888",
+        "graphConfigAccount": "7LSfLv2S6K7zMPrgmJDkZoJNhWvWRzpU7qt9uMR5yz8G",
+        "graphConfigAccountDataSha256": "9999999999999999999999999999999999999999999999999999999999999999",
+        "riskPolicyDigest": "4444444444444444444444444444444444444444444444444444444444444444",
+        "validFrom": "2026-08-20T00:00:00.000Z",
+        "expiresAt": "2026-08-22T00:00:00.000Z"
+      }
+    },
+    "approval": {
+      "status": "not-required",
+      "reasons": []
+    },
+    "effectiveExpiresAt": "2026-08-21T00:00:30.000Z",
+    "riskEvidenceDigest": "5555555555555555555555555555555555555555555555555555555555555555",
+    "authoritySnapshotDigest": "6666666666666666666666666666666666666666666666666666666666666666",
+    "stockRuntime": {
+      "namespace": "dexter-delegated-stock-prepare-runtime-binding/v2",
+      "runtimeReleaseDigest": "7777777777777777777777777777777777777777777777777777777777777777",
+      "requestClaimDigest": "3f704a4d701913b6e741d499b64be1eb4a7c8fc85b18d4fbef8413bd8cb68f01",
+      "durableIdentityDigest": "dcc129c32a9c11d894b9a308642643c4f2c05ea09cf662a0464c3b48adabb5b6"
+    },
+    "preview": {
+      "action": "sell",
+      "assetId": "catalog-fixture-stock",
+      "symbol": "FIXT",
+      "amountAtomic": "10000000",
+      "requestAmountKind": "input",
+      "requestedShareQuantity": null,
+      "expectedShareQuantity": null,
+      "minimumShareQuantity": null,
+      "shareQuantityUnit": null,
+      "shareQuantitySemantics": null,
+      "shareQuantityConversion": null,
+      "requestedMaximumSpendAtomic": null,
+      "maximumInputAmountAtomic": "10000000",
+      "overfillPossible": false,
+      "productIdentity": {
+        "assetId": "catalog-fixture-stock",
+        "assetClass": "stock",
+        "companyName": "Fixture Corp",
+        "productName": "Fixture Corp Tokenized Stock",
+        "symbol": "FIXT",
+        "providerName": "Backpack Securities",
+        "legalIssuerName": "Trek Nexus Markets Ltd",
+        "issuer": "Trek Nexus Markets Ltd",
+        "mint": "2xea9jWJ9eca3dFiefTeSPP85c6qXqunCqL2h2JNffMW",
+        "tokenProgram": "token-2022",
+        "decimals": 6,
+        "network": "solana-mainnet",
+        "registryIdentityDigest": "b0f2b6e024f0b6f3aa74c7e170a478d4a2f099e624d9fb604eae901724abf3d0"
+      },
+      "stockSelection": {
+        "namespace": "dexter-governed-stock-selection-pin/v1",
+        "normalizedCompanyQuery": "fixture corp",
+        "companyName": "Fixture Corp",
+        "productName": "Fixture Corp Tokenized Stock",
+        "productSymbol": "FIXT",
+        "providerName": "Backpack Securities",
+        "legalIssuerName": "Trek Nexus Markets Ltd",
+        "underlyingId": "12345678-1234-4234-8234-1234567890ab",
+        "underlyingIdentityDigest": "1111111111111111111111111111111111111111111111111111111111111111",
+        "selectionEventId": "12345678-1234-4234-8234-1234567890ac",
+        "selectionSequence": "1",
+        "selectionDigest": "3333333333333333333333333333333333333333333333333333333333333333",
+        "selectedVariantId": "77777777-7777-4777-8777-777777777777",
+        "assetId": "catalog-fixture-stock",
+        "productVersionId": "88888888-8888-4888-8888-888888888888",
+        "productVersionDigest": "6666666666666666666666666666666666666666666666666666666666666666",
+        "onchainVersionId": "99999999-9999-4999-8999-999999999999",
+        "onchainVersionDigest": "4444444444444444444444444444444444444444444444444444444444444444",
+        "executionProfileVersionId": "33333333-3333-4333-8333-333333333333",
+        "executionProfileDigest": "5555555555555555555555555555555555555555555555555555555555555555",
+        "executionReleaseId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "releaseDigest": "438a10841dddb0efe78a25412b12a4e05fbeabc89e60a1d1e07a3d935492925f",
+        "registryIdentityDigest": "b0f2b6e024f0b6f3aa74c7e170a478d4a2f099e624d9fb604eae901724abf3d0",
+        "mint": "2xea9jWJ9eca3dFiefTeSPP85c6qXqunCqL2h2JNffMW",
+        "tokenProgram": "token-2022",
+        "decimals": 6
+      },
+      "feeSummary": {
+        "networkFee": {
+          "amountLamports": null,
+          "status": "not-yet-calculated"
+        },
+        "platformFee": {
+          "amountAtomic": "11257500",
+          "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+        },
+        "routeFees": [],
+        "serviceFee": {
+          "feeAccount": "4iYFsZcZXQLTfykuzRwY19SxRja53Vm6jSf6CuTx6Kjt",
+          "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "owner": "4nTZ1s5a7hdgp51RRjGTJ2DiftnGiZSvHrKkGHWYqf4b",
+          "quotedFeeAmountAtomic": "11257500",
+          "rateBps": 75,
+          "side": "output",
+          "tokenProgram": "spl-token",
+          "version": "dexter-jupiter-service-fee/v1"
+        },
+        "summary": "Trading fees are included in this quote; network fee is calculated at execution."
+      },
+      "inputMint": "2xea9jWJ9eca3dFiefTeSPP85c6qXqunCqL2h2JNffMW",
+      "outputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "destinationOwner": null,
+      "expectedOutputAtomic": "1489742500",
+      "minimumOutputAtomic": "1474845075",
+      "slippageBps": 100,
+      "priceImpactBps": 10,
+      "quoteExpiresAtUnixMs": 1787270430000
+    },
+    "account": {
+      "status": "required",
+      "rentLedgerState": "reserved",
+      "tokenAccountAddress": "6q6ZrFEmXcPA5GdmjbPybcrVKteXxgwXSVN6hsb7RMJN",
+      "ownerAddress": "5eUm8K9YiCqAxtyZgmmN1NGhmD3D2C9Azp2Za7nxwhiN",
+      "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "tokenProgram": "spl-token",
+      "payerAddress": "GhFJh9xhWQULf6W1WJLNTViiTWEs4wAj3FevZ616wxL2",
+      "exactRentLamports": "2039280",
+      "fundingPolicy": "user-funded-nonreclaimable",
+      "rentLedgerId": "00000000-0000-4000-8000-000000000118",
+      "rentLedgerReplayed": false,
+      "fundedLamports": null
+    },
+    "business": {
+      "action": "sell",
+      "assetId": "catalog-fixture-stock",
+      "requestedCompanyQuery": "fixture corp",
+      "amountAtomic": "10000000",
+      "destinationOwner": null,
+      "protocolId": "jupiter-v2",
+      "lifecycle": "prepared",
+      "settlement": "not-submitted",
+      "finality": "not-final",
+      "executionSucceeded": null,
+      "programError": false,
+      "refusalOrEscalationReasons": [],
+      "ambiguity": {
+        "status": "none",
+        "retrySameRequestOnly": false
+      },
+      "reconciliation": {
+        "required": false,
+        "availableToOwner": false
+      }
+    },
+    "execution": {
+      "status": "not-executed",
+      "signed": false,
+      "submitted": false
+    }
+  }
+}
