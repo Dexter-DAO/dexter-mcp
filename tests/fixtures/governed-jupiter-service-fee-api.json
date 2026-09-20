@@ -1,0 +1,173 @@
+{
+  "capturedAt": "2026-09-17T20:32:04.493055+00:00",
+  "apiBase": "8c3f3269f478a89b0e09b73a373cdefd2581e4a1",
+  "sourceStatus": "Uncommitted producer under Wallet implementation; not a frozen or deployed API successor",
+  "sourceHashes": {
+    "src/portfolio/governedWrites/types.ts": "4359623fc20834aec383e5de834dea065214c9676b0aa613ad8f2d80b67d3df0",
+    "src/portfolio/governedWrites/governedTradingFee.ts": "74bfc86257ffaa588e4a81bf4469ef68047793e0fb66f8bac61780564c884744",
+    "src/portfolio/governedWrites/governedStockTradeSummary.ts": "2d5b73109bb6dfb92aaf126b546641e3e179cddedae69ffc82adbbdce4db9084"
+  },
+  "envelopeScope": "Actual producer fee/output fragments. Tests compose these unchanged fragments with existing synthetic delegated envelopes; not full API delegated HTTP or live provider proof.",
+  "cases": [
+    {
+      "name": "dexter-buy",
+      "artifactSha256": "0ce04afb86b58544137a94975f394130e5bd1a5bc689c8296ed4848fe5351106",
+      "provenance": "actual retrieveGovernedJupiterSwapPlan and prepareGovernedJupiterSwapWrite with synthetic provider/RPC fixtures",
+      "asset": "dexter",
+      "action": "buy",
+      "inputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "outputMint": "EfPoo4wWgxKVToit7yX5VtXXBrhao4G8L7vrbKy6pump",
+      "inputAmountAtomic": "1000000",
+      "expectedOutputAtomic": "942875",
+      "minimumOutputAtomic": "935804",
+      "feeSummary": {
+        "summary": "Trading fees are included in this quote; network fee is calculated at execution.",
+        "platformFee": {
+          "amountAtomic": "7500",
+          "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+        },
+        "serviceFee": {
+          "version": "dexter-jupiter-service-fee/v1",
+          "rateBps": 75,
+          "side": "input",
+          "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "tokenProgram": "spl-token",
+          "feeAccount": "4iYFsZcZXQLTfykuzRwY19SxRja53Vm6jSf6CuTx6Kjt",
+          "owner": "4nTZ1s5a7hdgp51RRjGTJ2DiftnGiZSvHrKkGHWYqf4b",
+          "quotedFeeAmountAtomic": "7500"
+        },
+        "routeFees": [
+          {
+            "amountAtomic": "100",
+            "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+          }
+        ],
+        "networkFee": {
+          "status": "not-yet-calculated",
+          "amountLamports": null
+        }
+      },
+      "assetDecimals": 6
+    },
+    {
+      "name": "dexter-sell",
+      "artifactSha256": "ca32754661762356542efa08df39c4eca3ef05f4f02fe6ebc12e1d89fcedf207",
+      "provenance": "actual retrieveGovernedJupiterSwapPlan and prepareGovernedJupiterSwapWrite with synthetic provider/RPC fixtures",
+      "asset": "dexter",
+      "action": "sell",
+      "inputMint": "EfPoo4wWgxKVToit7yX5VtXXBrhao4G8L7vrbKy6pump",
+      "outputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "inputAmountAtomic": "1000000",
+      "expectedOutputAtomic": "942875",
+      "minimumOutputAtomic": "935804",
+      "feeSummary": {
+        "summary": "Trading fees are included in this quote; network fee is calculated at execution.",
+        "platformFee": {
+          "amountAtomic": "7125",
+          "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+        },
+        "serviceFee": {
+          "version": "dexter-jupiter-service-fee/v1",
+          "rateBps": 75,
+          "side": "output",
+          "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "tokenProgram": "spl-token",
+          "feeAccount": "4iYFsZcZXQLTfykuzRwY19SxRja53Vm6jSf6CuTx6Kjt",
+          "owner": "4nTZ1s5a7hdgp51RRjGTJ2DiftnGiZSvHrKkGHWYqf4b",
+          "quotedFeeAmountAtomic": "7125"
+        },
+        "routeFees": [
+          {
+            "amountAtomic": "100",
+            "mint": "EfPoo4wWgxKVToit7yX5VtXXBrhao4G8L7vrbKy6pump"
+          }
+        ],
+        "networkFee": {
+          "status": "not-yet-calculated",
+          "amountLamports": null
+        }
+      },
+      "assetDecimals": 6
+    },
+    {
+      "name": "backpack-spcx-buy",
+      "artifactSha256": "617fdd4b0c8938160d0e2066702eaca89f14abd09fed1c174aba7afcb68b67ca",
+      "provenance": "actual retrieveGovernedJupiterSwapPlan and prepareGovernedJupiterSwapWrite with synthetic provider/RPC fixtures",
+      "asset": "backpack-spcx",
+      "action": "buy",
+      "inputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "outputMint": "SPCXxcqXj6e5dJDVNovHN8744zkbhM2bYudU45BimGb",
+      "inputAmountAtomic": "1000000",
+      "expectedOutputAtomic": "942875",
+      "minimumOutputAtomic": "935804",
+      "feeSummary": {
+        "summary": "Trading fees are included in this quote; network fee is calculated at execution.",
+        "platformFee": {
+          "amountAtomic": "7500",
+          "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+        },
+        "serviceFee": {
+          "version": "dexter-jupiter-service-fee/v1",
+          "rateBps": 75,
+          "side": "input",
+          "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "tokenProgram": "spl-token",
+          "feeAccount": "4iYFsZcZXQLTfykuzRwY19SxRja53Vm6jSf6CuTx6Kjt",
+          "owner": "4nTZ1s5a7hdgp51RRjGTJ2DiftnGiZSvHrKkGHWYqf4b",
+          "quotedFeeAmountAtomic": "7500"
+        },
+        "routeFees": [
+          {
+            "amountAtomic": "100",
+            "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+          }
+        ],
+        "networkFee": {
+          "status": "not-yet-calculated",
+          "amountLamports": null
+        }
+      },
+      "assetDecimals": 6
+    },
+    {
+      "name": "backpack-spcx-sell",
+      "artifactSha256": "22339d1093c390ff47a07006a1fdebc168e82186ca288316aea9d799e7aeb316",
+      "provenance": "actual retrieveGovernedJupiterSwapPlan and prepareGovernedJupiterSwapWrite with synthetic provider/RPC fixtures",
+      "asset": "backpack-spcx",
+      "action": "sell",
+      "inputMint": "SPCXxcqXj6e5dJDVNovHN8744zkbhM2bYudU45BimGb",
+      "outputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "inputAmountAtomic": "1000000",
+      "expectedOutputAtomic": "942875",
+      "minimumOutputAtomic": "935804",
+      "feeSummary": {
+        "summary": "Trading fees are included in this quote; network fee is calculated at execution.",
+        "platformFee": {
+          "amountAtomic": "7125",
+          "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+        },
+        "serviceFee": {
+          "version": "dexter-jupiter-service-fee/v1",
+          "rateBps": 75,
+          "side": "output",
+          "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "tokenProgram": "spl-token",
+          "feeAccount": "4iYFsZcZXQLTfykuzRwY19SxRja53Vm6jSf6CuTx6Kjt",
+          "owner": "4nTZ1s5a7hdgp51RRjGTJ2DiftnGiZSvHrKkGHWYqf4b",
+          "quotedFeeAmountAtomic": "7125"
+        },
+        "routeFees": [
+          {
+            "amountAtomic": "100",
+            "mint": "SPCXxcqXj6e5dJDVNovHN8744zkbhM2bYudU45BimGb"
+          }
+        ],
+        "networkFee": {
+          "status": "not-yet-calculated",
+          "amountLamports": null
+        }
+      },
+      "assetDecimals": 6
+    }
+  ]
+}

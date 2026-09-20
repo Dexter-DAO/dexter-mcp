@@ -16,15 +16,15 @@
     },
     "integratedApiRelease": {
       "repository": "https://github.com/Dexter-DAO/dexter-api",
-      "commit": "fef1be7e83e1900374f2bc2d8405967ccf4d24bc",
-      "tree": "b4c9a9db59cfd4e87c2b8d74565f42f81076c7dc",
-      "governedContractCommit": "8f3e2134e11b6c5995351dda55af64da00501992",
-      "governedContractTree": "a66c3365469eb1e40738ab1bb371ce37cbb5958f"
+      "commit": "372dacdebce2ddbd9d8531d05aab85f602ea6bf5",
+      "tree": "b2ea9b6393d6b63801a8abcfd160fcdc4beb81c9",
+      "governedContractCommit": "372dacdebce2ddbd9d8531d05aab85f602ea6bf5",
+      "governedContractTree": "b2ea9b6393d6b63801a8abcfd160fcdc4beb81c9"
     },
     "portfolioProjection": {
       "repository": "https://github.com/Dexter-DAO/dexter-api",
-      "commit": "fef1be7e83e1900374f2bc2d8405967ccf4d24bc",
-      "tree": "b4c9a9db59cfd4e87c2b8d74565f42f81076c7dc",
+      "commit": "372dacdebce2ddbd9d8531d05aab85f602ea6bf5",
+      "tree": "b2ea9b6393d6b63801a8abcfd160fcdc4beb81c9",
       "sourcePaths": [
         "src/portfolio/approvedActionTargets.ts",
         "src/routes/passkeyMcpBinding.ts",
@@ -39,8 +39,8 @@
     },
     "facilitator": {
       "repository": "https://github.com/Dexter-DAO/dexter-facilitator",
-      "commit": "09158b98f8a918c501543191b19362e22d86c6bc",
-      "tree": "4d25e276a168af6b52bfc2fc658b73022edd826e",
+      "commit": "55b7d087542c521174a58999dab4d62461f730b0",
+      "tree": "2c884efaed7cfc8b2f98b6af2e87a78c457b0932",
       "bindingFixture": {
         "consumerPath": "tests/fixtures/governed-agent-trade-api-facilitator-binding-vault-0434.json",
         "apiPath": "tests/fixtures/governed-agent-trade-api-facilitator-binding-v1.json",
@@ -8269,6 +8269,36 @@
                       },
                       "registryIdentityDigest": {
                         "$ref": "#/anyOf/0/properties/attribution/properties/runtime/properties/surfaceBindingDigest"
+                      },
+                      "amountModel": {
+                        "type": "string",
+                        "enum": [
+                          "raw-decimals",
+                          "scaled-ui-amount",
+                          "unknown"
+                        ]
+                      },
+                      "displayMultiplier": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 128,
+                            "pattern": "^(?:0|[1-9][0-9]*)(?:\\.[0-9]{0,63}[1-9])?$"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "amountObservedAtUnixMs": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "amountObservedAtSlot": {
+                        "type": "string",
+                        "maxLength": 16,
+                        "pattern": "^[1-9][0-9]*$"
                       }
                     },
                     "required": [
@@ -8450,6 +8480,56 @@
                             "type": "null"
                           }
                         ]
+                      },
+                      "serviceFee": {
+                        "type": "object",
+                        "properties": {
+                          "version": {
+                            "type": "string",
+                            "const": "dexter-jupiter-service-fee/v1"
+                          },
+                          "rateBps": {
+                            "type": "number",
+                            "const": 75
+                          },
+                          "side": {
+                            "type": "string",
+                            "enum": [
+                              "input",
+                              "output"
+                            ]
+                          },
+                          "mint": {
+                            "$ref": "#/anyOf/0/properties/preview/properties/stockSelection/properties/mint"
+                          },
+                          "tokenProgram": {
+                            "type": "string",
+                            "enum": [
+                              "spl-token",
+                              "token-2022"
+                            ]
+                          },
+                          "feeAccount": {
+                            "$ref": "#/anyOf/0/properties/preview/properties/stockSelection/properties/mint"
+                          },
+                          "owner": {
+                            "$ref": "#/anyOf/0/properties/preview/properties/stockSelection/properties/mint"
+                          },
+                          "quotedFeeAmountAtomic": {
+                            "$ref": "#/anyOf/0/properties/preview/properties/usdValue/properties/balance/properties/amountAtomic"
+                          }
+                        },
+                        "required": [
+                          "version",
+                          "rateBps",
+                          "side",
+                          "mint",
+                          "tokenProgram",
+                          "feeAccount",
+                          "owner",
+                          "quotedFeeAmountAtomic"
+                        ],
+                        "additionalProperties": false
                       },
                       "routeFees": {
                         "type": "array",
@@ -11111,25 +11191,84 @@
                         "const": "Trading fees are included in this quote; network fee is calculated at execution."
                       },
                       "platformFee": {
-                        "type": "null"
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "amountAtomic": {
+                                "$ref": "#/anyOf/0/properties/tradeSummary/properties/usdValue/properties/balance/properties/amountAtomic"
+                              },
+                              "mint": {
+                                "$ref": "#/anyOf/0/properties/attribution/properties/wallet/properties/vaultPda"
+                              }
+                            },
+                            "required": [
+                              "amountAtomic",
+                              "mint"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "serviceFee": {
+                        "type": "object",
+                        "properties": {
+                          "version": {
+                            "type": "string",
+                            "const": "dexter-jupiter-service-fee/v1"
+                          },
+                          "rateBps": {
+                            "type": "number",
+                            "const": 75
+                          },
+                          "side": {
+                            "type": "string",
+                            "enum": [
+                              "input",
+                              "output"
+                            ]
+                          },
+                          "mint": {
+                            "type": "string",
+                            "minLength": 32,
+                            "maxLength": 44
+                          },
+                          "tokenProgram": {
+                            "type": "string",
+                            "enum": [
+                              "spl-token",
+                              "token-2022"
+                            ]
+                          },
+                          "feeAccount": {
+                            "$ref": "#/anyOf/0/properties/tradeSummary/properties/feeSummary/properties/serviceFee/properties/mint"
+                          },
+                          "owner": {
+                            "$ref": "#/anyOf/0/properties/tradeSummary/properties/feeSummary/properties/serviceFee/properties/mint"
+                          },
+                          "quotedFeeAmountAtomic": {
+                            "$ref": "#/anyOf/0/properties/tradeSummary/properties/usdValue/properties/balance/properties/amountAtomic"
+                          }
+                        },
+                        "required": [
+                          "version",
+                          "rateBps",
+                          "side",
+                          "mint",
+                          "tokenProgram",
+                          "feeAccount",
+                          "owner",
+                          "quotedFeeAmountAtomic"
+                        ],
+                        "additionalProperties": false
                       },
                       "routeFees": {
                         "type": "array",
                         "items": {
-                          "type": "object",
-                          "properties": {
-                            "amountAtomic": {
-                              "$ref": "#/anyOf/0/properties/tradeSummary/properties/usdValue/properties/balance/properties/amountAtomic"
-                            },
-                            "mint": {
-                              "$ref": "#/anyOf/0/properties/attribution/properties/wallet/properties/vaultPda"
-                            }
-                          },
-                          "required": [
-                            "amountAtomic",
-                            "mint"
-                          ],
-                          "additionalProperties": false
+                          "$ref": "#/anyOf/0/properties/tradeSummary/properties/feeSummary/properties/platformFee/anyOf/0"
                         },
                         "maxItems": 32
                       },
@@ -11769,17 +11908,20 @@
                           "platformFee": {
                             "anyOf": [
                               {
-                                "$ref": "#/anyOf/0/properties/tradeSummary/properties/feeSummary/properties/routeFees/items"
+                                "$ref": "#/anyOf/0/properties/tradeSummary/properties/feeSummary/properties/platformFee/anyOf/0"
                               },
                               {
                                 "type": "null"
                               }
                             ]
                           },
+                          "serviceFee": {
+                            "$ref": "#/anyOf/0/properties/tradeSummary/properties/feeSummary/properties/serviceFee"
+                          },
                           "routeFees": {
                             "type": "array",
                             "items": {
-                              "$ref": "#/anyOf/0/properties/tradeSummary/properties/feeSummary/properties/routeFees/items"
+                              "$ref": "#/anyOf/0/properties/tradeSummary/properties/feeSummary/properties/platformFee/anyOf/0"
                             },
                             "maxItems": 32
                           },
@@ -13371,25 +13513,82 @@
                         "const": "Trading fees are included in this quote; network fee is calculated at execution."
                       },
                       "platformFee": {
-                        "type": "null"
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "amountAtomic": {
+                                "$ref": "#/anyOf/0/properties/tradeSummary/properties/usdValue/properties/balance/properties/amountAtomic"
+                              },
+                              "mint": {
+                                "$ref": "#/anyOf/0/properties/assetMint/anyOf/1"
+                              }
+                            },
+                            "required": [
+                              "amountAtomic",
+                              "mint"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "serviceFee": {
+                        "type": "object",
+                        "properties": {
+                          "version": {
+                            "type": "string",
+                            "const": "dexter-jupiter-service-fee/v1"
+                          },
+                          "rateBps": {
+                            "type": "number",
+                            "const": 75
+                          },
+                          "side": {
+                            "type": "string",
+                            "enum": [
+                              "input",
+                              "output"
+                            ]
+                          },
+                          "mint": {
+                            "$ref": "#/anyOf/0/properties/stockSelection/properties/mint"
+                          },
+                          "tokenProgram": {
+                            "type": "string",
+                            "enum": [
+                              "spl-token",
+                              "token-2022"
+                            ]
+                          },
+                          "feeAccount": {
+                            "$ref": "#/anyOf/0/properties/stockSelection/properties/mint"
+                          },
+                          "owner": {
+                            "$ref": "#/anyOf/0/properties/stockSelection/properties/mint"
+                          },
+                          "quotedFeeAmountAtomic": {
+                            "$ref": "#/anyOf/0/properties/tradeSummary/properties/usdValue/properties/balance/properties/amountAtomic"
+                          }
+                        },
+                        "required": [
+                          "version",
+                          "rateBps",
+                          "side",
+                          "mint",
+                          "tokenProgram",
+                          "feeAccount",
+                          "owner",
+                          "quotedFeeAmountAtomic"
+                        ],
+                        "additionalProperties": false
                       },
                       "routeFees": {
                         "type": "array",
                         "items": {
-                          "type": "object",
-                          "properties": {
-                            "amountAtomic": {
-                              "$ref": "#/anyOf/0/properties/tradeSummary/properties/usdValue/properties/balance/properties/amountAtomic"
-                            },
-                            "mint": {
-                              "$ref": "#/anyOf/0/properties/assetMint/anyOf/1"
-                            }
-                          },
-                          "required": [
-                            "amountAtomic",
-                            "mint"
-                          ],
-                          "additionalProperties": false
+                          "$ref": "#/anyOf/0/properties/tradeSummary/properties/feeSummary/properties/platformFee/anyOf/0"
                         },
                         "maxItems": 32
                       },
@@ -14553,17 +14752,20 @@
                           "platformFee": {
                             "anyOf": [
                               {
-                                "$ref": "#/anyOf/0/properties/tradeSummary/properties/feeSummary/properties/routeFees/items"
+                                "$ref": "#/anyOf/0/properties/tradeSummary/properties/feeSummary/properties/platformFee/anyOf/0"
                               },
                               {
                                 "type": "null"
                               }
                             ]
                           },
+                          "serviceFee": {
+                            "$ref": "#/anyOf/0/properties/tradeSummary/properties/feeSummary/properties/serviceFee"
+                          },
                           "routeFees": {
                             "type": "array",
                             "items": {
-                              "$ref": "#/anyOf/0/properties/tradeSummary/properties/feeSummary/properties/routeFees/items"
+                              "$ref": "#/anyOf/0/properties/tradeSummary/properties/feeSummary/properties/platformFee/anyOf/0"
                             },
                             "maxItems": 32
                           },
@@ -16266,25 +16468,82 @@
                             "const": "Trading fees are included in this quote; network fee is calculated at execution."
                           },
                           "platformFee": {
-                            "type": "null"
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "amountAtomic": {
+                                    "$ref": "#/anyOf/0/properties/statusAfter/properties/tradeSummary/properties/usdValue/properties/balance/properties/amountAtomic"
+                                  },
+                                  "mint": {
+                                    "$ref": "#/anyOf/0/properties/statusAfter/properties/assetMint/anyOf/1"
+                                  }
+                                },
+                                "required": [
+                                  "amountAtomic",
+                                  "mint"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "serviceFee": {
+                            "type": "object",
+                            "properties": {
+                              "version": {
+                                "type": "string",
+                                "const": "dexter-jupiter-service-fee/v1"
+                              },
+                              "rateBps": {
+                                "type": "number",
+                                "const": 75
+                              },
+                              "side": {
+                                "type": "string",
+                                "enum": [
+                                  "input",
+                                  "output"
+                                ]
+                              },
+                              "mint": {
+                                "$ref": "#/anyOf/0/properties/statusAfter/properties/stockSelection/properties/mint"
+                              },
+                              "tokenProgram": {
+                                "type": "string",
+                                "enum": [
+                                  "spl-token",
+                                  "token-2022"
+                                ]
+                              },
+                              "feeAccount": {
+                                "$ref": "#/anyOf/0/properties/statusAfter/properties/stockSelection/properties/mint"
+                              },
+                              "owner": {
+                                "$ref": "#/anyOf/0/properties/statusAfter/properties/stockSelection/properties/mint"
+                              },
+                              "quotedFeeAmountAtomic": {
+                                "$ref": "#/anyOf/0/properties/statusAfter/properties/tradeSummary/properties/usdValue/properties/balance/properties/amountAtomic"
+                              }
+                            },
+                            "required": [
+                              "version",
+                              "rateBps",
+                              "side",
+                              "mint",
+                              "tokenProgram",
+                              "feeAccount",
+                              "owner",
+                              "quotedFeeAmountAtomic"
+                            ],
+                            "additionalProperties": false
                           },
                           "routeFees": {
                             "type": "array",
                             "items": {
-                              "type": "object",
-                              "properties": {
-                                "amountAtomic": {
-                                  "$ref": "#/anyOf/0/properties/statusAfter/properties/tradeSummary/properties/usdValue/properties/balance/properties/amountAtomic"
-                                },
-                                "mint": {
-                                  "$ref": "#/anyOf/0/properties/statusAfter/properties/assetMint/anyOf/1"
-                                }
-                              },
-                              "required": [
-                                "amountAtomic",
-                                "mint"
-                              ],
-                              "additionalProperties": false
+                              "$ref": "#/anyOf/0/properties/statusAfter/properties/tradeSummary/properties/feeSummary/properties/platformFee/anyOf/0"
                             },
                             "maxItems": 32
                           },
@@ -17501,17 +17760,20 @@
                           "platformFee": {
                             "anyOf": [
                               {
-                                "$ref": "#/anyOf/0/properties/statusAfter/properties/tradeSummary/properties/feeSummary/properties/routeFees/items"
+                                "$ref": "#/anyOf/0/properties/statusAfter/properties/tradeSummary/properties/feeSummary/properties/platformFee/anyOf/0"
                               },
                               {
                                 "type": "null"
                               }
                             ]
                           },
+                          "serviceFee": {
+                            "$ref": "#/anyOf/0/properties/statusAfter/properties/tradeSummary/properties/feeSummary/properties/serviceFee"
+                          },
                           "routeFees": {
                             "type": "array",
                             "items": {
-                              "$ref": "#/anyOf/0/properties/statusAfter/properties/tradeSummary/properties/feeSummary/properties/routeFees/items"
+                              "$ref": "#/anyOf/0/properties/statusAfter/properties/tradeSummary/properties/feeSummary/properties/platformFee/anyOf/0"
                             },
                             "maxItems": 32
                           },
@@ -19115,25 +19377,82 @@
                               "const": "Trading fees are included in this quote; network fee is calculated at execution."
                             },
                             "platformFee": {
-                              "type": "null"
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "amountAtomic": {
+                                      "$ref": "#/anyOf/0/properties/items/items/properties/tradeSummary/properties/usdValue/properties/balance/properties/amountAtomic"
+                                    },
+                                    "mint": {
+                                      "$ref": "#/anyOf/0/properties/items/items/properties/assetMint/anyOf/1"
+                                    }
+                                  },
+                                  "required": [
+                                    "amountAtomic",
+                                    "mint"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "serviceFee": {
+                              "type": "object",
+                              "properties": {
+                                "version": {
+                                  "type": "string",
+                                  "const": "dexter-jupiter-service-fee/v1"
+                                },
+                                "rateBps": {
+                                  "type": "number",
+                                  "const": 75
+                                },
+                                "side": {
+                                  "type": "string",
+                                  "enum": [
+                                    "input",
+                                    "output"
+                                  ]
+                                },
+                                "mint": {
+                                  "$ref": "#/anyOf/0/properties/items/items/properties/stockSelection/properties/mint"
+                                },
+                                "tokenProgram": {
+                                  "type": "string",
+                                  "enum": [
+                                    "spl-token",
+                                    "token-2022"
+                                  ]
+                                },
+                                "feeAccount": {
+                                  "$ref": "#/anyOf/0/properties/items/items/properties/stockSelection/properties/mint"
+                                },
+                                "owner": {
+                                  "$ref": "#/anyOf/0/properties/items/items/properties/stockSelection/properties/mint"
+                                },
+                                "quotedFeeAmountAtomic": {
+                                  "$ref": "#/anyOf/0/properties/items/items/properties/tradeSummary/properties/usdValue/properties/balance/properties/amountAtomic"
+                                }
+                              },
+                              "required": [
+                                "version",
+                                "rateBps",
+                                "side",
+                                "mint",
+                                "tokenProgram",
+                                "feeAccount",
+                                "owner",
+                                "quotedFeeAmountAtomic"
+                              ],
+                              "additionalProperties": false
                             },
                             "routeFees": {
                               "type": "array",
                               "items": {
-                                "type": "object",
-                                "properties": {
-                                  "amountAtomic": {
-                                    "$ref": "#/anyOf/0/properties/items/items/properties/tradeSummary/properties/usdValue/properties/balance/properties/amountAtomic"
-                                  },
-                                  "mint": {
-                                    "$ref": "#/anyOf/0/properties/items/items/properties/assetMint/anyOf/1"
-                                  }
-                                },
-                                "required": [
-                                  "amountAtomic",
-                                  "mint"
-                                ],
-                                "additionalProperties": false
+                                "$ref": "#/anyOf/0/properties/items/items/properties/tradeSummary/properties/feeSummary/properties/platformFee/anyOf/0"
                               },
                               "maxItems": 32
                             },
@@ -20366,17 +20685,20 @@
                                 "platformFee": {
                                   "anyOf": [
                                     {
-                                      "$ref": "#/anyOf/0/properties/items/items/properties/tradeSummary/properties/feeSummary/properties/routeFees/items"
+                                      "$ref": "#/anyOf/0/properties/items/items/properties/tradeSummary/properties/feeSummary/properties/platformFee/anyOf/0"
                                     },
                                     {
                                       "type": "null"
                                     }
                                   ]
                                 },
+                                "serviceFee": {
+                                  "$ref": "#/anyOf/0/properties/items/items/properties/tradeSummary/properties/feeSummary/properties/serviceFee"
+                                },
                                 "routeFees": {
                                   "type": "array",
                                   "items": {
-                                    "$ref": "#/anyOf/0/properties/items/items/properties/tradeSummary/properties/feeSummary/properties/routeFees/items"
+                                    "$ref": "#/anyOf/0/properties/items/items/properties/tradeSummary/properties/feeSummary/properties/platformFee/anyOf/0"
                                   },
                                   "maxItems": 32
                                 },

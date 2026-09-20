@@ -1,0 +1,2375 @@
+{
+  "apiSourceBase": "481d5edce8c58d26abc06f6c9a5b74506773590c",
+  "productionChange": "delegatedStockLifecycle preview metadata validator and projection only; userPrepare producer retained from API481",
+  "scope": "Actual production preparation recovery and stock response projector with synthetic quote and local SQL ports. No provider request, signing or financial action. Legacy controls deliberately remove only the complete observation bundle.",
+  "cases": [
+    {
+      "artifact": "input-lost-binding.json",
+      "artifactSha256": "d31f672b113a19bad6157ae3fbb06eb98a6d95851bd698be9256c4c34cb47d44",
+      "scope": "Synthetic signed quote and local SQL ports; actual production recovery/materialization/permission/ledger/response and outer stock projector code",
+      "mode": "lost-binding",
+      "requestAmountKind": "input",
+      "input": {
+        "requestId": "synthetic-stock-mint-safety-sell",
+        "action": "sell",
+        "companyQuery": "NVIDIA",
+        "amountAtomic": "1000000"
+      },
+      "firstProjectedResponse": {
+        "namespace": "dexter-governed-agent-action/v1",
+        "status": "prepared",
+        "executed": false,
+        "requestId": "synthetic-stock-mint-safety-sell",
+        "intentId": "55555555-5555-4555-8555-555555555555",
+        "planId": "6c87863e937d0b02dd689f1df1040b687d81ada842cd903eb7dfdf8887a86ea8",
+        "replayed": true,
+        "attribution": {
+          "actor": "agent",
+          "runtime": {
+            "source": "mcp-link-token",
+            "agentId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+            "linkTokenId": "11111111-1111-4111-8111-111111111111",
+            "surfaceBindingDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            "sessionBindingDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+          },
+          "wallet": {
+            "vaultPda": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+            "swigAddress": "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+            "walletAddress": "YMN9Qj5jPNp7j14VPcML1B6xGgcPWVZUGLFU3Mnyfaf"
+          },
+          "grant": {
+            "id": "66666666-6666-4666-8666-666666666666",
+            "revision": 1,
+            "revisionDigest": "2222222222222222222222222222222222222222222222222222222222222222",
+            "authorityNamespace": "stock-category-v2",
+            "categoryRuleId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+            "categoryRuleDigest": "7777777777777777777777777777777777777777777777777777777777777777",
+            "grantBindingId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+            "apiRuntimeAdmissionDigest": "1111111111111111111111111111111111111111111111111111111111111111",
+            "attestorVerifierTrustSetDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "graphConfigAccount": "8YQrAskG5gy8MQtBptQ6e1aYhKBub1RA4hcm3Vzrp4yE",
+            "graphConfigAccountDataSha256": "8888888888888888888888888888888888888888888888888888888888888888",
+            "riskPolicyDigest": "02b1604d5747fdff6846797d64b05c4c2f2539fc7ffd958e90a3e5014e5643d6",
+            "validFrom": "2026-08-20T23:59:00.000Z",
+            "expiresAt": "2026-08-21T00:01:00.000Z"
+          }
+        },
+        "approval": {
+          "status": "not-required",
+          "reasons": []
+        },
+        "effectiveExpiresAt": "2026-08-21T00:00:30.000Z",
+        "riskEvidenceDigest": "83a8a27b5fee2571c0ab1e4bf79acbbbdbf79864333f2b5ef9839baac88e3063",
+        "authoritySnapshotDigest": "f93d3c78946e508fa0b633f7e825992a5ea957a2b6c4a1038e60de0ab3d50732",
+        "stockRuntime": {
+          "namespace": "dexter-delegated-stock-prepare-runtime-binding/v2",
+          "runtimeReleaseDigest": "9999999999999999999999999999999999999999999999999999999999999999",
+          "requestClaimDigest": "ae0ba46d14839d7ab066daa886dbb6f010d235520296d9b80ed1dbbb74073f27",
+          "durableIdentityDigest": "7bd909e05f372e2e159d8f85dae250c9bbe5c6b71bb978f2d4d68e654dbe486b"
+        },
+        "preview": {
+          "action": "sell",
+          "assetId": "xstocks-0997ed45-6a34-4f26-be92-28d8e0f9f28a",
+          "symbol": "NVDAx",
+          "amountAtomic": "1000000",
+          "requestAmountKind": "input",
+          "requestedShareQuantity": null,
+          "expectedShareQuantity": null,
+          "minimumShareQuantity": null,
+          "shareQuantityUnit": null,
+          "shareQuantitySemantics": null,
+          "shareQuantityConversion": null,
+          "requestedMaximumSpendAtomic": null,
+          "maximumInputAmountAtomic": "1000000",
+          "overfillPossible": false,
+          "productIdentity": {
+            "assetId": "xstocks-0997ed45-6a34-4f26-be92-28d8e0f9f28a",
+            "assetClass": "stock",
+            "companyName": "NVIDIA",
+            "productName": "NVIDIA xStock",
+            "symbol": "NVDAx",
+            "providerName": "xStocks",
+            "legalIssuerName": "Backed Assets (JE) Limited",
+            "issuer": "Backed Assets (JE) Limited",
+            "mint": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+            "tokenProgram": "token-2022",
+            "decimals": 8,
+            "network": "solana-mainnet",
+            "registryIdentityDigest": "b2d46e6ed10cbd945f30dc79216a57c3a5a23596117a6ea895e4dd3eff883af9",
+            "amountModel": "scaled-ui-amount",
+            "displayMultiplier": "1.0009180758490996",
+            "amountObservedAtUnixMs": 1787270400000,
+            "amountObservedAtSlot": "123"
+          },
+          "stockSelection": {
+            "namespace": "dexter-governed-stock-selection-pin/v1",
+            "normalizedCompanyQuery": "nvidia",
+            "companyName": "NVIDIA",
+            "productName": "NVIDIA xStock",
+            "productSymbol": "NVDAx",
+            "providerName": "xStocks",
+            "legalIssuerName": "Backed Assets (JE) Limited",
+            "underlyingId": "be870914-a006-4524-89c5-e6d11a542474",
+            "underlyingIdentityDigest": "8448af4d86238e9ad9903e26dc4bfe983963d1befad8912eb29767914aee6ee5",
+            "selectionEventId": "9aba320e-e0be-4192-9d95-c068ae0d8dc4",
+            "selectionSequence": "1",
+            "selectionDigest": "b3624386a26b1bc6bc049ef080ef2379f9d0325ba7ffee884abf7791aaa9bc0d",
+            "selectedVariantId": "ccb8811c-d323-439d-b5ef-36358b85c8fd",
+            "assetId": "xstocks-0997ed45-6a34-4f26-be92-28d8e0f9f28a",
+            "productVersionId": "4316411b-8a13-4b09-8235-aec540d3be44",
+            "productVersionDigest": "472d008371817176476c79752a0d6da9ed00b804f9636d6c391616d8580539f2",
+            "onchainVersionId": "f77409e4-f8f7-4882-b531-f8f9209fd8e9",
+            "onchainVersionDigest": "b43ca301b6dba2e32dbadfd635634ac3f26970cf0a52ab54459a5c4b6b8be093",
+            "executionProfileVersionId": "c31d9bea-f9ef-490d-9ef1-e40d14b15b0d",
+            "executionProfileDigest": "eccdbcf14574c6b3999df9fd8db52692e34b08c74aac2a1cfd7d93fd9dab2613",
+            "executionReleaseId": "9732b867-cebf-430c-bf4b-14c9f565acdf",
+            "releaseDigest": "6748e239a35e3abe4c8ac00d108b7d22134c87530677d43846d9b0eaed683a6f",
+            "registryIdentityDigest": "b2d46e6ed10cbd945f30dc79216a57c3a5a23596117a6ea895e4dd3eff883af9",
+            "mint": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+            "tokenProgram": "token-2022",
+            "decimals": 8
+          },
+          "feeSummary": {
+            "summary": "Trading fees are included in this quote; network fee is calculated at execution.",
+            "platformFee": null,
+            "routeFees": [],
+            "networkFee": {
+              "status": "not-yet-calculated",
+              "amountLamports": null
+            }
+          },
+          "inputMint": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+          "outputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "destinationOwner": null,
+          "expectedOutputAtomic": "31125000",
+          "minimumOutputAtomic": "30813750",
+          "slippageBps": 100,
+          "priceImpactBps": 10,
+          "quoteExpiresAtUnixMs": 1787270430000
+        },
+        "account": {
+          "status": "already-exists",
+          "tokenAccountAddress": "EGwn5qiqAfaRFfdcp2mfWdLKmWvL5nUBbtxiL72Y2PyV"
+        },
+        "business": {
+          "action": "sell",
+          "assetId": "xstocks-0997ed45-6a34-4f26-be92-28d8e0f9f28a",
+          "requestedCompanyQuery": "nvidia",
+          "amountAtomic": "1000000",
+          "destinationOwner": null,
+          "protocolId": "jupiter-v2",
+          "lifecycle": "prepared",
+          "settlement": "not-submitted",
+          "finality": "not-final",
+          "executionSucceeded": null,
+          "programError": false,
+          "refusalOrEscalationReasons": [],
+          "ambiguity": {
+            "status": "none",
+            "retrySameRequestOnly": false
+          },
+          "reconciliation": {
+            "required": false,
+            "availableToOwner": false
+          }
+        },
+        "execution": {
+          "status": "not-executed",
+          "signed": false,
+          "submitted": false
+        }
+      },
+      "replayProjectedResponse": {
+        "namespace": "dexter-governed-agent-action/v1",
+        "status": "prepared",
+        "executed": false,
+        "requestId": "synthetic-stock-mint-safety-sell",
+        "intentId": "55555555-5555-4555-8555-555555555555",
+        "planId": "6c87863e937d0b02dd689f1df1040b687d81ada842cd903eb7dfdf8887a86ea8",
+        "replayed": true,
+        "attribution": {
+          "actor": "agent",
+          "runtime": {
+            "source": "mcp-link-token",
+            "agentId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+            "linkTokenId": "11111111-1111-4111-8111-111111111111",
+            "surfaceBindingDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            "sessionBindingDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+          },
+          "wallet": {
+            "vaultPda": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+            "swigAddress": "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+            "walletAddress": "YMN9Qj5jPNp7j14VPcML1B6xGgcPWVZUGLFU3Mnyfaf"
+          },
+          "grant": {
+            "id": "66666666-6666-4666-8666-666666666666",
+            "revision": 1,
+            "revisionDigest": "2222222222222222222222222222222222222222222222222222222222222222",
+            "authorityNamespace": "stock-category-v2",
+            "categoryRuleId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+            "categoryRuleDigest": "7777777777777777777777777777777777777777777777777777777777777777",
+            "grantBindingId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+            "apiRuntimeAdmissionDigest": "1111111111111111111111111111111111111111111111111111111111111111",
+            "attestorVerifierTrustSetDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "graphConfigAccount": "8YQrAskG5gy8MQtBptQ6e1aYhKBub1RA4hcm3Vzrp4yE",
+            "graphConfigAccountDataSha256": "8888888888888888888888888888888888888888888888888888888888888888",
+            "riskPolicyDigest": "02b1604d5747fdff6846797d64b05c4c2f2539fc7ffd958e90a3e5014e5643d6",
+            "validFrom": "2026-08-20T23:59:00.000Z",
+            "expiresAt": "2026-08-21T00:01:00.000Z"
+          }
+        },
+        "approval": {
+          "status": "not-required",
+          "reasons": []
+        },
+        "effectiveExpiresAt": "2026-08-21T00:00:30.000Z",
+        "riskEvidenceDigest": "83a8a27b5fee2571c0ab1e4bf79acbbbdbf79864333f2b5ef9839baac88e3063",
+        "authoritySnapshotDigest": "f93d3c78946e508fa0b633f7e825992a5ea957a2b6c4a1038e60de0ab3d50732",
+        "stockRuntime": {
+          "namespace": "dexter-delegated-stock-prepare-runtime-binding/v2",
+          "runtimeReleaseDigest": "9999999999999999999999999999999999999999999999999999999999999999",
+          "requestClaimDigest": "ae0ba46d14839d7ab066daa886dbb6f010d235520296d9b80ed1dbbb74073f27",
+          "durableIdentityDigest": "7bd909e05f372e2e159d8f85dae250c9bbe5c6b71bb978f2d4d68e654dbe486b"
+        },
+        "preview": {
+          "action": "sell",
+          "assetId": "xstocks-0997ed45-6a34-4f26-be92-28d8e0f9f28a",
+          "symbol": "NVDAx",
+          "amountAtomic": "1000000",
+          "requestAmountKind": "input",
+          "requestedShareQuantity": null,
+          "expectedShareQuantity": null,
+          "minimumShareQuantity": null,
+          "shareQuantityUnit": null,
+          "shareQuantitySemantics": null,
+          "shareQuantityConversion": null,
+          "requestedMaximumSpendAtomic": null,
+          "maximumInputAmountAtomic": "1000000",
+          "overfillPossible": false,
+          "productIdentity": {
+            "assetId": "xstocks-0997ed45-6a34-4f26-be92-28d8e0f9f28a",
+            "assetClass": "stock",
+            "companyName": "NVIDIA",
+            "productName": "NVIDIA xStock",
+            "symbol": "NVDAx",
+            "providerName": "xStocks",
+            "legalIssuerName": "Backed Assets (JE) Limited",
+            "issuer": "Backed Assets (JE) Limited",
+            "mint": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+            "tokenProgram": "token-2022",
+            "decimals": 8,
+            "network": "solana-mainnet",
+            "registryIdentityDigest": "b2d46e6ed10cbd945f30dc79216a57c3a5a23596117a6ea895e4dd3eff883af9",
+            "amountModel": "scaled-ui-amount",
+            "displayMultiplier": "1.0009180758490996",
+            "amountObservedAtUnixMs": 1787270400000,
+            "amountObservedAtSlot": "123"
+          },
+          "stockSelection": {
+            "namespace": "dexter-governed-stock-selection-pin/v1",
+            "normalizedCompanyQuery": "nvidia",
+            "companyName": "NVIDIA",
+            "productName": "NVIDIA xStock",
+            "productSymbol": "NVDAx",
+            "providerName": "xStocks",
+            "legalIssuerName": "Backed Assets (JE) Limited",
+            "underlyingId": "be870914-a006-4524-89c5-e6d11a542474",
+            "underlyingIdentityDigest": "8448af4d86238e9ad9903e26dc4bfe983963d1befad8912eb29767914aee6ee5",
+            "selectionEventId": "9aba320e-e0be-4192-9d95-c068ae0d8dc4",
+            "selectionSequence": "1",
+            "selectionDigest": "b3624386a26b1bc6bc049ef080ef2379f9d0325ba7ffee884abf7791aaa9bc0d",
+            "selectedVariantId": "ccb8811c-d323-439d-b5ef-36358b85c8fd",
+            "assetId": "xstocks-0997ed45-6a34-4f26-be92-28d8e0f9f28a",
+            "productVersionId": "4316411b-8a13-4b09-8235-aec540d3be44",
+            "productVersionDigest": "472d008371817176476c79752a0d6da9ed00b804f9636d6c391616d8580539f2",
+            "onchainVersionId": "f77409e4-f8f7-4882-b531-f8f9209fd8e9",
+            "onchainVersionDigest": "b43ca301b6dba2e32dbadfd635634ac3f26970cf0a52ab54459a5c4b6b8be093",
+            "executionProfileVersionId": "c31d9bea-f9ef-490d-9ef1-e40d14b15b0d",
+            "executionProfileDigest": "eccdbcf14574c6b3999df9fd8db52692e34b08c74aac2a1cfd7d93fd9dab2613",
+            "executionReleaseId": "9732b867-cebf-430c-bf4b-14c9f565acdf",
+            "releaseDigest": "6748e239a35e3abe4c8ac00d108b7d22134c87530677d43846d9b0eaed683a6f",
+            "registryIdentityDigest": "b2d46e6ed10cbd945f30dc79216a57c3a5a23596117a6ea895e4dd3eff883af9",
+            "mint": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+            "tokenProgram": "token-2022",
+            "decimals": 8
+          },
+          "feeSummary": {
+            "summary": "Trading fees are included in this quote; network fee is calculated at execution.",
+            "platformFee": null,
+            "routeFees": [],
+            "networkFee": {
+              "status": "not-yet-calculated",
+              "amountLamports": null
+            }
+          },
+          "inputMint": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+          "outputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "destinationOwner": null,
+          "expectedOutputAtomic": "31125000",
+          "minimumOutputAtomic": "30813750",
+          "slippageBps": 100,
+          "priceImpactBps": 10,
+          "quoteExpiresAtUnixMs": 1787270430000
+        },
+        "account": {
+          "status": "already-exists",
+          "tokenAccountAddress": "EGwn5qiqAfaRFfdcp2mfWdLKmWvL5nUBbtxiL72Y2PyV"
+        },
+        "business": {
+          "action": "sell",
+          "assetId": "xstocks-0997ed45-6a34-4f26-be92-28d8e0f9f28a",
+          "requestedCompanyQuery": "nvidia",
+          "amountAtomic": "1000000",
+          "destinationOwner": null,
+          "protocolId": "jupiter-v2",
+          "lifecycle": "prepared",
+          "settlement": "not-submitted",
+          "finality": "not-final",
+          "executionSucceeded": null,
+          "programError": false,
+          "refusalOrEscalationReasons": [],
+          "ambiguity": {
+            "status": "none",
+            "retrySameRequestOnly": false
+          },
+          "reconciliation": {
+            "required": false,
+            "availableToOwner": false
+          }
+        },
+        "execution": {
+          "status": "not-executed",
+          "signed": false,
+          "submitted": false
+        }
+      },
+      "legacyControl": {
+        "syntheticCompatibilityControl": true,
+        "projectedResponse": {
+          "namespace": "dexter-governed-agent-action/v1",
+          "status": "prepared",
+          "executed": false,
+          "requestId": "synthetic-stock-mint-safety-sell",
+          "intentId": "55555555-5555-4555-8555-555555555555",
+          "planId": "6c87863e937d0b02dd689f1df1040b687d81ada842cd903eb7dfdf8887a86ea8",
+          "replayed": true,
+          "attribution": {
+            "actor": "agent",
+            "runtime": {
+              "source": "mcp-link-token",
+              "agentId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+              "linkTokenId": "11111111-1111-4111-8111-111111111111",
+              "surfaceBindingDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+              "sessionBindingDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+            },
+            "wallet": {
+              "vaultPda": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+              "swigAddress": "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+              "walletAddress": "YMN9Qj5jPNp7j14VPcML1B6xGgcPWVZUGLFU3Mnyfaf"
+            },
+            "grant": {
+              "id": "66666666-6666-4666-8666-666666666666",
+              "revision": 1,
+              "revisionDigest": "2222222222222222222222222222222222222222222222222222222222222222",
+              "authorityNamespace": "stock-category-v2",
+              "categoryRuleId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+              "categoryRuleDigest": "7777777777777777777777777777777777777777777777777777777777777777",
+              "grantBindingId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+              "apiRuntimeAdmissionDigest": "1111111111111111111111111111111111111111111111111111111111111111",
+              "attestorVerifierTrustSetDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+              "graphConfigAccount": "8YQrAskG5gy8MQtBptQ6e1aYhKBub1RA4hcm3Vzrp4yE",
+              "graphConfigAccountDataSha256": "8888888888888888888888888888888888888888888888888888888888888888",
+              "riskPolicyDigest": "02b1604d5747fdff6846797d64b05c4c2f2539fc7ffd958e90a3e5014e5643d6",
+              "validFrom": "2026-08-20T23:59:00.000Z",
+              "expiresAt": "2026-08-21T00:01:00.000Z"
+            }
+          },
+          "approval": {
+            "status": "not-required",
+            "reasons": []
+          },
+          "effectiveExpiresAt": "2026-08-21T00:00:30.000Z",
+          "riskEvidenceDigest": "83a8a27b5fee2571c0ab1e4bf79acbbbdbf79864333f2b5ef9839baac88e3063",
+          "authoritySnapshotDigest": "f93d3c78946e508fa0b633f7e825992a5ea957a2b6c4a1038e60de0ab3d50732",
+          "stockRuntime": {
+            "namespace": "dexter-delegated-stock-prepare-runtime-binding/v2",
+            "runtimeReleaseDigest": "9999999999999999999999999999999999999999999999999999999999999999",
+            "requestClaimDigest": "ae0ba46d14839d7ab066daa886dbb6f010d235520296d9b80ed1dbbb74073f27",
+            "durableIdentityDigest": "9a28f417e2c66e8f6ec51f071635b24491220542ad1bafe0b78ee60dd95fb355"
+          },
+          "preview": {
+            "action": "sell",
+            "assetId": "xstocks-0997ed45-6a34-4f26-be92-28d8e0f9f28a",
+            "symbol": "NVDAx",
+            "amountAtomic": "1000000",
+            "requestAmountKind": "input",
+            "requestedShareQuantity": null,
+            "expectedShareQuantity": null,
+            "minimumShareQuantity": null,
+            "shareQuantityUnit": null,
+            "shareQuantitySemantics": null,
+            "shareQuantityConversion": null,
+            "requestedMaximumSpendAtomic": null,
+            "maximumInputAmountAtomic": "1000000",
+            "overfillPossible": false,
+            "productIdentity": {
+              "assetId": "xstocks-0997ed45-6a34-4f26-be92-28d8e0f9f28a",
+              "assetClass": "stock",
+              "companyName": "NVIDIA",
+              "productName": "NVIDIA xStock",
+              "symbol": "NVDAx",
+              "providerName": "xStocks",
+              "legalIssuerName": "Backed Assets (JE) Limited",
+              "issuer": "Backed Assets (JE) Limited",
+              "mint": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+              "tokenProgram": "token-2022",
+              "decimals": 8,
+              "network": "solana-mainnet",
+              "registryIdentityDigest": "b2d46e6ed10cbd945f30dc79216a57c3a5a23596117a6ea895e4dd3eff883af9"
+            },
+            "stockSelection": {
+              "namespace": "dexter-governed-stock-selection-pin/v1",
+              "normalizedCompanyQuery": "nvidia",
+              "companyName": "NVIDIA",
+              "productName": "NVIDIA xStock",
+              "productSymbol": "NVDAx",
+              "providerName": "xStocks",
+              "legalIssuerName": "Backed Assets (JE) Limited",
+              "underlyingId": "be870914-a006-4524-89c5-e6d11a542474",
+              "underlyingIdentityDigest": "8448af4d86238e9ad9903e26dc4bfe983963d1befad8912eb29767914aee6ee5",
+              "selectionEventId": "9aba320e-e0be-4192-9d95-c068ae0d8dc4",
+              "selectionSequence": "1",
+              "selectionDigest": "b3624386a26b1bc6bc049ef080ef2379f9d0325ba7ffee884abf7791aaa9bc0d",
+              "selectedVariantId": "ccb8811c-d323-439d-b5ef-36358b85c8fd",
+              "assetId": "xstocks-0997ed45-6a34-4f26-be92-28d8e0f9f28a",
+              "productVersionId": "4316411b-8a13-4b09-8235-aec540d3be44",
+              "productVersionDigest": "472d008371817176476c79752a0d6da9ed00b804f9636d6c391616d8580539f2",
+              "onchainVersionId": "f77409e4-f8f7-4882-b531-f8f9209fd8e9",
+              "onchainVersionDigest": "b43ca301b6dba2e32dbadfd635634ac3f26970cf0a52ab54459a5c4b6b8be093",
+              "executionProfileVersionId": "c31d9bea-f9ef-490d-9ef1-e40d14b15b0d",
+              "executionProfileDigest": "eccdbcf14574c6b3999df9fd8db52692e34b08c74aac2a1cfd7d93fd9dab2613",
+              "executionReleaseId": "9732b867-cebf-430c-bf4b-14c9f565acdf",
+              "releaseDigest": "6748e239a35e3abe4c8ac00d108b7d22134c87530677d43846d9b0eaed683a6f",
+              "registryIdentityDigest": "b2d46e6ed10cbd945f30dc79216a57c3a5a23596117a6ea895e4dd3eff883af9",
+              "mint": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+              "tokenProgram": "token-2022",
+              "decimals": 8
+            },
+            "feeSummary": {
+              "summary": "Trading fees are included in this quote; network fee is calculated at execution.",
+              "platformFee": null,
+              "routeFees": [],
+              "networkFee": {
+                "status": "not-yet-calculated",
+                "amountLamports": null
+              }
+            },
+            "inputMint": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+            "outputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "destinationOwner": null,
+            "expectedOutputAtomic": "31125000",
+            "minimumOutputAtomic": "30813750",
+            "slippageBps": 100,
+            "priceImpactBps": 10,
+            "quoteExpiresAtUnixMs": 1787270430000
+          },
+          "account": {
+            "status": "already-exists",
+            "tokenAccountAddress": "EGwn5qiqAfaRFfdcp2mfWdLKmWvL5nUBbtxiL72Y2PyV"
+          },
+          "business": {
+            "action": "sell",
+            "assetId": "xstocks-0997ed45-6a34-4f26-be92-28d8e0f9f28a",
+            "requestedCompanyQuery": "nvidia",
+            "amountAtomic": "1000000",
+            "destinationOwner": null,
+            "protocolId": "jupiter-v2",
+            "lifecycle": "prepared",
+            "settlement": "not-submitted",
+            "finality": "not-final",
+            "executionSucceeded": null,
+            "programError": false,
+            "refusalOrEscalationReasons": [],
+            "ambiguity": {
+              "status": "none",
+              "retrySameRequestOnly": false
+            },
+            "reconciliation": {
+              "required": false,
+              "availableToOwner": false
+            }
+          },
+          "execution": {
+            "status": "not-executed",
+            "signed": false,
+            "submitted": false
+          }
+        }
+      },
+      "replayAtUnixMs": 1787270402000,
+      "calls": {
+        "attestFinal": 1,
+        "recoverFinal": 1,
+        "newReservation": 0,
+        "prepareFresh": 0,
+        "readPrice": 0,
+        "resolve": 0,
+        "inspect": 0
+      }
+    },
+    {
+      "artifact": "input-saved-binding.json",
+      "artifactSha256": "15b2a1eb869bea50aebb13b3e6f68f02e9217aa49de747ef48345074a6f9254d",
+      "scope": "Synthetic signed quote and local SQL ports; actual production recovery/materialization/permission/ledger/response and outer stock projector code",
+      "mode": "saved-binding",
+      "requestAmountKind": "input",
+      "input": {
+        "requestId": "synthetic-stock-mint-safety-sell",
+        "action": "sell",
+        "companyQuery": "NVIDIA",
+        "amountAtomic": "1000000"
+      },
+      "firstProjectedResponse": {
+        "namespace": "dexter-governed-agent-action/v1",
+        "status": "prepared",
+        "executed": false,
+        "requestId": "synthetic-stock-mint-safety-sell",
+        "intentId": "55555555-5555-4555-8555-555555555555",
+        "planId": "6c1e093b4fd6f968169ddcb590a11da3e151d2ec50e4d76390a73acfe0dc297a",
+        "replayed": true,
+        "attribution": {
+          "actor": "agent",
+          "runtime": {
+            "source": "mcp-link-token",
+            "agentId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+            "linkTokenId": "11111111-1111-4111-8111-111111111111",
+            "surfaceBindingDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            "sessionBindingDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+          },
+          "wallet": {
+            "vaultPda": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+            "swigAddress": "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+            "walletAddress": "YMN9Qj5jPNp7j14VPcML1B6xGgcPWVZUGLFU3Mnyfaf"
+          },
+          "grant": {
+            "id": "66666666-6666-4666-8666-666666666666",
+            "revision": 1,
+            "revisionDigest": "2222222222222222222222222222222222222222222222222222222222222222",
+            "authorityNamespace": "stock-category-v2",
+            "categoryRuleId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+            "categoryRuleDigest": "7777777777777777777777777777777777777777777777777777777777777777",
+            "grantBindingId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+            "apiRuntimeAdmissionDigest": "1111111111111111111111111111111111111111111111111111111111111111",
+            "attestorVerifierTrustSetDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "graphConfigAccount": "8YQrAskG5gy8MQtBptQ6e1aYhKBub1RA4hcm3Vzrp4yE",
+            "graphConfigAccountDataSha256": "8888888888888888888888888888888888888888888888888888888888888888",
+            "riskPolicyDigest": "02b1604d5747fdff6846797d64b05c4c2f2539fc7ffd958e90a3e5014e5643d6",
+            "validFrom": "2026-08-20T23:59:00.000Z",
+            "expiresAt": "2026-08-21T00:01:00.000Z"
+          }
+        },
+        "approval": {
+          "status": "not-required",
+          "reasons": []
+        },
+        "effectiveExpiresAt": "2026-08-21T00:00:30.000Z",
+        "riskEvidenceDigest": "42be59e63d69ca030c32a2a0bed4c079fb0682fa2d229f13fe663128f96af978",
+        "authoritySnapshotDigest": "d7a6951787cd0f1cf2d874a06b7de07438237de03afa6666dfbb3d389839ccae",
+        "stockRuntime": {
+          "namespace": "dexter-delegated-stock-prepare-runtime-binding/v2",
+          "runtimeReleaseDigest": "9999999999999999999999999999999999999999999999999999999999999999",
+          "requestClaimDigest": "ae0ba46d14839d7ab066daa886dbb6f010d235520296d9b80ed1dbbb74073f27",
+          "durableIdentityDigest": "926b2c6388d4846c0e4dbbbfb05dabbb11159b458eb8f89e8c79f486cbb50a60"
+        },
+        "preview": {
+          "action": "sell",
+          "assetId": "xstocks-0997ed45-6a34-4f26-be92-28d8e0f9f28a",
+          "symbol": "NVDAx",
+          "amountAtomic": "1000000",
+          "requestAmountKind": "input",
+          "requestedShareQuantity": null,
+          "expectedShareQuantity": null,
+          "minimumShareQuantity": null,
+          "shareQuantityUnit": null,
+          "shareQuantitySemantics": null,
+          "shareQuantityConversion": null,
+          "requestedMaximumSpendAtomic": null,
+          "maximumInputAmountAtomic": "1000000",
+          "overfillPossible": false,
+          "productIdentity": {
+            "assetId": "xstocks-0997ed45-6a34-4f26-be92-28d8e0f9f28a",
+            "assetClass": "stock",
+            "companyName": "NVIDIA",
+            "productName": "NVIDIA xStock",
+            "symbol": "NVDAx",
+            "providerName": "xStocks",
+            "legalIssuerName": "Backed Assets (JE) Limited",
+            "issuer": "Backed Assets (JE) Limited",
+            "mint": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+            "tokenProgram": "token-2022",
+            "decimals": 8,
+            "network": "solana-mainnet",
+            "registryIdentityDigest": "b2d46e6ed10cbd945f30dc79216a57c3a5a23596117a6ea895e4dd3eff883af9",
+            "amountModel": "scaled-ui-amount",
+            "displayMultiplier": "1.0009180758490996",
+            "amountObservedAtUnixMs": 1787270400000,
+            "amountObservedAtSlot": "123"
+          },
+          "stockSelection": {
+            "namespace": "dexter-governed-stock-selection-pin/v1",
+            "normalizedCompanyQuery": "nvidia",
+            "companyName": "NVIDIA",
+            "productName": "NVIDIA xStock",
+            "productSymbol": "NVDAx",
+            "providerName": "xStocks",
+            "legalIssuerName": "Backed Assets (JE) Limited",
+            "underlyingId": "be870914-a006-4524-89c5-e6d11a542474",
+            "underlyingIdentityDigest": "8448af4d86238e9ad9903e26dc4bfe983963d1befad8912eb29767914aee6ee5",
+            "selectionEventId": "9aba320e-e0be-4192-9d95-c068ae0d8dc4",
+            "selectionSequence": "1",
+            "selectionDigest": "b3624386a26b1bc6bc049ef080ef2379f9d0325ba7ffee884abf7791aaa9bc0d",
+            "selectedVariantId": "ccb8811c-d323-439d-b5ef-36358b85c8fd",
+            "assetId": "xstocks-0997ed45-6a34-4f26-be92-28d8e0f9f28a",
+            "productVersionId": "4316411b-8a13-4b09-8235-aec540d3be44",
+            "productVersionDigest": "472d008371817176476c79752a0d6da9ed00b804f9636d6c391616d8580539f2",
+            "onchainVersionId": "f77409e4-f8f7-4882-b531-f8f9209fd8e9",
+            "onchainVersionDigest": "b43ca301b6dba2e32dbadfd635634ac3f26970cf0a52ab54459a5c4b6b8be093",
+            "executionProfileVersionId": "c31d9bea-f9ef-490d-9ef1-e40d14b15b0d",
+            "executionProfileDigest": "eccdbcf14574c6b3999df9fd8db52692e34b08c74aac2a1cfd7d93fd9dab2613",
+            "executionReleaseId": "9732b867-cebf-430c-bf4b-14c9f565acdf",
+            "releaseDigest": "6748e239a35e3abe4c8ac00d108b7d22134c87530677d43846d9b0eaed683a6f",
+            "registryIdentityDigest": "b2d46e6ed10cbd945f30dc79216a57c3a5a23596117a6ea895e4dd3eff883af9",
+            "mint": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+            "tokenProgram": "token-2022",
+            "decimals": 8
+          },
+          "feeSummary": {
+            "summary": "Trading fees are included in this quote; network fee is calculated at execution.",
+            "platformFee": null,
+            "routeFees": [],
+            "networkFee": {
+              "status": "not-yet-calculated",
+              "amountLamports": null
+            }
+          },
+          "inputMint": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+          "outputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "destinationOwner": null,
+          "expectedOutputAtomic": "31125000",
+          "minimumOutputAtomic": "30813750",
+          "slippageBps": 100,
+          "priceImpactBps": 10,
+          "quoteExpiresAtUnixMs": 1787270430000
+        },
+        "account": {
+          "status": "already-exists",
+          "tokenAccountAddress": "EGwn5qiqAfaRFfdcp2mfWdLKmWvL5nUBbtxiL72Y2PyV"
+        },
+        "business": {
+          "action": "sell",
+          "assetId": "xstocks-0997ed45-6a34-4f26-be92-28d8e0f9f28a",
+          "requestedCompanyQuery": "nvidia",
+          "amountAtomic": "1000000",
+          "destinationOwner": null,
+          "protocolId": "jupiter-v2",
+          "lifecycle": "prepared",
+          "settlement": "not-submitted",
+          "finality": "not-final",
+          "executionSucceeded": null,
+          "programError": false,
+          "refusalOrEscalationReasons": [],
+          "ambiguity": {
+            "status": "none",
+            "retrySameRequestOnly": false
+          },
+          "reconciliation": {
+            "required": false,
+            "availableToOwner": false
+          }
+        },
+        "execution": {
+          "status": "not-executed",
+          "signed": false,
+          "submitted": false
+        }
+      },
+      "replayProjectedResponse": {
+        "namespace": "dexter-governed-agent-action/v1",
+        "status": "prepared",
+        "executed": false,
+        "requestId": "synthetic-stock-mint-safety-sell",
+        "intentId": "55555555-5555-4555-8555-555555555555",
+        "planId": "6c1e093b4fd6f968169ddcb590a11da3e151d2ec50e4d76390a73acfe0dc297a",
+        "replayed": true,
+        "attribution": {
+          "actor": "agent",
+          "runtime": {
+            "source": "mcp-link-token",
+            "agentId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+            "linkTokenId": "11111111-1111-4111-8111-111111111111",
+            "surfaceBindingDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            "sessionBindingDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+          },
+          "wallet": {
+            "vaultPda": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+            "swigAddress": "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+            "walletAddress": "YMN9Qj5jPNp7j14VPcML1B6xGgcPWVZUGLFU3Mnyfaf"
+          },
+          "grant": {
+            "id": "66666666-6666-4666-8666-666666666666",
+            "revision": 1,
+            "revisionDigest": "2222222222222222222222222222222222222222222222222222222222222222",
+            "authorityNamespace": "stock-category-v2",
+            "categoryRuleId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+            "categoryRuleDigest": "7777777777777777777777777777777777777777777777777777777777777777",
+            "grantBindingId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+            "apiRuntimeAdmissionDigest": "1111111111111111111111111111111111111111111111111111111111111111",
+            "attestorVerifierTrustSetDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "graphConfigAccount": "8YQrAskG5gy8MQtBptQ6e1aYhKBub1RA4hcm3Vzrp4yE",
+            "graphConfigAccountDataSha256": "8888888888888888888888888888888888888888888888888888888888888888",
+            "riskPolicyDigest": "02b1604d5747fdff6846797d64b05c4c2f2539fc7ffd958e90a3e5014e5643d6",
+            "validFrom": "2026-08-20T23:59:00.000Z",
+            "expiresAt": "2026-08-21T00:01:00.000Z"
+          }
+        },
+        "approval": {
+          "status": "not-required",
+          "reasons": []
+        },
+        "effectiveExpiresAt": "2026-08-21T00:00:30.000Z",
+        "riskEvidenceDigest": "42be59e63d69ca030c32a2a0bed4c079fb0682fa2d229f13fe663128f96af978",
+        "authoritySnapshotDigest": "d7a6951787cd0f1cf2d874a06b7de07438237de03afa6666dfbb3d389839ccae",
+        "stockRuntime": {
+          "namespace": "dexter-delegated-stock-prepare-runtime-binding/v2",
+          "runtimeReleaseDigest": "9999999999999999999999999999999999999999999999999999999999999999",
+          "requestClaimDigest": "ae0ba46d14839d7ab066daa886dbb6f010d235520296d9b80ed1dbbb74073f27",
+          "durableIdentityDigest": "926b2c6388d4846c0e4dbbbfb05dabbb11159b458eb8f89e8c79f486cbb50a60"
+        },
+        "preview": {
+          "action": "sell",
+          "assetId": "xstocks-0997ed45-6a34-4f26-be92-28d8e0f9f28a",
+          "symbol": "NVDAx",
+          "amountAtomic": "1000000",
+          "requestAmountKind": "input",
+          "requestedShareQuantity": null,
+          "expectedShareQuantity": null,
+          "minimumShareQuantity": null,
+          "shareQuantityUnit": null,
+          "shareQuantitySemantics": null,
+          "shareQuantityConversion": null,
+          "requestedMaximumSpendAtomic": null,
+          "maximumInputAmountAtomic": "1000000",
+          "overfillPossible": false,
+          "productIdentity": {
+            "assetId": "xstocks-0997ed45-6a34-4f26-be92-28d8e0f9f28a",
+            "assetClass": "stock",
+            "companyName": "NVIDIA",
+            "productName": "NVIDIA xStock",
+            "symbol": "NVDAx",
+            "providerName": "xStocks",
+            "legalIssuerName": "Backed Assets (JE) Limited",
+            "issuer": "Backed Assets (JE) Limited",
+            "mint": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+            "tokenProgram": "token-2022",
+            "decimals": 8,
+            "network": "solana-mainnet",
+            "registryIdentityDigest": "b2d46e6ed10cbd945f30dc79216a57c3a5a23596117a6ea895e4dd3eff883af9",
+            "amountModel": "scaled-ui-amount",
+            "displayMultiplier": "1.0009180758490996",
+            "amountObservedAtUnixMs": 1787270400000,
+            "amountObservedAtSlot": "123"
+          },
+          "stockSelection": {
+            "namespace": "dexter-governed-stock-selection-pin/v1",
+            "normalizedCompanyQuery": "nvidia",
+            "companyName": "NVIDIA",
+            "productName": "NVIDIA xStock",
+            "productSymbol": "NVDAx",
+            "providerName": "xStocks",
+            "legalIssuerName": "Backed Assets (JE) Limited",
+            "underlyingId": "be870914-a006-4524-89c5-e6d11a542474",
+            "underlyingIdentityDigest": "8448af4d86238e9ad9903e26dc4bfe983963d1befad8912eb29767914aee6ee5",
+            "selectionEventId": "9aba320e-e0be-4192-9d95-c068ae0d8dc4",
+            "selectionSequence": "1",
+            "selectionDigest": "b3624386a26b1bc6bc049ef080ef2379f9d0325ba7ffee884abf7791aaa9bc0d",
+            "selectedVariantId": "ccb8811c-d323-439d-b5ef-36358b85c8fd",
+            "assetId": "xstocks-0997ed45-6a34-4f26-be92-28d8e0f9f28a",
+            "productVersionId": "4316411b-8a13-4b09-8235-aec540d3be44",
+            "productVersionDigest": "472d008371817176476c79752a0d6da9ed00b804f9636d6c391616d8580539f2",
+            "onchainVersionId": "f77409e4-f8f7-4882-b531-f8f9209fd8e9",
+            "onchainVersionDigest": "b43ca301b6dba2e32dbadfd635634ac3f26970cf0a52ab54459a5c4b6b8be093",
+            "executionProfileVersionId": "c31d9bea-f9ef-490d-9ef1-e40d14b15b0d",
+            "executionProfileDigest": "eccdbcf14574c6b3999df9fd8db52692e34b08c74aac2a1cfd7d93fd9dab2613",
+            "executionReleaseId": "9732b867-cebf-430c-bf4b-14c9f565acdf",
+            "releaseDigest": "6748e239a35e3abe4c8ac00d108b7d22134c87530677d43846d9b0eaed683a6f",
+            "registryIdentityDigest": "b2d46e6ed10cbd945f30dc79216a57c3a5a23596117a6ea895e4dd3eff883af9",
+            "mint": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+            "tokenProgram": "token-2022",
+            "decimals": 8
+          },
+          "feeSummary": {
+            "summary": "Trading fees are included in this quote; network fee is calculated at execution.",
+            "platformFee": null,
+            "routeFees": [],
+            "networkFee": {
+              "status": "not-yet-calculated",
+              "amountLamports": null
+            }
+          },
+          "inputMint": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+          "outputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "destinationOwner": null,
+          "expectedOutputAtomic": "31125000",
+          "minimumOutputAtomic": "30813750",
+          "slippageBps": 100,
+          "priceImpactBps": 10,
+          "quoteExpiresAtUnixMs": 1787270430000
+        },
+        "account": {
+          "status": "already-exists",
+          "tokenAccountAddress": "EGwn5qiqAfaRFfdcp2mfWdLKmWvL5nUBbtxiL72Y2PyV"
+        },
+        "business": {
+          "action": "sell",
+          "assetId": "xstocks-0997ed45-6a34-4f26-be92-28d8e0f9f28a",
+          "requestedCompanyQuery": "nvidia",
+          "amountAtomic": "1000000",
+          "destinationOwner": null,
+          "protocolId": "jupiter-v2",
+          "lifecycle": "prepared",
+          "settlement": "not-submitted",
+          "finality": "not-final",
+          "executionSucceeded": null,
+          "programError": false,
+          "refusalOrEscalationReasons": [],
+          "ambiguity": {
+            "status": "none",
+            "retrySameRequestOnly": false
+          },
+          "reconciliation": {
+            "required": false,
+            "availableToOwner": false
+          }
+        },
+        "execution": {
+          "status": "not-executed",
+          "signed": false,
+          "submitted": false
+        }
+      },
+      "legacyControl": {
+        "syntheticCompatibilityControl": true,
+        "projectedResponse": {
+          "namespace": "dexter-governed-agent-action/v1",
+          "status": "prepared",
+          "executed": false,
+          "requestId": "synthetic-stock-mint-safety-sell",
+          "intentId": "55555555-5555-4555-8555-555555555555",
+          "planId": "6c1e093b4fd6f968169ddcb590a11da3e151d2ec50e4d76390a73acfe0dc297a",
+          "replayed": true,
+          "attribution": {
+            "actor": "agent",
+            "runtime": {
+              "source": "mcp-link-token",
+              "agentId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+              "linkTokenId": "11111111-1111-4111-8111-111111111111",
+              "surfaceBindingDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+              "sessionBindingDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+            },
+            "wallet": {
+              "vaultPda": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+              "swigAddress": "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+              "walletAddress": "YMN9Qj5jPNp7j14VPcML1B6xGgcPWVZUGLFU3Mnyfaf"
+            },
+            "grant": {
+              "id": "66666666-6666-4666-8666-666666666666",
+              "revision": 1,
+              "revisionDigest": "2222222222222222222222222222222222222222222222222222222222222222",
+              "authorityNamespace": "stock-category-v2",
+              "categoryRuleId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+              "categoryRuleDigest": "7777777777777777777777777777777777777777777777777777777777777777",
+              "grantBindingId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+              "apiRuntimeAdmissionDigest": "1111111111111111111111111111111111111111111111111111111111111111",
+              "attestorVerifierTrustSetDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+              "graphConfigAccount": "8YQrAskG5gy8MQtBptQ6e1aYhKBub1RA4hcm3Vzrp4yE",
+              "graphConfigAccountDataSha256": "8888888888888888888888888888888888888888888888888888888888888888",
+              "riskPolicyDigest": "02b1604d5747fdff6846797d64b05c4c2f2539fc7ffd958e90a3e5014e5643d6",
+              "validFrom": "2026-08-20T23:59:00.000Z",
+              "expiresAt": "2026-08-21T00:01:00.000Z"
+            }
+          },
+          "approval": {
+            "status": "not-required",
+            "reasons": []
+          },
+          "effectiveExpiresAt": "2026-08-21T00:00:30.000Z",
+          "riskEvidenceDigest": "42be59e63d69ca030c32a2a0bed4c079fb0682fa2d229f13fe663128f96af978",
+          "authoritySnapshotDigest": "d7a6951787cd0f1cf2d874a06b7de07438237de03afa6666dfbb3d389839ccae",
+          "stockRuntime": {
+            "namespace": "dexter-delegated-stock-prepare-runtime-binding/v2",
+            "runtimeReleaseDigest": "9999999999999999999999999999999999999999999999999999999999999999",
+            "requestClaimDigest": "ae0ba46d14839d7ab066daa886dbb6f010d235520296d9b80ed1dbbb74073f27",
+            "durableIdentityDigest": "4fa0a02950bf221bb729c8f893f88cf85b9b8bc045983597500164fd333b360b"
+          },
+          "preview": {
+            "action": "sell",
+            "assetId": "xstocks-0997ed45-6a34-4f26-be92-28d8e0f9f28a",
+            "symbol": "NVDAx",
+            "amountAtomic": "1000000",
+            "requestAmountKind": "input",
+            "requestedShareQuantity": null,
+            "expectedShareQuantity": null,
+            "minimumShareQuantity": null,
+            "shareQuantityUnit": null,
+            "shareQuantitySemantics": null,
+            "shareQuantityConversion": null,
+            "requestedMaximumSpendAtomic": null,
+            "maximumInputAmountAtomic": "1000000",
+            "overfillPossible": false,
+            "productIdentity": {
+              "assetId": "xstocks-0997ed45-6a34-4f26-be92-28d8e0f9f28a",
+              "assetClass": "stock",
+              "companyName": "NVIDIA",
+              "productName": "NVIDIA xStock",
+              "symbol": "NVDAx",
+              "providerName": "xStocks",
+              "legalIssuerName": "Backed Assets (JE) Limited",
+              "issuer": "Backed Assets (JE) Limited",
+              "mint": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+              "tokenProgram": "token-2022",
+              "decimals": 8,
+              "network": "solana-mainnet",
+              "registryIdentityDigest": "b2d46e6ed10cbd945f30dc79216a57c3a5a23596117a6ea895e4dd3eff883af9"
+            },
+            "stockSelection": {
+              "namespace": "dexter-governed-stock-selection-pin/v1",
+              "normalizedCompanyQuery": "nvidia",
+              "companyName": "NVIDIA",
+              "productName": "NVIDIA xStock",
+              "productSymbol": "NVDAx",
+              "providerName": "xStocks",
+              "legalIssuerName": "Backed Assets (JE) Limited",
+              "underlyingId": "be870914-a006-4524-89c5-e6d11a542474",
+              "underlyingIdentityDigest": "8448af4d86238e9ad9903e26dc4bfe983963d1befad8912eb29767914aee6ee5",
+              "selectionEventId": "9aba320e-e0be-4192-9d95-c068ae0d8dc4",
+              "selectionSequence": "1",
+              "selectionDigest": "b3624386a26b1bc6bc049ef080ef2379f9d0325ba7ffee884abf7791aaa9bc0d",
+              "selectedVariantId": "ccb8811c-d323-439d-b5ef-36358b85c8fd",
+              "assetId": "xstocks-0997ed45-6a34-4f26-be92-28d8e0f9f28a",
+              "productVersionId": "4316411b-8a13-4b09-8235-aec540d3be44",
+              "productVersionDigest": "472d008371817176476c79752a0d6da9ed00b804f9636d6c391616d8580539f2",
+              "onchainVersionId": "f77409e4-f8f7-4882-b531-f8f9209fd8e9",
+              "onchainVersionDigest": "b43ca301b6dba2e32dbadfd635634ac3f26970cf0a52ab54459a5c4b6b8be093",
+              "executionProfileVersionId": "c31d9bea-f9ef-490d-9ef1-e40d14b15b0d",
+              "executionProfileDigest": "eccdbcf14574c6b3999df9fd8db52692e34b08c74aac2a1cfd7d93fd9dab2613",
+              "executionReleaseId": "9732b867-cebf-430c-bf4b-14c9f565acdf",
+              "releaseDigest": "6748e239a35e3abe4c8ac00d108b7d22134c87530677d43846d9b0eaed683a6f",
+              "registryIdentityDigest": "b2d46e6ed10cbd945f30dc79216a57c3a5a23596117a6ea895e4dd3eff883af9",
+              "mint": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+              "tokenProgram": "token-2022",
+              "decimals": 8
+            },
+            "feeSummary": {
+              "summary": "Trading fees are included in this quote; network fee is calculated at execution.",
+              "platformFee": null,
+              "routeFees": [],
+              "networkFee": {
+                "status": "not-yet-calculated",
+                "amountLamports": null
+              }
+            },
+            "inputMint": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+            "outputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "destinationOwner": null,
+            "expectedOutputAtomic": "31125000",
+            "minimumOutputAtomic": "30813750",
+            "slippageBps": 100,
+            "priceImpactBps": 10,
+            "quoteExpiresAtUnixMs": 1787270430000
+          },
+          "account": {
+            "status": "already-exists",
+            "tokenAccountAddress": "EGwn5qiqAfaRFfdcp2mfWdLKmWvL5nUBbtxiL72Y2PyV"
+          },
+          "business": {
+            "action": "sell",
+            "assetId": "xstocks-0997ed45-6a34-4f26-be92-28d8e0f9f28a",
+            "requestedCompanyQuery": "nvidia",
+            "amountAtomic": "1000000",
+            "destinationOwner": null,
+            "protocolId": "jupiter-v2",
+            "lifecycle": "prepared",
+            "settlement": "not-submitted",
+            "finality": "not-final",
+            "executionSucceeded": null,
+            "programError": false,
+            "refusalOrEscalationReasons": [],
+            "ambiguity": {
+              "status": "none",
+              "retrySameRequestOnly": false
+            },
+            "reconciliation": {
+              "required": false,
+              "availableToOwner": false
+            }
+          },
+          "execution": {
+            "status": "not-executed",
+            "signed": false,
+            "submitted": false
+          }
+        }
+      },
+      "replayAtUnixMs": 1787270402000,
+      "calls": {
+        "attestFinal": 1,
+        "recoverFinal": 0,
+        "newReservation": 0,
+        "prepareFresh": 0,
+        "readPrice": 0,
+        "resolve": 0,
+        "inspect": 0
+      }
+    },
+    {
+      "artifact": "usd-value-lost-binding.json",
+      "artifactSha256": "350cb8743bd983e6b1d1ed08b9409b36c8e81f1ebe899c21c83fcfe5f3513cad",
+      "scope": "Synthetic signed quote and local SQL ports; actual production recovery/materialization/permission/ledger/response and outer stock projector code",
+      "mode": "lost-binding",
+      "requestAmountKind": "usd-value",
+      "input": {
+        "requestId": "synthetic-stock-mint-safety-sell",
+        "action": "sell",
+        "companyQuery": "NVIDIA",
+        "valueUsd": "25"
+      },
+      "firstProjectedResponse": {
+        "namespace": "dexter-governed-agent-action/v1",
+        "status": "prepared",
+        "executed": false,
+        "requestId": "synthetic-stock-mint-safety-sell",
+        "intentId": "55555555-5555-4555-8555-555555555555",
+        "planId": "57b5aacdbea37a959e30e26a388d4cf37fa3706496657190d981c9c77819a65a",
+        "replayed": true,
+        "attribution": {
+          "actor": "agent",
+          "runtime": {
+            "source": "mcp-link-token",
+            "agentId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+            "linkTokenId": "11111111-1111-4111-8111-111111111111",
+            "surfaceBindingDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            "sessionBindingDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+          },
+          "wallet": {
+            "vaultPda": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+            "swigAddress": "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+            "walletAddress": "YMN9Qj5jPNp7j14VPcML1B6xGgcPWVZUGLFU3Mnyfaf"
+          },
+          "grant": {
+            "id": "66666666-6666-4666-8666-666666666666",
+            "revision": 1,
+            "revisionDigest": "2222222222222222222222222222222222222222222222222222222222222222",
+            "authorityNamespace": "stock-category-v2",
+            "categoryRuleId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+            "categoryRuleDigest": "7777777777777777777777777777777777777777777777777777777777777777",
+            "grantBindingId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+            "apiRuntimeAdmissionDigest": "1111111111111111111111111111111111111111111111111111111111111111",
+            "attestorVerifierTrustSetDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "graphConfigAccount": "8YQrAskG5gy8MQtBptQ6e1aYhKBub1RA4hcm3Vzrp4yE",
+            "graphConfigAccountDataSha256": "8888888888888888888888888888888888888888888888888888888888888888",
+            "riskPolicyDigest": "02b1604d5747fdff6846797d64b05c4c2f2539fc7ffd958e90a3e5014e5643d6",
+            "validFrom": "2026-08-20T23:59:00.000Z",
+            "expiresAt": "2026-08-21T00:01:00.000Z"
+          }
+        },
+        "approval": {
+          "status": "not-required",
+          "reasons": []
+        },
+        "effectiveExpiresAt": "2026-08-21T00:00:30.000Z",
+        "riskEvidenceDigest": "64e57c01fbbf5da03e2a9d48b098492bd82ea234aaab2afce8e0e03d61dbe8ab",
+        "authoritySnapshotDigest": "bd99d1b16b8ffc3744ddd43f118729cb8f7f8f530ef8f330339f84e875cbb95a",
+        "stockRuntime": {
+          "namespace": "dexter-delegated-stock-prepare-runtime-binding/v2",
+          "runtimeReleaseDigest": "9999999999999999999999999999999999999999999999999999999999999999",
+          "requestClaimDigest": "76685584f1d0b5b699095d3df11286f02e3173ee9361f6576558b28ec674f16b",
+          "durableIdentityDigest": "63da463352a292b048f25280bfd1bacef87dc6e72420c2c7a1effc45b2386c3f"
+        },
+        "preview": {
+          "action": "sell",
+          "assetId": "xstocks-0997ed45-6a34-4f26-be92-28d8e0f9f28a",
+          "symbol": "NVDAx",
+          "amountAtomic": "1000000",
+          "requestAmountKind": "usd-value",
+          "usdValue": {
+            "namespace": "dexter-governed-usd-value/v1",
+            "semantics": "approximate-input-market-value",
+            "requestedValueUsd": "25",
+            "selectedReferenceValueUsd": "25",
+            "rounding": "floor",
+            "amountAtomic": "1000000",
+            "rawDecimalAmount": "0.01",
+            "displayAmount": "0.010009180758490996",
+            "amountModel": "scaled-ui-amount",
+            "mint": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+            "tokenProgram": "token-2022",
+            "assetDecimals": 8,
+            "mintStateDigest": "64377d8659a1bf4bb9eca530d9063b10e95dc10877c7fa7ccd11ab56c8d3ffa2",
+            "mintObservedSlot": 123,
+            "mintObservedAtUnixMs": 1787270400000,
+            "preparedAtUnixMs": 1787270400000,
+            "price": {
+              "mint": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+              "usdPrice": "2500",
+              "quantityUnit": "raw-decimals",
+              "source": "jupiter-price-v3",
+              "retrievedAtUnixMs": 1787270400000,
+              "marketBlockId": 1,
+              "expiresAtUnixMs": 1787270401000,
+              "settlementUsdPrice": {
+                "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                "usdPrice": "0.8",
+                "source": "jupiter-price-v3",
+                "retrievedAtUnixMs": 1787270400000,
+                "marketBlockId": 100
+              }
+            },
+            "balance": {
+              "amountAtomic": "900000000",
+              "observedSlot": 123,
+              "observedAtUnixMs": 1787270400000
+            },
+            "multiplier": {
+              "observedSlot": 123,
+              "observedAtUnixMs": 1787270400000,
+              "mintStateDigest": "64377d8659a1bf4bb9eca530d9063b10e95dc10877c7fa7ccd11ab56c8d3ffa2",
+              "source": "token-2022-scaled-ui-current",
+              "value": "1.0009180758490996",
+              "currentValue": "1.0009180758490996",
+              "scheduledValue": "1.001701196801074",
+              "scheduledEffectiveTimestampUnixSeconds": 1789000200,
+              "effectiveTimestampUnixSeconds": null,
+              "nextValue": "1.001701196801074",
+              "nextEffectiveTimestampUnixSeconds": 1789000200
+            }
+          },
+          "requestedShareQuantity": null,
+          "expectedShareQuantity": null,
+          "minimumShareQuantity": null,
+          "shareQuantityUnit": null,
+          "shareQuantitySemantics": null,
+          "shareQuantityConversion": null,
+          "requestedMaximumSpendAtomic": null,
+          "maximumInputAmountAtomic": "1000000",
+          "overfillPossible": false,
+          "productIdentity": {
+            "assetId": "xstocks-0997ed45-6a34-4f26-be92-28d8e0f9f28a",
+            "assetClass": "stock",
+            "companyName": "NVIDIA",
+            "productName": "NVIDIA xStock",
+            "symbol": "NVDAx",
+            "providerName": "xStocks",
+            "legalIssuerName": "Backed Assets (JE) Limited",
+            "issuer": "Backed Assets (JE) Limited",
+            "mint": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+            "tokenProgram": "token-2022",
+            "decimals": 8,
+            "network": "solana-mainnet",
+            "registryIdentityDigest": "b2d46e6ed10cbd945f30dc79216a57c3a5a23596117a6ea895e4dd3eff883af9",
+            "amountModel": "scaled-ui-amount",
+            "displayMultiplier": "1.0009180758490996",
+            "amountObservedAtUnixMs": 1787270400000,
+            "amountObservedAtSlot": "123"
+          },
+          "stockSelection": {
+            "namespace": "dexter-governed-stock-selection-pin/v1",
+            "normalizedCompanyQuery": "nvidia",
+            "companyName": "NVIDIA",
+            "productName": "NVIDIA xStock",
+            "productSymbol": "NVDAx",
+            "providerName": "xStocks",
+            "legalIssuerName": "Backed Assets (JE) Limited",
+            "underlyingId": "be870914-a006-4524-89c5-e6d11a542474",
+            "underlyingIdentityDigest": "8448af4d86238e9ad9903e26dc4bfe983963d1befad8912eb29767914aee6ee5",
+            "selectionEventId": "9aba320e-e0be-4192-9d95-c068ae0d8dc4",
+            "selectionSequence": "1",
+            "selectionDigest": "b3624386a26b1bc6bc049ef080ef2379f9d0325ba7ffee884abf7791aaa9bc0d",
+            "selectedVariantId": "ccb8811c-d323-439d-b5ef-36358b85c8fd",
+            "assetId": "xstocks-0997ed45-6a34-4f26-be92-28d8e0f9f28a",
+            "productVersionId": "4316411b-8a13-4b09-8235-aec540d3be44",
+            "productVersionDigest": "472d008371817176476c79752a0d6da9ed00b804f9636d6c391616d8580539f2",
+            "onchainVersionId": "f77409e4-f8f7-4882-b531-f8f9209fd8e9",
+            "onchainVersionDigest": "b43ca301b6dba2e32dbadfd635634ac3f26970cf0a52ab54459a5c4b6b8be093",
+            "executionProfileVersionId": "c31d9bea-f9ef-490d-9ef1-e40d14b15b0d",
+            "executionProfileDigest": "eccdbcf14574c6b3999df9fd8db52692e34b08c74aac2a1cfd7d93fd9dab2613",
+            "executionReleaseId": "9732b867-cebf-430c-bf4b-14c9f565acdf",
+            "releaseDigest": "6748e239a35e3abe4c8ac00d108b7d22134c87530677d43846d9b0eaed683a6f",
+            "registryIdentityDigest": "b2d46e6ed10cbd945f30dc79216a57c3a5a23596117a6ea895e4dd3eff883af9",
+            "mint": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+            "tokenProgram": "token-2022",
+            "decimals": 8
+          },
+          "feeSummary": {
+            "summary": "Trading fees are included in this quote; network fee is calculated at execution.",
+            "platformFee": null,
+            "routeFees": [],
+            "networkFee": {
+              "status": "not-yet-calculated",
+              "amountLamports": null
+            }
+          },
+          "inputMint": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+          "outputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "destinationOwner": null,
+          "expectedOutputAtomic": "31125000",
+          "minimumOutputAtomic": "30813750",
+          "slippageBps": 100,
+          "priceImpactBps": 10,
+          "quoteExpiresAtUnixMs": 1787270430000
+        },
+        "account": {
+          "status": "already-exists",
+          "tokenAccountAddress": "EGwn5qiqAfaRFfdcp2mfWdLKmWvL5nUBbtxiL72Y2PyV"
+        },
+        "business": {
+          "action": "sell",
+          "assetId": "xstocks-0997ed45-6a34-4f26-be92-28d8e0f9f28a",
+          "requestedCompanyQuery": "nvidia",
+          "amountAtomic": "1000000",
+          "destinationOwner": null,
+          "protocolId": "jupiter-v2",
+          "lifecycle": "prepared",
+          "settlement": "not-submitted",
+          "finality": "not-final",
+          "executionSucceeded": null,
+          "programError": false,
+          "refusalOrEscalationReasons": [],
+          "ambiguity": {
+            "status": "none",
+            "retrySameRequestOnly": false
+          },
+          "reconciliation": {
+            "required": false,
+            "availableToOwner": false
+          }
+        },
+        "execution": {
+          "status": "not-executed",
+          "signed": false,
+          "submitted": false
+        }
+      },
+      "replayProjectedResponse": {
+        "namespace": "dexter-governed-agent-action/v1",
+        "status": "prepared",
+        "executed": false,
+        "requestId": "synthetic-stock-mint-safety-sell",
+        "intentId": "55555555-5555-4555-8555-555555555555",
+        "planId": "57b5aacdbea37a959e30e26a388d4cf37fa3706496657190d981c9c77819a65a",
+        "replayed": true,
+        "attribution": {
+          "actor": "agent",
+          "runtime": {
+            "source": "mcp-link-token",
+            "agentId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+            "linkTokenId": "11111111-1111-4111-8111-111111111111",
+            "surfaceBindingDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            "sessionBindingDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+          },
+          "wallet": {
+            "vaultPda": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+            "swigAddress": "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+            "walletAddress": "YMN9Qj5jPNp7j14VPcML1B6xGgcPWVZUGLFU3Mnyfaf"
+          },
+          "grant": {
+            "id": "66666666-6666-4666-8666-666666666666",
+            "revision": 1,
+            "revisionDigest": "2222222222222222222222222222222222222222222222222222222222222222",
+            "authorityNamespace": "stock-category-v2",
+            "categoryRuleId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+            "categoryRuleDigest": "7777777777777777777777777777777777777777777777777777777777777777",
+            "grantBindingId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+            "apiRuntimeAdmissionDigest": "1111111111111111111111111111111111111111111111111111111111111111",
+            "attestorVerifierTrustSetDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "graphConfigAccount": "8YQrAskG5gy8MQtBptQ6e1aYhKBub1RA4hcm3Vzrp4yE",
+            "graphConfigAccountDataSha256": "8888888888888888888888888888888888888888888888888888888888888888",
+            "riskPolicyDigest": "02b1604d5747fdff6846797d64b05c4c2f2539fc7ffd958e90a3e5014e5643d6",
+            "validFrom": "2026-08-20T23:59:00.000Z",
+            "expiresAt": "2026-08-21T00:01:00.000Z"
+          }
+        },
+        "approval": {
+          "status": "not-required",
+          "reasons": []
+        },
+        "effectiveExpiresAt": "2026-08-21T00:00:30.000Z",
+        "riskEvidenceDigest": "64e57c01fbbf5da03e2a9d48b098492bd82ea234aaab2afce8e0e03d61dbe8ab",
+        "authoritySnapshotDigest": "bd99d1b16b8ffc3744ddd43f118729cb8f7f8f530ef8f330339f84e875cbb95a",
+        "stockRuntime": {
+          "namespace": "dexter-delegated-stock-prepare-runtime-binding/v2",
+          "runtimeReleaseDigest": "9999999999999999999999999999999999999999999999999999999999999999",
+          "requestClaimDigest": "76685584f1d0b5b699095d3df11286f02e3173ee9361f6576558b28ec674f16b",
+          "durableIdentityDigest": "63da463352a292b048f25280bfd1bacef87dc6e72420c2c7a1effc45b2386c3f"
+        },
+        "preview": {
+          "action": "sell",
+          "assetId": "xstocks-0997ed45-6a34-4f26-be92-28d8e0f9f28a",
+          "symbol": "NVDAx",
+          "amountAtomic": "1000000",
+          "requestAmountKind": "usd-value",
+          "usdValue": {
+            "namespace": "dexter-governed-usd-value/v1",
+            "semantics": "approximate-input-market-value",
+            "requestedValueUsd": "25",
+            "selectedReferenceValueUsd": "25",
+            "rounding": "floor",
+            "amountAtomic": "1000000",
+            "rawDecimalAmount": "0.01",
+            "displayAmount": "0.010009180758490996",
+            "amountModel": "scaled-ui-amount",
+            "mint": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+            "tokenProgram": "token-2022",
+            "assetDecimals": 8,
+            "mintStateDigest": "64377d8659a1bf4bb9eca530d9063b10e95dc10877c7fa7ccd11ab56c8d3ffa2",
+            "mintObservedSlot": 123,
+            "mintObservedAtUnixMs": 1787270400000,
+            "preparedAtUnixMs": 1787270400000,
+            "price": {
+              "mint": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+              "usdPrice": "2500",
+              "quantityUnit": "raw-decimals",
+              "source": "jupiter-price-v3",
+              "retrievedAtUnixMs": 1787270400000,
+              "marketBlockId": 1,
+              "expiresAtUnixMs": 1787270401000,
+              "settlementUsdPrice": {
+                "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                "usdPrice": "0.8",
+                "source": "jupiter-price-v3",
+                "retrievedAtUnixMs": 1787270400000,
+                "marketBlockId": 100
+              }
+            },
+            "balance": {
+              "amountAtomic": "900000000",
+              "observedSlot": 123,
+              "observedAtUnixMs": 1787270400000
+            },
+            "multiplier": {
+              "observedSlot": 123,
+              "observedAtUnixMs": 1787270400000,
+              "mintStateDigest": "64377d8659a1bf4bb9eca530d9063b10e95dc10877c7fa7ccd11ab56c8d3ffa2",
+              "source": "token-2022-scaled-ui-current",
+              "value": "1.0009180758490996",
+              "currentValue": "1.0009180758490996",
+              "scheduledValue": "1.001701196801074",
+              "scheduledEffectiveTimestampUnixSeconds": 1789000200,
+              "effectiveTimestampUnixSeconds": null,
+              "nextValue": "1.001701196801074",
+              "nextEffectiveTimestampUnixSeconds": 1789000200
+            }
+          },
+          "requestedShareQuantity": null,
+          "expectedShareQuantity": null,
+          "minimumShareQuantity": null,
+          "shareQuantityUnit": null,
+          "shareQuantitySemantics": null,
+          "shareQuantityConversion": null,
+          "requestedMaximumSpendAtomic": null,
+          "maximumInputAmountAtomic": "1000000",
+          "overfillPossible": false,
+          "productIdentity": {
+            "assetId": "xstocks-0997ed45-6a34-4f26-be92-28d8e0f9f28a",
+            "assetClass": "stock",
+            "companyName": "NVIDIA",
+            "productName": "NVIDIA xStock",
+            "symbol": "NVDAx",
+            "providerName": "xStocks",
+            "legalIssuerName": "Backed Assets (JE) Limited",
+            "issuer": "Backed Assets (JE) Limited",
+            "mint": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+            "tokenProgram": "token-2022",
+            "decimals": 8,
+            "network": "solana-mainnet",
+            "registryIdentityDigest": "b2d46e6ed10cbd945f30dc79216a57c3a5a23596117a6ea895e4dd3eff883af9",
+            "amountModel": "scaled-ui-amount",
+            "displayMultiplier": "1.0009180758490996",
+            "amountObservedAtUnixMs": 1787270400000,
+            "amountObservedAtSlot": "123"
+          },
+          "stockSelection": {
+            "namespace": "dexter-governed-stock-selection-pin/v1",
+            "normalizedCompanyQuery": "nvidia",
+            "companyName": "NVIDIA",
+            "productName": "NVIDIA xStock",
+            "productSymbol": "NVDAx",
+            "providerName": "xStocks",
+            "legalIssuerName": "Backed Assets (JE) Limited",
+            "underlyingId": "be870914-a006-4524-89c5-e6d11a542474",
+            "underlyingIdentityDigest": "8448af4d86238e9ad9903e26dc4bfe983963d1befad8912eb29767914aee6ee5",
+            "selectionEventId": "9aba320e-e0be-4192-9d95-c068ae0d8dc4",
+            "selectionSequence": "1",
+            "selectionDigest": "b3624386a26b1bc6bc049ef080ef2379f9d0325ba7ffee884abf7791aaa9bc0d",
+            "selectedVariantId": "ccb8811c-d323-439d-b5ef-36358b85c8fd",
+            "assetId": "xstocks-0997ed45-6a34-4f26-be92-28d8e0f9f28a",
+            "productVersionId": "4316411b-8a13-4b09-8235-aec540d3be44",
+            "productVersionDigest": "472d008371817176476c79752a0d6da9ed00b804f9636d6c391616d8580539f2",
+            "onchainVersionId": "f77409e4-f8f7-4882-b531-f8f9209fd8e9",
+            "onchainVersionDigest": "b43ca301b6dba2e32dbadfd635634ac3f26970cf0a52ab54459a5c4b6b8be093",
+            "executionProfileVersionId": "c31d9bea-f9ef-490d-9ef1-e40d14b15b0d",
+            "executionProfileDigest": "eccdbcf14574c6b3999df9fd8db52692e34b08c74aac2a1cfd7d93fd9dab2613",
+            "executionReleaseId": "9732b867-cebf-430c-bf4b-14c9f565acdf",
+            "releaseDigest": "6748e239a35e3abe4c8ac00d108b7d22134c87530677d43846d9b0eaed683a6f",
+            "registryIdentityDigest": "b2d46e6ed10cbd945f30dc79216a57c3a5a23596117a6ea895e4dd3eff883af9",
+            "mint": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+            "tokenProgram": "token-2022",
+            "decimals": 8
+          },
+          "feeSummary": {
+            "summary": "Trading fees are included in this quote; network fee is calculated at execution.",
+            "platformFee": null,
+            "routeFees": [],
+            "networkFee": {
+              "status": "not-yet-calculated",
+              "amountLamports": null
+            }
+          },
+          "inputMint": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+          "outputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "destinationOwner": null,
+          "expectedOutputAtomic": "31125000",
+          "minimumOutputAtomic": "30813750",
+          "slippageBps": 100,
+          "priceImpactBps": 10,
+          "quoteExpiresAtUnixMs": 1787270430000
+        },
+        "account": {
+          "status": "already-exists",
+          "tokenAccountAddress": "EGwn5qiqAfaRFfdcp2mfWdLKmWvL5nUBbtxiL72Y2PyV"
+        },
+        "business": {
+          "action": "sell",
+          "assetId": "xstocks-0997ed45-6a34-4f26-be92-28d8e0f9f28a",
+          "requestedCompanyQuery": "nvidia",
+          "amountAtomic": "1000000",
+          "destinationOwner": null,
+          "protocolId": "jupiter-v2",
+          "lifecycle": "prepared",
+          "settlement": "not-submitted",
+          "finality": "not-final",
+          "executionSucceeded": null,
+          "programError": false,
+          "refusalOrEscalationReasons": [],
+          "ambiguity": {
+            "status": "none",
+            "retrySameRequestOnly": false
+          },
+          "reconciliation": {
+            "required": false,
+            "availableToOwner": false
+          }
+        },
+        "execution": {
+          "status": "not-executed",
+          "signed": false,
+          "submitted": false
+        }
+      },
+      "legacyControl": {
+        "syntheticCompatibilityControl": true,
+        "projectedResponse": {
+          "namespace": "dexter-governed-agent-action/v1",
+          "status": "prepared",
+          "executed": false,
+          "requestId": "synthetic-stock-mint-safety-sell",
+          "intentId": "55555555-5555-4555-8555-555555555555",
+          "planId": "57b5aacdbea37a959e30e26a388d4cf37fa3706496657190d981c9c77819a65a",
+          "replayed": true,
+          "attribution": {
+            "actor": "agent",
+            "runtime": {
+              "source": "mcp-link-token",
+              "agentId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+              "linkTokenId": "11111111-1111-4111-8111-111111111111",
+              "surfaceBindingDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+              "sessionBindingDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+            },
+            "wallet": {
+              "vaultPda": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+              "swigAddress": "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+              "walletAddress": "YMN9Qj5jPNp7j14VPcML1B6xGgcPWVZUGLFU3Mnyfaf"
+            },
+            "grant": {
+              "id": "66666666-6666-4666-8666-666666666666",
+              "revision": 1,
+              "revisionDigest": "2222222222222222222222222222222222222222222222222222222222222222",
+              "authorityNamespace": "stock-category-v2",
+              "categoryRuleId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+              "categoryRuleDigest": "7777777777777777777777777777777777777777777777777777777777777777",
+              "grantBindingId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+              "apiRuntimeAdmissionDigest": "1111111111111111111111111111111111111111111111111111111111111111",
+              "attestorVerifierTrustSetDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+              "graphConfigAccount": "8YQrAskG5gy8MQtBptQ6e1aYhKBub1RA4hcm3Vzrp4yE",
+              "graphConfigAccountDataSha256": "8888888888888888888888888888888888888888888888888888888888888888",
+              "riskPolicyDigest": "02b1604d5747fdff6846797d64b05c4c2f2539fc7ffd958e90a3e5014e5643d6",
+              "validFrom": "2026-08-20T23:59:00.000Z",
+              "expiresAt": "2026-08-21T00:01:00.000Z"
+            }
+          },
+          "approval": {
+            "status": "not-required",
+            "reasons": []
+          },
+          "effectiveExpiresAt": "2026-08-21T00:00:30.000Z",
+          "riskEvidenceDigest": "64e57c01fbbf5da03e2a9d48b098492bd82ea234aaab2afce8e0e03d61dbe8ab",
+          "authoritySnapshotDigest": "bd99d1b16b8ffc3744ddd43f118729cb8f7f8f530ef8f330339f84e875cbb95a",
+          "stockRuntime": {
+            "namespace": "dexter-delegated-stock-prepare-runtime-binding/v2",
+            "runtimeReleaseDigest": "9999999999999999999999999999999999999999999999999999999999999999",
+            "requestClaimDigest": "76685584f1d0b5b699095d3df11286f02e3173ee9361f6576558b28ec674f16b",
+            "durableIdentityDigest": "dc2963e6ed64fbb748c1e3dcb780e0a0f2f8b1dd59ae4cfc52e5d4a85336f46b"
+          },
+          "preview": {
+            "action": "sell",
+            "assetId": "xstocks-0997ed45-6a34-4f26-be92-28d8e0f9f28a",
+            "symbol": "NVDAx",
+            "amountAtomic": "1000000",
+            "requestAmountKind": "usd-value",
+            "usdValue": {
+              "namespace": "dexter-governed-usd-value/v1",
+              "semantics": "approximate-input-market-value",
+              "requestedValueUsd": "25",
+              "selectedReferenceValueUsd": "25",
+              "rounding": "floor",
+              "amountAtomic": "1000000",
+              "rawDecimalAmount": "0.01",
+              "displayAmount": "0.010009180758490996",
+              "amountModel": "scaled-ui-amount",
+              "mint": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+              "tokenProgram": "token-2022",
+              "assetDecimals": 8,
+              "mintStateDigest": "64377d8659a1bf4bb9eca530d9063b10e95dc10877c7fa7ccd11ab56c8d3ffa2",
+              "mintObservedSlot": 123,
+              "mintObservedAtUnixMs": 1787270400000,
+              "preparedAtUnixMs": 1787270400000,
+              "price": {
+                "mint": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+                "usdPrice": "2500",
+                "quantityUnit": "raw-decimals",
+                "source": "jupiter-price-v3",
+                "retrievedAtUnixMs": 1787270400000,
+                "marketBlockId": 1,
+                "expiresAtUnixMs": 1787270401000,
+                "settlementUsdPrice": {
+                  "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                  "usdPrice": "0.8",
+                  "source": "jupiter-price-v3",
+                  "retrievedAtUnixMs": 1787270400000,
+                  "marketBlockId": 100
+                }
+              },
+              "balance": {
+                "amountAtomic": "900000000",
+                "observedSlot": 123,
+                "observedAtUnixMs": 1787270400000
+              },
+              "multiplier": {
+                "observedSlot": 123,
+                "observedAtUnixMs": 1787270400000,
+                "mintStateDigest": "64377d8659a1bf4bb9eca530d9063b10e95dc10877c7fa7ccd11ab56c8d3ffa2",
+                "source": "token-2022-scaled-ui-current",
+                "value": "1.0009180758490996",
+                "currentValue": "1.0009180758490996",
+                "scheduledValue": "1.001701196801074",
+                "scheduledEffectiveTimestampUnixSeconds": 1789000200,
+                "effectiveTimestampUnixSeconds": null,
+                "nextValue": "1.001701196801074",
+                "nextEffectiveTimestampUnixSeconds": 1789000200
+              }
+            },
+            "requestedShareQuantity": null,
+            "expectedShareQuantity": null,
+            "minimumShareQuantity": null,
+            "shareQuantityUnit": null,
+            "shareQuantitySemantics": null,
+            "shareQuantityConversion": null,
+            "requestedMaximumSpendAtomic": null,
+            "maximumInputAmountAtomic": "1000000",
+            "overfillPossible": false,
+            "productIdentity": {
+              "assetId": "xstocks-0997ed45-6a34-4f26-be92-28d8e0f9f28a",
+              "assetClass": "stock",
+              "companyName": "NVIDIA",
+              "productName": "NVIDIA xStock",
+              "symbol": "NVDAx",
+              "providerName": "xStocks",
+              "legalIssuerName": "Backed Assets (JE) Limited",
+              "issuer": "Backed Assets (JE) Limited",
+              "mint": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+              "tokenProgram": "token-2022",
+              "decimals": 8,
+              "network": "solana-mainnet",
+              "registryIdentityDigest": "b2d46e6ed10cbd945f30dc79216a57c3a5a23596117a6ea895e4dd3eff883af9"
+            },
+            "stockSelection": {
+              "namespace": "dexter-governed-stock-selection-pin/v1",
+              "normalizedCompanyQuery": "nvidia",
+              "companyName": "NVIDIA",
+              "productName": "NVIDIA xStock",
+              "productSymbol": "NVDAx",
+              "providerName": "xStocks",
+              "legalIssuerName": "Backed Assets (JE) Limited",
+              "underlyingId": "be870914-a006-4524-89c5-e6d11a542474",
+              "underlyingIdentityDigest": "8448af4d86238e9ad9903e26dc4bfe983963d1befad8912eb29767914aee6ee5",
+              "selectionEventId": "9aba320e-e0be-4192-9d95-c068ae0d8dc4",
+              "selectionSequence": "1",
+              "selectionDigest": "b3624386a26b1bc6bc049ef080ef2379f9d0325ba7ffee884abf7791aaa9bc0d",
+              "selectedVariantId": "ccb8811c-d323-439d-b5ef-36358b85c8fd",
+              "assetId": "xstocks-0997ed45-6a34-4f26-be92-28d8e0f9f28a",
+              "productVersionId": "4316411b-8a13-4b09-8235-aec540d3be44",
+              "productVersionDigest": "472d008371817176476c79752a0d6da9ed00b804f9636d6c391616d8580539f2",
+              "onchainVersionId": "f77409e4-f8f7-4882-b531-f8f9209fd8e9",
+              "onchainVersionDigest": "b43ca301b6dba2e32dbadfd635634ac3f26970cf0a52ab54459a5c4b6b8be093",
+              "executionProfileVersionId": "c31d9bea-f9ef-490d-9ef1-e40d14b15b0d",
+              "executionProfileDigest": "eccdbcf14574c6b3999df9fd8db52692e34b08c74aac2a1cfd7d93fd9dab2613",
+              "executionReleaseId": "9732b867-cebf-430c-bf4b-14c9f565acdf",
+              "releaseDigest": "6748e239a35e3abe4c8ac00d108b7d22134c87530677d43846d9b0eaed683a6f",
+              "registryIdentityDigest": "b2d46e6ed10cbd945f30dc79216a57c3a5a23596117a6ea895e4dd3eff883af9",
+              "mint": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+              "tokenProgram": "token-2022",
+              "decimals": 8
+            },
+            "feeSummary": {
+              "summary": "Trading fees are included in this quote; network fee is calculated at execution.",
+              "platformFee": null,
+              "routeFees": [],
+              "networkFee": {
+                "status": "not-yet-calculated",
+                "amountLamports": null
+              }
+            },
+            "inputMint": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+            "outputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "destinationOwner": null,
+            "expectedOutputAtomic": "31125000",
+            "minimumOutputAtomic": "30813750",
+            "slippageBps": 100,
+            "priceImpactBps": 10,
+            "quoteExpiresAtUnixMs": 1787270430000
+          },
+          "account": {
+            "status": "already-exists",
+            "tokenAccountAddress": "EGwn5qiqAfaRFfdcp2mfWdLKmWvL5nUBbtxiL72Y2PyV"
+          },
+          "business": {
+            "action": "sell",
+            "assetId": "xstocks-0997ed45-6a34-4f26-be92-28d8e0f9f28a",
+            "requestedCompanyQuery": "nvidia",
+            "amountAtomic": "1000000",
+            "destinationOwner": null,
+            "protocolId": "jupiter-v2",
+            "lifecycle": "prepared",
+            "settlement": "not-submitted",
+            "finality": "not-final",
+            "executionSucceeded": null,
+            "programError": false,
+            "refusalOrEscalationReasons": [],
+            "ambiguity": {
+              "status": "none",
+              "retrySameRequestOnly": false
+            },
+            "reconciliation": {
+              "required": false,
+              "availableToOwner": false
+            }
+          },
+          "execution": {
+            "status": "not-executed",
+            "signed": false,
+            "submitted": false
+          }
+        }
+      },
+      "replayAtUnixMs": 1787270402000,
+      "calls": {
+        "attestFinal": 1,
+        "recoverFinal": 1,
+        "newReservation": 0,
+        "prepareFresh": 0,
+        "readPrice": 0,
+        "resolve": 0,
+        "inspect": 0
+      }
+    },
+    {
+      "artifact": "usd-value-saved-binding.json",
+      "artifactSha256": "92d371b5dd3f4e50632248e8c3bd49efa9df1423c4754fa3ec9b2d230c8ec482",
+      "scope": "Synthetic signed quote and local SQL ports; actual production recovery/materialization/permission/ledger/response and outer stock projector code",
+      "mode": "saved-binding",
+      "requestAmountKind": "usd-value",
+      "input": {
+        "requestId": "synthetic-stock-mint-safety-sell",
+        "action": "sell",
+        "companyQuery": "NVIDIA",
+        "valueUsd": "25"
+      },
+      "firstProjectedResponse": {
+        "namespace": "dexter-governed-agent-action/v1",
+        "status": "prepared",
+        "executed": false,
+        "requestId": "synthetic-stock-mint-safety-sell",
+        "intentId": "55555555-5555-4555-8555-555555555555",
+        "planId": "92bc015c92cabe129789943caf8e845b413c4447278bdc6e59e7a7ce12f36ae5",
+        "replayed": true,
+        "attribution": {
+          "actor": "agent",
+          "runtime": {
+            "source": "mcp-link-token",
+            "agentId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+            "linkTokenId": "11111111-1111-4111-8111-111111111111",
+            "surfaceBindingDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            "sessionBindingDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+          },
+          "wallet": {
+            "vaultPda": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+            "swigAddress": "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+            "walletAddress": "YMN9Qj5jPNp7j14VPcML1B6xGgcPWVZUGLFU3Mnyfaf"
+          },
+          "grant": {
+            "id": "66666666-6666-4666-8666-666666666666",
+            "revision": 1,
+            "revisionDigest": "2222222222222222222222222222222222222222222222222222222222222222",
+            "authorityNamespace": "stock-category-v2",
+            "categoryRuleId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+            "categoryRuleDigest": "7777777777777777777777777777777777777777777777777777777777777777",
+            "grantBindingId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+            "apiRuntimeAdmissionDigest": "1111111111111111111111111111111111111111111111111111111111111111",
+            "attestorVerifierTrustSetDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "graphConfigAccount": "8YQrAskG5gy8MQtBptQ6e1aYhKBub1RA4hcm3Vzrp4yE",
+            "graphConfigAccountDataSha256": "8888888888888888888888888888888888888888888888888888888888888888",
+            "riskPolicyDigest": "02b1604d5747fdff6846797d64b05c4c2f2539fc7ffd958e90a3e5014e5643d6",
+            "validFrom": "2026-08-20T23:59:00.000Z",
+            "expiresAt": "2026-08-21T00:01:00.000Z"
+          }
+        },
+        "approval": {
+          "status": "not-required",
+          "reasons": []
+        },
+        "effectiveExpiresAt": "2026-08-21T00:00:30.000Z",
+        "riskEvidenceDigest": "90a87d72d420beab90cb1ca986e35599aeae5fb7998b3df3b595b55771bddab2",
+        "authoritySnapshotDigest": "8d83eb9183bcafd1a06db0e0d6cf7ecce4f6f86dab89e04199f0d1ceaf9f68b6",
+        "stockRuntime": {
+          "namespace": "dexter-delegated-stock-prepare-runtime-binding/v2",
+          "runtimeReleaseDigest": "9999999999999999999999999999999999999999999999999999999999999999",
+          "requestClaimDigest": "76685584f1d0b5b699095d3df11286f02e3173ee9361f6576558b28ec674f16b",
+          "durableIdentityDigest": "0c2ebb009d077075b671225203d33010d595290159dcea0bd1dbca1f9dbc26c5"
+        },
+        "preview": {
+          "action": "sell",
+          "assetId": "xstocks-0997ed45-6a34-4f26-be92-28d8e0f9f28a",
+          "symbol": "NVDAx",
+          "amountAtomic": "1000000",
+          "requestAmountKind": "usd-value",
+          "usdValue": {
+            "namespace": "dexter-governed-usd-value/v1",
+            "semantics": "approximate-input-market-value",
+            "requestedValueUsd": "25",
+            "selectedReferenceValueUsd": "25",
+            "rounding": "floor",
+            "amountAtomic": "1000000",
+            "rawDecimalAmount": "0.01",
+            "displayAmount": "0.010009180758490996",
+            "amountModel": "scaled-ui-amount",
+            "mint": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+            "tokenProgram": "token-2022",
+            "assetDecimals": 8,
+            "mintStateDigest": "64377d8659a1bf4bb9eca530d9063b10e95dc10877c7fa7ccd11ab56c8d3ffa2",
+            "mintObservedSlot": 123,
+            "mintObservedAtUnixMs": 1787270400000,
+            "preparedAtUnixMs": 1787270400000,
+            "price": {
+              "mint": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+              "usdPrice": "2500",
+              "quantityUnit": "raw-decimals",
+              "source": "jupiter-price-v3",
+              "retrievedAtUnixMs": 1787270400000,
+              "marketBlockId": 1,
+              "expiresAtUnixMs": 1787270401000,
+              "settlementUsdPrice": {
+                "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                "usdPrice": "0.8",
+                "source": "jupiter-price-v3",
+                "retrievedAtUnixMs": 1787270400000,
+                "marketBlockId": 100
+              }
+            },
+            "balance": {
+              "amountAtomic": "900000000",
+              "observedSlot": 123,
+              "observedAtUnixMs": 1787270400000
+            },
+            "multiplier": {
+              "observedSlot": 123,
+              "observedAtUnixMs": 1787270400000,
+              "mintStateDigest": "64377d8659a1bf4bb9eca530d9063b10e95dc10877c7fa7ccd11ab56c8d3ffa2",
+              "source": "token-2022-scaled-ui-current",
+              "value": "1.0009180758490996",
+              "currentValue": "1.0009180758490996",
+              "scheduledValue": "1.001701196801074",
+              "scheduledEffectiveTimestampUnixSeconds": 1789000200,
+              "effectiveTimestampUnixSeconds": null,
+              "nextValue": "1.001701196801074",
+              "nextEffectiveTimestampUnixSeconds": 1789000200
+            }
+          },
+          "requestedShareQuantity": null,
+          "expectedShareQuantity": null,
+          "minimumShareQuantity": null,
+          "shareQuantityUnit": null,
+          "shareQuantitySemantics": null,
+          "shareQuantityConversion": null,
+          "requestedMaximumSpendAtomic": null,
+          "maximumInputAmountAtomic": "1000000",
+          "overfillPossible": false,
+          "productIdentity": {
+            "assetId": "xstocks-0997ed45-6a34-4f26-be92-28d8e0f9f28a",
+            "assetClass": "stock",
+            "companyName": "NVIDIA",
+            "productName": "NVIDIA xStock",
+            "symbol": "NVDAx",
+            "providerName": "xStocks",
+            "legalIssuerName": "Backed Assets (JE) Limited",
+            "issuer": "Backed Assets (JE) Limited",
+            "mint": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+            "tokenProgram": "token-2022",
+            "decimals": 8,
+            "network": "solana-mainnet",
+            "registryIdentityDigest": "b2d46e6ed10cbd945f30dc79216a57c3a5a23596117a6ea895e4dd3eff883af9",
+            "amountModel": "scaled-ui-amount",
+            "displayMultiplier": "1.0009180758490996",
+            "amountObservedAtUnixMs": 1787270400000,
+            "amountObservedAtSlot": "123"
+          },
+          "stockSelection": {
+            "namespace": "dexter-governed-stock-selection-pin/v1",
+            "normalizedCompanyQuery": "nvidia",
+            "companyName": "NVIDIA",
+            "productName": "NVIDIA xStock",
+            "productSymbol": "NVDAx",
+            "providerName": "xStocks",
+            "legalIssuerName": "Backed Assets (JE) Limited",
+            "underlyingId": "be870914-a006-4524-89c5-e6d11a542474",
+            "underlyingIdentityDigest": "8448af4d86238e9ad9903e26dc4bfe983963d1befad8912eb29767914aee6ee5",
+            "selectionEventId": "9aba320e-e0be-4192-9d95-c068ae0d8dc4",
+            "selectionSequence": "1",
+            "selectionDigest": "b3624386a26b1bc6bc049ef080ef2379f9d0325ba7ffee884abf7791aaa9bc0d",
+            "selectedVariantId": "ccb8811c-d323-439d-b5ef-36358b85c8fd",
+            "assetId": "xstocks-0997ed45-6a34-4f26-be92-28d8e0f9f28a",
+            "productVersionId": "4316411b-8a13-4b09-8235-aec540d3be44",
+            "productVersionDigest": "472d008371817176476c79752a0d6da9ed00b804f9636d6c391616d8580539f2",
+            "onchainVersionId": "f77409e4-f8f7-4882-b531-f8f9209fd8e9",
+            "onchainVersionDigest": "b43ca301b6dba2e32dbadfd635634ac3f26970cf0a52ab54459a5c4b6b8be093",
+            "executionProfileVersionId": "c31d9bea-f9ef-490d-9ef1-e40d14b15b0d",
+            "executionProfileDigest": "eccdbcf14574c6b3999df9fd8db52692e34b08c74aac2a1cfd7d93fd9dab2613",
+            "executionReleaseId": "9732b867-cebf-430c-bf4b-14c9f565acdf",
+            "releaseDigest": "6748e239a35e3abe4c8ac00d108b7d22134c87530677d43846d9b0eaed683a6f",
+            "registryIdentityDigest": "b2d46e6ed10cbd945f30dc79216a57c3a5a23596117a6ea895e4dd3eff883af9",
+            "mint": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+            "tokenProgram": "token-2022",
+            "decimals": 8
+          },
+          "feeSummary": {
+            "summary": "Trading fees are included in this quote; network fee is calculated at execution.",
+            "platformFee": null,
+            "routeFees": [],
+            "networkFee": {
+              "status": "not-yet-calculated",
+              "amountLamports": null
+            }
+          },
+          "inputMint": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+          "outputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "destinationOwner": null,
+          "expectedOutputAtomic": "31125000",
+          "minimumOutputAtomic": "30813750",
+          "slippageBps": 100,
+          "priceImpactBps": 10,
+          "quoteExpiresAtUnixMs": 1787270430000
+        },
+        "account": {
+          "status": "already-exists",
+          "tokenAccountAddress": "EGwn5qiqAfaRFfdcp2mfWdLKmWvL5nUBbtxiL72Y2PyV"
+        },
+        "business": {
+          "action": "sell",
+          "assetId": "xstocks-0997ed45-6a34-4f26-be92-28d8e0f9f28a",
+          "requestedCompanyQuery": "nvidia",
+          "amountAtomic": "1000000",
+          "destinationOwner": null,
+          "protocolId": "jupiter-v2",
+          "lifecycle": "prepared",
+          "settlement": "not-submitted",
+          "finality": "not-final",
+          "executionSucceeded": null,
+          "programError": false,
+          "refusalOrEscalationReasons": [],
+          "ambiguity": {
+            "status": "none",
+            "retrySameRequestOnly": false
+          },
+          "reconciliation": {
+            "required": false,
+            "availableToOwner": false
+          }
+        },
+        "execution": {
+          "status": "not-executed",
+          "signed": false,
+          "submitted": false
+        }
+      },
+      "replayProjectedResponse": {
+        "namespace": "dexter-governed-agent-action/v1",
+        "status": "prepared",
+        "executed": false,
+        "requestId": "synthetic-stock-mint-safety-sell",
+        "intentId": "55555555-5555-4555-8555-555555555555",
+        "planId": "92bc015c92cabe129789943caf8e845b413c4447278bdc6e59e7a7ce12f36ae5",
+        "replayed": true,
+        "attribution": {
+          "actor": "agent",
+          "runtime": {
+            "source": "mcp-link-token",
+            "agentId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+            "linkTokenId": "11111111-1111-4111-8111-111111111111",
+            "surfaceBindingDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            "sessionBindingDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+          },
+          "wallet": {
+            "vaultPda": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+            "swigAddress": "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+            "walletAddress": "YMN9Qj5jPNp7j14VPcML1B6xGgcPWVZUGLFU3Mnyfaf"
+          },
+          "grant": {
+            "id": "66666666-6666-4666-8666-666666666666",
+            "revision": 1,
+            "revisionDigest": "2222222222222222222222222222222222222222222222222222222222222222",
+            "authorityNamespace": "stock-category-v2",
+            "categoryRuleId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+            "categoryRuleDigest": "7777777777777777777777777777777777777777777777777777777777777777",
+            "grantBindingId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+            "apiRuntimeAdmissionDigest": "1111111111111111111111111111111111111111111111111111111111111111",
+            "attestorVerifierTrustSetDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "graphConfigAccount": "8YQrAskG5gy8MQtBptQ6e1aYhKBub1RA4hcm3Vzrp4yE",
+            "graphConfigAccountDataSha256": "8888888888888888888888888888888888888888888888888888888888888888",
+            "riskPolicyDigest": "02b1604d5747fdff6846797d64b05c4c2f2539fc7ffd958e90a3e5014e5643d6",
+            "validFrom": "2026-08-20T23:59:00.000Z",
+            "expiresAt": "2026-08-21T00:01:00.000Z"
+          }
+        },
+        "approval": {
+          "status": "not-required",
+          "reasons": []
+        },
+        "effectiveExpiresAt": "2026-08-21T00:00:30.000Z",
+        "riskEvidenceDigest": "90a87d72d420beab90cb1ca986e35599aeae5fb7998b3df3b595b55771bddab2",
+        "authoritySnapshotDigest": "8d83eb9183bcafd1a06db0e0d6cf7ecce4f6f86dab89e04199f0d1ceaf9f68b6",
+        "stockRuntime": {
+          "namespace": "dexter-delegated-stock-prepare-runtime-binding/v2",
+          "runtimeReleaseDigest": "9999999999999999999999999999999999999999999999999999999999999999",
+          "requestClaimDigest": "76685584f1d0b5b699095d3df11286f02e3173ee9361f6576558b28ec674f16b",
+          "durableIdentityDigest": "0c2ebb009d077075b671225203d33010d595290159dcea0bd1dbca1f9dbc26c5"
+        },
+        "preview": {
+          "action": "sell",
+          "assetId": "xstocks-0997ed45-6a34-4f26-be92-28d8e0f9f28a",
+          "symbol": "NVDAx",
+          "amountAtomic": "1000000",
+          "requestAmountKind": "usd-value",
+          "usdValue": {
+            "namespace": "dexter-governed-usd-value/v1",
+            "semantics": "approximate-input-market-value",
+            "requestedValueUsd": "25",
+            "selectedReferenceValueUsd": "25",
+            "rounding": "floor",
+            "amountAtomic": "1000000",
+            "rawDecimalAmount": "0.01",
+            "displayAmount": "0.010009180758490996",
+            "amountModel": "scaled-ui-amount",
+            "mint": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+            "tokenProgram": "token-2022",
+            "assetDecimals": 8,
+            "mintStateDigest": "64377d8659a1bf4bb9eca530d9063b10e95dc10877c7fa7ccd11ab56c8d3ffa2",
+            "mintObservedSlot": 123,
+            "mintObservedAtUnixMs": 1787270400000,
+            "preparedAtUnixMs": 1787270400000,
+            "price": {
+              "mint": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+              "usdPrice": "2500",
+              "quantityUnit": "raw-decimals",
+              "source": "jupiter-price-v3",
+              "retrievedAtUnixMs": 1787270400000,
+              "marketBlockId": 1,
+              "expiresAtUnixMs": 1787270401000,
+              "settlementUsdPrice": {
+                "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                "usdPrice": "0.8",
+                "source": "jupiter-price-v3",
+                "retrievedAtUnixMs": 1787270400000,
+                "marketBlockId": 100
+              }
+            },
+            "balance": {
+              "amountAtomic": "900000000",
+              "observedSlot": 123,
+              "observedAtUnixMs": 1787270400000
+            },
+            "multiplier": {
+              "observedSlot": 123,
+              "observedAtUnixMs": 1787270400000,
+              "mintStateDigest": "64377d8659a1bf4bb9eca530d9063b10e95dc10877c7fa7ccd11ab56c8d3ffa2",
+              "source": "token-2022-scaled-ui-current",
+              "value": "1.0009180758490996",
+              "currentValue": "1.0009180758490996",
+              "scheduledValue": "1.001701196801074",
+              "scheduledEffectiveTimestampUnixSeconds": 1789000200,
+              "effectiveTimestampUnixSeconds": null,
+              "nextValue": "1.001701196801074",
+              "nextEffectiveTimestampUnixSeconds": 1789000200
+            }
+          },
+          "requestedShareQuantity": null,
+          "expectedShareQuantity": null,
+          "minimumShareQuantity": null,
+          "shareQuantityUnit": null,
+          "shareQuantitySemantics": null,
+          "shareQuantityConversion": null,
+          "requestedMaximumSpendAtomic": null,
+          "maximumInputAmountAtomic": "1000000",
+          "overfillPossible": false,
+          "productIdentity": {
+            "assetId": "xstocks-0997ed45-6a34-4f26-be92-28d8e0f9f28a",
+            "assetClass": "stock",
+            "companyName": "NVIDIA",
+            "productName": "NVIDIA xStock",
+            "symbol": "NVDAx",
+            "providerName": "xStocks",
+            "legalIssuerName": "Backed Assets (JE) Limited",
+            "issuer": "Backed Assets (JE) Limited",
+            "mint": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+            "tokenProgram": "token-2022",
+            "decimals": 8,
+            "network": "solana-mainnet",
+            "registryIdentityDigest": "b2d46e6ed10cbd945f30dc79216a57c3a5a23596117a6ea895e4dd3eff883af9",
+            "amountModel": "scaled-ui-amount",
+            "displayMultiplier": "1.0009180758490996",
+            "amountObservedAtUnixMs": 1787270400000,
+            "amountObservedAtSlot": "123"
+          },
+          "stockSelection": {
+            "namespace": "dexter-governed-stock-selection-pin/v1",
+            "normalizedCompanyQuery": "nvidia",
+            "companyName": "NVIDIA",
+            "productName": "NVIDIA xStock",
+            "productSymbol": "NVDAx",
+            "providerName": "xStocks",
+            "legalIssuerName": "Backed Assets (JE) Limited",
+            "underlyingId": "be870914-a006-4524-89c5-e6d11a542474",
+            "underlyingIdentityDigest": "8448af4d86238e9ad9903e26dc4bfe983963d1befad8912eb29767914aee6ee5",
+            "selectionEventId": "9aba320e-e0be-4192-9d95-c068ae0d8dc4",
+            "selectionSequence": "1",
+            "selectionDigest": "b3624386a26b1bc6bc049ef080ef2379f9d0325ba7ffee884abf7791aaa9bc0d",
+            "selectedVariantId": "ccb8811c-d323-439d-b5ef-36358b85c8fd",
+            "assetId": "xstocks-0997ed45-6a34-4f26-be92-28d8e0f9f28a",
+            "productVersionId": "4316411b-8a13-4b09-8235-aec540d3be44",
+            "productVersionDigest": "472d008371817176476c79752a0d6da9ed00b804f9636d6c391616d8580539f2",
+            "onchainVersionId": "f77409e4-f8f7-4882-b531-f8f9209fd8e9",
+            "onchainVersionDigest": "b43ca301b6dba2e32dbadfd635634ac3f26970cf0a52ab54459a5c4b6b8be093",
+            "executionProfileVersionId": "c31d9bea-f9ef-490d-9ef1-e40d14b15b0d",
+            "executionProfileDigest": "eccdbcf14574c6b3999df9fd8db52692e34b08c74aac2a1cfd7d93fd9dab2613",
+            "executionReleaseId": "9732b867-cebf-430c-bf4b-14c9f565acdf",
+            "releaseDigest": "6748e239a35e3abe4c8ac00d108b7d22134c87530677d43846d9b0eaed683a6f",
+            "registryIdentityDigest": "b2d46e6ed10cbd945f30dc79216a57c3a5a23596117a6ea895e4dd3eff883af9",
+            "mint": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+            "tokenProgram": "token-2022",
+            "decimals": 8
+          },
+          "feeSummary": {
+            "summary": "Trading fees are included in this quote; network fee is calculated at execution.",
+            "platformFee": null,
+            "routeFees": [],
+            "networkFee": {
+              "status": "not-yet-calculated",
+              "amountLamports": null
+            }
+          },
+          "inputMint": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+          "outputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "destinationOwner": null,
+          "expectedOutputAtomic": "31125000",
+          "minimumOutputAtomic": "30813750",
+          "slippageBps": 100,
+          "priceImpactBps": 10,
+          "quoteExpiresAtUnixMs": 1787270430000
+        },
+        "account": {
+          "status": "already-exists",
+          "tokenAccountAddress": "EGwn5qiqAfaRFfdcp2mfWdLKmWvL5nUBbtxiL72Y2PyV"
+        },
+        "business": {
+          "action": "sell",
+          "assetId": "xstocks-0997ed45-6a34-4f26-be92-28d8e0f9f28a",
+          "requestedCompanyQuery": "nvidia",
+          "amountAtomic": "1000000",
+          "destinationOwner": null,
+          "protocolId": "jupiter-v2",
+          "lifecycle": "prepared",
+          "settlement": "not-submitted",
+          "finality": "not-final",
+          "executionSucceeded": null,
+          "programError": false,
+          "refusalOrEscalationReasons": [],
+          "ambiguity": {
+            "status": "none",
+            "retrySameRequestOnly": false
+          },
+          "reconciliation": {
+            "required": false,
+            "availableToOwner": false
+          }
+        },
+        "execution": {
+          "status": "not-executed",
+          "signed": false,
+          "submitted": false
+        }
+      },
+      "legacyControl": {
+        "syntheticCompatibilityControl": true,
+        "projectedResponse": {
+          "namespace": "dexter-governed-agent-action/v1",
+          "status": "prepared",
+          "executed": false,
+          "requestId": "synthetic-stock-mint-safety-sell",
+          "intentId": "55555555-5555-4555-8555-555555555555",
+          "planId": "92bc015c92cabe129789943caf8e845b413c4447278bdc6e59e7a7ce12f36ae5",
+          "replayed": true,
+          "attribution": {
+            "actor": "agent",
+            "runtime": {
+              "source": "mcp-link-token",
+              "agentId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+              "linkTokenId": "11111111-1111-4111-8111-111111111111",
+              "surfaceBindingDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+              "sessionBindingDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+            },
+            "wallet": {
+              "vaultPda": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+              "swigAddress": "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+              "walletAddress": "YMN9Qj5jPNp7j14VPcML1B6xGgcPWVZUGLFU3Mnyfaf"
+            },
+            "grant": {
+              "id": "66666666-6666-4666-8666-666666666666",
+              "revision": 1,
+              "revisionDigest": "2222222222222222222222222222222222222222222222222222222222222222",
+              "authorityNamespace": "stock-category-v2",
+              "categoryRuleId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+              "categoryRuleDigest": "7777777777777777777777777777777777777777777777777777777777777777",
+              "grantBindingId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+              "apiRuntimeAdmissionDigest": "1111111111111111111111111111111111111111111111111111111111111111",
+              "attestorVerifierTrustSetDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+              "graphConfigAccount": "8YQrAskG5gy8MQtBptQ6e1aYhKBub1RA4hcm3Vzrp4yE",
+              "graphConfigAccountDataSha256": "8888888888888888888888888888888888888888888888888888888888888888",
+              "riskPolicyDigest": "02b1604d5747fdff6846797d64b05c4c2f2539fc7ffd958e90a3e5014e5643d6",
+              "validFrom": "2026-08-20T23:59:00.000Z",
+              "expiresAt": "2026-08-21T00:01:00.000Z"
+            }
+          },
+          "approval": {
+            "status": "not-required",
+            "reasons": []
+          },
+          "effectiveExpiresAt": "2026-08-21T00:00:30.000Z",
+          "riskEvidenceDigest": "90a87d72d420beab90cb1ca986e35599aeae5fb7998b3df3b595b55771bddab2",
+          "authoritySnapshotDigest": "8d83eb9183bcafd1a06db0e0d6cf7ecce4f6f86dab89e04199f0d1ceaf9f68b6",
+          "stockRuntime": {
+            "namespace": "dexter-delegated-stock-prepare-runtime-binding/v2",
+            "runtimeReleaseDigest": "9999999999999999999999999999999999999999999999999999999999999999",
+            "requestClaimDigest": "76685584f1d0b5b699095d3df11286f02e3173ee9361f6576558b28ec674f16b",
+            "durableIdentityDigest": "9d7d5f0923b9e33c514284dd9b616277a385ff8e0023acf18376a1dd1fc42755"
+          },
+          "preview": {
+            "action": "sell",
+            "assetId": "xstocks-0997ed45-6a34-4f26-be92-28d8e0f9f28a",
+            "symbol": "NVDAx",
+            "amountAtomic": "1000000",
+            "requestAmountKind": "usd-value",
+            "usdValue": {
+              "namespace": "dexter-governed-usd-value/v1",
+              "semantics": "approximate-input-market-value",
+              "requestedValueUsd": "25",
+              "selectedReferenceValueUsd": "25",
+              "rounding": "floor",
+              "amountAtomic": "1000000",
+              "rawDecimalAmount": "0.01",
+              "displayAmount": "0.010009180758490996",
+              "amountModel": "scaled-ui-amount",
+              "mint": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+              "tokenProgram": "token-2022",
+              "assetDecimals": 8,
+              "mintStateDigest": "64377d8659a1bf4bb9eca530d9063b10e95dc10877c7fa7ccd11ab56c8d3ffa2",
+              "mintObservedSlot": 123,
+              "mintObservedAtUnixMs": 1787270400000,
+              "preparedAtUnixMs": 1787270400000,
+              "price": {
+                "mint": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+                "usdPrice": "2500",
+                "quantityUnit": "raw-decimals",
+                "source": "jupiter-price-v3",
+                "retrievedAtUnixMs": 1787270400000,
+                "marketBlockId": 1,
+                "expiresAtUnixMs": 1787270401000,
+                "settlementUsdPrice": {
+                  "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                  "usdPrice": "0.8",
+                  "source": "jupiter-price-v3",
+                  "retrievedAtUnixMs": 1787270400000,
+                  "marketBlockId": 100
+                }
+              },
+              "balance": {
+                "amountAtomic": "900000000",
+                "observedSlot": 123,
+                "observedAtUnixMs": 1787270400000
+              },
+              "multiplier": {
+                "observedSlot": 123,
+                "observedAtUnixMs": 1787270400000,
+                "mintStateDigest": "64377d8659a1bf4bb9eca530d9063b10e95dc10877c7fa7ccd11ab56c8d3ffa2",
+                "source": "token-2022-scaled-ui-current",
+                "value": "1.0009180758490996",
+                "currentValue": "1.0009180758490996",
+                "scheduledValue": "1.001701196801074",
+                "scheduledEffectiveTimestampUnixSeconds": 1789000200,
+                "effectiveTimestampUnixSeconds": null,
+                "nextValue": "1.001701196801074",
+                "nextEffectiveTimestampUnixSeconds": 1789000200
+              }
+            },
+            "requestedShareQuantity": null,
+            "expectedShareQuantity": null,
+            "minimumShareQuantity": null,
+            "shareQuantityUnit": null,
+            "shareQuantitySemantics": null,
+            "shareQuantityConversion": null,
+            "requestedMaximumSpendAtomic": null,
+            "maximumInputAmountAtomic": "1000000",
+            "overfillPossible": false,
+            "productIdentity": {
+              "assetId": "xstocks-0997ed45-6a34-4f26-be92-28d8e0f9f28a",
+              "assetClass": "stock",
+              "companyName": "NVIDIA",
+              "productName": "NVIDIA xStock",
+              "symbol": "NVDAx",
+              "providerName": "xStocks",
+              "legalIssuerName": "Backed Assets (JE) Limited",
+              "issuer": "Backed Assets (JE) Limited",
+              "mint": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+              "tokenProgram": "token-2022",
+              "decimals": 8,
+              "network": "solana-mainnet",
+              "registryIdentityDigest": "b2d46e6ed10cbd945f30dc79216a57c3a5a23596117a6ea895e4dd3eff883af9"
+            },
+            "stockSelection": {
+              "namespace": "dexter-governed-stock-selection-pin/v1",
+              "normalizedCompanyQuery": "nvidia",
+              "companyName": "NVIDIA",
+              "productName": "NVIDIA xStock",
+              "productSymbol": "NVDAx",
+              "providerName": "xStocks",
+              "legalIssuerName": "Backed Assets (JE) Limited",
+              "underlyingId": "be870914-a006-4524-89c5-e6d11a542474",
+              "underlyingIdentityDigest": "8448af4d86238e9ad9903e26dc4bfe983963d1befad8912eb29767914aee6ee5",
+              "selectionEventId": "9aba320e-e0be-4192-9d95-c068ae0d8dc4",
+              "selectionSequence": "1",
+              "selectionDigest": "b3624386a26b1bc6bc049ef080ef2379f9d0325ba7ffee884abf7791aaa9bc0d",
+              "selectedVariantId": "ccb8811c-d323-439d-b5ef-36358b85c8fd",
+              "assetId": "xstocks-0997ed45-6a34-4f26-be92-28d8e0f9f28a",
+              "productVersionId": "4316411b-8a13-4b09-8235-aec540d3be44",
+              "productVersionDigest": "472d008371817176476c79752a0d6da9ed00b804f9636d6c391616d8580539f2",
+              "onchainVersionId": "f77409e4-f8f7-4882-b531-f8f9209fd8e9",
+              "onchainVersionDigest": "b43ca301b6dba2e32dbadfd635634ac3f26970cf0a52ab54459a5c4b6b8be093",
+              "executionProfileVersionId": "c31d9bea-f9ef-490d-9ef1-e40d14b15b0d",
+              "executionProfileDigest": "eccdbcf14574c6b3999df9fd8db52692e34b08c74aac2a1cfd7d93fd9dab2613",
+              "executionReleaseId": "9732b867-cebf-430c-bf4b-14c9f565acdf",
+              "releaseDigest": "6748e239a35e3abe4c8ac00d108b7d22134c87530677d43846d9b0eaed683a6f",
+              "registryIdentityDigest": "b2d46e6ed10cbd945f30dc79216a57c3a5a23596117a6ea895e4dd3eff883af9",
+              "mint": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+              "tokenProgram": "token-2022",
+              "decimals": 8
+            },
+            "feeSummary": {
+              "summary": "Trading fees are included in this quote; network fee is calculated at execution.",
+              "platformFee": null,
+              "routeFees": [],
+              "networkFee": {
+                "status": "not-yet-calculated",
+                "amountLamports": null
+              }
+            },
+            "inputMint": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+            "outputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "destinationOwner": null,
+            "expectedOutputAtomic": "31125000",
+            "minimumOutputAtomic": "30813750",
+            "slippageBps": 100,
+            "priceImpactBps": 10,
+            "quoteExpiresAtUnixMs": 1787270430000
+          },
+          "account": {
+            "status": "already-exists",
+            "tokenAccountAddress": "EGwn5qiqAfaRFfdcp2mfWdLKmWvL5nUBbtxiL72Y2PyV"
+          },
+          "business": {
+            "action": "sell",
+            "assetId": "xstocks-0997ed45-6a34-4f26-be92-28d8e0f9f28a",
+            "requestedCompanyQuery": "nvidia",
+            "amountAtomic": "1000000",
+            "destinationOwner": null,
+            "protocolId": "jupiter-v2",
+            "lifecycle": "prepared",
+            "settlement": "not-submitted",
+            "finality": "not-final",
+            "executionSucceeded": null,
+            "programError": false,
+            "refusalOrEscalationReasons": [],
+            "ambiguity": {
+              "status": "none",
+              "retrySameRequestOnly": false
+            },
+            "reconciliation": {
+              "required": false,
+              "availableToOwner": false
+            }
+          },
+          "execution": {
+            "status": "not-executed",
+            "signed": false,
+            "submitted": false
+          }
+        }
+      },
+      "replayAtUnixMs": 1787270402000,
+      "calls": {
+        "attestFinal": 1,
+        "recoverFinal": 0,
+        "newReservation": 0,
+        "prepareFresh": 0,
+        "readPrice": 0,
+        "resolve": 0,
+        "inspect": 0
+      }
+    }
+  ]
+}
