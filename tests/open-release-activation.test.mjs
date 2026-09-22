@@ -20,6 +20,7 @@ import {
   activateOpenRelease,
   activatePrivateRelease,
   capturePriorOpenReleasePair,
+  persistScopedPm2Dump,
   preservedPrivateProcessSnapshot,
   preflightOpenReleaseCandidate,
   privateRestartPm2Config,
@@ -2233,6 +2234,131 @@ function orderedRows(rows) {
   return [...rows].sort((left, right) => left.name.localeCompare(right.name));
 }
 
+test('scoped persistence serializes only the selected pm2_env in its original saved position', async () => {
+  for (const name of ['dexter-open-mcp', 'dexter-mcp']) {
+    for (const targetSaved of [true, false]) {
+      const pm2Home = await mkdtemp(resolve(tmpdir(), 'mcp-scoped-dump-'));
+      try {
+        const target = pm2Row(name, '/sealed/current', 1234, [], 4931);
+        target.pm2_env.prev_restart_delay = 123;
+        target.pm2_env.axm_monitor = { retained: true };
+        const savedOnly = { name: 'saved-only', custom: { values: [2, 1] } };
+        const otherSaved = { name: 'other-service', env: { PORT: 'saved-port' } };
+        const originalSavedRows = [savedOnly,
+          ...(targetSaved ? [{ name, obsolete: true }] : []), otherSaved];
+        const originalBytes = Buffer.from(JSON.stringify(originalSavedRows, null, 2));
+        await writeFile(resolve(pm2Home, 'dump.pm2'), originalBytes, { mode: 0o600 });
+        const originalTarget = structuredClone(target);
+        const result = await persistScopedPm2Dump({
+          pm2Home, originalSavedRows, expectedLiveRows: [target], services: [name],
+          runPm2: async (args) => {
+            assert.deepEqual(args, ['jlist']);
+            return { stdout: JSON.stringify([
+              { name: 'live-only', pm2_env: { name: 'live-only' } }, target,
+              { name: 'other-service', pm2_env: { name: 'other-service', env: { PORT: 'live-port' } } },
+            ]) };
+          },
+        });
+        assert.deepEqual(result.rows.map((row) => row.name), targetSaved
+          ? ['saved-only', name, 'other-service']
+          : ['saved-only', 'other-service', name]);
+        assert.deepEqual(result.rows.filter((row) => row.name !== name), [savedOnly, otherSaved]);
+        const expected = structuredClone(target.pm2_env);
+        delete expected.instances;
+        delete expected.pm_id;
+        delete expected.prev_restart_delay;
+        assert.deepEqual(result.targetRows, [expected]);
+        assert.deepEqual(target, originalTarget);
+        assert.deepEqual(await readFile(resolve(pm2Home, 'dump.pm2.bak')), originalBytes);
+        assert.deepEqual(await readFile(resolve(pm2Home, 'dump.pm2')), result.bytes);
+        assert.equal((await lstat(resolve(pm2Home, 'dump.pm2'))).mode & 0o777, 0o600);
+      } finally {
+        await rm(pm2Home, { recursive: true, force: true });
+      }
+    }
+  }
+});
+
+test('scoped persistence refuses missing, duplicated, module or changed target before either dump write', async () => {
+  for (const mutation of ['absent', 'duplicate', 'saved-duplicate', 'module', 'name', 'pid', 'pm-id', 'uptime', 'restart', 'definition']) {
+    const pm2Home = await mkdtemp(resolve(tmpdir(), 'mcp-scoped-refusal-'));
+    try {
+      const target = pm2Row('dexter-open-mcp', '/sealed/current', 1234, [], 4931);
+      target.pm2_env.pm_uptime = 123456;
+      const changed = structuredClone(target);
+      if (mutation === 'module') changed.pm2_env.pmx_module = true;
+      if (mutation === 'name') changed.pm2_env.name = 'other-service';
+      if (mutation === 'pid') changed.pid += 1;
+      if (mutation === 'pm-id') changed.pm_id += 1;
+      if (mutation === 'uptime') changed.pm2_env.pm_uptime += 1;
+      if (mutation === 'restart') changed.pm2_env.restart_time += 1;
+      if (mutation === 'definition') changed.pm2_env.env.EXTRA = 'changed';
+      const originalSavedRows = mutation === 'saved-duplicate'
+        ? [{ name: target.name }, { name: target.name }] : [];
+      const original = Buffer.from(JSON.stringify(originalSavedRows));
+      const backup = Buffer.from('[{"name":"backup-only"}]');
+      await writeFile(resolve(pm2Home, 'dump.pm2'), original, { mode: 0o600 });
+      await writeFile(resolve(pm2Home, 'dump.pm2.bak'), backup, { mode: 0o600 });
+      let writes = 0;
+      await assert.rejects(persistScopedPm2Dump({
+        pm2Home, originalSavedRows, expectedLiveRows: [target],
+        runPm2: async () => ({ stdout: JSON.stringify(mutation === 'absent' ? []
+          : mutation === 'duplicate' ? [changed, changed] : [changed]) }),
+        writeDump: async () => { writes += 1; },
+      }));
+      assert.equal(writes, 0, mutation);
+      assert.deepEqual(await readFile(resolve(pm2Home, 'dump.pm2')), original);
+      assert.deepEqual(await readFile(resolve(pm2Home, 'dump.pm2.bak')), backup);
+    } finally {
+      await rm(pm2Home, { recursive: true, force: true });
+    }
+  }
+});
+
+test('scoped first save leaves an existing backup unchanged when primary was absent', async () => {
+  const pm2Home = await mkdtemp(resolve(tmpdir(), 'mcp-scoped-absent-'));
+  try {
+    const backup = Buffer.from('[{"name":"backup-only"}]');
+    await writeFile(resolve(pm2Home, 'dump.pm2.bak'), backup, { mode: 0o600 });
+    const target = pm2Row('dexter-mcp', '/sealed/current', 1234, [], 4930);
+    await persistScopedPm2Dump({
+      pm2Home, originalSavedRows: [], expectedLiveRows: [target], services: ['dexter-mcp'],
+      runPm2: async () => ({ stdout: JSON.stringify([target]) }),
+    });
+    assert.deepEqual(await readFile(resolve(pm2Home, 'dump.pm2.bak')), backup);
+    assert.deepEqual(JSON.parse(await readFile(resolve(pm2Home, 'dump.pm2'), 'utf8'))
+      .map((row) => row.name), ['dexter-mcp']);
+  } finally {
+    await rm(pm2Home, { recursive: true, force: true });
+  }
+});
+
+test('an interruption between scoped backup and primary exposes only the original saved inventory', async () => {
+  const pm2Home = await mkdtemp(resolve(tmpdir(), 'mcp-scoped-interrupt-'));
+  try {
+    const originalSavedRows = [{ name: 'saved-only', opaque: { keep: [3, 1] } }];
+    const original = Buffer.from(JSON.stringify(originalSavedRows, null, 2));
+    await writeFile(resolve(pm2Home, 'dump.pm2'), original, { mode: 0o600 });
+    const target = pm2Row('dexter-mcp', '/sealed/current', 1234, [], 4930);
+    const writes = [];
+    await assert.rejects(persistScopedPm2Dump({
+      pm2Home, originalSavedRows, expectedLiveRows: [target], services: ['dexter-mcp'],
+      runPm2: async () => ({ stdout: JSON.stringify([target, { name: 'live-only' }]) }),
+      writeDump: async (home, bytes, name) => {
+        if (name === 'dump.pm2') throw new Error('simulated interruption');
+        writes.push(name);
+        await writeFile(resolve(home, name), bytes, { mode: 0o600 });
+      },
+    }), /simulated interruption/);
+    assert.deepEqual(writes, ['dump.pm2.bak']);
+    for (const name of ['dump.pm2', 'dump.pm2.bak']) {
+      assert.deepEqual(await readFile(resolve(pm2Home, name)), original);
+    }
+  } finally {
+    await rm(pm2Home, { recursive: true, force: true });
+  }
+});
+
 async function writeProtectedEnvironment(directory, lines = []) {
   const envFile = resolve(directory, 'production.env');
   await writeFile(envFile, [
@@ -2268,6 +2394,8 @@ async function activationHarness({
   swapEnvAfterCandidateSave = false,
   initialRows,
   initialSavedRows,
+  interleaveSavedTarget = false,
+  interruptPersistence = null,
   includeUnrelated = false,
   includeLiveOnlyModule = false,
   failCandidateJlistOnce = false,
@@ -2354,10 +2482,13 @@ async function activationHarness({
   let rollbackDeleteFailures = 0;
   let priorRestartProofCalls = 0;
   let legacyPriorHealthCalls = 0;
+  const arrangedSavedRows = interleaveSavedTarget
+    ? [unrelatedPm2Row({ port: '4999' }), priorRows[0], priorRows[1]]
+    : initialSavedRows;
   const initialSavedBytes = omitInitialSavedDump
     ? null
     : JSON.stringify(dumpRows(
-      initialSavedRows
+      arrangedSavedRows
         ?? priorRows.filter((row) => row.pm2_env.pmx_module !== true),
     ));
   if (initialSavedBytes !== null) {
@@ -2367,34 +2498,25 @@ async function activationHarness({
       { mode: 0o600 },
     );
   }
-  const runCommand = async (command, args, options) => {
-    assert.equal(command, PRODUCTION_NODE_EXECUTABLE);
-    assert.equal(args[0], PRODUCTION_PM2_EXECUTABLE);
-    const pm2Args = args.slice(1);
-    commandCalls.push({ args: [...pm2Args], options });
-    const operation = pm2Args[0];
-    events.push(`${operation}${pm2Args[1] ? `:${pm2Args[1]}` : ''}`);
-    if (operation === 'jlist') {
-      if (
-        failCandidateJlistOnce
-        && candidateStarted
-        && !candidateJlistFailed
-      ) {
-        candidateJlistFailed = true;
-        throw new Error('candidate_jlist_unavailable');
-      }
-      return { stdout: JSON.stringify(rows) };
-    }
-    if (operation === 'save') {
-      // PM2 modules appear in `jlist`, but PM2 intentionally omits them from
-      // dump.pm2. The activation path must preserve live and saved baselines
-      // independently instead of requiring those two universes to be equal.
-      const dump = dumpRows(
-        rows.filter((row) => row.pm2_env.pmx_module !== true),
-      );
+  const initialBackupBytes = JSON.stringify([{ name: 'saved-backup-only', custom: { keep: true } }]);
+  await writeFile(resolve(pm2Home, 'dump.pm2.bak'), initialBackupBytes, { mode: 0o600 });
+  const persistSaved = async (args) => {
+    events.push('persist-scoped');
+    const result = await persistScopedPm2Dump({ ...args,
+      ...(interruptPersistence ? { writeDump: async (home, bytes, name) => {
+        if (interruptPersistence === 'before-primary' && name === 'dump.pm2') {
+          throw new Error('interrupted before primary write');
+        }
+        await writeFile(resolve(home, name), bytes, { mode: 0o600 });
+        if (interruptPersistence === 'after-primary' && name === 'dump.pm2') {
+          throw new Error('interrupted after primary write');
+        }
+      } } : {}),
+    });
+    const dump = result.rows;
       if (omitDefaultInstancesInSavedDump) {
         for (const row of dump) {
-          if (row.instances === 1) delete row.instances;
+          if (DEXTER_SERVICES.includes(row.name) && row.instances === 1) delete row.instances;
         }
       }
       if (
@@ -2475,8 +2597,28 @@ async function activationHarness({
         ].join('\n'));
         await chmod(envFile, 0o600);
       }
-      return { stdout: 'saved' };
+    return { ...result, rows: dump, bytes: Buffer.from(JSON.stringify(dump)),
+      targetRows: dump.filter((row) => DEXTER_SERVICES.includes(row.name)) };
+  };
+  const runCommand = async (command, args, options) => {
+    assert.equal(command, PRODUCTION_NODE_EXECUTABLE);
+    assert.equal(args[0], PRODUCTION_PM2_EXECUTABLE);
+    const pm2Args = args.slice(1);
+    commandCalls.push({ args: [...pm2Args], options });
+    const operation = pm2Args[0];
+    events.push(`${operation}${pm2Args[1] ? `:${pm2Args[1]}` : ''}`);
+    if (operation === 'jlist') {
+      if (
+        failCandidateJlistOnce
+        && candidateStarted
+        && !candidateJlistFailed
+      ) {
+        candidateJlistFailed = true;
+        throw new Error('candidate_jlist_unavailable');
+      }
+      return { stdout: JSON.stringify(rows) };
     }
+    if (operation === 'save') throw new Error('global PM2 save is forbidden');
     if (operation === 'delete') {
       deleteCalls += 1;
       if (
@@ -2620,6 +2762,7 @@ async function activationHarness({
     const result = await activateOpenRelease({
       releaseCandidate: release,
       runCommand,
+      persistSaved,
       fetchImpl,
       pm2Home,
       commandEnvironment: {
@@ -2693,6 +2836,8 @@ async function activationHarness({
       savedRows,
       savedBytes,
       initialSavedBytes,
+      initialBackupBytes,
+      savedBackupBytes: await readFile(resolve(pm2Home, 'dump.pm2.bak'), 'utf8').catch((e) => e.code === 'ENOENT' ? null : Promise.reject(e)),
       events,
       priorRows,
       commandCalls,
@@ -2710,6 +2855,8 @@ async function activationHarness({
       savedRows,
       savedBytes,
       initialSavedBytes,
+      initialBackupBytes,
+      savedBackupBytes: await readFile(resolve(pm2Home, 'dump.pm2.bak'), 'utf8').catch((e) => e.code === 'ENOENT' ? null : Promise.reject(e)),
       events,
       priorRows,
       commandCalls,
@@ -2747,7 +2894,7 @@ test('activation replaces only public OpenDexter and preserves private runtime',
       '/sealed/releases/old-private/production-bootstrap.mjs',
     ],
   ]);
-  assert.ok(events.indexOf('verified-prior-restart') < events.indexOf('save:--force'));
+  assert.ok(events.indexOf('verified-prior-restart') < events.indexOf('persist-scoped'));
   assert.ok(
     events.indexOf('verified-saved:prior')
       < events.indexOf('delete:dexter-open-mcp'),
@@ -2762,8 +2909,8 @@ test('activation replaces only public OpenDexter and preserves private runtime',
     events.indexOf('verified-widget-assets:post')
       > events.lastIndexOf('verified-candidate'),
   );
-  assert.ok(events.indexOf('verified-candidate') < events.lastIndexOf('save:--force'));
-  assert.ok(events.indexOf('verified-saved:candidate') > events.lastIndexOf('save:--force'));
+  assert.ok(events.indexOf('verified-candidate') < events.lastIndexOf('persist-scoped'));
+  assert.ok(events.indexOf('verified-saved:candidate') > events.lastIndexOf('persist-scoped'));
   assert.ok(events.lastIndexOf('verified-candidate') > events.indexOf('verified-saved:candidate'));
   assert.equal(events.some(
     (event) => /^(?:reload|restart|startOrReload)(?::|$)/.test(event),
@@ -2901,6 +3048,7 @@ test('private rollback config contains one captured service and rejects loaders'
 
 async function privateActivationHarness({
   candidateSaveBackupMode = 'exact',
+  interruptCandidatePersistence = null,
   changePrivateBeforeDelete = false,
   degradePriorBeforeRecovery = false,
   failRollbackDelete = false,
@@ -2994,7 +3142,7 @@ async function privateActivationHarness({
   const events = [];
   const initialSavedRows = initialSavedMode === 'without-private'
     ? [priorRows[1], savedOnlyRow]
-    : [...priorRows, savedOnlyRow];
+    : [savedOnlyRow, ...priorRows];
   const initialSavedBytes = initialSavedMode === 'absent'
     ? null
     : JSON.stringify(dumpRows(initialSavedRows));
@@ -3037,40 +3185,36 @@ async function privateActivationHarness({
       throw new Error(`unexpected proc file ${path}`);
     },
   };
+  const persistSaved = async (args) => {
+    events.push('persist-scoped');
+    saveCount += 1;
+    const result = await persistScopedPm2Dump({ ...args,
+      ...(saveCount === 2 && interruptCandidatePersistence ? {
+        writeDump: async (home, bytes, name) => {
+          if (interruptCandidatePersistence === 'before-primary' && name === 'dump.pm2') {
+            throw new Error('interrupted before candidate primary write');
+          }
+          await writeFile(resolve(home, name), bytes, { mode: 0o600 });
+          if (interruptCandidatePersistence === 'after-primary' && name === 'dump.pm2') {
+            throw new Error('interrupted after candidate primary write');
+          }
+        },
+      } : {}),
+    });
+    if (saveCount === 2 && candidateSaveBackupMode === 'missing') {
+      await rm(resolve(pm2Home, 'dump.pm2.bak'), { force: true });
+    } else if (saveCount === 2 && candidateSaveBackupMode === 'wrong') {
+      await writeFile(resolve(pm2Home, 'dump.pm2.bak'), '[]', { mode: 0o600 });
+    }
+    return result;
+  };
   const runCommand = async (command, args) => {
     assert.equal(command, PRODUCTION_NODE_EXECUTABLE);
     assert.equal(args[0], PRODUCTION_PM2_EXECUTABLE);
     const pm2Args = args.slice(1);
     events.push(pm2Args.join(':'));
     if (pm2Args[0] === 'jlist') return { stdout: JSON.stringify(rows) };
-    if (pm2Args[0] === 'save') {
-      saveCount += 1;
-      const primaryPath = resolve(pm2Home, 'dump.pm2');
-      const previousPrimary = await readFile(primaryPath).catch(
-        (error) => error?.code === 'ENOENT' ? null : Promise.reject(error),
-      );
-      if (saveCount === 2 && candidateSaveBackupMode === 'missing') {
-        await rm(resolve(pm2Home, 'dump.pm2.bak'), { force: true });
-      } else if (saveCount === 2 && candidateSaveBackupMode === 'wrong') {
-        await writeFile(
-          resolve(pm2Home, 'dump.pm2.bak'),
-          '[]',
-          { mode: 0o600 },
-        );
-      } else if (previousPrimary !== null) {
-        await writeFile(
-          resolve(pm2Home, 'dump.pm2.bak'),
-          previousPrimary,
-          { mode: 0o600 },
-        );
-      }
-      await writeFile(
-        primaryPath,
-        JSON.stringify(dumpRows(rows)),
-        { mode: 0o600 },
-      );
-      return { stdout: 'saved' };
-    }
+    if (pm2Args[0] === 'save') throw new Error('global PM2 save is forbidden');
     if (pm2Args[0] === 'delete') {
       deleteCount += 1;
       if (failRollbackDelete && deleteCount === 2) {
@@ -3186,6 +3330,7 @@ async function privateActivationHarness({
       result = await activatePrivateRelease({
         releaseCandidate: release,
         runCommand,
+        persistSaved,
         fetchImpl,
         pm2Home,
         commandEnvironment: {
@@ -3404,6 +3549,51 @@ test('private activation selects only dexter-mcp and preserves public OpenDexter
     ['dexter-mcp', 'dexter-open-mcp', 'saved-only-worker'],
   );
   assert.equal(result.journalBytes, null);
+  assert.deepEqual(result.savedRows.map((row) => row.name),
+    JSON.parse(result.initialSavedBytes).map((row) => row.name));
+  assert.equal(result.events.some((event) => event.startsWith('save:')), false);
+});
+
+test('public scoped persistence keeps the target in place through success and rollback', async () => {
+  for (const rejectCandidate of [false, true]) {
+    const result = await activationHarness({ interleaveSavedTarget: true, includeUnrelated: true, rejectCandidate });
+    if (rejectCandidate) assert.match(result.error?.message ?? '', /exact prior state was restored/);
+    else assert.equal(result.error, undefined);
+    const original = JSON.parse(result.initialSavedBytes);
+    assert.deepEqual(result.savedRows.map((row) => row.name), original.map((row) => row.name));
+    assert.deepEqual(result.savedRows.filter((row) => row.name !== 'dexter-open-mcp'),
+      original.filter((row) => row.name !== 'dexter-open-mcp'));
+    assert.equal(result.commandCalls.some(({ args }) => args[0] === 'save'), false);
+  }
+});
+
+test('public interrupted prior persistence restores both original files or primary absence before any process change', async () => {
+  for (const interruptPersistence of ['before-primary', 'after-primary']) {
+    for (const omitInitialSavedDump of [false, true]) {
+      const result = await activationHarness({ interruptPersistence, omitInitialSavedDump });
+      assert.match(result.error?.message ?? '', /original saved state was restored/);
+      assert.equal(result.savedBytes, result.initialSavedBytes);
+      assert.equal(result.savedBackupBytes, result.initialBackupBytes);
+      assert.equal(result.commandCalls.some(({ args }) => ['save', 'delete', 'start'].includes(args[0])), false);
+    }
+  }
+});
+
+test('private interrupted candidate persistence retains its journal for exact recovery of both original files', async () => {
+  for (const interruptCandidatePersistence of ['before-primary', 'after-primary']) {
+    for (const initialSavedMode of ['full', 'absent', 'without-private']) {
+      const result = await privateActivationHarness({
+        interruptCandidatePersistence, initialSavedMode, failRollbackDelete: true, recoverAfterFailure: true,
+      });
+      assert.ok(result.error);
+      assert.equal(result.recoveryError, undefined);
+      assert.ok(result.recoveryResult);
+      assert.equal(result.savedBytes, result.initialSavedBytes);
+      assert.equal(result.savedBackupBytes, result.initialBackupBytes);
+      assert.equal(result.journalBytes, null);
+      assert.equal(result.events.some((event) => event.startsWith('save:')), false);
+    }
+  }
 });
 
 test('private activation commits only with the exact prior backup dump', async () => {
@@ -3569,7 +3759,7 @@ test('private pre-delete race leaves the replacement runtime untouched', async (
   });
   assert.match(
     result.error?.message ?? '',
-    /private Dexter runtime changed before (?:cutover|deletion)/,
+    /(?:private Dexter runtime changed before (?:cutover|deletion)|dexter-mcp runtime changed before scoped PM2 persistence)/,
   );
   assert.equal(
     result.events.some((event) => event.startsWith('delete:')),
@@ -3794,7 +3984,7 @@ test('activation preserves unrelated live and saved definitions and bounds every
   const calls = [...successful.commandCalls, ...rolledBack.commandCalls];
   assert.deepEqual(
     [...new Set(calls.map((call) => call.args[0]))].sort(),
-    ['delete', 'jlist', 'resurrect', 'save', 'start'],
+    ['delete', 'jlist', 'resurrect', 'start'],
   );
   for (const { args, options } of calls) {
     const expectedTimeout = args[0] === 'start' || args[0] === 'resurrect'
@@ -3925,18 +4115,18 @@ test('the post-save live proof catches candidate drift and restores the prior pu
   assert.equal(result.events.at(-1), 'verified-rollback');
 });
 
-test('generated saved unrelated drift is discarded in favor of the sealed saved baseline', async () => {
+test('saved unrelated corruption after scoped persistence rejects and restores the prior service', async () => {
   const result = await activationHarness({
     includeUnrelated: true,
     tamperSavedUnrelated: true,
   });
-  assert.equal(result.error, undefined);
+  assert.match(result.error?.message ?? '', /candidate failed; the exact prior state was restored/);
   assert.equal(
     result.savedRows.find((row) => row.name === 'other-service')
       .env.OTHER_PORT,
     '4010',
   );
-  assert.equal(result.events.includes('verified-rollback'), false);
+  assert.equal(result.events.includes('verified-rollback'), true);
 });
 
 test('rollback retries a transient target delete before resurrecting', async () => {
@@ -4080,7 +4270,7 @@ test('prior saved proof binds every protected environment value before deletion'
   );
   assert.deepEqual(
     result.commandCalls.map(({ args }) => args[0]),
-    ['jlist', 'save'],
+    ['jlist', 'jlist'],
   );
   assert.equal(result.savedBytes, result.initialSavedBytes);
   assert.deepEqual(result.rows, result.priorRows);
@@ -4107,7 +4297,7 @@ test('prior saved proof rejects altered durable PM2 restart controls before dele
     );
     assert.deepEqual(
       result.commandCalls.map(({ args }) => args[0]),
-      ['jlist', 'save'],
+      ['jlist', 'jlist'],
     );
     assert.equal(result.savedBytes, result.initialSavedBytes);
     assert.deepEqual(result.rows, result.priorRows);
