@@ -119,6 +119,25 @@ test('routes concrete jobs and outcomes to task', () => {
   }
 });
 
+test('routes specific keyword phrases without requiring an action verb', () => {
+  for (const query of [
+    'Solana token price 24h percent change by mint address',
+    'PDF invoice extraction',
+    'shipping rates by postcode',
+    'same-day shipping rates',
+    'EUR USD exchange rates',
+    '  ＰＤＦ invoice extraction  ',
+  ]) {
+    assert.deepEqual(routeIndexterRequest(query), task, query);
+  }
+  for (const query of [
+    'price PRICE', '24 7', '2026 09', 'data and things',
+    'same thing for Boston', 'this company', 'what about token prices?',
+  ]) {
+    assert.deepEqual(routeIndexterRequest(query), overview, query);
+  }
+});
+
 test('defaults blank and malformed inputs to overview', () => {
   for (const input of [
     '',
