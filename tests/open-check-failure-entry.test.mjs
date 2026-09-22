@@ -85,6 +85,7 @@ test('actual hosted Check and Access handlers preserve the current refusal witho
   process.env.NATIVE_EXACT_MCP_SERVICE_HMAC_SECRET = 'a'.repeat(32);
   const calls = [];
   const statusCalls = [];
+  const unexpectedCalls = [];
   let currentRefusal = refusal;
   const enrichment = { resource: { method: 'POST' }, history: { recent: [{ diagnostic: 'OLD_WALLET_DIAGNOSTIC' }] } };
   const response = (data, status = 200) => new Response(JSON.stringify(data), {
@@ -102,6 +103,7 @@ test('actual hosted Check and Access handlers preserve the current refusal witho
       return response(currentRefusal, currentRefusal.httpStatus);
     }
     if (url.pathname === '/api/x402/resource') return response({ ok: true, found: true, ...enrichment });
+    unexpectedCalls.push(url.pathname);
     throw new Error(`Unexpected fixture request: ${url.pathname}`);
   };
   const server = createOpenMcpServer({ includeResources: false });
@@ -116,27 +118,51 @@ test('actual hosted Check and Access handlers preserve the current refusal witho
       [refusal, 'local_authority_unavailable'],
       [{ ok: false, error: 'unclassified_failure', httpStatus: 503 }, 'unknown_error'],
       [{ ok: false, error: 'provider_request_failed', reason: 'provider_returned_error', httpStatus: 502 }, 'provider_error'],
+      [{ ...refusal, authMode: 'siwx' }, 'local_authority_unavailable'],
+      [{ ok: false, authMode: 'siwx', status: 'check_in_progress', reason: 'provider_check_in_progress', retryAfterMs: 250, retryable: false, httpStatus: 202 }, 'check_pending'],
+      [{ ok: false, authMode: 'siwx', status: 'check_unknown', error: 'purchase_check_outcome_unknown', reason: 'provider_outcome_unknown', retryable: false, httpStatus: 503 }, 'check_pending'],
+      [{ ok: false, authMode: 'siwx', status: 'check_ambiguous', error: 'purchase_check_ambiguous', reason: 'provider_outcome_ambiguous', retryable: false, httpStatus: 409 }, 'check_pending'],
     ]) {
-      currentRefusal = failure;
-      const before = calls.length;
-      const result = await server._registeredTools[tool].handler({
-        url: 'https://seller.example/pdf', method: 'POST', body: '{"url":"https://example.org/document.pdf"}',
-      }, { sessionId: `failure-fixture-${tool}` });
-      assert.equal(calls.length, before + 1);
-      assert.equal(result.structuredContent.executionGuidance.supportedPath, path);
-      assert.equal(result.structuredContent.executionGuidance.readyForFetch, false);
-      if (path !== 'provider_error') assert.equal(result.structuredContent.executionGuidance.reprobeAllowed, false);
-      assert.equal(result.structuredContent.checkRequestId, calls.at(-1).requestId);
-      assert.equal(result.structuredContent.error, failure.error);
-      assert.equal(result.structuredContent.reason, failure.reason);
-      assert.equal(result.structuredContent.intentId, null);
-      assert.equal(result.isError, true);
-      assert.doesNotMatch(JSON.stringify([result.content, result.structuredContent]), /OLD_WALLET_DIAGNOSTIC/);
-      assert.deepEqual(result._meta['dexter/checkEvidence'], { enrichment, enrichment_source: 'live_db' });
-      assert.equal(OPEN_TOOL_CONTRACTS[tool].outputSchema.safeParse(result.structuredContent).success, true);
-      if (tool === 'x402_check') {
-        const checkRequestId = result.structuredContent.checkRequestId;
+      await t.test(`${tool}: ${failure.authMode ?? 'unspecified auth'} ${failure.status ?? failure.error}`, async () => {
+        currentRefusal = failure;
+        const before = calls.length;
         const beforeStatus = statusCalls.length;
+        const args = {
+          url: 'https://seller.example/pdf', method: 'POST', body: '{"url":"https://example.org/document.pdf"}',
+        };
+        const result = await server._registeredTools[tool].handler(args, { sessionId: `failure-fixture-${tool}` });
+        assert.equal(calls.length, before + 1);
+        assert.equal(statusCalls.length, beforeStatus);
+        assert.equal(calls.at(-1).url, args.url);
+        assert.equal(calls.at(-1).method, args.method);
+        assert.equal(calls.at(-1).body, args.body);
+        assert.equal(result.structuredContent.executionGuidance.supportedPath, path);
+        assert.equal(result.structuredContent.executionGuidance.readyForFetch, false);
+        if (path !== 'provider_error') assert.equal(result.structuredContent.executionGuidance.reprobeAllowed, false);
+        assert.equal(result.structuredContent.executionGuidance.intentRequired, false);
+        assert.equal(result.structuredContent.executionGuidance.dispatchAtMostOnce, true);
+        assert.equal(Object.hasOwn(result.structuredContent.executionGuidance, 'fetchArguments'), false);
+        assert.equal(result.structuredContent.checkRequestId, calls.at(-1).requestId);
+        assert.equal(result.structuredContent.error, failure.error);
+        assert.equal(result.structuredContent.reason, failure.reason);
+        assert.equal(result.structuredContent.status, failure.status);
+        assert.equal(result.structuredContent.retryable, failure.retryable);
+        assert.deepEqual(result.structuredContent.checkedRequest, { ...args, requestBound: true });
+        assert.equal(Object.hasOwn(result.structuredContent, 'siwx'), false);
+        assert.equal(result.structuredContent.intentId, null);
+        assert.equal(result.isError, true);
+        assert.doesNotMatch(JSON.stringify([result.content, result.structuredContent]), /OLD_WALLET_DIAGNOSTIC/);
+        assert.deepEqual(result._meta['dexter/checkEvidence'], { enrichment, enrichment_source: 'live_db' });
+        assert.equal(OPEN_TOOL_CONTRACTS[tool].outputSchema.safeParse(result.structuredContent).success, true);
+        const checkRequestId = result.structuredContent.checkRequestId;
+        if (path === 'check_pending') {
+          assert.equal(result.structuredContent.recovery.checkRequestId, checkRequestId);
+          assert.equal(result.structuredContent.recovery.tool, 'x402_status');
+          assert.deepEqual(result.structuredContent.recovery.arguments, { checkRequestId });
+          assert.equal(result.structuredContent.recovery.retryAfterMs, failure.retryAfterMs);
+        } else {
+          assert.equal(Object.hasOwn(result.structuredContent, 'recovery'), false);
+        }
         const saved = await server._registeredTools.x402_status.handler({ checkRequestId }, {
           sessionId: `failure-fixture-${tool}`,
         });
@@ -145,10 +171,16 @@ test('actual hosted Check and Access handlers preserve the current refusal witho
         assert.equal(statusCalls.at(-1).requestId, checkRequestId);
         assert.equal(saved.structuredContent.checkRequestId, checkRequestId);
         assert.equal(saved.structuredContent.error, failure.error);
-        assert.equal(saved.structuredContent.executionGuidance.supportedPath, path);
-        assert.equal(saved.structuredContent.executionGuidance.readyForFetch, false);
+        assert.equal(saved.structuredContent.reason, failure.reason);
+        assert.equal(saved.structuredContent.status, failure.status);
+        assert.equal(saved.structuredContent.retryable, failure.retryable);
+        assert.deepEqual(saved.structuredContent.executionGuidance, result.structuredContent.executionGuidance);
+        assert.deepEqual(saved.structuredContent.recovery, result.structuredContent.recovery);
+        assert.equal(saved.structuredContent.intentId, null);
+        assert.equal(Object.hasOwn(saved.structuredContent, 'siwx'), false);
         assert.equal(OPEN_TOOL_CONTRACTS.x402_status.outputSchema.safeParse(saved.structuredContent).success, true);
-      }
+        assert.deepEqual(unexpectedCalls, []);
+      });
     }
   }
 });
