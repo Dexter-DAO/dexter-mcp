@@ -1,0 +1,344 @@
+{
+  "fixture": "synthetic offline reader output",
+  "snapshot": {
+    "schemaVersion": 1,
+    "network": "solana-mainnet",
+    "walletAddress": "Vote111111111111111111111111111111111111111",
+    "vaultPda": "Stake11111111111111111111111111111111111111",
+    "observedAt": "2026-07-25T10:30:00.000Z",
+    "contextSlot": 101,
+    "holdingsComplete": true,
+    "nextCursor": null,
+    "omittedHoldings": 0,
+    "pricedValueUsd": "18446744174.262801615",
+    "portfolioValueUsd": "18446744174.262801615",
+    "pricedHoldings": 3,
+    "unpricedHoldings": 0,
+    "enrichment": {
+      "metadata": "complete",
+      "pricing": "complete",
+      "tokenExtensions": "complete"
+    },
+    "holdings": [
+      {
+        "mint": "EfPoo4wWgxKVToit7yX5VtXXBrhao4G8L7vrbKy6pump",
+        "tokenAccount": "ComputeBudget111111111111111111111111111111",
+        "tokenProgram": "spl-token",
+        "assetClass": "token",
+        "symbol": "DEXTER",
+        "name": "Dexter AI",
+        "issuer": "Dexter",
+        "amountRaw": "18446744073709551615",
+        "decimals": 6,
+        "displayAmount": "18446744073709.551615",
+        "amountModel": "raw-decimals",
+        "displayMultiplier": null,
+        "tokenExtensions": [],
+        "accountState": "initialized",
+        "valueUsd": "18446744073.709551615",
+        "price": {
+          "usd": "0.001",
+          "source": "jupiter-price-v3",
+          "observedAt": "2026-07-25T10:30:00.000Z",
+          "blockId": 99,
+          "change24hPercent": "-2"
+        },
+        "approval": {
+          "status": "approved",
+          "assetId": "dexter",
+          "group": "dexter-core",
+          "source": "dexter-registry"
+        },
+        "capabilities": [
+          {
+            "action": "view",
+            "available": true,
+            "reason": null,
+            "reasonCode": null
+          },
+          {
+            "action": "receive",
+            "available": true,
+            "reason": null,
+            "reasonCode": null
+          },
+          {
+            "action": "send",
+            "available": false,
+            "reason": "governed_asset_rail_not_live",
+            "reasonCode": "governed_asset_rail_not_live"
+          },
+          {
+            "action": "buy",
+            "available": false,
+            "reason": "governed_asset_rail_not_live",
+            "reasonCode": "governed_asset_rail_not_live"
+          },
+          {
+            "action": "sell",
+            "available": false,
+            "reason": "governed_asset_rail_not_live",
+            "reasonCode": "governed_asset_rail_not_live"
+          },
+          {
+            "action": "earn",
+            "available": false,
+            "reason": "governed_asset_rail_not_live",
+            "reasonCode": "governed_asset_rail_not_live"
+          },
+          {
+            "action": "lend",
+            "available": false,
+            "reason": "governed_asset_rail_not_live",
+            "reasonCode": "governed_asset_rail_not_live"
+          },
+          {
+            "action": "borrow",
+            "available": false,
+            "reason": "governed_asset_rail_not_live",
+            "reasonCode": "governed_asset_rail_not_live"
+          },
+          {
+            "action": "pay",
+            "available": false,
+            "reason": "governed_asset_rail_not_live",
+            "reasonCode": "governed_asset_rail_not_live"
+          }
+        ],
+        "graphics": {
+          "canonicalImageUrl": null,
+          "dexScreenerImageUrl": null,
+          "dexScreenerHeaderUrl": null,
+          "openGraphImageUrl": null
+        },
+        "metadataObservedAt": "2026-07-25T10:30:00.000Z",
+        "marketContext": {
+          "source": "jupiter-tokens-v2",
+          "mint": "EfPoo4wWgxKVToit7yX5VtXXBrhao4G8L7vrbKy6pump",
+          "observedAt": "2026-07-25T10:30:00.000Z",
+          "liquidityUsd": "1250.25",
+          "holderCount": 42,
+          "activity24h": {
+            "traderCount": 7
+          }
+        },
+        "registryIdentity": null
+      },
+      {
+        "mint": "native:SOL",
+        "tokenAccount": null,
+        "tokenProgram": "native",
+        "assetClass": "cash",
+        "symbol": "SOL",
+        "name": "Solana",
+        "issuer": null,
+        "amountRaw": "1000000000",
+        "decimals": 9,
+        "displayAmount": "1",
+        "amountModel": "raw-decimals",
+        "displayMultiplier": null,
+        "tokenExtensions": [],
+        "accountState": "initialized",
+        "valueUsd": "100",
+        "price": {
+          "usd": "100",
+          "source": "jupiter-price-v3",
+          "observedAt": "2026-07-25T10:30:00.000Z",
+          "blockId": 99,
+          "change24hPercent": "1"
+        },
+        "approval": {
+          "status": "approved",
+          "assetId": "solana",
+          "group": "wallet-core",
+          "source": "dexter-registry"
+        },
+        "capabilities": [
+          {
+            "action": "view",
+            "available": true,
+            "reason": null,
+            "reasonCode": null
+          },
+          {
+            "action": "receive",
+            "available": true,
+            "reason": null,
+            "reasonCode": null
+          },
+          {
+            "action": "send",
+            "available": false,
+            "reason": "governed_asset_rail_not_live",
+            "reasonCode": "governed_asset_rail_not_live"
+          },
+          {
+            "action": "buy",
+            "available": false,
+            "reason": "governed_asset_rail_not_live",
+            "reasonCode": "governed_asset_rail_not_live"
+          },
+          {
+            "action": "sell",
+            "available": false,
+            "reason": "governed_asset_rail_not_live",
+            "reasonCode": "governed_asset_rail_not_live"
+          },
+          {
+            "action": "earn",
+            "available": false,
+            "reason": "governed_asset_rail_not_live",
+            "reasonCode": "governed_asset_rail_not_live"
+          },
+          {
+            "action": "lend",
+            "available": false,
+            "reason": "governed_asset_rail_not_live",
+            "reasonCode": "governed_asset_rail_not_live"
+          },
+          {
+            "action": "borrow",
+            "available": false,
+            "reason": "governed_asset_rail_not_live",
+            "reasonCode": "governed_asset_rail_not_live"
+          },
+          {
+            "action": "pay",
+            "available": false,
+            "reason": "governed_asset_rail_not_live",
+            "reasonCode": "governed_asset_rail_not_live"
+          }
+        ],
+        "graphics": {
+          "canonicalImageUrl": null,
+          "dexScreenerImageUrl": null,
+          "dexScreenerHeaderUrl": null,
+          "openGraphImageUrl": null
+        },
+        "metadataObservedAt": "2026-07-25T10:30:00.000Z",
+        "marketContext": {
+          "source": "jupiter-tokens-v2",
+          "mint": "So11111111111111111111111111111111111111112",
+          "observedAt": "2026-07-25T10:30:00.000Z",
+          "liquidityUsd": "0",
+          "holderCount": 0,
+          "activity24h": {
+            "traderCount": 0
+          }
+        },
+        "registryIdentity": null
+      },
+      {
+        "mint": "SPCXxcqXj6e5dJDVNovHN8744zkbhM2bYudU45BimGb",
+        "tokenAccount": "So11111111111111111111111111111111111111112",
+        "tokenProgram": "token-2022",
+        "assetClass": "stock",
+        "symbol": "SPCX",
+        "name": "SpaceX",
+        "issuer": "Trek Nexus Markets Ltd",
+        "amountRaw": "4426",
+        "decimals": 6,
+        "displayAmount": "0.0055325",
+        "amountModel": "scaled-ui-amount",
+        "displayMultiplier": "1.25",
+        "tokenExtensions": [
+          "scaledUiAmountConfig",
+          "tokenMetadata"
+        ],
+        "accountState": "initialized",
+        "valueUsd": "0.55325",
+        "price": {
+          "usd": "100",
+          "source": "jupiter-exact-in-quote",
+          "observedAt": "2026-07-25T10:30:00.000Z",
+          "blockId": 101,
+          "change24hPercent": null
+        },
+        "approval": {
+          "status": "approved",
+          "assetId": "backpack-spcx",
+          "group": "approved-tokenized-stocks",
+          "source": "dexter-registry"
+        },
+        "capabilities": [
+          {
+            "action": "view",
+            "available": true,
+            "reason": null,
+            "reasonCode": null
+          },
+          {
+            "action": "receive",
+            "available": true,
+            "reason": null,
+            "reasonCode": null
+          },
+          {
+            "action": "send",
+            "available": false,
+            "reason": "governed_asset_rail_not_live",
+            "reasonCode": "governed_asset_rail_not_live"
+          },
+          {
+            "action": "buy",
+            "available": false,
+            "reason": "governed_asset_rail_not_live",
+            "reasonCode": "governed_asset_rail_not_live"
+          },
+          {
+            "action": "sell",
+            "available": false,
+            "reason": "governed_asset_rail_not_live",
+            "reasonCode": "governed_asset_rail_not_live"
+          },
+          {
+            "action": "earn",
+            "available": false,
+            "reason": "governed_asset_rail_not_live",
+            "reasonCode": "governed_asset_rail_not_live"
+          },
+          {
+            "action": "lend",
+            "available": false,
+            "reason": "governed_asset_rail_not_live",
+            "reasonCode": "governed_asset_rail_not_live"
+          },
+          {
+            "action": "borrow",
+            "available": false,
+            "reason": "governed_asset_rail_not_live",
+            "reasonCode": "governed_asset_rail_not_live"
+          },
+          {
+            "action": "pay",
+            "available": false,
+            "reason": "governed_asset_rail_not_live",
+            "reasonCode": "governed_asset_rail_not_live"
+          }
+        ],
+        "graphics": {
+          "canonicalImageUrl": null,
+          "dexScreenerImageUrl": null,
+          "dexScreenerHeaderUrl": null,
+          "openGraphImageUrl": null
+        },
+        "metadataObservedAt": "2026-07-25T10:30:00.000Z",
+        "marketContext": {
+          "source": "jupiter-tokens-v2",
+          "mint": "SPCXxcqXj6e5dJDVNovHN8744zkbhM2bYudU45BimGb",
+          "observedAt": "2026-07-25T10:30:00.000Z",
+          "liquidityUsd": null,
+          "holderCount": null,
+          "activity24h": {
+            "traderCount": null
+          }
+        },
+        "registryIdentity": {
+          "source": "dexter-registry",
+          "providerName": "Backpack Securities",
+          "legalIssuerName": "Trek Nexus Markets Ltd"
+        }
+      }
+    ]
+  }
+}
