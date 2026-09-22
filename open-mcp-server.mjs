@@ -59,7 +59,7 @@ import {
   buildPurchaseIntegrationRequired,
   validatePurchaseExecution,
 } from './lib/open-purchase-contract.mjs';
-import { buildHostedCheckModelResult, buildHostedCheckStatusModelResult } from './lib/open-check-result.mjs';
+import { buildHostedCheckModelResult, buildHostedCheckStatusModelResult, buildHostedCheckToolResult } from './lib/open-check-result.mjs';
 import { buildVaultReadError } from './lib/wallet-read-recovery.mjs';
 import { purchaseResultText, portfolioResultText } from './lib/customer-result-presentation.mjs';
 import { buildX402AccessModelResult } from './lib/open-x402-access-result.mjs';
@@ -157,7 +157,7 @@ import { buildOpenServerInstructions } from './lib/open-server-instructions.mjs'
 import {
   getIndexterProviderCandidate,
   INDEXTER_MAX_QUERY_CODE_UNITS,
-  routeIndexterRequest,
+  classifyIndexterRequest,
 } from './lib/indexter-request-router.mjs';
 import {
   INDEXTER_RESULT_LIMIT,
@@ -2435,13 +2435,15 @@ export function createOpenMcpServer({
     annotations: { readOnlyHint: true },
     _meta: SEARCH_META,
   }, async (args) => {
-    let decision = routeIndexterRequest(args.query, { originalQuery: args.originalQuery });
+    let decision = classifyIndexterRequest(args.query, { originalQuery: args.originalQuery });
+    let taskSearchAttempted = false;
     try {
       let providerData;
       const candidate = decision.route !== 'provider'
         ? getIndexterProviderCandidate(args.query, { originalQuery: args.originalQuery })
         : null;
       if (candidate) {
+        decision = { ...decision, routingReason: 'provider_requested' };
         const resolved = await indexterDiscover({
           provider: candidate,
           capabilityPageSize: 12,
@@ -2450,25 +2452,36 @@ export function createOpenMcpServer({
         // Only an explicit catalog miss falls back to the original task.
         // Reuse successful provider data; never disguise an outage as a miss.
         if (resolved.error !== 'provider_not_found') {
-          decision = { route: 'provider', provider: candidate };
+          decision = { route: 'provider', provider: candidate, routingReason: 'provider_requested' };
           providerData = resolved;
+        } else {
+          decision = { ...decision, routingReason: 'provider_not_found' };
         }
       }
-      const data = providerData ?? (decision.route === 'task'
-        ? await x402Search({
+      let data = providerData;
+      if (data == null) {
+        if (decision.route === 'task') {
+          taskSearchAttempted = true;
+          data = await x402Search({
             ...args,
             limit: Math.min(args.limit ?? INDEXTER_RESULT_LIMIT, INDEXTER_RESULT_LIMIT),
-          })
-        : await indexterDiscover({
+          });
+        } else {
+          data = await indexterDiscover({
             provider: decision.provider ?? undefined,
             limit: decision.route === 'overview' ? 4 : undefined,
             capabilityPageSize: decision.route === 'provider' ? 12 : undefined,
             actorPageSize: decision.route === 'provider' ? 8 : undefined,
-          }));
+          });
+        }
+      }
       return buildIndexterToolResult({
         route: decision.route,
         provider: decision.provider,
         originalQuery: args.originalQuery,
+        resolvedQuery: args.query,
+        routingReason: decision.routingReason,
+        taskSearchAttempted,
         payload: data,
         baseMeta: SEARCH_META,
       });
@@ -2487,6 +2500,9 @@ export function createOpenMcpServer({
         route: decision.route,
         provider: decision.provider,
         originalQuery: args.originalQuery,
+        resolvedQuery: args.query,
+        routingReason: decision.routingReason,
+        taskSearchAttempted,
         payload: data,
         baseMeta: SEARCH_META,
       });
@@ -2633,15 +2649,7 @@ export function createOpenMcpServer({
         };
       }
       const modelResult = await runCanonicalX402Check(args, session);
-      return {
-        content: [{
-          type: 'text',
-          text: JSON.stringify(modelResult, null, 2),
-        }],
-        structuredContent: modelResult,
-        isError: modelResult.error === true || typeof modelResult.error === 'string',
-        _meta: CHECK_META,
-      };
+      return buildHostedCheckToolResult(modelResult, CHECK_META);
     } catch (err) {
       const data = { error: true, statusCode: 500, message: err?.message || String(err) };
       return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }], structuredContent: data, isError: true, _meta: CHECK_META };
@@ -2682,12 +2690,7 @@ export function createOpenMcpServer({
       }
       const checked = await runCanonicalX402Check(args, session);
       const result = buildX402AccessModelResult(checked);
-      return {
-        content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        structuredContent: result,
-        isError: result.error === true || typeof result.error === 'string',
-        _meta: ACCESS_META,
-      };
+      return buildHostedCheckToolResult(result, ACCESS_META);
     } catch (err) {
       const data = { statusCode: 500, error: err?.message || String(err) };
       return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }], structuredContent: data, isError: true, _meta: ACCESS_META };
