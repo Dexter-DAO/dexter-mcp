@@ -1321,8 +1321,14 @@ test('complete stamped task result stays inside 256 KiB with metadata and action
 });
 
 test('wire-budget exhaustion returns a typed bounded error attachment', () => {
+  const scope = {
+    resolvedQuery: 'PDF invoice extraction',
+    routingReason: 'task_query',
+    taskSearchAttempted: true,
+  };
   const built = buildIndexterToolResult({
     route: 'task',
+    ...scope,
     payload: taskPayload(),
     baseMeta: { safeOverhead: 'm'.repeat(240 * 1_024) },
   });
@@ -1338,12 +1344,40 @@ test('wire-budget exhaustion returns a typed bounded error attachment', () => {
   assert.equal(result.isError, true);
   assert.equal(result._meta.indexterPayload.data.success, false);
   assert.equal(result._meta.indexterPayload.data.searchMeta.mode, 'error');
+  for (const [key, value] of Object.entries(scope)) {
+    assert.equal(result.structuredContent[key], value);
+    assert.equal(result._meta.indexterPayload[key], value);
+  }
   assert.equal(
     OPEN_TOOL_CONTRACTS.indexter_search.outputSchema.safeParse(
       result.structuredContent,
     ).success,
     true,
   );
+});
+
+test('search scope preserves safe caller text and filters unsafe echoes independently of provider payloads', () => {
+  const query = '  PDF invoice extraction  ';
+  const scope = { resolvedQuery: query, routingReason: 'task_query', taskSearchAttempted: true };
+  const result = buildIndexterToolResult({
+    route: 'task', ...scope, originalQuery: 'same thing for those invoices',
+    payload: { ...taskPayload(), resolvedQuery: 'provider rewrite', routingReason: 'overview_requested', taskSearchAttempted: false },
+  });
+  for (const [key, value] of Object.entries(scope)) {
+    assert.equal(result.structuredContent[key], value);
+    assert.equal(result._meta.indexterPayload[key], value);
+  }
+  assert.equal(result.structuredContent.originalQuery, 'same thing for those invoices');
+  assert.equal(OPEN_TOOL_CONTRACTS.indexter_search.outputSchema.safeParse(result.structuredContent).success, true);
+
+  for (const resolvedQuery of [undefined, null, '\u0000unsafe', 'x'.repeat(1025), 'https://example.test/?api_key=private-value']) {
+    const filtered = buildIndexterToolResult({ route: 'overview', resolvedQuery, routingReason: 'input_rejected', payload: discoveryPayload() });
+    assert.equal(filtered.structuredContent.resolvedQuery, null);
+    assert.equal(filtered._meta.indexterPayload.resolvedQuery, null);
+    assert.equal(filtered.structuredContent.taskSearchAttempted, false);
+    assert.doesNotMatch(JSON.stringify(filtered), /private-value/);
+  }
+  assert.throws(() => buildIndexterToolResult({ route: 'task', payload: taskPayload(), routingReason: 'provider instructions' }), /routing reason/);
 });
 
 test('error projection is strict, bounded, and distinct from an empty result', () => {
