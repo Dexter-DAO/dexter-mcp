@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { createHmac } from 'node:crypto';
 import { once } from 'node:events';
 import { createServer as createHttpServer } from 'node:http';
 import { createServer as createNetServer } from 'node:net';
@@ -13,6 +14,7 @@ import {
   generateKeyPair,
 } from 'jose';
 import { OPEN_TOOL_NAMES } from '../lib/open-tool-contracts.mjs';
+import { dynamicStockV2Fixture } from './fixtures/governed-stock-v2.fixtures.mjs';
 import {
   OPEN_MCP_PRM,
   OPEN_MCP_VAULT_AUDIENCE,
@@ -217,6 +219,212 @@ function sessionRequest(url, {
     ...(method === 'POST' ? { body: JSON.stringify(body) } : {}),
   });
 }
+
+function seedDiagnostics(output) {
+  return output.text.split('\n')
+    .filter((line) => line.startsWith('[open-mcp] oauth-seed {'))
+    .map((line) => JSON.parse(line.slice('[open-mcp] oauth-seed '.length)));
+}
+
+async function startSeedBudgetFixture(timeoutMs) {
+  const { privateKey, publicKey } = await generateKeyPair('ES256');
+  const publicJwk = await exportJWK(publicKey);
+  Object.assign(publicJwk, { alg: 'ES256', kid: 'seed-budget-test', use: 'sig' });
+  const subject = 'seed-budget-private-wallet-user';
+  const surface = '7'.repeat(64);
+  const token = await signVaultToken(privateKey, publicJwk.kid, { subject, surface });
+  const foreignToken = await signVaultToken(privateKey, publicJwk.kid, {
+    subject: 'foreign-private-wallet-user', surface: '8'.repeat(64),
+  });
+  const stock = dynamicStockV2Fixture('nvidia', '019f981c-9215-7141-84f2-d89ffe9cbece');
+  const state = { mode: 'normal', delayMs: 0, seedCalls: 0, seedRequestIds: [], prepareCalls: [], provenance: null };
+  const fixture = await startRuntimeFixture({
+    publicJwk,
+    runtimeEnv: { OPEN_MCP_OAUTH_SEED_TIMEOUT_MS: timeoutMs === undefined ? '' : String(timeoutMs) },
+    handleDependency: async (request, response, url) => {
+      if (request.method === 'POST' && url.pathname === '/api/passkey-vault/pair/oauth-seed') {
+        const body = await readJsonBody(request);
+        state.seedCalls += 1;
+        const requestId = request.headers['x-dexter-seed-request-id'];
+        assert.match(requestId, /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/);
+        state.seedRequestIds.push(requestId);
+        const expectedSignature = createHmac('sha256', 'i'.repeat(32))
+          .update(`${request.headers['x-internal-timestamp']}.${body.access_token}.${body.mcp_session_id}`)
+          .digest('hex');
+        assert.equal(request.headers['x-internal-signature'], expectedSignature);
+        assert.deepEqual(Object.keys(body).sort(), ['access_token', 'mcp_session_id']);
+        assert.equal(body.access_token, token);
+        const { mode, delayMs } = state;
+        if (mode === 'body_timeout') {
+          response.writeHead(200, { 'content-type': 'application/json' });
+          response.flushHeaders();
+        }
+        if (mode === 'network') {
+          request.socket.destroy();
+          return true;
+        }
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        if (mode === 'revoked') {
+          response.writeHead(400, { 'content-type': 'application/json' });
+          response.end(JSON.stringify({ ok: false, error: 'surface_not_live' }));
+          return true;
+        }
+        if (mode === 'upstream_error') {
+          response.writeHead(503, { 'content-type': 'application/json' });
+          response.end(JSON.stringify({ error: `secret ${token} ${subject}` }));
+          return true;
+        }
+        if (mode !== 'body_timeout') response.writeHead(200, { 'content-type': 'application/json' });
+        if (mode === 'malformed') {
+          response.end('{bad-json');
+          return true;
+        }
+        state.provenance = {
+          sessionId: body.mcp_session_id,
+          userHandle: mode === 'identity_mismatch' ? 'foreign-private-wallet-user' : subject,
+          tokenScoped: true,
+        };
+        response.end(JSON.stringify({ ok: true, user_handle: state.provenance.userHandle }));
+        return true;
+      }
+      if (request.method === 'POST' && url.pathname === '/api/passkey-vault/governed-assets/agent/actions/prepare') {
+        const body = await readJsonBody(request);
+        state.prepareCalls.push({ body, operationId: request.headers['idempotency-key'] });
+        assert.equal(state.provenance.userHandle, subject);
+        assert.equal(state.provenance.tokenScoped, true);
+        response.writeHead(200, { 'content-type': 'application/json' });
+        response.end(JSON.stringify(stock.prepared));
+        return true;
+      }
+      return false;
+    },
+  });
+  const client = new Client({ name: 'seed-budget-offline-test', version: '1.0.0' });
+  const transport = new StreamableHTTPClientTransport(fixture.mcpUrl, {
+    requestInit: { headers: { Authorization: `Bearer ${token}` } },
+  });
+  await client.connect(transport);
+  await client.listTools();
+  return { ...fixture, client, transport, token, foreignToken, subject, surface, stock, state };
+}
+
+test('OAuth seed default budget allows delayed catalog and Prepare while repairing original binding', { timeout: 20_000 }, async () => {
+  const fixture = await startSeedBudgetFixture();
+  const { client, state, stock, transport } = fixture;
+  try {
+    state.delayMs = 2_750; // Beyond the deployed 2.5-second seed deadline.
+    for (const operation of ['catalog', 'prepare']) {
+      state.provenance = { sessionId: transport.sessionId, userHandle: 'overwritten', tokenScoped: false };
+      const before = state.seedCalls;
+      if (operation === 'catalog') {
+        assert.deepEqual((await client.listTools()).tools.map(({ name }) => name), OPEN_TOOL_NAMES);
+      } else {
+        const result = await client.callTool({ name: 'dexter_prepare_asset_action', arguments: stock.input });
+        assert.equal(result.isError, false);
+        assert.equal(result.structuredContent.status, 'prepared');
+        assert.equal(result.structuredContent.requestId, stock.input.operationId);
+        assert.equal(result.structuredContent.intentId, stock.prepared.intentId);
+        assert.equal(result.structuredContent.executed, false);
+      }
+      assert.equal(state.seedCalls, before + 1, 'each request must revalidate once');
+      assert.deepEqual(state.provenance, { sessionId: transport.sessionId, userHandle: fixture.subject, tokenScoped: true });
+    }
+    assert.equal(state.prepareCalls.length, 1);
+    assert.equal(state.prepareCalls[0].operationId, stock.input.operationId);
+    assert.equal(state.prepareCalls[0].body.amountAtomic, stock.input.amountAtomic);
+    const delayed = seedDiagnostics(fixture.output).filter((entry) => entry.elapsedMs >= 2_500);
+    assert.equal(delayed.length, 2);
+    for (const entry of delayed) {
+      assert.equal(entry.outcome, 'bound');
+      assert.equal(entry.stage, 'binding');
+      assert.equal(entry.httpStatus, 200);
+      assert.equal(entry.budgetMs, 5_000);
+    }
+  } finally {
+    state.delayMs = 0;
+    await closeClient(client);
+    await stopChild(fixture.child);
+    await closeServer(fixture.dependencyServer);
+  }
+});
+
+test('OAuth seed timeout and refusal never dispatch Prepare or damage same-session recovery', { timeout: 15_000 }, async () => {
+  const fixture = await startSeedBudgetFixture(200);
+  const { state, client, transport, stock } = fixture;
+  try {
+    const operations = [
+      { jsonrpc: '2.0', id: 51, method: 'tools/list', params: {} },
+      { jsonrpc: '2.0', id: 52, method: 'tools/call', params: { name: 'dexter_prepare_asset_action', arguments: stock.input } },
+    ];
+    for (const body of operations) {
+      for (const mode of ['header_timeout', 'body_timeout', 'revoked', 'malformed', 'identity_mismatch', 'upstream_error', 'network']) {
+        state.mode = mode;
+        state.delayMs = mode.endsWith('_timeout') ? 400 : 0;
+        const before = state.seedCalls;
+        const response = await sessionRequest(fixture.mcpUrl, {
+          sessionId: transport.sessionId, bearer: fixture.token, body,
+          headers: { 'X-Dexter-Seed-Request-Id': '00000000-0000-4000-8000-000000000000' },
+        });
+        const status = ['revoked', 'identity_mismatch'].includes(mode) ? 401 : 503;
+        assert.equal(response.status, status, `${body.method}/${mode}`);
+        if (status === 503) {
+          assert.equal(response.headers.get('retry-after'), '1');
+          assert.deepEqual(await response.json(), { jsonrpc: '2.0', error: { code: -32603, message: 'Authorization is temporarily unavailable. Retry.' }, id: null });
+        }
+        assert.equal(state.seedCalls, before + 1, 'no retry inside the seed transport');
+        assert.equal(state.prepareCalls.length, 0, 'authorization failure reached the governed backend');
+        if (mode.endsWith('_timeout')) await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+    }
+    state.mode = 'normal';
+    state.delayMs = 0;
+    const before = state.seedCalls;
+    const foreign = await sessionRequest(fixture.mcpUrl, { sessionId: transport.sessionId, bearer: fixture.foreignToken });
+    assert.equal(foreign.status, 401);
+    assert.equal(state.seedCalls, before, 'foreign identity must refuse before seed');
+    assert.deepEqual((await client.listTools()).tools.map(({ name }) => name), OPEN_TOOL_NAMES);
+    const recovered = await client.callTool({ name: 'dexter_prepare_asset_action', arguments: stock.input });
+    assert.equal(recovered.structuredContent.requestId, stock.input.operationId);
+    assert.equal(recovered.structuredContent.intentId, stock.prepared.intentId);
+    assert.equal(state.prepareCalls.length, 1, 'only caller-selected recovery reached Prepare');
+    assert.equal(state.prepareCalls[0].operationId, stock.input.operationId);
+
+    const diagnostics = seedDiagnostics(fixture.output);
+    for (const stage of ['request', 'response_body']) {
+      const failures = diagnostics.filter((entry) => entry.outcome === 'timeout' && entry.stage === stage);
+      assert.equal(failures.length, 2, stage);
+      for (const entry of failures) {
+        assert.equal(entry.budgetMs, 200);
+        assert.ok(entry.elapsedMs >= 190 && entry.elapsedMs < 1_000);
+        assert.equal(entry.httpStatus, stage === 'request' ? null : 200);
+      }
+    }
+    assert.equal(diagnostics.filter((entry) => entry.outcome === 'authorization_refused').length, 2);
+    assert.equal(diagnostics.filter((entry) => entry.outcome === 'identity_mismatch').length, 2);
+    assert.equal(diagnostics.filter((entry) => entry.outcome === 'malformed_success').length, 2);
+    assert.equal(diagnostics.filter((entry) => entry.outcome === 'upstream_unavailable').length, 2);
+    assert.equal(diagnostics.filter((entry) => entry.outcome === 'transport_error').length, 2);
+    assert.equal(new Set(diagnostics.map((entry) => entry.attemptRef)).size, diagnostics.length);
+    assert.deepEqual(diagnostics.map((entry) => entry.attemptRef), state.seedRequestIds);
+    assert.equal(state.seedRequestIds.includes('00000000-0000-4000-8000-000000000000'), false);
+    assert.equal(new Set(diagnostics.map((entry) => entry.sessionRef)).size, 1);
+    for (const entry of diagnostics) {
+      assert.deepEqual(Object.keys(entry).sort(), ['at', 'attemptRef', 'sessionRef', 'stage', 'outcome', 'elapsedMs', 'budgetMs', 'httpStatus'].sort());
+      assert.match(entry.sessionRef, /^[a-f0-9]{12}$/);
+      assert.match(entry.attemptRef, /^[a-f0-9-]{36}$/);
+      assert.ok(Number.isFinite(Date.parse(entry.at)));
+    }
+    for (const sensitive of [fixture.token, fixture.foreignToken, fixture.subject, fixture.surface, transport.sessionId, 'i'.repeat(32), 'g'.repeat(32)]) {
+      assert.equal(fixture.output.text.includes(sensitive), false, 'diagnostics leaked a credential or raw identity');
+    }
+  } finally {
+    state.mode = 'normal';
+    state.delayMs = 0;
+    await closeClient(client);
+    await stopChild(fixture.child);
+    await closeServer(fixture.dependencyServer);
+  }
+});
 
 test('canonical /mcp authenticates and seeds before initialize, then pins one OAuth identity', async () => {
   const { privateKey, publicKey } = await generateKeyPair('ES256');
