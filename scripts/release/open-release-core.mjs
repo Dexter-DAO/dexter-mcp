@@ -2861,23 +2861,6 @@ async function readPrivateSavedPm2State(pm2Home) {
   };
 }
 
-async function restoreOriginalSavedPm2Dump(pm2Home, bytes) {
-  if (bytes === null) {
-    await rm(resolve(pm2Home, 'dump.pm2'), { force: true });
-    await syncDirectory(pm2Home);
-    const restored = await readSavedPm2Dump(pm2Home, { allowMissing: true });
-    if (restored.bytes !== null) {
-      throw new Error('original absent PM2 dump was not restored');
-    }
-    return;
-  }
-  await restorePm2Dump(pm2Home, bytes);
-  const restored = (await readSavedPm2Dump(pm2Home)).bytes;
-  if (!restored.equals(bytes)) {
-    throw new Error('original PM2 dump bytes were not restored exactly');
-  }
-}
-
 async function restorePrivateSavedPm2State(pm2Home, state) {
   for (const [name, original] of [
     ['dump.pm2', state.primary],
@@ -3079,25 +3062,71 @@ async function readPrivateCutoverJournal(pm2Home) {
   });
 }
 
-function unrelatedRows(rows, services = SERVICE_NAMES) {
-  return rows.filter((row) => !services.includes(row?.name));
-}
-
-async function recomposeSavedPm2Dump({
+export async function persistScopedPm2Dump({
   pm2Home,
-  originalSavedUnrelatedRows,
+  originalSavedRows,
+  expectedLiveRows,
+  runPm2,
   services = SERVICE_NAMES,
+  allowAbsent = false,
+  writeDump = restorePm2Dump,
 }) {
-  const generated = await readSavedPm2Dump(pm2Home);
-  const targetRows = generated.rows.filter(
-    (row) => services.includes(row?.name),
-  );
-  const rows = [
-    ...structuredClone(originalSavedUnrelatedRows),
-    ...structuredClone(targetRows),
-  ];
+  if (!sameJson(services, SERVICE_NAMES)
+    && !sameJson(services, PRIVATE_RELEASE_SERVICES)) {
+    throw new Error('saved PM2 write requires one exact MCP service');
+  }
+  const before = await readPrivateSavedPm2State(pm2Home);
+  const liveRows = await pm2List(runPm2);
+  const targetRows = services.flatMap((name) => {
+    const expected = expectedLiveRows.filter((row) => row?.name === name);
+    const selected = liveRows.filter((row) => row?.name === name);
+    const saved = originalSavedRows.filter((row) => row?.name === name);
+    if (allowAbsent && expected.length === 0 && selected.length === 0
+      && saved.length === 0) return [];
+    if (expected.length !== 1 || selected.length !== 1 || saved.length > 1) {
+      throw new Error(`${name} saved PM2 target is missing or ambiguous`);
+    }
+    const row = selected[0];
+    if (!sameJson(
+      livePm2RuntimeIdentity(row, name),
+      livePm2RuntimeIdentity(expected[0], name),
+    ) || processField(row, 'pm_uptime') !== processField(expected[0], 'pm_uptime')
+      || !sameJson(
+        restartableProcessDefinition(row),
+        restartableProcessDefinition(expected[0]),
+      )) {
+      throw new Error(`${name} runtime changed before scoped PM2 persistence`);
+    }
+    if (!row.pm2_env || row.pm2_env.name !== name || row.pm2_env.pmx_module) {
+      throw new Error(`${name} cannot be serialized as a PM2 application`);
+    }
+    // Match PM2 Startup.dumpProcessList's application serializer. Never pass
+    // unrelated live rows through it: their saved objects may intentionally differ.
+    const target = structuredClone(row.pm2_env);
+    delete target.instances;
+    delete target.pm_id;
+    delete target.prev_restart_delay;
+    return [target];
+  });
+  const replacements = new Map(targetRows.map((row) => [row.name, row]));
+  const rows = structuredClone(originalSavedRows).map((row) => {
+    if (!replacements.has(row?.name)) return row;
+    const target = replacements.get(row.name);
+    replacements.delete(row.name);
+    return target;
+  });
+  rows.push(...replacements.values());
   const bytes = Buffer.from(JSON.stringify(rows));
-  await restorePm2Dump(pm2Home, bytes);
+  // Preserve PM2 backup semantics without ever saving the global live inventory.
+  // An interruption between these atomic writes leaves the old primary intact.
+  if (before.primary.bytes !== null) {
+    await writeDump(pm2Home, before.primary.bytes, 'dump.pm2.bak');
+  }
+  await writeDump(pm2Home, bytes, 'dump.pm2');
+  const written = await readSavedPm2Dump(pm2Home);
+  if (!written.bytes.equals(bytes)) {
+    throw new Error('scoped PM2 dump bytes changed during persistence');
+  }
   return { bytes, rows, targetRows };
 }
 
@@ -3187,6 +3216,7 @@ export async function activateOpenRelease({
   verifyPriorHealth = verifyCapturedPriorOpenReleaseHealth,
   verifyRestored = verifyRestoredOpenReleasePair,
   verifySaved = verifySavedPair,
+  persistSaved = persistScopedPm2Dump,
   verifyPm2Executable = verifyProductionPm2Executable,
   prepareWidgetAssets = publishAndVerifyOpenWidgetAssets,
   verifyWidgetAssets = verifyPublicOpenWidgetAssets,
@@ -3253,8 +3283,8 @@ export async function activateOpenRelease({
         : 'OpenDexter cutover requires the exact preserved private Dexter process',
     );
   }
-  const savedBefore = await readSavedPm2Dump(pm2Home, { allowMissing: true });
-  const originalSavedUnrelatedRows = unrelatedRows(savedBefore.rows);
+  const savedStateBefore = await readPrivateSavedPm2State(pm2Home);
+  const savedBefore = savedStateBefore.primary;
   const savedUnrelatedProcesses = unrelatedPm2Snapshot(savedBefore.rows);
   if (
     !hasPriorPair
@@ -3270,10 +3300,12 @@ export async function activateOpenRelease({
   let priorResurrectDump;
   let priorSavedDump;
   try {
-    await runPm2(['save', '--force']);
-    const recomposed = await recomposeSavedPm2Dump({
+    const recomposed = await persistSaved({
       pm2Home,
-      originalSavedUnrelatedRows,
+      originalSavedRows: savedBefore.rows,
+      expectedLiveRows: before,
+      runPm2,
+      allowAbsent: !hasPriorPair,
     });
     priorSavedDump = recomposed.bytes;
     priorResurrectDump = Buffer.from(JSON.stringify(recomposed.targetRows));
@@ -3323,7 +3355,7 @@ export async function activateOpenRelease({
     before.splice(0, before.length, ...finalPreDeleteRows);
   } catch (priorSaveError) {
     try {
-      await restoreOriginalSavedPm2Dump(pm2Home, savedBefore.bytes);
+      await restorePrivateSavedPm2State(pm2Home, savedStateBefore);
     } catch (restoreError) {
       throw new Error(
         'OpenDexter could not prove prior PM2 state and could not restore '
@@ -3371,10 +3403,11 @@ export async function activateOpenRelease({
         ),
       ],
     ));
-    await runPm2(['save', '--force']);
-    await recomposeSavedPm2Dump({
+    await persistSaved({
       pm2Home,
-      originalSavedUnrelatedRows,
+      originalSavedRows: savedBefore.rows,
+      expectedLiveRows: candidateRows,
+      runPm2,
     });
     await verifySaved({
       expectedProcesses: candidateSavedProcesses,
@@ -3466,10 +3499,12 @@ export async function activateOpenRelease({
           return rows.every((row) => !SERVICE_NAMES.includes(row?.name));
         });
       }
-      await runPm2(['save', '--force']);
-      await recomposeSavedPm2Dump({
+      await persistSaved({
         pm2Home,
-        originalSavedUnrelatedRows,
+        originalSavedRows: savedBefore.rows,
+        expectedLiveRows: await pm2List(runPm2),
+        runPm2,
+        allowAbsent: !hasPriorPair,
       });
       await verifySaved({
         expectedProcesses: priorProcesses,
@@ -3480,10 +3515,8 @@ export async function activateOpenRelease({
       if (!hasPriorPair) {
         // A fresh-install rollback must return the saved-state boundary to
         // exactly what existed before activation, including restoring the
-        // absence of dump.pm2. The save/proof above still demonstrates that
-        // PM2 generated no target definitions before those original bytes are
-        // restored.
-        await restoreOriginalSavedPm2Dump(pm2Home, savedBefore.bytes);
+        // absence of dump.pm2 and its original backup.
+        await restorePrivateSavedPm2State(pm2Home, savedStateBefore);
       }
       const finalRollbackRows = await pm2List(runPm2);
       await assertPreservedPrivateProcess(
@@ -4217,6 +4250,7 @@ export async function activatePrivateRelease({
   verifyPriorRestartability = verifyPriorPrivateReleaseRestartability,
   verifyRollbackInputs = verifyPrivateRollbackInputsStillExact,
   verifyDaemon = verifyPm2DaemonLaunchAuthority,
+  persistSaved = persistScopedPm2Dump,
   verifyPm2Executable = verifyProductionPm2Executable,
   processProofOptions = {},
   beforePrivateDelete = async () => {},
@@ -4283,10 +4317,6 @@ export async function activatePrivateRelease({
     healthTimeoutMs,
   ), expectedHealthPort('dexter-mcp', priorPrivateRow));
   const savedBefore = await readPrivateSavedPm2State(pm2Home);
-  const originalSavedOtherRows = unrelatedRows(
-    savedBefore.primary.rows,
-    PRIVATE_RELEASE_SERVICES,
-  );
   const expectedSavedOtherProcesses = snapshotUnrelatedPm2Processes(
     savedBefore.primary.rows,
     PRIVATE_RELEASE_SERVICES,
@@ -4333,10 +4363,11 @@ export async function activatePrivateRelease({
   let priorRecomposedBytes;
 
   try {
-    await runPm2(['save', '--force']);
-    const recomposed = await recomposeSavedPm2Dump({
+    const recomposed = await persistSaved({
       pm2Home,
-      originalSavedUnrelatedRows: originalSavedOtherRows,
+      originalSavedRows: savedBefore.primary.rows,
+      expectedLiveRows: finalPreSave,
+      runPm2,
       services: PRIVATE_RELEASE_SERVICES,
     });
     priorRecomposedBytes = recomposed.bytes;
@@ -4435,10 +4466,11 @@ export async function activatePrivateRelease({
       fetchImpl,
       healthTimeoutMs,
     });
-    await runPm2(['save', '--force']);
-    const recomposed = await recomposeSavedPm2Dump({
+    const recomposed = await persistSaved({
       pm2Home,
-      originalSavedUnrelatedRows: originalSavedOtherRows,
+      originalSavedRows: savedBefore.primary.rows,
+      expectedLiveRows: candidateRows,
+      runPm2,
       services: PRIVATE_RELEASE_SERVICES,
     });
     await verifySavedPm2BackupExact(pm2Home, priorRecomposedBytes);
