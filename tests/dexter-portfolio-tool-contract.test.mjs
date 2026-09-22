@@ -12,11 +12,11 @@ import {
 
 const ROOT = new URL('../', import.meta.url);
 
-test('dexter_wallet_portfolio remains model-visible in the 14-tool server roster', () => {
-  assert.equal(OPEN_TOOL_NAMES.length, 14);
+test('dexter_wallet_portfolio remains model-visible in the 15-tool server roster', () => {
+  assert.equal(OPEN_TOOL_NAMES.length, 15);
   assert.equal(
     OPEN_TOOL_NAMES.filter((name) => OPEN_TOOL_CONTRACTS[name].visibility.includes('model')).length,
-    13,
+    14,
   );
   assert.equal(OPEN_TOOL_NAMES.includes('dexter_wallet_portfolio'), true);
   assert.deepEqual(OPEN_TOOL_SECURITY_SCHEMES.dexter_wallet_portfolio, [
