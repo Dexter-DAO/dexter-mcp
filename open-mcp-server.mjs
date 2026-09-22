@@ -37,6 +37,7 @@ if (process.env.NODE_ENV !== 'production') {
   dotenv.config({ path: '.env.local' });
 }
 import { extractMcpSessionId } from './lib/mcp-session-id.mjs';
+import { readOAuthSeedTimeoutMs } from './lib/open-oauth-seed-budget.mjs';
 import {
   DEXTER_WALLET_WIDGET_URIS,
   INDEXTER_WIDGET_URIS,
@@ -2931,6 +2932,7 @@ const OAUTH_SEED_DEFINITIVE_AUTHORIZATION_ERRORS = new Set([
   'surface_not_live',
   'surface_handle_mismatch',
 ]);
+const OAUTH_SEED_TIMEOUT_MS = readOAuthSeedTimeoutMs();
 
 function bindingUserHandle(body) {
   const value = body?.user_handle;
@@ -2940,31 +2942,62 @@ function bindingUserHandle(body) {
 }
 
 async function seedOAuthVaultBinding(token, payload, identity, sessionId) {
+  const startedAt = performance.now();
+  const attemptRef = randomUUID();
+  let stage = 'prerequisite';
+  let httpStatus = null;
+  const finish = (result, outcome) => {
+    const diagnostic = JSON.stringify({
+      at: new Date().toISOString(),
+      attemptRef,
+      sessionRef: logRef(sessionId),
+      stage,
+      outcome,
+      elapsedMs: Math.ceil(performance.now() - startedAt),
+      budgetMs: OAUTH_SEED_TIMEOUT_MS,
+      httpStatus,
+    });
+    if (result.ok) console.log(`[open-mcp] oauth-seed ${diagnostic}`);
+    else console.warn(`[open-mcp] oauth-seed ${diagnostic}`);
+    return result;
+  };
   if (!INTERNAL_HMAC_SECRET || !sessionId || !token || !payload?.dexter_surface) {
-    return { ok: false, transient: true };
+    return finish({ ok: false, transient: true }, 'missing_prerequisite');
   }
+  const signal = AbortSignal.timeout(OAUTH_SEED_TIMEOUT_MS);
   try {
     const ts = String(Date.now());
     const sig = createHmac('sha256', INTERNAL_HMAC_SECRET)
       .update(`${ts}.${token}.${sessionId}`)
       .digest('hex');
+    stage = 'request';
     const res = await fetchInternalApi('/api/passkey-vault/pair/oauth-seed', {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
+        'X-Dexter-Seed-Request-Id': attemptRef,
         'x-internal-timestamp': ts,
         'x-internal-signature': sig,
       },
       body: JSON.stringify({ access_token: token, mcp_session_id: sessionId }),
-      signal: AbortSignal.timeout(2500),
+      signal,
     });
     const seedAccepted = res.ok;
     const seedStatus = res.status;
-    const seedBody = await res.json().catch(() => null);
+    httpStatus = seedStatus;
+    stage = 'response_body';
+    const seedBody = await res.json().catch((error) => {
+      if (signal.aborted) throw error;
+      return null;
+    });
+    stage = 'binding';
     if (seedAccepted) {
       const userHandle = bindingUserHandle(seedBody);
       if (!userHandle) {
-        return { ok: false, transient: true, reason: 'malformed_success' };
+        return finish(
+          { ok: false, transient: true, reason: 'malformed_success' },
+          'malformed_success',
+        );
       }
       // The seed response may only make the already-pinned OAuth identity
       // routable. It must never replace the session's identity.
@@ -2973,30 +3006,29 @@ async function seedOAuthVaultBinding(token, payload, identity, sessionId) {
         !== 'match'
         || userHandle !== identity.subject
       ) {
-        return { ok: false, transient: false, reason: 'identity_mismatch' };
+        return finish(
+          { ok: false, transient: false, reason: 'identity_mismatch' },
+          'identity_mismatch',
+        );
       }
       markSessionVaultBound(sessionId, VAULT_AUTH_MODE_OAUTH);
-      console.log(
-        `[open-mcp] oauth vault binding seeded sessionRef=${logRef(sessionId)} `
-        + `subjectRef=${logRef(payload.sub)}`,
-      );
-      return { ok: true, userHandle };
+      return finish({ ok: true, userHandle }, 'bound');
     } else {
       const errorCode = typeof seedBody?.error === 'string'
         ? seedBody.error
         : null;
-      console.warn(
-        `[open-mcp] oauth-seed refused status=${seedStatus} sessionRef=${logRef(sessionId)}`,
-      );
-      return {
+      const transient = !OAUTH_SEED_DEFINITIVE_AUTHORIZATION_ERRORS.has(errorCode);
+      return finish({
         ok: false,
-        transient: !OAUTH_SEED_DEFINITIVE_AUTHORIZATION_ERRORS.has(errorCode),
+        transient,
         ...(errorCode ? { reason: errorCode } : {}),
-      };
+      }, transient ? 'upstream_unavailable' : 'authorization_refused');
     }
-  } catch (err) {
-    console.warn(`[open-mcp] oauth-seed failed (${safeErrorLabel(err)})`);
-    return { ok: false, transient: true };
+  } catch {
+    return finish(
+      { ok: false, transient: true },
+      signal.aborted ? 'timeout' : 'transport_error',
+    );
   }
 }
 

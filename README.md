@@ -145,6 +145,19 @@ statement. The owner roster displays these reports through its existing API.
 Every tool in this roster carries the OAuth security scheme and requires the
 current vault Bearer on each invocation. Compatibility aliases,
 composed-skill, passkey-probe, and card tools stay outside this hosted roster.
+
+The hosted server revalidates the session's current authorization with the API
+before handling each request. `OPEN_MCP_OAUTH_SEED_TIMEOUT_MS` sets the request
+budget at startup, including response-body reading: the default is 5000 ms,
+and overrides must be integers from 1 through 10000 ms. Invalid values prevent
+startup. The budget bounds MCP's wait; the API may complete after it expires.
+A timeout returns the existing temporary authorization error before tool
+dispatch. Each attempt logs
+its elapsed time, stage and outcome with a generated request ID and a hashed
+session reference. `X-Dexter-Seed-Request-Id` carries that generated ID to the
+API for log correlation. These diagnostics exclude credentials and response
+bodies. Recovery keeps the original session and operation identifiers.
+
 The MCP Apps visibility metadata exposes 14 of these tools to the model in
 clients that honor it. The remaining registered tool, `indexter_discover`, is
 reserved for app browsing. Text-only clients use `indexter_search` and its
