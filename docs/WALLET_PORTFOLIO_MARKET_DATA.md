@@ -1,0 +1,9 @@
+# Portfolio market data
+
+Call `dexter_wallet_portfolio` with `{}` to read holdings for the authenticated OpenDexter session. Each priced holding includes `priceUsd`, the USD price per displayed token unit, and `priceObservedAt`, the portfolio price observation time. The upstream market update may be earlier than this observation.
+
+`change24hPercent` carries the provider-reported percentage change over 24 hours. A value of `"2.5"` means an increase of 2.5%; `"-2.5"` means a decrease of 2.5%. `"0"` is a measured zero. Null or an absent field means the movement is unavailable. Older saved tool results may omit the field. The structured result and text summary carry the same validated values.
+
+The API reads the existing Jupiter price endpoint for the held mint. Its `priceChange24h` field supplies this movement. The public Wallet market route can choose a DexScreener movement instead, so its result alone cannot establish that the portfolio has the same value. This change adds no provider request or trading action.
+
+The shared fixture `tests/fixtures/held-token-market-data.json` contains synthetic provider responses, one retained DEXTER provider response, and offline API snapshots for the known DEXTER mint. Its bytes match the API fixture at `src/portfolio/__tests__/fixtures/held-token-market-data.json`. API tests run those raw responses through the price reader and portfolio builder; MCP tests run the saved API snapshots through the signed-session response reader, validation, model projection, output contract, result policy, and text summary. All quantities and account data are synthetic. Synthetic cases use a fixed test clock. The retained provider case binds its read receipt hash and service start/end times, and uses that service observation as the offline replay clock. The provider token creation time never supplies price freshness.

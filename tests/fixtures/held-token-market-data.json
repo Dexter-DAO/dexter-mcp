@@ -1,0 +1,1076 @@
+{
+  "identity": {
+    "mint": "EfPoo4wWgxKVToit7yX5VtXXBrhao4G8L7vrbKy6pump",
+    "walletAddress": "Vote111111111111111111111111111111111111111",
+    "tokenAccount": "ComputeBudget111111111111111111111111111111",
+    "amountRaw": "125000000",
+    "decimals": 6,
+    "observedAt": "2026-09-22T14:00:00.000Z"
+  },
+  "cases": [
+    {
+      "name": "positive daily movement",
+      "priceUsd": "0.00064",
+      "change24hPercent": "2.5",
+      "provider": {
+        "EfPoo4wWgxKVToit7yX5VtXXBrhao4G8L7vrbKy6pump": {
+          "usdPrice": 0.00064,
+          "priceChange24h": 2.5,
+          "blockId": 99
+        }
+      },
+      "snapshot": {
+        "schemaVersion": 1,
+        "network": "solana-mainnet",
+        "walletAddress": "Vote111111111111111111111111111111111111111",
+        "vaultPda": null,
+        "observedAt": "2026-09-22T14:00:00.000Z",
+        "contextSlot": 100,
+        "holdingsComplete": true,
+        "nextCursor": null,
+        "omittedHoldings": 0,
+        "pricedValueUsd": "0.08",
+        "portfolioValueUsd": "0.08",
+        "pricedHoldings": 1,
+        "unpricedHoldings": 0,
+        "enrichment": {
+          "metadata": "complete",
+          "pricing": "complete",
+          "tokenExtensions": "complete"
+        },
+        "holdings": [
+          {
+            "mint": "EfPoo4wWgxKVToit7yX5VtXXBrhao4G8L7vrbKy6pump",
+            "tokenAccount": "ComputeBudget111111111111111111111111111111",
+            "tokenProgram": "spl-token",
+            "assetClass": "token",
+            "symbol": "DEXTER",
+            "name": "Dexter AI",
+            "issuer": "Dexter",
+            "amountRaw": "125000000",
+            "decimals": 6,
+            "displayAmount": "125",
+            "amountModel": "raw-decimals",
+            "displayMultiplier": null,
+            "tokenExtensions": [],
+            "accountState": "initialized",
+            "valueUsd": "0.08",
+            "price": {
+              "usd": "0.00064",
+              "source": "jupiter-price-v3",
+              "observedAt": "2026-09-22T14:00:00.000Z",
+              "blockId": 99,
+              "change24hPercent": "2.5"
+            },
+            "approval": {
+              "status": "approved",
+              "assetId": "dexter",
+              "group": "dexter-core",
+              "source": "dexter-registry"
+            },
+            "capabilities": [
+              {
+                "action": "view",
+                "available": true,
+                "reason": null
+              },
+              {
+                "action": "receive",
+                "available": true,
+                "reason": null
+              },
+              {
+                "action": "send",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "buy",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "sell",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "earn",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "lend",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "borrow",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "pay",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              }
+            ],
+            "graphics": {
+              "canonicalImageUrl": null,
+              "dexScreenerImageUrl": null,
+              "dexScreenerHeaderUrl": null,
+              "openGraphImageUrl": null
+            },
+            "metadataObservedAt": "2026-09-22T14:00:00.000Z"
+          }
+        ]
+      }
+    },
+    {
+      "name": "negative decimal-string movement",
+      "priceUsd": "0.00064",
+      "change24hPercent": "-7.25",
+      "provider": {
+        "EfPoo4wWgxKVToit7yX5VtXXBrhao4G8L7vrbKy6pump": {
+          "usdPrice": "0.00064",
+          "priceChange24h": "-7.25",
+          "blockId": "99"
+        }
+      },
+      "snapshot": {
+        "schemaVersion": 1,
+        "network": "solana-mainnet",
+        "walletAddress": "Vote111111111111111111111111111111111111111",
+        "vaultPda": null,
+        "observedAt": "2026-09-22T14:00:00.000Z",
+        "contextSlot": 100,
+        "holdingsComplete": true,
+        "nextCursor": null,
+        "omittedHoldings": 0,
+        "pricedValueUsd": "0.08",
+        "portfolioValueUsd": "0.08",
+        "pricedHoldings": 1,
+        "unpricedHoldings": 0,
+        "enrichment": {
+          "metadata": "complete",
+          "pricing": "complete",
+          "tokenExtensions": "complete"
+        },
+        "holdings": [
+          {
+            "mint": "EfPoo4wWgxKVToit7yX5VtXXBrhao4G8L7vrbKy6pump",
+            "tokenAccount": "ComputeBudget111111111111111111111111111111",
+            "tokenProgram": "spl-token",
+            "assetClass": "token",
+            "symbol": "DEXTER",
+            "name": "Dexter AI",
+            "issuer": "Dexter",
+            "amountRaw": "125000000",
+            "decimals": 6,
+            "displayAmount": "125",
+            "amountModel": "raw-decimals",
+            "displayMultiplier": null,
+            "tokenExtensions": [],
+            "accountState": "initialized",
+            "valueUsd": "0.08",
+            "price": {
+              "usd": "0.00064",
+              "source": "jupiter-price-v3",
+              "observedAt": "2026-09-22T14:00:00.000Z",
+              "blockId": 99,
+              "change24hPercent": "-7.25"
+            },
+            "approval": {
+              "status": "approved",
+              "assetId": "dexter",
+              "group": "dexter-core",
+              "source": "dexter-registry"
+            },
+            "capabilities": [
+              {
+                "action": "view",
+                "available": true,
+                "reason": null
+              },
+              {
+                "action": "receive",
+                "available": true,
+                "reason": null
+              },
+              {
+                "action": "send",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "buy",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "sell",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "earn",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "lend",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "borrow",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "pay",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              }
+            ],
+            "graphics": {
+              "canonicalImageUrl": null,
+              "dexScreenerImageUrl": null,
+              "dexScreenerHeaderUrl": null,
+              "openGraphImageUrl": null
+            },
+            "metadataObservedAt": "2026-09-22T14:00:00.000Z"
+          }
+        ]
+      }
+    },
+    {
+      "name": "actual zero price and daily movement",
+      "priceUsd": "0",
+      "change24hPercent": "0",
+      "provider": {
+        "EfPoo4wWgxKVToit7yX5VtXXBrhao4G8L7vrbKy6pump": {
+          "usdPrice": 0,
+          "priceChange24h": 0,
+          "blockId": 0
+        }
+      },
+      "snapshot": {
+        "schemaVersion": 1,
+        "network": "solana-mainnet",
+        "walletAddress": "Vote111111111111111111111111111111111111111",
+        "vaultPda": null,
+        "observedAt": "2026-09-22T14:00:00.000Z",
+        "contextSlot": 100,
+        "holdingsComplete": true,
+        "nextCursor": null,
+        "omittedHoldings": 0,
+        "pricedValueUsd": "0",
+        "portfolioValueUsd": "0",
+        "pricedHoldings": 1,
+        "unpricedHoldings": 0,
+        "enrichment": {
+          "metadata": "complete",
+          "pricing": "complete",
+          "tokenExtensions": "complete"
+        },
+        "holdings": [
+          {
+            "mint": "EfPoo4wWgxKVToit7yX5VtXXBrhao4G8L7vrbKy6pump",
+            "tokenAccount": "ComputeBudget111111111111111111111111111111",
+            "tokenProgram": "spl-token",
+            "assetClass": "token",
+            "symbol": "DEXTER",
+            "name": "Dexter AI",
+            "issuer": "Dexter",
+            "amountRaw": "125000000",
+            "decimals": 6,
+            "displayAmount": "125",
+            "amountModel": "raw-decimals",
+            "displayMultiplier": null,
+            "tokenExtensions": [],
+            "accountState": "initialized",
+            "valueUsd": "0",
+            "price": {
+              "usd": "0",
+              "source": "jupiter-price-v3",
+              "observedAt": "2026-09-22T14:00:00.000Z",
+              "blockId": 0,
+              "change24hPercent": "0"
+            },
+            "approval": {
+              "status": "approved",
+              "assetId": "dexter",
+              "group": "dexter-core",
+              "source": "dexter-registry"
+            },
+            "capabilities": [
+              {
+                "action": "view",
+                "available": true,
+                "reason": null
+              },
+              {
+                "action": "receive",
+                "available": true,
+                "reason": null
+              },
+              {
+                "action": "send",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "buy",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "sell",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "earn",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "lend",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "borrow",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "pay",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              }
+            ],
+            "graphics": {
+              "canonicalImageUrl": null,
+              "dexScreenerImageUrl": null,
+              "dexScreenerHeaderUrl": null,
+              "openGraphImageUrl": null
+            },
+            "metadataObservedAt": "2026-09-22T14:00:00.000Z"
+          }
+        ]
+      }
+    },
+    {
+      "name": "null daily movement",
+      "priceUsd": "0.00064",
+      "change24hPercent": null,
+      "provider": {
+        "EfPoo4wWgxKVToit7yX5VtXXBrhao4G8L7vrbKy6pump": {
+          "usdPrice": 0.00064,
+          "priceChange24h": null,
+          "blockId": null
+        }
+      },
+      "snapshot": {
+        "schemaVersion": 1,
+        "network": "solana-mainnet",
+        "walletAddress": "Vote111111111111111111111111111111111111111",
+        "vaultPda": null,
+        "observedAt": "2026-09-22T14:00:00.000Z",
+        "contextSlot": 100,
+        "holdingsComplete": true,
+        "nextCursor": null,
+        "omittedHoldings": 0,
+        "pricedValueUsd": "0.08",
+        "portfolioValueUsd": "0.08",
+        "pricedHoldings": 1,
+        "unpricedHoldings": 0,
+        "enrichment": {
+          "metadata": "complete",
+          "pricing": "complete",
+          "tokenExtensions": "complete"
+        },
+        "holdings": [
+          {
+            "mint": "EfPoo4wWgxKVToit7yX5VtXXBrhao4G8L7vrbKy6pump",
+            "tokenAccount": "ComputeBudget111111111111111111111111111111",
+            "tokenProgram": "spl-token",
+            "assetClass": "token",
+            "symbol": "DEXTER",
+            "name": "Dexter AI",
+            "issuer": "Dexter",
+            "amountRaw": "125000000",
+            "decimals": 6,
+            "displayAmount": "125",
+            "amountModel": "raw-decimals",
+            "displayMultiplier": null,
+            "tokenExtensions": [],
+            "accountState": "initialized",
+            "valueUsd": "0.08",
+            "price": {
+              "usd": "0.00064",
+              "source": "jupiter-price-v3",
+              "observedAt": "2026-09-22T14:00:00.000Z",
+              "blockId": null,
+              "change24hPercent": null
+            },
+            "approval": {
+              "status": "approved",
+              "assetId": "dexter",
+              "group": "dexter-core",
+              "source": "dexter-registry"
+            },
+            "capabilities": [
+              {
+                "action": "view",
+                "available": true,
+                "reason": null
+              },
+              {
+                "action": "receive",
+                "available": true,
+                "reason": null
+              },
+              {
+                "action": "send",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "buy",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "sell",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "earn",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "lend",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "borrow",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "pay",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              }
+            ],
+            "graphics": {
+              "canonicalImageUrl": null,
+              "dexScreenerImageUrl": null,
+              "dexScreenerHeaderUrl": null,
+              "openGraphImageUrl": null
+            },
+            "metadataObservedAt": "2026-09-22T14:00:00.000Z"
+          }
+        ]
+      }
+    },
+    {
+      "name": "missing daily movement",
+      "priceUsd": "0.00064",
+      "change24hPercent": null,
+      "provider": {
+        "EfPoo4wWgxKVToit7yX5VtXXBrhao4G8L7vrbKy6pump": {
+          "usdPrice": 0.00064
+        }
+      },
+      "snapshot": {
+        "schemaVersion": 1,
+        "network": "solana-mainnet",
+        "walletAddress": "Vote111111111111111111111111111111111111111",
+        "vaultPda": null,
+        "observedAt": "2026-09-22T14:00:00.000Z",
+        "contextSlot": 100,
+        "holdingsComplete": true,
+        "nextCursor": null,
+        "omittedHoldings": 0,
+        "pricedValueUsd": "0.08",
+        "portfolioValueUsd": "0.08",
+        "pricedHoldings": 1,
+        "unpricedHoldings": 0,
+        "enrichment": {
+          "metadata": "complete",
+          "pricing": "complete",
+          "tokenExtensions": "complete"
+        },
+        "holdings": [
+          {
+            "mint": "EfPoo4wWgxKVToit7yX5VtXXBrhao4G8L7vrbKy6pump",
+            "tokenAccount": "ComputeBudget111111111111111111111111111111",
+            "tokenProgram": "spl-token",
+            "assetClass": "token",
+            "symbol": "DEXTER",
+            "name": "Dexter AI",
+            "issuer": "Dexter",
+            "amountRaw": "125000000",
+            "decimals": 6,
+            "displayAmount": "125",
+            "amountModel": "raw-decimals",
+            "displayMultiplier": null,
+            "tokenExtensions": [],
+            "accountState": "initialized",
+            "valueUsd": "0.08",
+            "price": {
+              "usd": "0.00064",
+              "source": "jupiter-price-v3",
+              "observedAt": "2026-09-22T14:00:00.000Z",
+              "blockId": null,
+              "change24hPercent": null
+            },
+            "approval": {
+              "status": "approved",
+              "assetId": "dexter",
+              "group": "dexter-core",
+              "source": "dexter-registry"
+            },
+            "capabilities": [
+              {
+                "action": "view",
+                "available": true,
+                "reason": null
+              },
+              {
+                "action": "receive",
+                "available": true,
+                "reason": null
+              },
+              {
+                "action": "send",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "buy",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "sell",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "earn",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "lend",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "borrow",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "pay",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              }
+            ],
+            "graphics": {
+              "canonicalImageUrl": null,
+              "dexScreenerImageUrl": null,
+              "dexScreenerHeaderUrl": null,
+              "openGraphImageUrl": null
+            },
+            "metadataObservedAt": "2026-09-22T14:00:00.000Z"
+          }
+        ]
+      }
+    },
+    {
+      "name": "blank daily movement",
+      "priceUsd": "0.00064",
+      "change24hPercent": null,
+      "provider": {
+        "EfPoo4wWgxKVToit7yX5VtXXBrhao4G8L7vrbKy6pump": {
+          "usdPrice": 0.00064,
+          "priceChange24h": " ",
+          "blockId": ""
+        }
+      },
+      "snapshot": {
+        "schemaVersion": 1,
+        "network": "solana-mainnet",
+        "walletAddress": "Vote111111111111111111111111111111111111111",
+        "vaultPda": null,
+        "observedAt": "2026-09-22T14:00:00.000Z",
+        "contextSlot": 100,
+        "holdingsComplete": true,
+        "nextCursor": null,
+        "omittedHoldings": 0,
+        "pricedValueUsd": "0.08",
+        "portfolioValueUsd": "0.08",
+        "pricedHoldings": 1,
+        "unpricedHoldings": 0,
+        "enrichment": {
+          "metadata": "complete",
+          "pricing": "complete",
+          "tokenExtensions": "complete"
+        },
+        "holdings": [
+          {
+            "mint": "EfPoo4wWgxKVToit7yX5VtXXBrhao4G8L7vrbKy6pump",
+            "tokenAccount": "ComputeBudget111111111111111111111111111111",
+            "tokenProgram": "spl-token",
+            "assetClass": "token",
+            "symbol": "DEXTER",
+            "name": "Dexter AI",
+            "issuer": "Dexter",
+            "amountRaw": "125000000",
+            "decimals": 6,
+            "displayAmount": "125",
+            "amountModel": "raw-decimals",
+            "displayMultiplier": null,
+            "tokenExtensions": [],
+            "accountState": "initialized",
+            "valueUsd": "0.08",
+            "price": {
+              "usd": "0.00064",
+              "source": "jupiter-price-v3",
+              "observedAt": "2026-09-22T14:00:00.000Z",
+              "blockId": null,
+              "change24hPercent": null
+            },
+            "approval": {
+              "status": "approved",
+              "assetId": "dexter",
+              "group": "dexter-core",
+              "source": "dexter-registry"
+            },
+            "capabilities": [
+              {
+                "action": "view",
+                "available": true,
+                "reason": null
+              },
+              {
+                "action": "receive",
+                "available": true,
+                "reason": null
+              },
+              {
+                "action": "send",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "buy",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "sell",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "earn",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "lend",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "borrow",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "pay",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              }
+            ],
+            "graphics": {
+              "canonicalImageUrl": null,
+              "dexScreenerImageUrl": null,
+              "dexScreenerHeaderUrl": null,
+              "openGraphImageUrl": null
+            },
+            "metadataObservedAt": "2026-09-22T14:00:00.000Z"
+          }
+        ]
+      }
+    },
+    {
+      "name": "invalid daily movement",
+      "priceUsd": "0.00064",
+      "change24hPercent": null,
+      "provider": {
+        "EfPoo4wWgxKVToit7yX5VtXXBrhao4G8L7vrbKy6pump": {
+          "usdPrice": 0.00064,
+          "priceChange24h": false,
+          "blockId": []
+        }
+      },
+      "snapshot": {
+        "schemaVersion": 1,
+        "network": "solana-mainnet",
+        "walletAddress": "Vote111111111111111111111111111111111111111",
+        "vaultPda": null,
+        "observedAt": "2026-09-22T14:00:00.000Z",
+        "contextSlot": 100,
+        "holdingsComplete": true,
+        "nextCursor": null,
+        "omittedHoldings": 0,
+        "pricedValueUsd": "0.08",
+        "portfolioValueUsd": "0.08",
+        "pricedHoldings": 1,
+        "unpricedHoldings": 0,
+        "enrichment": {
+          "metadata": "complete",
+          "pricing": "complete",
+          "tokenExtensions": "complete"
+        },
+        "holdings": [
+          {
+            "mint": "EfPoo4wWgxKVToit7yX5VtXXBrhao4G8L7vrbKy6pump",
+            "tokenAccount": "ComputeBudget111111111111111111111111111111",
+            "tokenProgram": "spl-token",
+            "assetClass": "token",
+            "symbol": "DEXTER",
+            "name": "Dexter AI",
+            "issuer": "Dexter",
+            "amountRaw": "125000000",
+            "decimals": 6,
+            "displayAmount": "125",
+            "amountModel": "raw-decimals",
+            "displayMultiplier": null,
+            "tokenExtensions": [],
+            "accountState": "initialized",
+            "valueUsd": "0.08",
+            "price": {
+              "usd": "0.00064",
+              "source": "jupiter-price-v3",
+              "observedAt": "2026-09-22T14:00:00.000Z",
+              "blockId": null,
+              "change24hPercent": null
+            },
+            "approval": {
+              "status": "approved",
+              "assetId": "dexter",
+              "group": "dexter-core",
+              "source": "dexter-registry"
+            },
+            "capabilities": [
+              {
+                "action": "view",
+                "available": true,
+                "reason": null
+              },
+              {
+                "action": "receive",
+                "available": true,
+                "reason": null
+              },
+              {
+                "action": "send",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "buy",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "sell",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "earn",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "lend",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "borrow",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "pay",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              }
+            ],
+            "graphics": {
+              "canonicalImageUrl": null,
+              "dexScreenerImageUrl": null,
+              "dexScreenerHeaderUrl": null,
+              "openGraphImageUrl": null
+            },
+            "metadataObservedAt": "2026-09-22T14:00:00.000Z"
+          }
+        ]
+      }
+    },
+    {
+      "name": "null unit price",
+      "priceUsd": null,
+      "change24hPercent": null,
+      "provider": {
+        "EfPoo4wWgxKVToit7yX5VtXXBrhao4G8L7vrbKy6pump": {
+          "usdPrice": null,
+          "priceChange24h": 5
+        }
+      },
+      "snapshot": {
+        "schemaVersion": 1,
+        "network": "solana-mainnet",
+        "walletAddress": "Vote111111111111111111111111111111111111111",
+        "vaultPda": null,
+        "observedAt": "2026-09-22T14:00:00.000Z",
+        "contextSlot": 100,
+        "holdingsComplete": true,
+        "nextCursor": null,
+        "omittedHoldings": 0,
+        "pricedValueUsd": "0",
+        "portfolioValueUsd": null,
+        "pricedHoldings": 0,
+        "unpricedHoldings": 1,
+        "enrichment": {
+          "metadata": "complete",
+          "pricing": "partial",
+          "tokenExtensions": "complete"
+        },
+        "holdings": [
+          {
+            "mint": "EfPoo4wWgxKVToit7yX5VtXXBrhao4G8L7vrbKy6pump",
+            "tokenAccount": "ComputeBudget111111111111111111111111111111",
+            "tokenProgram": "spl-token",
+            "assetClass": "token",
+            "symbol": "DEXTER",
+            "name": "Dexter AI",
+            "issuer": "Dexter",
+            "amountRaw": "125000000",
+            "decimals": 6,
+            "displayAmount": "125",
+            "amountModel": "raw-decimals",
+            "displayMultiplier": null,
+            "tokenExtensions": [],
+            "accountState": "initialized",
+            "valueUsd": null,
+            "price": null,
+            "approval": {
+              "status": "approved",
+              "assetId": "dexter",
+              "group": "dexter-core",
+              "source": "dexter-registry"
+            },
+            "capabilities": [
+              {
+                "action": "view",
+                "available": true,
+                "reason": null
+              },
+              {
+                "action": "receive",
+                "available": true,
+                "reason": null
+              },
+              {
+                "action": "send",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "buy",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "sell",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "earn",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "lend",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "borrow",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "pay",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              }
+            ],
+            "graphics": {
+              "canonicalImageUrl": null,
+              "dexScreenerImageUrl": null,
+              "dexScreenerHeaderUrl": null,
+              "openGraphImageUrl": null
+            },
+            "metadataObservedAt": "2026-09-22T14:00:00.000Z"
+          }
+        ]
+      }
+    },
+    {
+      "name": "retained DEXTER provider result replayed offline",
+      "priceUsd": "0.00044766554153529315",
+      "change24hPercent": "32.41055276098489",
+      "observedAt": "2026-09-22T14:35:02.308Z",
+      "providerRead": {
+        "receiptSha256": "b585ed8df6f6088c0cda8f856a777a6346a16157ad197a9ba04b7337254e56e1",
+        "startedAt": "2026-09-22T14:35:02.193Z",
+        "endedAt": "2026-09-22T14:35:02.308Z",
+        "observationBasis": "Offline replay clock is the retained service read observation time. Quantity and account data are synthetic."
+      },
+      "provider": {
+        "EfPoo4wWgxKVToit7yX5VtXXBrhao4G8L7vrbKy6pump": {
+          "createdAt": "2025-10-16T01:38:17Z",
+          "liquidity": 55555.91123190803,
+          "usdPrice": 0.00044766554153529315,
+          "blockId": 449406476,
+          "decimals": 6,
+          "priceChange24h": 32.41055276098489,
+          "launchpad": "pump.fun"
+        }
+      },
+      "snapshot": {
+        "schemaVersion": 1,
+        "network": "solana-mainnet",
+        "walletAddress": "Vote111111111111111111111111111111111111111",
+        "vaultPda": null,
+        "observedAt": "2026-09-22T14:35:02.308Z",
+        "contextSlot": 100,
+        "holdingsComplete": true,
+        "nextCursor": null,
+        "omittedHoldings": 0,
+        "pricedValueUsd": "0.05595819269191164375",
+        "portfolioValueUsd": "0.05595819269191164375",
+        "pricedHoldings": 1,
+        "unpricedHoldings": 0,
+        "enrichment": {
+          "metadata": "complete",
+          "pricing": "complete",
+          "tokenExtensions": "complete"
+        },
+        "holdings": [
+          {
+            "mint": "EfPoo4wWgxKVToit7yX5VtXXBrhao4G8L7vrbKy6pump",
+            "tokenAccount": "ComputeBudget111111111111111111111111111111",
+            "tokenProgram": "spl-token",
+            "assetClass": "token",
+            "symbol": "DEXTER",
+            "name": "Dexter AI",
+            "issuer": "Dexter",
+            "amountRaw": "125000000",
+            "decimals": 6,
+            "displayAmount": "125",
+            "amountModel": "raw-decimals",
+            "displayMultiplier": null,
+            "tokenExtensions": [],
+            "accountState": "initialized",
+            "valueUsd": "0.05595819269191164375",
+            "price": {
+              "usd": "0.00044766554153529315",
+              "source": "jupiter-price-v3",
+              "observedAt": "2026-09-22T14:35:02.308Z",
+              "blockId": 449406476,
+              "change24hPercent": "32.41055276098489"
+            },
+            "approval": {
+              "status": "approved",
+              "assetId": "dexter",
+              "group": "dexter-core",
+              "source": "dexter-registry"
+            },
+            "capabilities": [
+              {
+                "action": "view",
+                "available": true,
+                "reason": null
+              },
+              {
+                "action": "receive",
+                "available": true,
+                "reason": null
+              },
+              {
+                "action": "send",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "buy",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "sell",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "earn",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "lend",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "borrow",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              },
+              {
+                "action": "pay",
+                "available": false,
+                "reason": "governed_asset_rail_not_live"
+              }
+            ],
+            "graphics": {
+              "canonicalImageUrl": null,
+              "dexScreenerImageUrl": null,
+              "dexScreenerHeaderUrl": null,
+              "openGraphImageUrl": null
+            },
+            "metadataObservedAt": "2026-09-22T14:35:02.308Z"
+          }
+        ]
+      }
+    }
+  ]
+}
