@@ -118,6 +118,13 @@ const API_GOVERNED_CONTRACT_PATHS = Object.freeze([
   'src/marketData/priceUnits.ts',
   'src/portfolio/enrichment.ts',
   'src/portfolio/decimal.ts',
+  'src/routes/passkeyMcpBinding.ts',
+  'src/portfolio/readSessionPortfolio.ts',
+  'src/portfolio/selectPortfolioRead.ts',
+  'src/portfolio/portfolioReadSnapshots.ts',
+  'src/portfolio/selectedPortfolioContract.ts',
+  'src/portfolio/contract.ts',
+  'src/portfolio/readPortfolioSnapshot.ts',
   'src/routes/defaultGovernedDelegatedAssetActions.ts',
   'src/routes/governedDelegatedAssetActions.ts',
   'src/routes/governedAssetPrepare.ts',
@@ -162,9 +169,11 @@ const EXPECTED_SOURCE_CONTRACTS = Object.freeze({
   // The reviewed owner composition retains the delegated preview and fee
   // contracts, transition holds and historical recovery. Its currency release
   // constant binds the finalized program readback and generated admission.
+  // The reviewed selected portfolio read adds session binding, source
+  // validation, frozen snapshots and bounded selection contracts.
   // Later releases must preserve these API_GOVERNED_CONTRACT_PATHS bytes.
-  integratedGovernedCommit: '372dacdebce2ddbd9d8531d05aab85f602ea6bf5',
-  integratedGovernedTree: 'b2ea9b6393d6b63801a8abcfd160fcdc4beb81c9',
+  integratedGovernedCommit: 'ae00d1d27077c6a6fa0626f25656da302cd1f16a',
+  integratedGovernedTree: '20e922af82fbac900bfbdd263264068c600d8f63',
   apiFixtureSha256:
     'ad06690a3914e0ef0f359c4164eb62f78ca54abe6697a52672d739df63c2c352',
   apiCanonicalBodyDigest:

@@ -1,0 +1,1133 @@
+{
+  "summary": {
+    "ok": true,
+    "portfolio": {
+      "contractVersion": "opendexter.portfolio.v2",
+      "network": "solana-mainnet",
+      "walletAddress": "1111111111111111111111111111113gD",
+      "observedAt": "2026-09-23T00:00:00.000Z",
+      "contextSlot": 1,
+      "snapshotId": "KJbmNXx9iEWPkkainmYCAtEYEV9WA0Q9",
+      "expiresAt": "2026-09-23T00:05:00.000Z",
+      "sourceSummary": {
+        "holdingCount": 3,
+        "pricedHoldings": 3,
+        "unpricedHoldings": 0,
+        "holdingsComplete": true,
+        "omittedHoldings": 0,
+        "pricedValueUsd": "9",
+        "portfolioValueUsd": "9",
+        "enrichment": {
+          "metadata": "complete",
+          "pricing": "complete",
+          "tokenExtensions": "complete"
+        },
+        "targetCount": 4
+      },
+      "selection": {
+        "view": "summary",
+        "query": null,
+        "mint": null,
+        "tokenAccount": null,
+        "limit": 5,
+        "offset": 0,
+        "matchedCount": 3,
+        "returnedCount": 3,
+        "omittedCount": 0,
+        "nextCursor": null,
+        "match": "matched"
+      },
+      "holdings": [
+        {
+          "assetId": null,
+          "mint": "111111111111111111111111111111JJ",
+          "tokenAccount": "1111111111111111111111111111113yU",
+          "symbol": "T2",
+          "name": "Token 2",
+          "displayAmount": "1",
+          "amountModel": "raw-decimals",
+          "valueUsd": "4",
+          "change24hPercent": null
+        },
+        {
+          "assetId": null,
+          "mint": "111111111111111111111111111111JH",
+          "tokenAccount": "1111111111111111111111111111113yT",
+          "symbol": "T2",
+          "name": "Token 2",
+          "displayAmount": "1",
+          "amountModel": "raw-decimals",
+          "valueUsd": "3",
+          "change24hPercent": null
+        },
+        {
+          "assetId": null,
+          "mint": "111111111111111111111111111111JG",
+          "tokenAccount": "1111111111111111111111111111113yS",
+          "symbol": "T1",
+          "name": "Token 1",
+          "displayAmount": "1",
+          "amountModel": "raw-decimals",
+          "valueUsd": "2",
+          "change24hPercent": null
+        }
+      ],
+      "targets": []
+    },
+    "card": {
+      "contractVersion": "opendexter.portfolio-card.v2",
+      "snapshotId": "KJbmNXx9iEWPkkainmYCAtEYEV9WA0Q9",
+      "holdings": [
+        {
+          "assetId": null,
+          "mint": "111111111111111111111111111111JJ",
+          "tokenAccount": "1111111111111111111111111111113yU",
+          "tokenProgram": "spl-token",
+          "assetClass": "token",
+          "symbol": "T2",
+          "name": "Token 2",
+          "amountRaw": "1",
+          "decimals": 0,
+          "displayAmount": "1",
+          "amountModel": "raw-decimals",
+          "displayMultiplier": null,
+          "accountState": "initialized",
+          "valueUsd": "4",
+          "priceUsd": "4",
+          "priceObservedAt": "2026-09-23T00:00:00.000Z",
+          "change24hPercent": null,
+          "priceSource": "jupiter-price-v3",
+          "priceBlockId": 1,
+          "metadataObservedAt": "2026-09-23T00:00:00.000Z",
+          "capabilities": [
+            {
+              "action": "view",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "receive",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "send",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "buy",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "sell",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "earn",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "lend",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "borrow",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "pay",
+              "available": false,
+              "reasonCode": "unknown"
+            }
+          ],
+          "approvalStatus": "unreviewed",
+          "availableActions": []
+        },
+        {
+          "assetId": null,
+          "mint": "111111111111111111111111111111JH",
+          "tokenAccount": "1111111111111111111111111111113yT",
+          "tokenProgram": "spl-token",
+          "assetClass": "token",
+          "symbol": "T2",
+          "name": "Token 2",
+          "amountRaw": "1",
+          "decimals": 0,
+          "displayAmount": "1",
+          "amountModel": "raw-decimals",
+          "displayMultiplier": null,
+          "accountState": "initialized",
+          "valueUsd": "3",
+          "priceUsd": "3",
+          "priceObservedAt": "2026-09-23T00:00:00.000Z",
+          "change24hPercent": null,
+          "priceSource": "jupiter-price-v3",
+          "priceBlockId": 1,
+          "metadataObservedAt": "2026-09-23T00:00:00.000Z",
+          "capabilities": [
+            {
+              "action": "view",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "receive",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "send",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "buy",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "sell",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "earn",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "lend",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "borrow",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "pay",
+              "available": false,
+              "reasonCode": "unknown"
+            }
+          ],
+          "approvalStatus": "unreviewed",
+          "availableActions": []
+        },
+        {
+          "assetId": null,
+          "mint": "111111111111111111111111111111JG",
+          "tokenAccount": "1111111111111111111111111111113yS",
+          "tokenProgram": "spl-token",
+          "assetClass": "token",
+          "symbol": "T1",
+          "name": "Token 1",
+          "amountRaw": "1",
+          "decimals": 0,
+          "displayAmount": "1",
+          "amountModel": "raw-decimals",
+          "displayMultiplier": null,
+          "accountState": "initialized",
+          "valueUsd": "2",
+          "priceUsd": "2",
+          "priceObservedAt": "2026-09-23T00:00:00.000Z",
+          "change24hPercent": null,
+          "priceSource": "jupiter-price-v3",
+          "priceBlockId": 1,
+          "metadataObservedAt": "2026-09-23T00:00:00.000Z",
+          "capabilities": [
+            {
+              "action": "view",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "receive",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "send",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "buy",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "sell",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "earn",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "lend",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "borrow",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "pay",
+              "available": false,
+              "reasonCode": "unknown"
+            }
+          ],
+          "approvalStatus": "unreviewed",
+          "availableActions": []
+        }
+      ],
+      "approvedActionTargets": []
+    }
+  },
+  "holdings": {
+    "ok": true,
+    "portfolio": {
+      "contractVersion": "opendexter.portfolio.v2",
+      "network": "solana-mainnet",
+      "walletAddress": "1111111111111111111111111111113gD",
+      "observedAt": "2026-09-23T00:00:00.000Z",
+      "contextSlot": 1,
+      "snapshotId": "KJbmNXx9iEWPkkainmYCAtEYEV9WA0Q9",
+      "expiresAt": "2026-09-23T00:05:00.000Z",
+      "sourceSummary": {
+        "holdingCount": 3,
+        "pricedHoldings": 3,
+        "unpricedHoldings": 0,
+        "holdingsComplete": true,
+        "omittedHoldings": 0,
+        "pricedValueUsd": "9",
+        "portfolioValueUsd": "9",
+        "enrichment": {
+          "metadata": "complete",
+          "pricing": "complete",
+          "tokenExtensions": "complete"
+        },
+        "targetCount": 4
+      },
+      "selection": {
+        "view": "holdings",
+        "query": null,
+        "mint": null,
+        "tokenAccount": null,
+        "limit": 1,
+        "offset": 0,
+        "matchedCount": 3,
+        "returnedCount": 1,
+        "omittedCount": 2,
+        "nextCursor": "WyJLSmJtTlh4OWlFV1Bra2Fpbm1ZQ0F0RVlFVjlXQTBROSIseyJ2aWV3IjoiaG9sZGluZ3MiLCJuZXR3b3JrIjoic29sYW5hLW1haW5uZXQiLCJxdWVyeSI6bnVsbCwibWludCI6bnVsbCwidG9rZW5BY2NvdW50IjpudWxsLCJsaW1pdCI6MX0sMSwiMjAyNi0wOS0yM1QwMDowNTowMC4wMDBaIl0.nXvJdI3I0-MFolofCY9Z7ZRLr3gIoQt8oloSjswPVe0",
+        "match": "matched"
+      },
+      "holdings": [
+        {
+          "assetId": null,
+          "mint": "111111111111111111111111111111JG",
+          "tokenAccount": "1111111111111111111111111111113yS",
+          "symbol": "T1",
+          "name": "Token 1",
+          "displayAmount": "1",
+          "amountModel": "raw-decimals",
+          "valueUsd": "2",
+          "change24hPercent": null
+        }
+      ],
+      "targets": []
+    },
+    "card": {
+      "contractVersion": "opendexter.portfolio-card.v2",
+      "snapshotId": "KJbmNXx9iEWPkkainmYCAtEYEV9WA0Q9",
+      "holdings": [
+        {
+          "assetId": null,
+          "mint": "111111111111111111111111111111JG",
+          "tokenAccount": "1111111111111111111111111111113yS",
+          "tokenProgram": "spl-token",
+          "assetClass": "token",
+          "symbol": "T1",
+          "name": "Token 1",
+          "amountRaw": "1",
+          "decimals": 0,
+          "displayAmount": "1",
+          "amountModel": "raw-decimals",
+          "displayMultiplier": null,
+          "accountState": "initialized",
+          "valueUsd": "2",
+          "priceUsd": "2",
+          "priceObservedAt": "2026-09-23T00:00:00.000Z",
+          "change24hPercent": null,
+          "priceSource": "jupiter-price-v3",
+          "priceBlockId": 1,
+          "metadataObservedAt": "2026-09-23T00:00:00.000Z",
+          "capabilities": [
+            {
+              "action": "view",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "receive",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "send",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "buy",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "sell",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "earn",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "lend",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "borrow",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "pay",
+              "available": false,
+              "reasonCode": "unknown"
+            }
+          ],
+          "approvalStatus": "unreviewed",
+          "availableActions": []
+        }
+      ],
+      "approvedActionTargets": []
+    }
+  },
+  "next": {
+    "ok": true,
+    "portfolio": {
+      "contractVersion": "opendexter.portfolio.v2",
+      "network": "solana-mainnet",
+      "walletAddress": "1111111111111111111111111111113gD",
+      "observedAt": "2026-09-23T00:00:00.000Z",
+      "contextSlot": 1,
+      "snapshotId": "KJbmNXx9iEWPkkainmYCAtEYEV9WA0Q9",
+      "expiresAt": "2026-09-23T00:05:00.000Z",
+      "sourceSummary": {
+        "holdingCount": 3,
+        "pricedHoldings": 3,
+        "unpricedHoldings": 0,
+        "holdingsComplete": true,
+        "omittedHoldings": 0,
+        "pricedValueUsd": "9",
+        "portfolioValueUsd": "9",
+        "enrichment": {
+          "metadata": "complete",
+          "pricing": "complete",
+          "tokenExtensions": "complete"
+        },
+        "targetCount": 4
+      },
+      "selection": {
+        "view": "holdings",
+        "query": null,
+        "mint": null,
+        "tokenAccount": null,
+        "limit": 1,
+        "offset": 1,
+        "matchedCount": 3,
+        "returnedCount": 1,
+        "omittedCount": 2,
+        "nextCursor": "WyJLSmJtTlh4OWlFV1Bra2Fpbm1ZQ0F0RVlFVjlXQTBROSIseyJ2aWV3IjoiaG9sZGluZ3MiLCJuZXR3b3JrIjoic29sYW5hLW1haW5uZXQiLCJxdWVyeSI6bnVsbCwibWludCI6bnVsbCwidG9rZW5BY2NvdW50IjpudWxsLCJsaW1pdCI6MX0sMiwiMjAyNi0wOS0yM1QwMDowNTowMC4wMDBaIl0.rLTCyWWEghOPgcOXiIVwi4Z7k6y1AAKQkYIm8BBikiE",
+        "match": "matched"
+      },
+      "holdings": [
+        {
+          "assetId": null,
+          "mint": "111111111111111111111111111111JH",
+          "tokenAccount": "1111111111111111111111111111113yT",
+          "symbol": "T2",
+          "name": "Token 2",
+          "displayAmount": "1",
+          "amountModel": "raw-decimals",
+          "valueUsd": "3",
+          "change24hPercent": null
+        }
+      ],
+      "targets": []
+    },
+    "card": {
+      "contractVersion": "opendexter.portfolio-card.v2",
+      "snapshotId": "KJbmNXx9iEWPkkainmYCAtEYEV9WA0Q9",
+      "holdings": [
+        {
+          "assetId": null,
+          "mint": "111111111111111111111111111111JH",
+          "tokenAccount": "1111111111111111111111111111113yT",
+          "tokenProgram": "spl-token",
+          "assetClass": "token",
+          "symbol": "T2",
+          "name": "Token 2",
+          "amountRaw": "1",
+          "decimals": 0,
+          "displayAmount": "1",
+          "amountModel": "raw-decimals",
+          "displayMultiplier": null,
+          "accountState": "initialized",
+          "valueUsd": "3",
+          "priceUsd": "3",
+          "priceObservedAt": "2026-09-23T00:00:00.000Z",
+          "change24hPercent": null,
+          "priceSource": "jupiter-price-v3",
+          "priceBlockId": 1,
+          "metadataObservedAt": "2026-09-23T00:00:00.000Z",
+          "capabilities": [
+            {
+              "action": "view",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "receive",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "send",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "buy",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "sell",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "earn",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "lend",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "borrow",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "pay",
+              "available": false,
+              "reasonCode": "unknown"
+            }
+          ],
+          "approvalStatus": "unreviewed",
+          "availableActions": []
+        }
+      ],
+      "approvedActionTargets": []
+    }
+  },
+  "detail": {
+    "ok": true,
+    "portfolio": {
+      "contractVersion": "opendexter.portfolio.v2",
+      "network": "solana-mainnet",
+      "walletAddress": "1111111111111111111111111111113gD",
+      "observedAt": "2026-09-23T00:00:00.000Z",
+      "contextSlot": 1,
+      "snapshotId": "KJbmNXx9iEWPkkainmYCAtEYEV9WA0Q9",
+      "expiresAt": "2026-09-23T00:05:00.000Z",
+      "sourceSummary": {
+        "holdingCount": 3,
+        "pricedHoldings": 3,
+        "unpricedHoldings": 0,
+        "holdingsComplete": true,
+        "omittedHoldings": 0,
+        "pricedValueUsd": "9",
+        "portfolioValueUsd": "9",
+        "enrichment": {
+          "metadata": "complete",
+          "pricing": "complete",
+          "tokenExtensions": "complete"
+        },
+        "targetCount": 4
+      },
+      "selection": {
+        "view": "detail",
+        "query": null,
+        "mint": "111111111111111111111111111111JG",
+        "tokenAccount": null,
+        "limit": 32,
+        "offset": 0,
+        "matchedCount": 1,
+        "returnedCount": 1,
+        "omittedCount": 2,
+        "nextCursor": null,
+        "match": "matched"
+      },
+      "holdings": [
+        {
+          "assetId": null,
+          "mint": "111111111111111111111111111111JG",
+          "tokenAccount": "1111111111111111111111111111113yS",
+          "tokenProgram": "spl-token",
+          "assetClass": "token",
+          "symbol": "T1",
+          "name": "Token 1",
+          "amountRaw": "1",
+          "decimals": 0,
+          "displayAmount": "1",
+          "amountModel": "raw-decimals",
+          "displayMultiplier": null,
+          "accountState": "initialized",
+          "valueUsd": "2",
+          "priceUsd": "2",
+          "priceObservedAt": "2026-09-23T00:00:00.000Z",
+          "change24hPercent": null,
+          "priceSource": "jupiter-price-v3",
+          "priceBlockId": 1,
+          "metadataObservedAt": "2026-09-23T00:00:00.000Z",
+          "capabilities": [
+            {
+              "action": "view",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "receive",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "send",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "buy",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "sell",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "earn",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "lend",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "borrow",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "pay",
+              "available": false,
+              "reasonCode": "unknown"
+            }
+          ],
+          "approvalStatus": "unreviewed",
+          "availableActions": []
+        }
+      ],
+      "targets": []
+    },
+    "card": {
+      "contractVersion": "opendexter.portfolio-card.v2",
+      "snapshotId": "KJbmNXx9iEWPkkainmYCAtEYEV9WA0Q9",
+      "holdings": [
+        {
+          "assetId": null,
+          "mint": "111111111111111111111111111111JG",
+          "tokenAccount": "1111111111111111111111111111113yS",
+          "tokenProgram": "spl-token",
+          "assetClass": "token",
+          "symbol": "T1",
+          "name": "Token 1",
+          "amountRaw": "1",
+          "decimals": 0,
+          "displayAmount": "1",
+          "amountModel": "raw-decimals",
+          "displayMultiplier": null,
+          "accountState": "initialized",
+          "valueUsd": "2",
+          "priceUsd": "2",
+          "priceObservedAt": "2026-09-23T00:00:00.000Z",
+          "change24hPercent": null,
+          "priceSource": "jupiter-price-v3",
+          "priceBlockId": 1,
+          "metadataObservedAt": "2026-09-23T00:00:00.000Z",
+          "capabilities": [
+            {
+              "action": "view",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "receive",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "send",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "buy",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "sell",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "earn",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "lend",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "borrow",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "pay",
+              "available": false,
+              "reasonCode": "unknown"
+            }
+          ],
+          "approvalStatus": "unreviewed",
+          "availableActions": []
+        }
+      ],
+      "approvedActionTargets": []
+    }
+  },
+  "ambiguous": {
+    "ok": true,
+    "portfolio": {
+      "contractVersion": "opendexter.portfolio.v2",
+      "network": "solana-mainnet",
+      "walletAddress": "1111111111111111111111111111113gD",
+      "observedAt": "2026-09-23T00:00:00.000Z",
+      "contextSlot": 1,
+      "snapshotId": "KJbmNXx9iEWPkkainmYCAtEYEV9WA0Q9",
+      "expiresAt": "2026-09-23T00:05:00.000Z",
+      "sourceSummary": {
+        "holdingCount": 3,
+        "pricedHoldings": 3,
+        "unpricedHoldings": 0,
+        "holdingsComplete": true,
+        "omittedHoldings": 0,
+        "pricedValueUsd": "9",
+        "portfolioValueUsd": "9",
+        "enrichment": {
+          "metadata": "complete",
+          "pricing": "complete",
+          "tokenExtensions": "complete"
+        },
+        "targetCount": 4
+      },
+      "selection": {
+        "view": "detail",
+        "query": "T2",
+        "mint": null,
+        "tokenAccount": null,
+        "limit": 32,
+        "offset": 0,
+        "matchedCount": 2,
+        "returnedCount": 2,
+        "omittedCount": 1,
+        "nextCursor": null,
+        "match": "ambiguous"
+      },
+      "holdings": [
+        {
+          "assetId": null,
+          "mint": "111111111111111111111111111111JH",
+          "tokenAccount": "1111111111111111111111111111113yT",
+          "symbol": "T2",
+          "name": "Token 2",
+          "displayAmount": "1",
+          "amountModel": "raw-decimals",
+          "valueUsd": "3",
+          "change24hPercent": null
+        },
+        {
+          "assetId": null,
+          "mint": "111111111111111111111111111111JJ",
+          "tokenAccount": "1111111111111111111111111111113yU",
+          "symbol": "T2",
+          "name": "Token 2",
+          "displayAmount": "1",
+          "amountModel": "raw-decimals",
+          "valueUsd": "4",
+          "change24hPercent": null
+        }
+      ],
+      "targets": []
+    },
+    "card": {
+      "contractVersion": "opendexter.portfolio-card.v2",
+      "snapshotId": "KJbmNXx9iEWPkkainmYCAtEYEV9WA0Q9",
+      "holdings": [
+        {
+          "assetId": null,
+          "mint": "111111111111111111111111111111JH",
+          "tokenAccount": "1111111111111111111111111111113yT",
+          "tokenProgram": "spl-token",
+          "assetClass": "token",
+          "symbol": "T2",
+          "name": "Token 2",
+          "amountRaw": "1",
+          "decimals": 0,
+          "displayAmount": "1",
+          "amountModel": "raw-decimals",
+          "displayMultiplier": null,
+          "accountState": "initialized",
+          "valueUsd": "3",
+          "priceUsd": "3",
+          "priceObservedAt": "2026-09-23T00:00:00.000Z",
+          "change24hPercent": null,
+          "priceSource": "jupiter-price-v3",
+          "priceBlockId": 1,
+          "metadataObservedAt": "2026-09-23T00:00:00.000Z",
+          "capabilities": [
+            {
+              "action": "view",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "receive",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "send",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "buy",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "sell",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "earn",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "lend",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "borrow",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "pay",
+              "available": false,
+              "reasonCode": "unknown"
+            }
+          ],
+          "approvalStatus": "unreviewed",
+          "availableActions": []
+        },
+        {
+          "assetId": null,
+          "mint": "111111111111111111111111111111JJ",
+          "tokenAccount": "1111111111111111111111111111113yU",
+          "tokenProgram": "spl-token",
+          "assetClass": "token",
+          "symbol": "T2",
+          "name": "Token 2",
+          "amountRaw": "1",
+          "decimals": 0,
+          "displayAmount": "1",
+          "amountModel": "raw-decimals",
+          "displayMultiplier": null,
+          "accountState": "initialized",
+          "valueUsd": "4",
+          "priceUsd": "4",
+          "priceObservedAt": "2026-09-23T00:00:00.000Z",
+          "change24hPercent": null,
+          "priceSource": "jupiter-price-v3",
+          "priceBlockId": 1,
+          "metadataObservedAt": "2026-09-23T00:00:00.000Z",
+          "capabilities": [
+            {
+              "action": "view",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "receive",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "send",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "buy",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "sell",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "earn",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "lend",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "borrow",
+              "available": false,
+              "reasonCode": "unknown"
+            },
+            {
+              "action": "pay",
+              "available": false,
+              "reasonCode": "unknown"
+            }
+          ],
+          "approvalStatus": "unreviewed",
+          "availableActions": []
+        }
+      ],
+      "approvedActionTargets": []
+    }
+  },
+  "targets": {
+    "ok": true,
+    "portfolio": {
+      "contractVersion": "opendexter.portfolio.v2",
+      "network": "solana-mainnet",
+      "walletAddress": "1111111111111111111111111111113gD",
+      "observedAt": "2026-09-23T00:00:00.000Z",
+      "contextSlot": 1,
+      "snapshotId": "KJbmNXx9iEWPkkainmYCAtEYEV9WA0Q9",
+      "expiresAt": "2026-09-23T00:05:00.000Z",
+      "sourceSummary": {
+        "holdingCount": 3,
+        "pricedHoldings": 3,
+        "unpricedHoldings": 0,
+        "holdingsComplete": true,
+        "omittedHoldings": 0,
+        "pricedValueUsd": "9",
+        "portfolioValueUsd": "9",
+        "enrichment": {
+          "metadata": "complete",
+          "pricing": "complete",
+          "tokenExtensions": "complete"
+        },
+        "targetCount": 4
+      },
+      "selection": {
+        "view": "targets",
+        "query": null,
+        "mint": null,
+        "tokenAccount": null,
+        "limit": 1,
+        "offset": 0,
+        "matchedCount": 4,
+        "returnedCount": 1,
+        "omittedCount": 3,
+        "nextCursor": "WyJLSmJtTlh4OWlFV1Bra2Fpbm1ZQ0F0RVlFVjlXQTBROSIseyJ2aWV3IjoidGFyZ2V0cyIsIm5ldHdvcmsiOiJzb2xhbmEtbWFpbm5ldCIsInF1ZXJ5IjpudWxsLCJtaW50IjpudWxsLCJ0b2tlbkFjY291bnQiOm51bGwsImxpbWl0IjoxfSwxLCIyMDI2LTA5LTIzVDAwOjA1OjAwLjAwMFoiXQ.lmuJFAbWQFtATOQEQ4nVt_eC7LTUUQ_IgdanTuV1sLk",
+        "match": "matched"
+      },
+      "holdings": [],
+      "targets": [
+        {
+          "assetId": "backpack-spcx",
+          "mint": "SPCXxcqXj6e5dJDVNovHN8744zkbhM2bYudU45BimGb",
+          "tokenProgram": "token-2022",
+          "symbol": "SPCX",
+          "name": "SpaceX",
+          "actions": [
+            {
+              "action": "buy",
+              "available": true,
+              "reason": null
+            },
+            {
+              "action": "sell",
+              "available": true,
+              "reason": null
+            },
+            {
+              "action": "send",
+              "available": false,
+              "reason": "protected_agent_send_sdk_required"
+            }
+          ]
+        }
+      ]
+    },
+    "card": {
+      "contractVersion": "opendexter.portfolio-card.v2",
+      "snapshotId": "KJbmNXx9iEWPkkainmYCAtEYEV9WA0Q9",
+      "holdings": [],
+      "approvedActionTargets": [
+        {
+          "namespace": "dexter-approved-action-target/v1",
+          "assetId": "backpack-spcx",
+          "symbol": "SPCX",
+          "name": "SpaceX",
+          "network": "solana-mainnet",
+          "mint": "SPCXxcqXj6e5dJDVNovHN8744zkbhM2bYudU45BimGb",
+          "tokenProgram": "token-2022",
+          "decimals": 6,
+          "actions": [
+            {
+              "namespace": "dexter-governed-asset-action-availability/v1",
+              "action": "buy",
+              "assetId": "backpack-spcx",
+              "registryIdentityDigest": "c105427413d032c5ce823987b33649e0577287c72df157e18f0db065cbd54888",
+              "runtimeReleaseDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "available": true,
+              "reason": null,
+              "receiptDigest": "dfe9d0f72fd4e944c1163d72a44c223bc8d5075ee67082463cad25713df1a1cf"
+            },
+            {
+              "namespace": "dexter-governed-asset-action-availability/v1",
+              "action": "sell",
+              "assetId": "backpack-spcx",
+              "registryIdentityDigest": "c105427413d032c5ce823987b33649e0577287c72df157e18f0db065cbd54888",
+              "runtimeReleaseDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "available": true,
+              "reason": null,
+              "receiptDigest": "46d6466a5a7c6ba662fbcbdb14ac619ed90a2a4a3e150e34796f4024223d1bb2"
+            },
+            {
+              "namespace": "dexter-governed-asset-action-availability/v1",
+              "action": "send",
+              "assetId": "backpack-spcx",
+              "registryIdentityDigest": "c105427413d032c5ce823987b33649e0577287c72df157e18f0db065cbd54888",
+              "runtimeReleaseDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "available": false,
+              "reason": "protected_agent_send_sdk_required",
+              "receiptDigest": "1238ea9d89d360dcd68729201a34159851dd50bf61ccd2ee6204edfe57684010"
+            }
+          ],
+          "targetDigest": "ccfbcd3f95980c50cfb878448805cad506cac3e9f1f11143b205c90afd908185"
+        }
+      ]
+    }
+  },
+  "none": {
+    "ok": true,
+    "portfolio": {
+      "contractVersion": "opendexter.portfolio.v2",
+      "network": "solana-mainnet",
+      "walletAddress": "1111111111111111111111111111113gD",
+      "observedAt": "2026-09-23T00:00:00.000Z",
+      "contextSlot": 1,
+      "snapshotId": "KJbmNXx9iEWPkkainmYCAtEYEV9WA0Q9",
+      "expiresAt": "2026-09-23T00:05:00.000Z",
+      "sourceSummary": {
+        "holdingCount": 3,
+        "pricedHoldings": 3,
+        "unpricedHoldings": 0,
+        "holdingsComplete": true,
+        "omittedHoldings": 0,
+        "pricedValueUsd": "9",
+        "portfolioValueUsd": "9",
+        "enrichment": {
+          "metadata": "complete",
+          "pricing": "complete",
+          "tokenExtensions": "complete"
+        },
+        "targetCount": 4
+      },
+      "selection": {
+        "view": "holdings",
+        "query": "no-match",
+        "mint": null,
+        "tokenAccount": null,
+        "limit": 32,
+        "offset": 0,
+        "matchedCount": 0,
+        "returnedCount": 0,
+        "omittedCount": 3,
+        "nextCursor": null,
+        "match": "none"
+      },
+      "holdings": [],
+      "targets": []
+    },
+    "card": {
+      "contractVersion": "opendexter.portfolio-card.v2",
+      "snapshotId": "KJbmNXx9iEWPkkainmYCAtEYEV9WA0Q9",
+      "holdings": [],
+      "approvedActionTargets": []
+    }
+  }
+}

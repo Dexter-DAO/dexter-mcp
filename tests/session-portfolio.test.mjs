@@ -445,8 +445,13 @@ test('model-safe portfolio keeps bounded display metadata separate from canonica
     'valueUsd',
     'priceUsd',
     'priceObservedAt',
+    'change24hPercent',
+    'priceSource',
+    'priceBlockId',
+    'metadataObservedAt',
     'approvalStatus',
     'availableActions',
+    'capabilities',
   ]);
   assert.doesNotMatch(
     JSON.stringify(projected),

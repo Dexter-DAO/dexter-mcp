@@ -16,15 +16,15 @@
     },
     "integratedApiRelease": {
       "repository": "https://github.com/Dexter-DAO/dexter-api",
-      "commit": "372dacdebce2ddbd9d8531d05aab85f602ea6bf5",
-      "tree": "b2ea9b6393d6b63801a8abcfd160fcdc4beb81c9",
-      "governedContractCommit": "372dacdebce2ddbd9d8531d05aab85f602ea6bf5",
-      "governedContractTree": "b2ea9b6393d6b63801a8abcfd160fcdc4beb81c9"
+      "commit": "ae00d1d27077c6a6fa0626f25656da302cd1f16a",
+      "tree": "20e922af82fbac900bfbdd263264068c600d8f63",
+      "governedContractCommit": "ae00d1d27077c6a6fa0626f25656da302cd1f16a",
+      "governedContractTree": "20e922af82fbac900bfbdd263264068c600d8f63"
     },
     "portfolioProjection": {
       "repository": "https://github.com/Dexter-DAO/dexter-api",
-      "commit": "372dacdebce2ddbd9d8531d05aab85f602ea6bf5",
-      "tree": "b2ea9b6393d6b63801a8abcfd160fcdc4beb81c9",
+      "commit": "ae00d1d27077c6a6fa0626f25656da302cd1f16a",
+      "tree": "20e922af82fbac900bfbdd263264068c600d8f63",
       "sourcePaths": [
         "src/portfolio/approvedActionTargets.ts",
         "src/routes/passkeyMcpBinding.ts",
@@ -39,8 +39,8 @@
     },
     "facilitator": {
       "repository": "https://github.com/Dexter-DAO/dexter-facilitator",
-      "commit": "55b7d087542c521174a58999dab4d62461f730b0",
-      "tree": "2c884efaed7cfc8b2f98b6af2e87a78c457b0932",
+      "commit": "945551c082d3ecf25c40c4c537c9feb8f081ea4c",
+      "tree": "53d6f47c82c581d2d8e5b9f8a8ae3cee8c957b74",
       "bindingFixture": {
         "consumerPath": "tests/fixtures/governed-agent-trade-api-facilitator-binding-vault-0434.json",
         "apiPath": "tests/fixtures/governed-agent-trade-api-facilitator-binding-v1.json",
@@ -1866,7 +1866,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/indexter-search-4c706da9",
+          "resourceUri": "ui://dexter/indexter-search-7e9b3eef",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash",
@@ -1884,8 +1884,8 @@
             "app"
           ]
         },
-        "ui/resourceUri": "ui://dexter/indexter-search-4c706da9",
-        "openai/outputTemplate": "ui://dexter/indexter-search-4c706da9",
+        "ui/resourceUri": "ui://dexter/indexter-search-7e9b3eef",
+        "openai/outputTemplate": "ui://dexter/indexter-search-7e9b3eef",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -1998,6 +1998,31 @@
                 "type": "null"
               }
             ]
+          },
+          "resolvedQuery": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1024
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "routingReason": {
+            "type": "string",
+            "enum": [
+              "overview_requested",
+              "provider_requested",
+              "task_query",
+              "unresolved_query",
+              "input_rejected",
+              "provider_not_found"
+            ]
+          },
+          "taskSearchAttempted": {
+            "type": "boolean"
           },
           "route": {
             "type": "string",
@@ -2904,7 +2929,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/indexter-search-4c706da9",
+          "resourceUri": "ui://dexter/indexter-search-7e9b3eef",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash",
@@ -2922,8 +2947,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/indexter-search-4c706da9",
-        "openai/outputTemplate": "ui://dexter/indexter-search-4c706da9",
+        "ui/resourceUri": "ui://dexter/indexter-search-7e9b3eef",
+        "openai/outputTemplate": "ui://dexter/indexter-search-7e9b3eef",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -3578,6 +3603,8 @@
                   "x402_access",
                   "provider_response",
                   "provider_error",
+                  "local_authority_unavailable",
+                  "unknown_error",
                   "unsupported_auth",
                   "siwx_unavailable",
                   "check_pending"
@@ -3700,7 +3727,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-pricing-d69d709d",
+          "resourceUri": "ui://dexter/x402-pricing-7da3eb41",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash",
@@ -3717,8 +3744,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/x402-pricing-d69d709d",
-        "openai/outputTemplate": "ui://dexter/x402-pricing-d69d709d",
+        "ui/resourceUri": "ui://dexter/x402-pricing-7da3eb41",
+        "openai/outputTemplate": "ui://dexter/x402-pricing-7da3eb41",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -4057,7 +4084,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-fetch-result-825b48c8",
+          "resourceUri": "ui://dexter/x402-fetch-result-8d890f01",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash",
@@ -4074,8 +4101,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/x402-fetch-result-825b48c8",
-        "openai/outputTemplate": "ui://dexter/x402-fetch-result-825b48c8",
+        "ui/resourceUri": "ui://dexter/x402-fetch-result-8d890f01",
+        "openai/outputTemplate": "ui://dexter/x402-fetch-result-8d890f01",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -4598,6 +4625,8 @@
                   "x402_access",
                   "provider_response",
                   "provider_error",
+                  "local_authority_unavailable",
+                  "unknown_error",
                   "unsupported_auth",
                   "siwx_unavailable",
                   "check_pending"
@@ -4782,7 +4811,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-fetch-result-825b48c8",
+          "resourceUri": "ui://dexter/x402-fetch-result-8d890f01",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash",
@@ -4799,8 +4828,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/x402-fetch-result-825b48c8",
-        "openai/outputTemplate": "ui://dexter/x402-fetch-result-825b48c8",
+        "ui/resourceUri": "ui://dexter/x402-fetch-result-8d890f01",
+        "openai/outputTemplate": "ui://dexter/x402-fetch-result-8d890f01",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -5193,6 +5222,8 @@
                   "provider_response",
                   "provider_error",
                   "unsupported_auth",
+                  "local_authority_unavailable",
+                  "unknown_error",
                   "siwx_unavailable",
                   "check_pending"
                 ]
@@ -5273,7 +5304,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-pricing-d69d709d",
+          "resourceUri": "ui://dexter/x402-pricing-7da3eb41",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash",
@@ -5290,8 +5321,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/x402-pricing-d69d709d",
-        "openai/outputTemplate": "ui://dexter/x402-pricing-d69d709d",
+        "ui/resourceUri": "ui://dexter/x402-pricing-7da3eb41",
+        "openai/outputTemplate": "ui://dexter/x402-pricing-7da3eb41",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -6053,7 +6084,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/dexter-wallet-d61851fe",
+          "resourceUri": "ui://dexter/dexter-wallet-f78e8768",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash",
@@ -6072,8 +6103,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/dexter-wallet-d61851fe",
-        "openai/outputTemplate": "ui://dexter/dexter-wallet-d61851fe",
+        "ui/resourceUri": "ui://dexter/dexter-wallet-f78e8768",
+        "openai/outputTemplate": "ui://dexter/dexter-wallet-f78e8768",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -6111,11 +6142,61 @@
     {
       "name": "dexter_wallet_portfolio",
       "title": "Dexter Wallet Portfolio",
-      "description": "Read the portfolio bound to the current authenticated OpenDexter session. Inputs cannot select a handle, wallet, vault, actor, agent, grant, role, or authority. Approved holdings include canonical assetIds for held assets; optional approvedActionTargets separately list server-approved governed assets even when the wallet holds none. Targets never count as holdings or value. Use only a target action whose availability is true, and treat Prepare as execution authority. Unreviewed or blocked holdings expose a null assetId.",
+      "description": "Read the Solana portfolio bound to this OpenDexter connection. The default summary returns portfolio totals, read coverage and up to five holdings. Request view=detail with a mint or literal name/symbol query for quantities, price and 24-hour change, attributed liquidity, holder/trader counts, recorded provider/issuer names and action availability. Use view=holdings for more rows and view=targets for approved assets, including assets not held. Pass snapshotId to keep the same observation; follow nextCursor for more matching rows. An expired snapshot requires a fresh summary with a new observation. sourceSummary describes the whole observed source; selection describes only this response. Missing values remain unknown. Names and symbols are display data; use canonical assetId for governed actions. Prepare checks the requested action and permission. Inputs select portfolio information within the current connection.",
       "inputSchema": {
-        "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "object",
-        "properties": {}
+        "properties": {
+          "view": {
+            "type": "string",
+            "enum": [
+              "summary",
+              "holdings",
+              "detail",
+              "targets"
+            ]
+          },
+          "network": {
+            "type": "string",
+            "const": "solana-mainnet"
+          },
+          "query": {
+            "type": "string",
+            "minLength": 1
+          },
+          "mint": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "native:SOL"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "tokenAccount": {
+            "$ref": "#/properties/mint/anyOf/1"
+          },
+          "snapshotId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[\\x21-\\x7e]+$"
+          },
+          "cursor": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "pattern": "^[\\x21-\\x7e]+$"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 32
+          }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
       },
       "outputSchema": {
         "type": "object",
@@ -6142,362 +6223,1110 @@
             ]
           },
           "portfolio": {
-            "type": "object",
-            "properties": {
-              "contractVersion": {
-                "type": "string",
-                "const": "opendexter.portfolio.v1"
-              },
-              "network": {
-                "type": "string",
-                "const": "solana-mainnet"
-              },
-              "walletAddress": {
-                "type": "string"
-              },
-              "observedAt": {
-                "type": "string"
-              },
-              "contextSlot": {
-                "anyOf": [
-                  {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "contractVersion": {
+                    "type": "string",
+                    "const": "opendexter.portfolio.v1"
+                  },
+                  "network": {
+                    "type": "string",
+                    "const": "solana-mainnet"
+                  },
+                  "walletAddress": {
+                    "type": "string"
+                  },
+                  "observedAt": {
+                    "type": "string"
+                  },
+                  "contextSlot": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "holdingsComplete": {
+                    "type": "boolean"
+                  },
+                  "omittedHoldings": {
                     "type": "integer",
                     "minimum": 0
                   },
-                  {
-                    "type": "null"
-                  }
-                ]
-              },
-              "holdingsComplete": {
-                "type": "boolean"
-              },
-              "omittedHoldings": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "pricedValueUsd": {
-                "type": "string"
-              },
-              "portfolioValueUsd": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "pricedHoldings": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "unpricedHoldings": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "holdings": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "assetId": {
-                      "anyOf": [
-                        {
+                  "pricedValueUsd": {
+                    "type": "string"
+                  },
+                  "portfolioValueUsd": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "pricedHoldings": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "unpricedHoldings": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "enrichment": {
+                    "type": "object",
+                    "properties": {
+                      "metadata": {
+                        "type": "string",
+                        "enum": [
+                          "complete",
+                          "partial",
+                          "unavailable"
+                        ]
+                      },
+                      "pricing": {
+                        "type": "string",
+                        "enum": [
+                          "complete",
+                          "partial",
+                          "unavailable"
+                        ]
+                      },
+                      "tokenExtensions": {
+                        "type": "string",
+                        "enum": [
+                          "complete",
+                          "partial",
+                          "unavailable"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "metadata",
+                      "pricing",
+                      "tokenExtensions"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Read coverage for metadata, pricing and token extensions; complete does not establish market freshness."
+                  },
+                  "holdings": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "assetId": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 128,
+                              "pattern": "^[a-z0-9][a-z0-9._:-]*$"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "mint": {
+                          "type": "string"
+                        },
+                        "tokenAccount": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "tokenProgram": {
+                          "type": "string",
+                          "enum": [
+                            "native",
+                            "spl-token",
+                            "token-2022"
+                          ]
+                        },
+                        "assetClass": {
+                          "type": "string",
+                          "enum": [
+                            "cash",
+                            "yield",
+                            "token",
+                            "stock",
+                            "fund",
+                            "nft",
+                            "rwa"
+                          ]
+                        },
+                        "symbol": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 32
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        },
+                        "amountRaw": {
+                          "type": "string"
+                        },
+                        "decimals": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "displayAmount": {
+                          "type": "string"
+                        },
+                        "amountModel": {
+                          "type": "string",
+                          "enum": [
+                            "raw-decimals",
+                            "scaled-ui-amount",
+                            "unknown"
+                          ]
+                        },
+                        "displayMultiplier": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "accountState": {
+                          "type": "string",
+                          "enum": [
+                            "initialized",
+                            "frozen",
+                            "unknown"
+                          ]
+                        },
+                        "valueUsd": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "priceUsd": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "USD per displayed token unit; null when unavailable."
+                        },
+                        "priceObservedAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "Portfolio price observation time; the upstream market update can be earlier."
+                        },
+                        "change24hPercent": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "maxLength": 384,
+                              "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]*[1-9])?$"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "Provider-reported percentage change over 24 hours. 2.5 means 2.5%. Null or absent means unavailable."
+                        },
+                        "priceSource": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "jupiter-price-v3",
+                                "jupiter-exact-in-quote",
+                                "unknown"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "priceBlockId": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "metadataObservedAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "maxLength": 40,
+                              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,9})?Z$"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "marketContext": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "source": {
+                                  "type": "string",
+                                  "const": "jupiter-tokens-v2"
+                                },
+                                "mint": {
+                                  "type": "string"
+                                },
+                                "observedAt": {
+                                  "$ref": "#/properties/portfolio/anyOf/0/properties/holdings/items/properties/metadataObservedAt/anyOf/0"
+                                },
+                                "liquidityUsd": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "maxLength": 384,
+                                      "pattern": "^(?:0|[1-9][0-9]*)(?:\\.[0-9]*[1-9])?$"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "holderCount": {
+                                  "anyOf": [
+                                    {
+                                      "$ref": "#/properties/portfolio/anyOf/0/properties/holdings/items/properties/priceBlockId/anyOf/0"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "activity24h": {
+                                  "type": "object",
+                                  "properties": {
+                                    "traderCount": {
+                                      "anyOf": [
+                                        {
+                                          "$ref": "#/properties/portfolio/anyOf/0/properties/holdings/items/properties/priceBlockId/anyOf/0"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    }
+                                  },
+                                  "required": [
+                                    "traderCount"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              },
+                              "required": [
+                                "source",
+                                "mint",
+                                "observedAt",
+                                "liquidityUsd",
+                                "holderCount",
+                                "activity24h"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "Jupiter token metadata observation for this mint. Liquidity is USD; traderCount is provider stats24h.numTraders. These values do not establish action eligibility."
+                        },
+                        "registryIdentity": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "source": {
+                                  "type": "string",
+                                  "const": "dexter-registry"
+                                },
+                                "providerName": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "minLength": 1
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "legalIssuerName": {
+                                  "anyOf": [
+                                    {
+                                      "$ref": "#/properties/portfolio/anyOf/0/properties/holdings/items/properties/registryIdentity/anyOf/0/properties/providerName/anyOf/0"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "source",
+                                "providerName",
+                                "legalIssuerName"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "capabilities": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "action": {
+                                "type": "string",
+                                "enum": [
+                                  "view",
+                                  "receive",
+                                  "send",
+                                  "buy",
+                                  "sell",
+                                  "earn",
+                                  "lend",
+                                  "borrow",
+                                  "pay"
+                                ]
+                              },
+                              "available": {
+                                "type": "boolean"
+                              },
+                              "reasonCode": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "governed_asset_rail_not_live",
+                                      "governed_asset_action_not_supported",
+                                      "protected_agent_send_sdk_required",
+                                      "stock_approval_required",
+                                      "stock_connection_unavailable",
+                                      "stock_authority_unavailable",
+                                      "stock_activation_unavailable",
+                                      "stock_eligibility_required",
+                                      "stock_eligibility_unavailable",
+                                      "stock_direction_not_permitted",
+                                      "asset_not_approved",
+                                      "token_program_mismatch",
+                                      "account_state_unverified",
+                                      "unknown"
+                                    ]
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "action",
+                              "available",
+                              "reasonCode"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "minItems": 9,
+                          "maxItems": 9
+                        },
+                        "approvalStatus": {
+                          "type": "string",
+                          "enum": [
+                            "approved",
+                            "unreviewed",
+                            "blocked"
+                          ]
+                        },
+                        "availableActions": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "view",
+                              "receive",
+                              "send",
+                              "buy",
+                              "sell",
+                              "earn",
+                              "lend",
+                              "borrow",
+                              "pay"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "assetId",
+                        "mint",
+                        "tokenAccount",
+                        "tokenProgram",
+                        "assetClass",
+                        "amountRaw",
+                        "decimals",
+                        "displayAmount",
+                        "amountModel",
+                        "accountState",
+                        "valueUsd",
+                        "priceUsd",
+                        "priceObservedAt",
+                        "approvalStatus",
+                        "availableActions"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "approvedActionTargets": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "namespace": {
+                          "type": "string",
+                          "const": "dexter-approved-action-target/v1"
+                        },
+                        "assetId": {
                           "type": "string",
                           "minLength": 1,
                           "maxLength": 128,
-                          "pattern": "^[a-z0-9][a-z0-9._:-]*$"
+                          "pattern": "^[a-z0-9][a-z0-9._:-]{0,127}$"
                         },
-                        {
-                          "type": "null"
-                        }
-                      ]
-                    },
-                    "mint": {
-                      "type": "string"
-                    },
-                    "tokenAccount": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "tokenProgram": {
-                      "type": "string",
-                      "enum": [
-                        "native",
-                        "spl-token",
-                        "token-2022"
-                      ]
-                    },
-                    "assetClass": {
-                      "type": "string",
-                      "enum": [
-                        "cash",
-                        "yield",
-                        "token",
-                        "stock",
-                        "fund",
-                        "nft",
-                        "rwa"
-                      ]
-                    },
-                    "symbol": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 32
-                    },
-                    "name": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 128
-                    },
-                    "amountRaw": {
-                      "type": "string"
-                    },
-                    "decimals": {
-                      "type": "integer",
-                      "minimum": 0
-                    },
-                    "displayAmount": {
-                      "type": "string"
-                    },
-                    "amountModel": {
-                      "type": "string",
-                      "enum": [
-                        "raw-decimals",
-                        "scaled-ui-amount",
-                        "unknown"
-                      ]
-                    },
-                    "displayMultiplier": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "accountState": {
-                      "type": "string",
-                      "enum": [
-                        "initialized",
-                        "frozen",
-                        "unknown"
-                      ]
-                    },
-                    "valueUsd": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "priceUsd": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "priceObservedAt": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "approvalStatus": {
-                      "type": "string",
-                      "enum": [
-                        "approved",
-                        "unreviewed",
-                        "blocked"
-                      ]
-                    },
-                    "availableActions": {
-                      "type": "array",
-                      "items": {
-                        "type": "string",
-                        "enum": [
-                          "view",
-                          "receive",
-                          "send",
-                          "buy",
-                          "sell",
-                          "earn",
-                          "lend",
-                          "borrow",
-                          "pay"
-                        ]
-                      }
-                    }
-                  },
-                  "required": [
-                    "assetId",
-                    "mint",
-                    "tokenAccount",
-                    "tokenProgram",
-                    "assetClass",
-                    "amountRaw",
-                    "decimals",
-                    "displayAmount",
-                    "amountModel",
-                    "accountState",
-                    "valueUsd",
-                    "priceUsd",
-                    "priceObservedAt",
-                    "approvalStatus",
-                    "availableActions"
-                  ],
-                  "additionalProperties": false
-                }
-              },
-              "approvedActionTargets": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "namespace": {
-                      "type": "string",
-                      "const": "dexter-approved-action-target/v1"
-                    },
-                    "assetId": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 128,
-                      "pattern": "^[a-z0-9][a-z0-9._:-]{0,127}$"
-                    },
-                    "symbol": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 32
-                    },
-                    "name": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 128
-                    },
-                    "network": {
-                      "type": "string",
-                      "const": "solana-mainnet"
-                    },
-                    "mint": {
-                      "type": "string",
-                      "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$"
-                    },
-                    "tokenProgram": {
-                      "type": "string",
-                      "enum": [
-                        "spl-token",
-                        "token-2022"
-                      ]
-                    },
-                    "decimals": {
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 18
-                    },
-                    "actions": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "namespace": {
-                            "type": "string",
-                            "const": "dexter-governed-asset-action-availability/v1"
-                          },
-                          "action": {
-                            "type": "string",
-                            "enum": [
-                              "buy",
-                              "sell",
-                              "send"
-                            ]
-                          },
-                          "assetId": {
-                            "$ref": "#/properties/portfolio/properties/approvedActionTargets/items/properties/assetId"
-                          },
-                          "registryIdentityDigest": {
-                            "type": "string",
-                            "pattern": "^[0-9a-f]{64}$"
-                          },
-                          "runtimeReleaseDigest": {
-                            "$ref": "#/properties/portfolio/properties/approvedActionTargets/items/properties/actions/items/properties/registryIdentityDigest"
-                          },
-                          "available": {
-                            "type": "boolean"
-                          },
-                          "reason": {
-                            "anyOf": [
-                              {
+                        "symbol": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 32
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        },
+                        "network": {
+                          "type": "string",
+                          "const": "solana-mainnet"
+                        },
+                        "mint": {
+                          "type": "string",
+                          "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$"
+                        },
+                        "tokenProgram": {
+                          "type": "string",
+                          "enum": [
+                            "spl-token",
+                            "token-2022"
+                          ]
+                        },
+                        "decimals": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 18
+                        },
+                        "actions": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "namespace": {
+                                "type": "string",
+                                "const": "dexter-governed-asset-action-availability/v1"
+                              },
+                              "action": {
                                 "type": "string",
                                 "enum": [
-                                  "governed_asset_rail_not_live",
-                                  "governed_asset_action_not_supported",
-                                  "protected_agent_send_sdk_required",
-                                  "stock_approval_required",
-                                  "stock_connection_unavailable",
-                                  "stock_authority_unavailable",
-                                  "stock_activation_unavailable",
-                                  "stock_eligibility_required",
-                                  "stock_eligibility_unavailable",
-                                  "stock_direction_not_permitted"
+                                  "buy",
+                                  "sell",
+                                  "send"
                                 ]
                               },
-                              {
-                                "type": "null"
+                              "assetId": {
+                                "$ref": "#/properties/portfolio/anyOf/0/properties/approvedActionTargets/items/properties/assetId"
+                              },
+                              "registryIdentityDigest": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$"
+                              },
+                              "runtimeReleaseDigest": {
+                                "$ref": "#/properties/portfolio/anyOf/0/properties/approvedActionTargets/items/properties/actions/items/properties/registryIdentityDigest"
+                              },
+                              "available": {
+                                "type": "boolean"
+                              },
+                              "reason": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "governed_asset_rail_not_live",
+                                      "governed_asset_action_not_supported",
+                                      "protected_agent_send_sdk_required",
+                                      "stock_approval_required",
+                                      "stock_connection_unavailable",
+                                      "stock_authority_unavailable",
+                                      "stock_activation_unavailable",
+                                      "stock_eligibility_required",
+                                      "stock_eligibility_unavailable",
+                                      "stock_direction_not_permitted"
+                                    ]
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "receiptDigest": {
+                                "$ref": "#/properties/portfolio/anyOf/0/properties/approvedActionTargets/items/properties/actions/items/properties/registryIdentityDigest"
                               }
+                            },
+                            "required": [
+                              "namespace",
+                              "action",
+                              "assetId",
+                              "registryIdentityDigest",
+                              "runtimeReleaseDigest",
+                              "available",
+                              "reason",
+                              "receiptDigest"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "minItems": 3,
+                          "maxItems": 3
+                        },
+                        "targetDigest": {
+                          "$ref": "#/properties/portfolio/anyOf/0/properties/approvedActionTargets/items/properties/actions/items/properties/registryIdentityDigest"
+                        }
+                      },
+                      "required": [
+                        "namespace",
+                        "assetId",
+                        "symbol",
+                        "name",
+                        "network",
+                        "mint",
+                        "tokenProgram",
+                        "decimals",
+                        "actions",
+                        "targetDigest"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "maxItems": 128
+                  }
+                },
+                "required": [
+                  "contractVersion",
+                  "network",
+                  "walletAddress",
+                  "observedAt",
+                  "contextSlot",
+                  "holdingsComplete",
+                  "omittedHoldings",
+                  "pricedValueUsd",
+                  "portfolioValueUsd",
+                  "pricedHoldings",
+                  "unpricedHoldings",
+                  "holdings"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "contractVersion": {
+                    "type": "string",
+                    "const": "opendexter.portfolio.v2"
+                  },
+                  "network": {
+                    "type": "string",
+                    "const": "solana-mainnet"
+                  },
+                  "walletAddress": {
+                    "type": "string"
+                  },
+                  "observedAt": {
+                    "type": "string",
+                    "maxLength": 40,
+                    "format": "date-time"
+                  },
+                  "contextSlot": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "snapshotId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "pattern": "^[\\x21-\\x7e]+$"
+                  },
+                  "expiresAt": {
+                    "$ref": "#/properties/portfolio/anyOf/1/properties/observedAt"
+                  },
+                  "sourceSummary": {
+                    "type": "object",
+                    "properties": {
+                      "holdingCount": {
+                        "$ref": "#/properties/portfolio/anyOf/1/properties/contextSlot/anyOf/0"
+                      },
+                      "pricedHoldings": {
+                        "$ref": "#/properties/portfolio/anyOf/1/properties/contextSlot/anyOf/0"
+                      },
+                      "unpricedHoldings": {
+                        "$ref": "#/properties/portfolio/anyOf/1/properties/contextSlot/anyOf/0"
+                      },
+                      "holdingsComplete": {
+                        "type": "boolean"
+                      },
+                      "omittedHoldings": {
+                        "$ref": "#/properties/portfolio/anyOf/1/properties/contextSlot/anyOf/0"
+                      },
+                      "pricedValueUsd": {
+                        "type": "string",
+                        "maxLength": 384,
+                        "pattern": "^(?:0|[1-9][0-9]*)(?:\\.[0-9]*[1-9])?$"
+                      },
+                      "portfolioValueUsd": {
+                        "anyOf": [
+                          {
+                            "$ref": "#/properties/portfolio/anyOf/1/properties/sourceSummary/properties/pricedValueUsd"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "enrichment": {
+                        "type": "object",
+                        "properties": {
+                          "metadata": {
+                            "type": "string",
+                            "enum": [
+                              "complete",
+                              "partial",
+                              "unavailable"
                             ]
                           },
-                          "receiptDigest": {
-                            "$ref": "#/properties/portfolio/properties/approvedActionTargets/items/properties/actions/items/properties/registryIdentityDigest"
+                          "pricing": {
+                            "type": "string",
+                            "enum": [
+                              "complete",
+                              "partial",
+                              "unavailable"
+                            ]
+                          },
+                          "tokenExtensions": {
+                            "type": "string",
+                            "enum": [
+                              "complete",
+                              "partial",
+                              "unavailable"
+                            ]
                           }
                         },
                         "required": [
-                          "namespace",
-                          "action",
-                          "assetId",
-                          "registryIdentityDigest",
-                          "runtimeReleaseDigest",
-                          "available",
-                          "reason",
-                          "receiptDigest"
+                          "metadata",
+                          "pricing",
+                          "tokenExtensions"
                         ],
                         "additionalProperties": false
                       },
-                      "minItems": 3,
-                      "maxItems": 3
+                      "targetCount": {
+                        "anyOf": [
+                          {
+                            "$ref": "#/properties/portfolio/anyOf/1/properties/contextSlot/anyOf/0"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
                     },
-                    "targetDigest": {
-                      "$ref": "#/properties/portfolio/properties/approvedActionTargets/items/properties/actions/items/properties/registryIdentityDigest"
-                    }
+                    "required": [
+                      "holdingCount",
+                      "pricedHoldings",
+                      "unpricedHoldings",
+                      "holdingsComplete",
+                      "omittedHoldings",
+                      "pricedValueUsd",
+                      "portfolioValueUsd",
+                      "enrichment",
+                      "targetCount"
+                    ],
+                    "additionalProperties": false
                   },
-                  "required": [
-                    "namespace",
-                    "assetId",
-                    "symbol",
-                    "name",
-                    "network",
-                    "mint",
-                    "tokenProgram",
-                    "decimals",
-                    "actions",
-                    "targetDigest"
-                  ],
-                  "additionalProperties": false
+                  "selection": {
+                    "type": "object",
+                    "properties": {
+                      "view": {
+                        "type": "string",
+                        "enum": [
+                          "summary",
+                          "holdings",
+                          "detail",
+                          "targets"
+                        ]
+                      },
+                      "query": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "mint": {
+                        "anyOf": [
+                          {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "const": "native:SOL"
+                              },
+                              {
+                                "$ref": "#/properties/portfolio/anyOf/1/properties/walletAddress"
+                              }
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "tokenAccount": {
+                        "anyOf": [
+                          {
+                            "$ref": "#/properties/portfolio/anyOf/1/properties/walletAddress"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "limit": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 32
+                      },
+                      "offset": {
+                        "$ref": "#/properties/portfolio/anyOf/1/properties/contextSlot/anyOf/0"
+                      },
+                      "matchedCount": {
+                        "anyOf": [
+                          {
+                            "$ref": "#/properties/portfolio/anyOf/1/properties/contextSlot/anyOf/0"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "returnedCount": {
+                        "$ref": "#/properties/portfolio/anyOf/1/properties/contextSlot/anyOf/0"
+                      },
+                      "omittedCount": {
+                        "anyOf": [
+                          {
+                            "$ref": "#/properties/portfolio/anyOf/1/properties/contextSlot/anyOf/0"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "nextCursor": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 1024,
+                            "pattern": "^[\\x21-\\x7e]+$"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "match": {
+                        "type": "string",
+                        "enum": [
+                          "matched",
+                          "none",
+                          "ambiguous",
+                          "unavailable"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "view",
+                      "query",
+                      "mint",
+                      "tokenAccount",
+                      "limit",
+                      "offset",
+                      "matchedCount",
+                      "returnedCount",
+                      "omittedCount",
+                      "nextCursor",
+                      "match"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "holdings": {
+                    "type": "array",
+                    "items": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "assetId": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 128,
+                                  "pattern": "^[a-z0-9][a-z0-9._:-]*$"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "mint": {
+                              "$ref": "#/properties/portfolio/anyOf/1/properties/selection/properties/mint/anyOf/0"
+                            },
+                            "tokenAccount": {
+                              "anyOf": [
+                                {
+                                  "$ref": "#/properties/portfolio/anyOf/1/properties/walletAddress"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "symbol": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 32
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "name": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 128
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "displayAmount": {
+                              "$ref": "#/properties/portfolio/anyOf/1/properties/sourceSummary/properties/pricedValueUsd"
+                            },
+                            "amountModel": {
+                              "type": "string",
+                              "enum": [
+                                "raw-decimals",
+                                "scaled-ui-amount",
+                                "unknown"
+                              ]
+                            },
+                            "valueUsd": {
+                              "anyOf": [
+                                {
+                                  "$ref": "#/properties/portfolio/anyOf/1/properties/sourceSummary/properties/pricedValueUsd"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "change24hPercent": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "maxLength": 384,
+                                  "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]*[1-9])?$"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "assetId",
+                            "mint",
+                            "tokenAccount",
+                            "symbol",
+                            "name",
+                            "displayAmount",
+                            "amountModel",
+                            "valueUsd",
+                            "change24hPercent"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "$ref": "#/properties/portfolio/anyOf/0/properties/holdings/items"
+                        }
+                      ]
+                    },
+                    "maxItems": 32
+                  },
+                  "targets": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "assetId": {
+                          "$ref": "#/properties/portfolio/anyOf/1/properties/holdings/items/anyOf/0/properties/assetId/anyOf/0"
+                        },
+                        "mint": {
+                          "$ref": "#/properties/portfolio/anyOf/1/properties/walletAddress"
+                        },
+                        "tokenProgram": {
+                          "type": "string",
+                          "enum": [
+                            "spl-token",
+                            "token-2022"
+                          ]
+                        },
+                        "symbol": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 32
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        },
+                        "actions": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "action": {
+                                "type": "string",
+                                "enum": [
+                                  "buy",
+                                  "sell",
+                                  "send"
+                                ]
+                              },
+                              "available": {
+                                "type": "boolean"
+                              },
+                              "reason": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "governed_asset_rail_not_live",
+                                      "governed_asset_action_not_supported",
+                                      "protected_agent_send_sdk_required",
+                                      "stock_approval_required",
+                                      "stock_connection_unavailable",
+                                      "stock_authority_unavailable",
+                                      "stock_activation_unavailable",
+                                      "stock_eligibility_required",
+                                      "stock_eligibility_unavailable",
+                                      "stock_direction_not_permitted"
+                                    ]
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "action",
+                              "available",
+                              "reason"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "minItems": 3,
+                          "maxItems": 3
+                        }
+                      },
+                      "required": [
+                        "assetId",
+                        "mint",
+                        "tokenProgram",
+                        "symbol",
+                        "name",
+                        "actions"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "maxItems": 32
+                  }
                 },
-                "maxItems": 128
+                "required": [
+                  "contractVersion",
+                  "network",
+                  "walletAddress",
+                  "observedAt",
+                  "contextSlot",
+                  "snapshotId",
+                  "expiresAt",
+                  "sourceSummary",
+                  "selection",
+                  "holdings",
+                  "targets"
+                ],
+                "additionalProperties": false
               }
-            },
-            "required": [
-              "contractVersion",
-              "network",
-              "walletAddress",
-              "observedAt",
-              "contextSlot",
-              "holdingsComplete",
-              "omittedHoldings",
-              "pricedValueUsd",
-              "portfolioValueUsd",
-              "pricedHoldings",
-              "unpricedHoldings",
-              "holdings"
-            ],
-            "additionalProperties": false
+            ]
+          },
+          "readError": {
+            "type": "string",
+            "enum": [
+              "portfolio_query_invalid",
+              "portfolio_snapshot_expired",
+              "portfolio_snapshot_too_large",
+              "portfolio_result_budget_exceeded",
+              "portfolio_read_unavailable"
+            ]
           },
           "retryable": {
             "type": "boolean"
@@ -6606,7 +7435,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/portfolio-d35d6a0e",
+          "resourceUri": "ui://dexter/portfolio-b2ff0ef9",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash"
@@ -6619,11 +7448,12 @@
           "domain": "https://dexter.cash",
           "prefersBorder": false,
           "visibility": [
-            "model"
+            "model",
+            "app"
           ]
         },
-        "ui/resourceUri": "ui://dexter/portfolio-d35d6a0e",
-        "openai/outputTemplate": "ui://dexter/portfolio-d35d6a0e",
+        "ui/resourceUri": "ui://dexter/portfolio-b2ff0ef9",
+        "openai/outputTemplate": "ui://dexter/portfolio-b2ff0ef9",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -6647,7 +7477,7 @@
             ]
           }
         ],
-        "openai/widgetAccessible": false
+        "openai/widgetAccessible": true
       }
     },
     {
@@ -9910,7 +10740,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/governed-action-7e40a0ac",
+          "resourceUri": "ui://dexter/governed-action-f35ada5f",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash"
@@ -9926,8 +10756,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/governed-action-7e40a0ac",
-        "openai/outputTemplate": "ui://dexter/governed-action-7e40a0ac",
+        "ui/resourceUri": "ui://dexter/governed-action-f35ada5f",
+        "openai/outputTemplate": "ui://dexter/governed-action-f35ada5f",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -12430,7 +13260,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/governed-action-7e40a0ac",
+          "resourceUri": "ui://dexter/governed-action-f35ada5f",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash"
@@ -12446,8 +13276,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/governed-action-7e40a0ac",
-        "openai/outputTemplate": "ui://dexter/governed-action-7e40a0ac",
+        "ui/resourceUri": "ui://dexter/governed-action-f35ada5f",
+        "openai/outputTemplate": "ui://dexter/governed-action-f35ada5f",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -15307,7 +16137,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/governed-action-7e40a0ac",
+          "resourceUri": "ui://dexter/governed-action-f35ada5f",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash"
@@ -15323,8 +16153,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/governed-action-7e40a0ac",
-        "openai/outputTemplate": "ui://dexter/governed-action-7e40a0ac",
+        "ui/resourceUri": "ui://dexter/governed-action-f35ada5f",
+        "openai/outputTemplate": "ui://dexter/governed-action-f35ada5f",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -18281,7 +19111,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/governed-action-7e40a0ac",
+          "resourceUri": "ui://dexter/governed-action-f35ada5f",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash"
@@ -18297,8 +19127,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/governed-action-7e40a0ac",
-        "openai/outputTemplate": "ui://dexter/governed-action-7e40a0ac",
+        "ui/resourceUri": "ui://dexter/governed-action-f35ada5f",
+        "openai/outputTemplate": "ui://dexter/governed-action-f35ada5f",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -21226,7 +22056,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/governed-history-51453705",
+          "resourceUri": "ui://dexter/governed-history-9dd47471",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash"
@@ -21242,8 +22072,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/governed-history-51453705",
-        "openai/outputTemplate": "ui://dexter/governed-history-51453705",
+        "ui/resourceUri": "ui://dexter/governed-history-9dd47471",
+        "openai/outputTemplate": "ui://dexter/governed-history-9dd47471",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,

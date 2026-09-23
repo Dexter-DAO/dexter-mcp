@@ -181,6 +181,10 @@ Send and non-stock Buy/Sell use a canonical registry `assetId` matching
 available; it is not a display symbol or mint. `approvedActionTargets` are
 separate from holdings and totals, so a zero-balance asset can be discoverable
 for Buy without becoming a synthetic holding or value.
+Current v2 reads select these records with `view: "targets"`; the compact model
+result uses `targets`, and the card retains full `approvedActionTargets` evidence.
+Holdings, targets and continuation follow the
+[portfolio read contract](PORTFOLIO-SELECTED-READ-V2.md).
 
 A natural-language stock Buy/Sell uses the user's exact human `companyQuery`,
 not `assetId`. The API normalizes that query, resolves the current released

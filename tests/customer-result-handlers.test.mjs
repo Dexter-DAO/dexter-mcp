@@ -11,13 +11,18 @@ import { buildHostedCheckStatusModelResult } from '../lib/open-check-result.mjs'
 import { OPEN_TOOL_CONTRACTS } from '../lib/open-tool-contracts.mjs';
 import { completePortfolio, partialUnpricedPortfolio, partialOmittedPortfolio, governancePortfolio } from './fixtures/wallet-portfolio-fixtures.mjs';
 import { zeroHoldingBuyDiscoveryPortfolio } from './fixtures/approved-action-target-fixtures.mjs';
+import { PORTFOLIO_READ_INPUT_SCHEMA, PORTFOLIO_READ_INPUT_SHAPE, portfolioReady } from '../lib/portfolio-read-contract.mjs';
+import { validatePortfolioSelectedRead } from '../lib/session-portfolio-selection.mjs';
+import { buildVaultAuthenticationRequired, isVaultAuthenticationRequired,
+  vaultAuthenticationReason, vaultAuthenticationResult } from '../lib/open-tool-auth.mjs';
+import { detailReadFixture, largeSourceSummaryFixture, selectedReadFixture } from './fixtures/portfolio-selected-read-fixtures.mjs';
 
 const source = await readFile(new URL('../open-mcp-server.mjs', import.meta.url), 'utf8');
 const savedPurchase = JSON.parse(await readFile(new URL('./fixtures/native-purchase-completion-20260917.json', import.meta.url), 'utf8'));
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const registration = (name, next) => source.slice(source.indexOf(`  registerOpenTool(server, '${name}'`), source.indexOf(next, source.indexOf(`  registerOpenTool(server, '${name}'`)));
 const purchaseRegistrations = registration('x402_fetch', "  registerOpenTool(server, 'x402_mcp_tools'");
-const portfolioRegistration = registration('dexter_wallet_portfolio', '  for (const operation of');
+const portfolioRegistration = registration('dexter_wallet_portfolio', '  registerOpenTool(server, AGENT_WORK_REPORT_TOOL_NAME');
 const portfolioProducer = source.slice(source.indexOf('function buildPortfolioReadError('), source.indexOf('async function governedAssetAction('));
 
 async function purchaseHandler(tool, result, args) {
@@ -121,35 +126,69 @@ test('recovered paid check retains its exact executable ceiling and quote expira
   assert.equal(summary.intentId, savedPurchase.savedResponse.intentId);
 });
 
-async function portfolioHandler(snapshot) {
+async function portfolioHandler(selected = selectedReadFixture(), {
+  args = {}, sessionId = 'existing-session', state = { status: 'ready', vault: {} },
+  binding = { ok: true, bound: true }, receiveAddress = completePortfolio().walletAddress,
+} = {}) {
   let handler;
-  const validated = snapshot instanceof Error ? snapshot : validateAndBoundPortfolioSnapshotV1(snapshot);
-  if (!(validated instanceof Error)) assert.ok(validated);
+  let descriptor;
+  let stateReads = 0;
+  let bindingReads = 0;
+  let marked = 0;
+  let cleared = 0;
+  const requests = [];
+  if (selected?.ok === true) assert.ok(validatePortfolioSelectedRead(selected, { expectedWalletAddress: receiveAddress }));
   runInNewContext(`${portfolioProducer}\n${portfolioRegistration}`, {
-    server: {}, PORTFOLIO_META: {}, modelSafePortfolioSnapshot, portfolioResultText,
+    server: {}, PORTFOLIO_META: { 'ui/resourceUri': 'ui://fixture/portfolio.html' },
+    PORTFOLIO_READ_INPUT_SCHEMA, PORTFOLIO_READ_INPUT_SHAPE, portfolioReady, portfolioResultText,
     API_BASE_FALLBACK: 'https://unused.example', INTERNAL_HMAC_SECRET: 'test',
-    extractMcpSessionId: () => 'existing-session',
-    fetchVaultStateBySession: async () => ({ status: 'ready', vault: {} }),
-    getVaultReceiveAddress: () => snapshot instanceof Error ? completePortfolio().walletAddress : snapshot.walletAddress,
-    fetchSessionPortfolio: async () => { if (validated instanceof Error) throw validated; return validated; },
-    markSessionVaultBound() {}, isVaultAuthenticationRequired: () => false,
-    registerOpenTool: (_server, _name, _descriptor, fn) => { handler = fn; },
+    extractMcpSessionId: () => sessionId,
+    fetchVaultStateBySession: async (id, options) => {
+      stateReads++;
+      assert.equal(id, sessionId);
+      assert.deepEqual(clone(options), { portfolio: true });
+      if (state instanceof Error) throw state;
+      return state;
+    },
+    getVaultReceiveAddress: () => receiveAddress,
+    fetchSessionPortfolioSelection: async input => {
+      requests.push(clone(input));
+      if (selected instanceof Error) throw selected;
+      return selected;
+    },
+    checkSessionVaultBinding: async () => { bindingReads++; return binding; },
+    markSessionVaultBound() { marked++; }, clearSessionVaultBinding() { cleared++; },
+    buildVaultAuthenticationRequired, isVaultAuthenticationRequired, vaultAuthenticationReason, vaultAuthenticationResult,
+    registerOpenTool: (_server, _name, value, fn) => { descriptor = value; handler = fn; },
+    console: { warn() {} }, safeErrorLabel: () => 'offline-fixture',
   });
-  const envelope = await handler({}, {});
+  const envelope = await handler(args, {});
   const result = clone(envelope.structuredContent);
   const parsed = OPEN_TOOL_CONTRACTS.dexter_wallet_portfolio.outputSchema.safeParse(result);
   assert.equal(parsed.success, true, JSON.stringify(parsed.error?.issues));
-  return { envelope, result, summary: JSON.parse(envelope.content[0].text) };
+  return { envelope: clone(envelope), result, text: envelope.content[0].text,
+    requests, stateReads, bindingReads, marked, cleared, descriptor };
 }
 
-test('actual portfolio producer and handler preserve validated amounts, scaling, identities and available actions', async () => {
+function legacyPortfolioPresentation(snapshot) {
+  const validated = validateAndBoundPortfolioSnapshotV1(snapshot);
+  assert.ok(validated);
+  const result = portfolioReady(modelSafePortfolioSnapshot(validated));
+  assert.equal(OPEN_TOOL_CONTRACTS.dexter_wallet_portfolio.outputSchema.safeParse(result).success, true);
+  return { result, summary: JSON.parse(portfolioResultText(result)) };
+}
+
+test('legacy portfolio formatter preserves validated amounts, scaling, identities and available actions', () => {
   const snapshot = completePortfolio();
-  const { result, summary } = await portfolioHandler(snapshot);
+  const { result, summary } = legacyPortfolioPresentation(snapshot);
   const stock = summary.holdings[4];
   assert.equal(stock.name, 'SpaceX');
   assert.equal(stock.symbol, 'SPCX');
   assert.equal(stock.assetId, 'backpack-spcx');
   assert.equal(stock.displayAmount, snapshot.holdings[4].displayAmount);
+  assert.equal(stock.priceUsd, snapshot.holdings[4].price.usd);
+  assert.equal(stock.priceObservedAt, snapshot.holdings[4].price.observedAt);
+  assert.equal(stock.change24hPercent, snapshot.holdings[4].price.change24hPercent);
   assert.equal(stock.displayMultiplier, '1.25');
   assert.equal(stock.amountModel, 'scaled-ui-amount');
   assert.deepEqual(stock.availableActions, ['view', 'receive']);
@@ -158,28 +197,29 @@ test('actual portfolio producer and handler preserve validated amounts, scaling,
   assert.equal(result.portfolio.holdings[4].mint, snapshot.holdings[4].mint);
 });
 
-test('partial portfolio totals, unknown amount model, omitted holdings and blocked assets remain explicit', async () => {
-  const { summary } = await portfolioHandler(partialUnpricedPortfolio());
+test('legacy portfolio formatter keeps partial totals, unknown amount models and blocked assets explicit', () => {
+  const { summary } = legacyPortfolioPresentation(partialUnpricedPortfolio());
   assert.equal(summary.portfolioValueUsd, null);
   assert.equal(summary.holdings[4].valueUsd, null);
   assert.equal(summary.holdings[4].amountModel, 'unknown');
   assert.equal(summary.holdings[4].displayMultiplier, null);
   assert.equal(summary.holdings[4].displayAmount, '0.004426');
-  const omitted = (await portfolioHandler(partialOmittedPortfolio())).summary;
+  const omitted = legacyPortfolioPresentation(partialOmittedPortfolio()).summary;
   assert.equal(omitted.holdingsComplete, false);
   assert.equal(omitted.omittedHoldings, 2);
   assert.equal(omitted.portfolioValueUsd, null);
-  const blocked = (await portfolioHandler(governancePortfolio())).summary;
+  const blocked = legacyPortfolioPresentation(governancePortfolio()).summary;
   assert.equal(blocked.holdings[2].assetId, null);
   assert.deepEqual(blocked.holdings[2].availableActions, []);
-  const targets = (await portfolioHandler(zeroHoldingBuyDiscoveryPortfolio())).summary;
+  const targets = legacyPortfolioPresentation(zeroHoldingBuyDiscoveryPortfolio()).summary;
   assert.equal(targets.holdings.length, 0);
   assert.equal(targets.portfolioValueUsd, '0');
   assert.equal(targets.approvedActionTargets[0].assetId, 'backpack-spcx');
 });
 
 test('portfolio and wallet outer catches return bounded read continuation without inventing balances or connection state', async () => {
-  const { result, summary } = await portfolioHandler(new Error('unavailable'));
+  const { result, text } = await portfolioHandler(new Error('unavailable'));
+  const summary = JSON.parse(text);
   assert.equal(result.user_bound, null);
   assert.equal(Object.hasOwn(result, 'portfolio'), false);
   assert.deepEqual(summary.continuation, { tool: 'dexter_wallet_portfolio', retryAfterMs: 2000, maxAttempts: 2, userActionRequired: false });
@@ -195,4 +235,95 @@ test('portfolio and wallet outer catches return bounded read continuation withou
   assert.equal(wallet.structuredContent.continuation.maxAttempts, 2);
   assert.equal(wallet.structuredContent.continuation.tool, 'dexter_wallet');
   assert.equal(Object.hasOwn(wallet.structuredContent, 'balances'), false);
+});
+
+test('actual portfolio handler emits compact summary and selected rich card from the same bound read', async () => {
+  const wire = largeSourceSummaryFixture();
+  const { result, envelope, text, requests, stateReads, marked, descriptor } = await portfolioHandler(wire);
+  assert.deepEqual(result, portfolioReady(wire.portfolio));
+  assert.deepEqual(envelope._meta.portfolioCard, wire.card);
+  assert.equal(envelope._meta['ui/resourceUri'], 'ui://fixture/portfolio.html');
+  assert.equal(envelope.isError, false);
+  assert.equal(Object.hasOwn(result, '_portfolioCard'), false);
+  assert.equal(Object.hasOwn(result, 'card'), false);
+  assert.ok(Buffer.byteLength(JSON.stringify(result), 'utf8') <= 2048);
+  assert.ok(Buffer.byteLength(text, 'utf8') <= 384);
+  assert.match(text, /3 of 200 observed holdings/);
+  assert.doesNotMatch(text, /amountRaw|marketContext/);
+  assert.equal(requests.length, 1);
+  assert.deepEqual(requests[0].input, {});
+  assert.equal(requests[0].sessionId, 'existing-session');
+  assert.equal(requests[0].expectedWalletAddress, wire.portfolio.walletAddress);
+  assert.equal(stateReads, 1);
+  assert.equal(marked, 1);
+  assert.equal(descriptor.inputSchema, PORTFOLIO_READ_INPUT_SHAPE);
+});
+
+test('actual portfolio detail handler retains scaled amounts, issuer context and unavailable reasons', async () => {
+  const wire = detailReadFixture();
+  const args = { view: 'detail', mint: wire.portfolio.selection.mint, snapshotId: wire.portfolio.snapshotId };
+  const { result, envelope, requests } = await portfolioHandler(wire, { args });
+  assert.deepEqual(result.portfolio.holdings, wire.card.holdings);
+  const holding = result.portfolio.holdings[0];
+  assert.equal(holding.displayAmount, '0.0055325');
+  assert.equal(holding.amountRaw, '4426');
+  assert.equal(holding.displayMultiplier, '1.25');
+  assert.equal(holding.marketContext.liquidityUsd, null);
+  assert.equal(holding.registryIdentity.legalIssuerName, 'Trek Nexus Markets Ltd');
+  assert.equal(holding.capabilities.find(row => row.action === 'send').reasonCode, 'governed_asset_rail_not_live');
+  assert.deepEqual(envelope._meta.portfolioCard, wire.card);
+  assert.deepEqual(requests[0].input, args);
+  assert.equal(requests.length, 1);
+});
+
+test('actual portfolio handler preserves selected errors and bounded transient read recovery without false totals', async () => {
+  for (const error of ['portfolio_query_invalid', 'portfolio_snapshot_expired', 'portfolio_snapshot_too_large',
+    'portfolio_result_budget_exceeded', 'portfolio_read_unavailable']) {
+    const { result, envelope, text, requests } = await portfolioHandler({ ok: false, error },
+      { args: { cursor: 'saved-continuation' } });
+    assert.equal(result.readError, error);
+    assert.equal(result.portfolio_status, 'read_error');
+    assert.equal(result.user_bound, true);
+    assert.equal(result.retryable, error === 'portfolio_read_unavailable');
+    assert.equal(envelope.isError, true);
+    assert.equal(Object.hasOwn(result, 'continuation'), error === 'portfolio_read_unavailable');
+    if (error === 'portfolio_read_unavailable') assert.deepEqual(result.continuation, {
+      tool: 'dexter_wallet_portfolio', retryAfterMs: 2000, maxAttempts: 2, userActionRequired: false,
+    });
+    assert.equal(Object.hasOwn(result, 'portfolio'), false);
+    assert.equal(Object.hasOwn(envelope._meta, 'portfolioCard'), false);
+    assert.equal(requests.length, 1);
+    assert.equal(text, result.message);
+    assert.ok(Buffer.byteLength(text, 'utf8') <= 384);
+    if (error === 'portfolio_snapshot_expired') assert.match(text, /expired.*fresh summary/i);
+  }
+  const invalid = await portfolioHandler(undefined, { args: { walletAddress: completePortfolio().walletAddress } });
+  assert.equal(invalid.result.readError, 'portfolio_query_invalid');
+  assert.equal(invalid.requests.length, 0);
+});
+
+test('actual portfolio handler requires live session binding before selected reads', async () => {
+  const missing = await portfolioHandler(undefined, { sessionId: null });
+  assert.equal(missing.result.mode, 'authentication_required');
+  assert.equal(missing.result.reason, 'no_mcp_session');
+  assert.equal(missing.stateReads, 0);
+  assert.equal(missing.requests.length, 0);
+  assert.ok(missing.envelope._meta['mcp/www_authenticate']);
+  const revoked = await portfolioHandler(undefined, {
+    state: { status: 'not_enrolled' }, binding: { ok: true, bound: false },
+  });
+  assert.equal(revoked.result.mode, 'authentication_required');
+  assert.equal(revoked.result.user_bound, false);
+  assert.equal(revoked.bindingReads, 1);
+  assert.equal(revoked.cleared, 1);
+  assert.equal(revoked.requests.length, 0);
+  assert.ok(revoked.envelope._meta['mcp/www_authenticate']);
+  for (const binding of [{ ok: true, bound: true }, { ok: false, bound: false }]) {
+    const failed = await portfolioHandler(undefined, { state: new Error('offline state failure'), binding });
+    assert.equal(failed.result.mode, 'portfolio_read_error');
+    assert.equal(failed.result.user_bound, binding.ok ? true : null);
+    assert.equal(failed.requests.length, 0);
+    assert.equal(Object.hasOwn(failed.envelope._meta, 'mcp/www_authenticate'), false);
+    assert.equal(Object.hasOwn(failed.result, 'portfolio'), false);
+  }
 });
