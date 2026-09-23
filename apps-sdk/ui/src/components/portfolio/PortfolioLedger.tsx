@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { useEffect, useMemo, useRef, useState, type RefObject, type ReactNode, type SyntheticEvent } from 'react';
 
 import {
   useAdaptiveDisplayMode,
@@ -18,6 +18,10 @@ import {
   formatExactUsd,
   formatDisplayUsd,
   formatPriceChangePercent,
+  formatPortfolioMoney,
+  formatPortfolioQuantity,
+  formatPortfolioPrice,
+  accumulatePortfolioRows,
   governedActionReason,
   holdingCapabilityReason,
   normalizeDexterPortfolio,
@@ -33,6 +37,8 @@ import {
   type CompactPortfolioTarget,
   type PortfolioReadView,
   type PortfolioViewModel,
+  type PortfolioReadCollection,
+  type SelectedPortfolioRead,
 } from './portfolio-model';
 
 function shortenIdentity(value: string, leading = 7, trailing = 7): string {
@@ -659,12 +665,182 @@ function StateLedger({ model, compact }: {
   );
 }
 
-function SelectedPortfolio({
-  model,
-  condensed,
-}: {
-  model: Extract<PortfolioViewModel, { state: 'selected' }>;
+type SelectedModel = Extract<PortfolioViewModel, { state: 'selected' }>;
+type SelectedProblem = Extract<PortfolioViewModel, { state: 'authentication_required' | 'read_error' | 'invalid' }>;
+type SelectedScreen = {
+  model: SelectedModel;
+  collection: PortfolioReadCollection;
+  target: CompactPortfolioTarget | null;
+  scrollTop: number;
+  focusKey: string | null;
+};
+type SelectedSession = {
+  owner: SelectedModel;
+  screen: SelectedScreen;
+  history: SelectedScreen[];
+  problem: SelectedProblem | null;
+  restore: boolean;
+};
+
+function holdingKey(holding: Pick<CompactPortfolioHolding, 'mint' | 'tokenAccount'>): string {
+  return `${holding.mint}:${holding.tokenAccount ?? ''}`;
+}
+
+function holdingLabel(holding: CompactPortfolioHolding): string {
+  return holding.symbol ?? holding.name ?? 'Unidentified asset';
+}
+
+function holdingDetailLabel(holding: CompactPortfolioHolding): string {
+  return `View details for ${holdingLabel(holding)}${holding.symbol && holding.name && holding.symbol !== holding.name ? ` (${holding.name})` : ''}`;
+}
+
+function readDate(value: string): string {
+  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'long' }).format(new Date(value));
+}
+
+function SelectedMoney({ value }: { value: string | null }) {
+  if (value === null) return <div className="dxp-selected-money dxp-selected-money--unknown">Value unavailable</div>;
+  const text = formatPortfolioMoney(value);
+  const parts = text.match(/^\$([\d,]+)(\.\d{2})$/u);
+  return (
+    <div className="dxp-selected-money" data-testid="portfolio-value">
+      {parts ? <><span className="dxp-selected-money__currency">$</span>{parts[1]}<span className="dxp-selected-money__cents">{parts[2]}</span></> : text}
+    </div>
+  );
+}
+
+function SelectedChange({ value }: { value: string | null }) {
+  const tone = value === null || value === '0' ? '' : value.startsWith('-') ? ' negative' : ' positive';
+  return <span className={`dxp-selected-change${tone}`}>{value === null ? '24h change unavailable' : `24h price ${formatPriceChangePercent(value)}`}</span>;
+}
+
+function Fact({ label, children }: { label: string; children: ReactNode }) {
+  return <div><dt>{label}</dt><dd>{children ?? 'Unavailable'}</dd></div>;
+}
+
+function SelectedActionFacts({ holding, target, onExpand }: {
+  holding?: PortfolioHolding;
+  target?: CompactPortfolioTarget;
+  onExpand: () => void;
+}) {
+  const available = (holding?.availableActions ?? target?.actions.filter((item) => item.available).map((item) => item.action) ?? [])
+    .filter((action) => action !== 'view');
+  const unavailable = new Map<string, { actions: string[]; explanation: string }>();
+  const records = holding ? holding.capabilities.map((item) => ({ action: item.action,
+    available: item.available, reason: item.reasonCode })) : target?.actions ?? [];
+  for (const item of records) {
+    if (item.available || item.action === 'view') continue;
+    const code = item.reason ?? 'unknown';
+    const group = unavailable.get(code) ?? { actions: [], explanation: holdingCapabilityReason(code) };
+    group.actions.push(sentenceCase(item.action));
+    unavailable.set(code, group);
+  }
+  return (
+    <section className="dxp-selected-actions" aria-label="Action availability">
+      <h2>Actions</h2>
+      <p>{available.length > 0 ? `${readableList(available.map(sentenceCase))} available.` : 'No actions are currently available.'}</p>
+      {unavailable.size > 0 ? (
+        <details className="dxp-selected-disclosure" onToggle={(event) => { if (event.currentTarget.open) onExpand(); }}>
+          <summary>Unavailable actions</summary>
+          <dl className="dxp-selected-facts dxp-selected-facts--reasons">
+            {[...unavailable].map(([code, group]) => <Fact key={code} label={readableList(group.actions)}>{group.explanation}</Fact>)}
+          </dl>
+        </details>
+      ) : null}
+    </section>
+  );
+}
+
+function SelectedHoldingDetail({ holding, read, onExpand }: {
+  holding: PortfolioHolding;
+  read: SelectedPortfolioRead;
+  onExpand: () => void;
+}) {
+  const market = holding.marketContext;
+  const registry = holding.registryIdentity;
+  const metrics = [market?.liquidityUsd ?? null, market?.holderCount ?? null, market?.activity24h.traderCount ?? null];
+  const knownMetrics = metrics.filter((value) => value !== null).length;
+  const program = holding.tokenProgram === 'native' ? 'Native SOL' : holding.tokenProgram === 'token-2022' ? 'Token-2022' : 'SPL Token';
+  const priceSource = holding.priceSource === 'jupiter-price-v3' ? 'Jupiter Price V3'
+    : holding.priceSource === 'jupiter-exact-in-quote' ? 'Jupiter ExactIn quote' : 'Unavailable';
+  const openDisclosure = (event: SyntheticEvent<HTMLDetailsElement>) => { if (event.currentTarget.open) onExpand(); };
+  return (
+    <>
+      <h1 id="dxp-selected-title" tabIndex={-1}>{holding.name ?? holdingLabel(holding)}</h1>
+      <div className="dxp-selected-detail-value">
+        <SelectedMoney value={holding.valueUsd} />
+        <p>{holding.amountModel === 'unknown' ? 'Amount unavailable' : `${formatPortfolioQuantity(holding.displayAmount)}${holding.symbol ? ` ${holding.symbol}` : ''} held`}</p>
+        <SelectedChange value={holding.change24hPercent} />
+      </div>
+      <section className="dxp-selected-market" aria-label="Market data">
+        <h2>Market data</h2>
+        <dl className="dxp-selected-facts">
+          <Fact label="Token price">{holding.priceUsd === null ? null : formatPortfolioPrice(holding.priceUsd)}</Fact>
+          {market?.liquidityUsd !== null && market?.liquidityUsd !== undefined ? <Fact label="Liquidity">{formatPortfolioMoney(market.liquidityUsd)}</Fact> : null}
+          {market?.holderCount !== null && market?.holderCount !== undefined ? <Fact label="Holders">{market.holderCount.toLocaleString()}</Fact> : null}
+          {market?.activity24h.traderCount !== null && market?.activity24h.traderCount !== undefined ? <Fact label="Traders in 24h">{market.activity24h.traderCount.toLocaleString()}</Fact> : null}
+        </dl>
+        {market && holding.mint === 'native:SOL' ? <p className="dxp-selected-note">Liquidity, holders and traders refer to wrapped SOL.</p> : null}
+        {knownMetrics < 3 ? <p className="dxp-selected-note">{knownMetrics === 0 ? 'Liquidity, holder counts and trading activity are unavailable.' : 'Some market data is unavailable.'}</p> : null}
+      </section>
+      {registry && (registry.providerName !== null || registry.legalIssuerName !== null) ? (
+        <section className="dxp-selected-registry" aria-label="Registry identity">
+          <h2>Registry identity</h2>
+          <dl className="dxp-selected-facts">
+            {registry.providerName !== null ? <Fact label="Provider">{registry.providerName}</Fact> : null}
+            {registry.legalIssuerName !== null ? <Fact label="Legal issuer">{registry.legalIssuerName}</Fact> : null}
+          </dl>
+        </section>
+      ) : null}
+      <details className="dxp-selected-disclosure" data-testid="exact-balance" onToggle={openDisclosure}>
+        <summary>Exact balance</summary>
+        <dl className="dxp-selected-facts dxp-selected-facts--exact">
+          <Fact label={holding.symbol ? `Amount (${holding.symbol})` : 'Amount'}>{holding.amountModel === 'unknown' ? 'Unavailable' : formatExactDecimal(holding.displayAmount)}</Fact>
+          <Fact label="Holding value (USD)">{holding.valueUsd === null ? null : formatExactUsd(holding.valueUsd)}</Fact>
+          <Fact label="Token price (USD)">{holding.priceUsd === null ? null : formatExactUsd(holding.priceUsd)}</Fact>
+          {holding.amountModel === 'scaled-ui-amount' ? <Fact label="Display multiplier">{holding.displayMultiplier}</Fact> : null}
+        </dl>
+      </details>
+      <details className="dxp-selected-disclosure" data-testid="asset-diagnostics" onToggle={openDisclosure}>
+        <summary>Identity and data sources</summary>
+        <dl className="dxp-selected-facts dxp-selected-facts--diagnostics">
+          <Fact label="Asset class">{sentenceCase(holding.assetClass)}</Fact>
+          <Fact label="Token program">{program}</Fact>
+          <Fact label="Mint"><code>{holding.mint}</code></Fact>
+          {holding.tokenAccount !== null ? <Fact label="Token account"><code>{holding.tokenAccount}</code></Fact> : null}
+          <Fact label="Wallet"><code>{read.walletAddress}</code></Fact>
+          <Fact label="Account state">{sentenceCase(holding.accountState)}</Fact>
+          <Fact label="Asset review">{sentenceCase(holding.approvalStatus)}</Fact>
+          <Fact label="Amount display">{holding.amountModel === 'scaled-ui-amount' ? 'Scaled token amount' : holding.amountModel === 'raw-decimals' ? 'Token decimals' : 'Unavailable'}</Fact>
+          <Fact label="Raw amount"><code>{holding.amountRaw}</code></Fact>
+          <Fact label="Decimals">{holding.decimals}</Fact>
+          <Fact label="Display multiplier">{holding.tokenProgram === 'native' ? 'Not applicable to native SOL' : holding.amountModel === 'raw-decimals' ? 'Not applied' : holding.displayMultiplier}</Fact>
+          <Fact label="Market source">{market ? 'Jupiter Tokens V2' : null}</Fact>
+          <Fact label="Market mint">{market ? <code>{market.mint}</code> : null}</Fact>
+          <Fact label="Liquidity (USD)">{market?.liquidityUsd === null || market?.liquidityUsd === undefined ? null : formatExactUsd(market.liquidityUsd)}</Fact>
+          <Fact label="Holders">{market?.holderCount?.toLocaleString() ?? null}</Fact>
+          <Fact label="Traders in 24h">{market?.activity24h.traderCount?.toLocaleString() ?? null}</Fact>
+          <Fact label="Market observed at">{market ? readDate(market.observedAt) : null}</Fact>
+          <Fact label="Price source">{priceSource}</Fact>
+          <Fact label="Price observed at">{holding.priceObservedAt === null ? null : readDate(holding.priceObservedAt)}</Fact>
+          <Fact label="Price block">{holding.priceBlockId?.toLocaleString() ?? null}</Fact>
+          <Fact label="Metadata observed at">{holding.metadataObservedAt === null ? null : readDate(holding.metadataObservedAt)}</Fact>
+          {registry ? <Fact label="Registry identity source">Dexter approved asset registry</Fact> : null}
+          <Fact label="Portfolio observed at">{readDate(read.observedAt)}</Fact>
+        </dl>
+      </details>
+      <SelectedActionFacts holding={holding} onExpand={onExpand} />
+    </>
+  );
+}
+
+function SelectedPortfolio({ model, condensed, maxHeight, isFullscreen, onExpand, onClose }: {
+  model: SelectedModel;
   condensed: boolean;
+  maxHeight: number | null;
+  isFullscreen: boolean;
+  onExpand: (() => void) | null;
+  onClose: (() => void) | null;
 }) {
   const callTool = useAdaptiveCallToolFn();
   const capabilities = useAdaptiveHostCapabilities();
@@ -672,167 +848,255 @@ function SelectedPortfolio({
   owner.current = model;
   const requestId = useRef(0);
   const mounted = useRef(true);
-  const [response, setResponse] = useState<{ owner: typeof model; value: PortfolioViewModel } | null>(null);
-  const [pending, setPending] = useState<typeof model | null>(null);
-  const [position, setPosition] = useState<{ read: unknown; page: number }>({ read: null, page: 0 });
-  const [detailPosition, setDetailPosition] = useState<{ read: unknown; section: DetailSection }>({ read: null, section: 'overview' });
-  const active = response?.owner === model ? response.value : model;
+  const scrollRef = useRef<HTMLElement | null>(null);
+  const [stored, setStored] = useState<SelectedSession | null>(null);
+  const [pending, setPending] = useState<SelectedModel | null>(null);
+  const [clockTick, setClockTick] = useState(0);
+  const initialCollection = useMemo(() => accumulatePortfolioRows(null, model.read)!, [model]);
+  const session: SelectedSession = stored?.owner === model ? stored : {
+    owner: model, screen: { model, collection: initialCollection, target: null, scrollTop: 0, focusKey: null },
+    history: [], problem: null, restore: false,
+  };
+  const { screen, problem } = session;
+  const { read } = screen.model;
+  const source = read.sourceSummary;
+  const selection = read.selection;
   const busy = pending === model;
-  const currentRead = active.state === 'selected' ? active.read : model.read;
+  const expired = Date.now() >= Date.parse(read.expiresAt) || Boolean(problem && 'expired' in problem && problem.expired);
+  const locked = problem !== null || expired;
+  const isDetail = screen.target === null && selection.view === 'detail' && selection.match === 'matched';
+  const isTargets = screen.target === null && selection.view === 'targets';
+  const isHoldings = !isDetail && !isTargets && screen.target === null;
+  const displayValue = source.portfolioValueUsd ?? (source.pricedHoldings > 0 ? source.pricedValueUsd : null);
+  const expand = () => onExpand?.();
 
   useEffect(() => {
     mounted.current = true;
     return () => { mounted.current = false; requestId.current += 1; };
   }, []);
 
+  useEffect(() => {
+    const remaining = Date.parse(read.expiresAt) - Date.now();
+    if (remaining <= 0) return;
+    const timer = window.setTimeout(() => setClockTick((value) => value + 1), Math.min(remaining + 1, 2_147_483_647));
+    return () => window.clearTimeout(timer);
+  }, [read.expiresAt, clockTick]);
+
+  useEffect(() => {
+    if (stored?.owner !== model) return;
+    const frame = requestAnimationFrame(() => {
+      const container = scrollRef.current;
+      if (!container) return;
+      if (stored.restore) {
+        container.scrollTop = stored.screen.scrollTop;
+        const element = [...container.querySelectorAll<HTMLElement>('[data-holding-key]')]
+          .find((item) => item.dataset.holdingKey === stored.screen.focusKey);
+        element?.focus({ preventScroll: true });
+      } else {
+        container.scrollTop = 0;
+        container.querySelector<HTMLElement>('h1')?.focus({ preventScroll: true });
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [stored, model]);
+
+  const captureScreen = (focusKey: string | null = null): SelectedScreen => ({ ...screen,
+    scrollTop: scrollRef.current?.scrollTop ?? 0, focusKey });
+
   const request = async (view: PortfolioReadView | 'next' | 'refresh', holding?: CompactPortfolioHolding) => {
-    if (!capabilities.callTool || busy) return;
+    if (!capabilities.callTool || busy || (locked && view !== 'refresh')) return;
+    if (view !== 'refresh' && Date.now() >= Date.parse(read.expiresAt)) {
+      setClockTick((value) => value + 1);
+      return;
+    }
     const requestOwner = model;
     const id = ++requestId.current;
-    const args = view === 'refresh'
-      ? { view: 'summary', network: currentRead.network }
-      : portfolioReadRequest(currentRead, view, holding);
+    const args = view === 'refresh' ? { view: 'summary', network: read.network } : portfolioReadRequest(read, view, holding);
+    const savedScreen = captureScreen(holding ? holdingKey(holding) : null);
+    if (view === 'detail' || view === 'holdings' || view === 'next') expand();
     setPending(requestOwner);
     let next: PortfolioViewModel;
     try {
       const result = await callTool('dexter_wallet_portfolio', args);
       next = normalizeDexterPortfolio(result);
       if (next.state === 'selected' && (result.isError || (view === 'refresh'
-        ? next.read.selection.view !== 'summary'
-        : !portfolioReadMatchesRequest(currentRead, next.read, args)))) {
+        ? next.read.selection.view !== 'summary' || next.read.walletAddress !== read.walletAddress || next.read.network !== read.network
+        : !portfolioReadMatchesRequest(read, next.read, args)))) {
         next = { state: 'invalid', title: 'Portfolio data unavailable', body: 'The response did not match this portfolio request.' };
       }
       if (next.state === 'ready' || next.state === 'loading') {
         next = { state: 'invalid', title: 'Portfolio data unavailable', body: 'The response did not match this portfolio request.' };
       }
     } catch {
-      next = { state: 'read_error', title: 'Portfolio unavailable', body: 'The portfolio request could not be completed. Request a fresh summary to try again.' };
+      next = { state: 'read_error', title: 'Portfolio unavailable', body: 'The portfolio request could not be completed. Refresh to try again.' };
     }
     if (!mounted.current || owner.current !== requestOwner || requestId.current !== id) return;
-    setResponse({ owner: requestOwner, value: next });
     setPending(null);
-    setPosition({ read: null, page: 0 });
+    if (next.state !== 'selected') {
+      setStored({ ...session, owner: model, problem: next, restore: true });
+      return;
+    }
+    const append = view === 'next' || view === 'holdings' && selection.view === 'summary';
+    const collection = accumulatePortfolioRows(append ? screen.collection : null, next.read);
+    if (!collection) {
+      setStored({ ...session, owner: model, problem: { state: 'invalid', title: 'Portfolio data unavailable', body: 'The response did not match the holdings already displayed.' }, restore: true });
+      return;
+    }
+    setStored({
+      owner: model,
+      screen: { model: next, collection, target: null, scrollTop: append ? savedScreen.scrollTop : 0, focusKey: null },
+      history: view === 'refresh' || view === 'summary' ? [] : append ? session.history : [...session.history, savedScreen],
+      problem: null, restore: append,
+    });
   };
 
-  if (active.state !== 'selected') {
-    return (
-      <div className="dxp-browser">
-        {active.state !== 'loading' && active.state !== 'ready' ? <StateLedger model={active} compact={condensed} /> : null}
-        {active.state !== 'authentication_required' && capabilities.callTool ? (
-          <button type="button" disabled={busy} onClick={() => void request('refresh')}>Request fresh summary</button>
-        ) : null}
-        {busy ? <p role="status">Reading portfolio...</p> : null}
-      </div>
-    );
-  }
+  const back = () => {
+    if (busy) return;
+    const previous = session.history.at(-1);
+    if (previous) setStored({ ...session, screen: previous, history: session.history.slice(0, -1), restore: true });
+    else void request('summary');
+  };
+  const openTarget = (target: CompactPortfolioTarget) => {
+    if (busy || locked) return;
+    expand();
+    setStored({ ...session, screen: { ...screen, target, scrollTop: 0, focusKey: null },
+      history: [...session.history, captureScreen(target.assetId)], restore: false });
+  };
+  const loadedHoldings = [screen, ...session.history].flatMap((item) => item.collection.holdings);
+  const allObservedLoaded = source.holdingsComplete && new Set(loadedHoldings.map((item) => holdingKey(item.holding))).size === source.holdingCount;
+  const heldLabel = (mint: string) => loadedHoldings.some((item) => item.holding.mint === mint) ? 'Held' : allObservedLoaded ? 'Not held' : null;
+  const hasMore = selection.nextCursor !== null || selection.view === 'summary' && source.holdingCount > screen.collection.holdings.length;
+  const narrowedSelection = selection.match === 'ambiguous' || selection.query !== null || selection.mint !== null;
+  const listedCount = isTargets ? screen.collection.targets.length : screen.collection.holdings.length;
+  const collectionCount = isTargets || narrowedSelection ? selection.matchedCount : source.holdingCount;
+  const coverage = [
+    source.omittedHoldings > 0 ? `${formatCount(source.omittedHoldings, 'holding')} could not be included.` : !source.holdingsComplete ? 'Some holdings could not be read.' : null,
+    source.unpricedHoldings > 0 ? `Prices are unavailable for ${formatCount(source.unpricedHoldings, 'asset')}.` : null,
+  ].filter(Boolean).join(' ');
+  const title = screen.target ? screen.target.name : isTargets ? 'Explore assets'
+    : selection.match === 'ambiguous' ? 'Choose an asset' : narrowedSelection ? 'Matching holdings'
+      : locked ? 'Last observed value' : screen.model.summary.label === 'Priced subtotal' ? 'Priced subtotal' : 'Portfolio value';
+  const detailedHolding = isDetail ? read.richHoldings[0] : null;
+  const backLabel = session.history.at(-1)?.model.read.selection.view === 'targets' ? 'Back to Explore assets' : 'Back to portfolio';
 
-  const { read, summary, coverage } = active;
-  const selection = read.selection;
-  const source = read.sourceSummary;
-  const pageSize = condensed ? 1 : 2;
-  const pageCount = Math.max(1, Math.ceil(selection.returnedCount / pageSize));
-  const page = position.read === read ? Math.min(position.page, pageCount - 1) : 0;
-  const start = page * pageSize;
-  const end = Math.min(start + pageSize, selection.returnedCount);
-  const isDetail = selection.view === 'detail' && selection.match === 'matched';
-  const detailSection = detailPosition.read === read ? detailPosition.section : 'overview';
-  const displayValue = source.portfolioValueUsd ?? (source.pricedHoldings > 0 ? source.pricedValueUsd : null);
-  const title = selection.view === 'summary' ? summary.label
-    : selection.view === 'targets' ? 'Approved assets'
-      : isDetail ? 'Asset details' : selection.match === 'ambiguous' ? 'Choose an asset' : 'Holdings';
-  const noMatches = selection.match === 'none'
-    ? source.holdingCount === 0 && source.holdingsComplete && selection.view !== 'targets'
-      ? 'No assets held.' : 'No matches in this observation.'
-    : selection.match === 'unavailable' ? 'Approved asset information is unavailable.' : null;
+  if (problem?.state === 'authentication_required') return <StateLedger model={problem} compact={condensed} />;
 
   return (
-    <article className={`dxp-browser dxp-browser--selected${condensed ? ' dxp-browser--condensed' : ''}`} aria-labelledby="dxp-selected-title" aria-busy={busy}>
-      <header className="dxp-browser__header">
-        <WalletLockup />
-        {selection.view !== 'summary' ? (
-          <button type="button" disabled={busy || !capabilities.callTool} onClick={() => void request('summary')}>View summary</button>
-        ) : null}
+    <article ref={scrollRef} className={`dxp-selected${condensed ? ' dxp-selected--condensed' : ''}`}
+      data-testid="portfolio-selected" data-view={screen.target ? 'target' : selection.view}
+      data-expired={expired ? 'true' : undefined}
+      style={{ maxHeight: maxHeight ?? (isFullscreen ? '100dvh' : undefined) }}
+      aria-labelledby="dxp-selected-title" aria-busy={busy} tabIndex={-1}>
+      <header className="dxp-selected-header">
+        <Lockup />
+        <span>Solana</span>
+        {isFullscreen && onClose ? <button type="button" onClick={onClose}>Close</button>
+          : onExpand ? <button type="button" onClick={onExpand}>Expand</button> : null}
       </header>
-      <div className="dxp-browser__intro">
-        <h1 id="dxp-selected-title">{title}</h1>
-        {selection.view === 'summary' ? (
-          <>
-            <strong title={summary.value ?? 'Unknown'}>{displayValue === null ? 'Unknown' : formatDisplayUsd(displayValue)}</strong>
-            <p>{formatCount(source.holdingCount, 'asset')} on Solana in this observation</p>
-          </>
-        ) : null}
-        {selection.returnedCount > 0 ? (
-          <p>
-            Solana · {start + 1}–{end} of {selection.returnedCount} returned
-            {selection.matchedCount === null ? '' : `; ${selection.matchedCount} ${selection.matchedCount === 1 ? 'match' : 'matches'} in this observation`}
-          </p>
-        ) : <p>Solana · {noMatches}</p>}
-        {selection.query ? <p>Search: {selection.query}</p> : null}
-        {coverage ? <p role="status">{coverage}</p> : null}
-      </div>
-      <ul className="dxp-browser__items">
-        {read.holdings.slice(start, end).map((holding, index) => {
-          const rich = read.richHoldings[start + index];
-          if (isDetail && rich) return <InlineBrowserItem key={`${holding.mint}:${holding.tokenAccount}`} item={{ kind: 'holding', holding: rich }} detailSection={detailSection} walletAddress={read.walletAddress} />;
-          return (
-            <li className="dxp-browser-item" key={`${holding.mint}:${holding.tokenAccount}`}>
-              <div className="dxp-browser-item__identity">
-                <strong>{holding.name ?? holding.symbol ?? holding.assetId ?? holding.mint}</strong>
-                {holding.name && holding.symbol ? <span>{holding.symbol}</span> : null}
-              </div>
-              <div className="dxp-browser-item__values">
-                <strong>{formatExactDecimal(holding.displayAmount)}{holding.symbol ? ` ${holding.symbol}` : ''}</strong>
-                <span>{holding.valueUsd === null ? 'Unpriced' : formatDisplayUsd(holding.valueUsd)}</span>
-              </div>
-              {holding.change24hPercent !== null ? <p>24h price change: {formatPriceChangePercent(holding.change24hPercent)}</p> : null}
-              {selection.match === 'ambiguous' ? (
-                <div className="dxp-browser-item__codes">
-                  <p>Mint <code>{holding.mint}</code></p>
-                  {holding.tokenAccount ? <p>Token account <code>{holding.tokenAccount}</code></p> : null}
-                </div>
-              ) : null}
-              <button type="button" disabled={busy || !capabilities.callTool}
-                onClick={() => void request('detail', holding)}
-                aria-label={`View details for ${holding.symbol ?? holding.name ?? holding.mint}`}>View details</button>
-            </li>
-          );
-        })}
-        {read.targets.slice(start, end).map((target) => <TargetRow key={target.assetId} target={target} showHoldingState={false} />)}
-      </ul>
-      {isDetail ? (
-        <nav className="dxp-detail-navigation" aria-label="Asset detail sections">
-          {([['overview', 'Asset overview'], ['market', 'Market data'], ['identity', 'Token identity']] as const).map(([section, label]) => (
-            <button key={section} type="button" aria-pressed={detailSection === section}
-              onClick={() => setDetailPosition({ read, section })}>{label}</button>
-          ))}
-        </nav>
+      {session.history.length > 0 || isDetail || isTargets || screen.target !== null ? (
+        <button className="dxp-selected-back" data-testid="portfolio-back" type="button"
+          disabled={busy || session.history.length === 0 && (locked || !capabilities.callTool)} onClick={back}>
+          <span className="dxp-selected-chevron dxp-selected-chevron--back" aria-hidden="true" />{backLabel}
+        </button>
       ) : null}
-      <footer className="dxp-browser__footer">
-        {busy ? <p role="status">Reading portfolio...</p> : null}
-        {pageCount > 1 ? (
-          <nav aria-label="Returned portfolio rows">
-            <button type="button" disabled={busy || page === 0} onClick={() => setPosition({ read, page: page - 1 })}>Previous</button>
-            <span>Page {page + 1} of {pageCount}</span>
-            <button type="button" disabled={busy || page + 1 === pageCount} onClick={() => setPosition({ read, page: page + 1 })}>Next</button>
-          </nav>
-        ) : null}
-        <nav aria-label="Portfolio reads">
-          {selection.view !== 'holdings' ? (
-            <button type="button" disabled={busy || !capabilities.callTool} onClick={() => void request('holdings')}>View holdings</button>
-          ) : null}
-          {selection.view !== 'targets' ? (
-            <button type="button" disabled={busy || !capabilities.callTool} onClick={() => void request('targets')}>View approved assets</button>
-          ) : null}
-          {selection.nextCursor !== null && page + 1 === pageCount ? (
-            <button type="button" disabled={busy || !capabilities.callTool} onClick={() => void request('next')}>Load next page</button>
-          ) : null}
-        </nav>
-        {!capabilities.callTool ? <p>Ask for holdings or asset details to continue.</p> : null}
-        {selection.omittedCount !== null && selection.omittedCount > 0 ? (
-          <p>{selection.omittedCount} observed {selection.view === 'targets' ? 'approved assets are' : 'holdings are'} outside this response.</p>
-        ) : null}
-        <p>Observed {formatObservedAt(read.observedAt)}.</p>
-        <p>Read expires {formatObservedAt(read.expiresAt)}.</p>
+      {problem || expired ? (
+        <div className="dxp-selected-problem" role="alert">
+          <p>{problem?.body ?? `This observation expired on ${readDate(read.expiresAt)}. Refresh to read your portfolio again.`}</p>
+          {capabilities.callTool ? <button type="button" className="dxp-selected-refresh" data-testid="portfolio-refresh" onClick={() => void request('refresh')} disabled={busy}>Refresh portfolio</button> : null}
+        </div>
+      ) : null}
+      {screen.target ? (
+        <>
+          <h1 id="dxp-selected-title" tabIndex={-1}>{screen.target.name}</h1>
+          <p className="dxp-selected-note">{screen.target.symbol}{heldLabel(screen.target.mint) ? ` · ${heldLabel(screen.target.mint)}` : ''}</p>
+          <SelectedActionFacts target={screen.target} onExpand={expand} />
+          <details className="dxp-selected-disclosure" data-testid="asset-diagnostics" onToggle={(event) => { if (event.currentTarget.open) expand(); }}>
+            <summary>Identity and data sources</summary>
+            <dl className="dxp-selected-facts dxp-selected-facts--diagnostics">
+              <Fact label="Supported asset">{screen.target.assetId}</Fact>
+              <Fact label="Mint"><code>{screen.target.mint}</code></Fact>
+              <Fact label="Token program">{screen.target.tokenProgram === 'token-2022' ? 'Token-2022' : 'SPL Token'}</Fact>
+              <Fact label="Observed at">{readDate(read.observedAt)}</Fact>
+            </dl>
+          </details>
+        </>
+      ) : detailedHolding ? <SelectedHoldingDetail holding={detailedHolding} read={read} onExpand={expand} /> : (
+        <>
+          <section className={isTargets ? 'dxp-selected-explore' : 'dxp-selected-summary'}>
+            <h1 id="dxp-selected-title" tabIndex={-1}>{title}</h1>
+            {isTargets ? <p>Supported assets on Solana. Open an asset to see its available actions.</p> : narrowedSelection ? (
+              <p className="dxp-selected-note">{selection.match === 'ambiguous' ? 'Select the matching mint and token account.' : readDate(read.observedAt)}</p>
+            ) : (
+              <>
+                <SelectedMoney value={displayValue} />
+                <p className="dxp-selected-freshness">{formatCount(source.holdingCount, source.holdingsComplete ? 'holding' : 'observed holding')} · {readDate(read.observedAt)}</p>
+                {coverage ? <p className="dxp-selected-note">{coverage}</p> : null}
+              </>
+            )}
+            {selection.query ? <p className="dxp-selected-note">Results for {selection.query}</p> : null}
+          </section>
+          {isHoldings ? (
+            <ul className="dxp-selected-list">
+              {screen.collection.holdings.map(({ holding }) => {
+                const row = <>
+                  <span className="dxp-selected-identity"><strong>{holdingLabel(holding)}</strong>{holding.name && holding.name !== holding.symbol ? <span>{holding.name}</span> : null}</span>
+                  <span className="dxp-selected-values"><strong>{holding.valueUsd === null ? 'Unpriced' : formatPortfolioMoney(holding.valueUsd)}</strong>
+                    <span>{holding.amountModel === 'unknown' ? 'Amount unavailable' : `${formatPortfolioQuantity(holding.displayAmount)}${holding.symbol ? ` ${holding.symbol}` : ''}`}</span>
+                    <SelectedChange value={holding.change24hPercent} />
+                  </span>
+                  {!locked && capabilities.callTool ? <span className="dxp-selected-chevron" aria-hidden="true" /> : null}
+                </>;
+                return <li key={holdingKey(holding)}>
+                  {!locked && capabilities.callTool ? <button type="button" className="dxp-selected-row" data-testid="holding-row" data-holding-key={holdingKey(holding)}
+                    disabled={busy} aria-label={holdingDetailLabel(holding)} onClick={() => void request('detail', holding)}>{row}</button>
+                    : <div className="dxp-selected-row">{row}</div>}
+                  {selection.match === 'ambiguous' ? <div className="dxp-selected-ambiguous"><code>{holding.mint}</code>{holding.tokenAccount ? <code>{holding.tokenAccount}</code> : null}</div> : null}
+                </li>;
+              })}
+            </ul>
+          ) : (
+            <ul className="dxp-selected-list">
+              {screen.collection.targets.map((target) => {
+                const actions = target.actions.filter((item) => item.available).map((item) => sentenceCase(item.action));
+                return <li key={target.assetId}><button type="button" className="dxp-selected-row" data-testid="explore-asset" data-holding-key={target.assetId}
+                  disabled={busy || locked} onClick={() => openTarget(target)}>
+                  <span className="dxp-selected-identity"><strong>{target.symbol}</strong>{target.name !== target.symbol ? <span>{target.name}</span> : null}</span>
+                  <span className="dxp-selected-values dxp-selected-values--target"><span>{actions.length > 0 ? readableList(actions) : 'Actions unavailable'}</span>{heldLabel(target.mint) ? <span>{heldLabel(target.mint)}</span> : null}</span>
+                  <span className="dxp-selected-chevron" aria-hidden="true" />
+                </button></li>;
+              })}
+            </ul>
+          )}
+          {selection.match === 'none' ? <p className="dxp-selected-note">{isTargets ? 'No supported assets match this request.' : source.holdingCount === 0 && source.holdingsComplete ? 'No assets held.' : 'No matching holdings were found.'}</p> : null}
+          {selection.match === 'unavailable' ? <p className="dxp-selected-note">Supported asset information is unavailable.</p> : null}
+          {collectionCount !== null && listedCount < collectionCount ? <p className="dxp-selected-note" data-testid="portfolio-list-count">Showing {listedCount.toLocaleString()} of {formatCount(collectionCount, isTargets ? 'supported asset' : 'holding')}</p> : null}
+          {hasMore && !locked && capabilities.callTool ? <button type="button" className="dxp-selected-more" data-testid="more-holdings" disabled={busy}
+            onClick={() => void request(selection.nextCursor ? 'next' : 'holdings')}>{isTargets ? 'More assets' : 'More holdings'}</button> : null}
+        </>
+      )}
+      {busy ? <p className="dxp-selected-note" role="status">Reading portfolio...</p> : null}
+      {!locked && !capabilities.callTool ? <p className="dxp-selected-note">Ask for holdings or asset details to continue.</p> : null}
+      <footer className="dxp-selected-footer">
+        {isHoldings && !locked && capabilities.callTool ? <button type="button" data-testid="explore-assets" disabled={busy} onClick={() => void request('targets')}>Explore assets</button> : null}
+        <details className="dxp-selected-disclosure" data-testid="observation-details" onToggle={(event) => { if (event.currentTarget.open) expand(); }}>
+          <summary>Observation details</summary>
+          <dl className="dxp-selected-facts dxp-selected-facts--diagnostics">
+            <Fact label="Observed at">{readDate(read.observedAt)}</Fact>
+            <Fact label="Read expires at">{readDate(read.expiresAt)}</Fact>
+            <Fact label="Wallet"><code>{read.walletAddress}</code></Fact>
+            <Fact label="Observed holdings">{source.holdingCount.toLocaleString()}</Fact>
+            <Fact label="Loaded holdings">{new Set(loadedHoldings.map((item) => holdingKey(item.holding))).size.toLocaleString()}</Fact>
+            <Fact label="Exact portfolio value (USD)">{source.portfolioValueUsd === null ? null : formatExactUsd(source.portfolioValueUsd)}</Fact>
+            <Fact label="Exact priced subtotal (USD)">{formatExactUsd(source.pricedValueUsd)}</Fact>
+            <Fact label="Inventory">{source.holdingsComplete ? 'Complete' : 'Incomplete'}</Fact>
+            <Fact label="Omitted holdings">{source.omittedHoldings.toLocaleString()}</Fact>
+            <Fact label="Pricing">{sentenceCase(source.enrichment.pricing)}</Fact>
+            <Fact label="Asset metadata">{sentenceCase(source.enrichment.metadata)}</Fact>
+            <Fact label="Token display data">{sentenceCase(source.enrichment.tokenExtensions)}</Fact>
+            <Fact label="Solana slot">{read.contextSlot?.toLocaleString() ?? null}</Fact>
+          </dl>
+          {!locked && capabilities.callTool ? <button type="button" data-testid="portfolio-refresh" disabled={busy} onClick={() => void request('refresh')}>Refresh portfolio</button> : null}
+        </details>
       </footer>
     </article>
   );
@@ -940,8 +1204,10 @@ export function PortfolioLedger() {
     >
       {model.state === 'loading' ? <LoadingLedger compact={condensed} /> : null}
       {model.state === 'selected' ? (
-        <SelectedPortfolio model={model} condensed={condensed || hostContext.platform === 'mobile'
-          || (hostContext.containerDimensions?.width ?? Number.POSITIVE_INFINITY) <= 480} />
+        <SelectedPortfolio model={model} condensed={condensed} isFullscreen={isFullscreen}
+          maxHeight={maxHeight === null ? null : Math.max(0, maxHeight - (isFullscreen ? hostContext.safeAreaInsets.top + hostContext.safeAreaInsets.bottom : 0))}
+          onExpand={canFullscreen ? () => requestMode('fullscreen') : null}
+          onClose={canReturnInline ? () => requestMode('inline') : null} />
       ) : null}
       {model.state === 'ready' && !isFullscreen && !inlineExpanded ? (
         <InlinePortfolio

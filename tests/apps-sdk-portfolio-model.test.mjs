@@ -3,10 +3,14 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 import {
+  accumulatePortfolioRows,
   formatDisplayUsd,
   formatExactDecimal,
   formatExactUsd,
   formatPriceChangePercent,
+  formatPortfolioMoney,
+  formatPortfolioQuantity,
+  formatPortfolioPrice,
   governedActionReason,
   holdingCapabilityReason,
   PORTFOLIO_ACTIONS,
@@ -22,6 +26,7 @@ import {
   ambiguousReadFixture,
   targetReadFixture,
   largeSourceSummaryFixture,
+  manySelectedHoldings,
   portfolioReady,
 } from './fixtures/portfolio-selected-read-fixtures.mjs';
 
@@ -360,6 +365,44 @@ test('resting portfolio money rounds safely to cents without Number coercion', (
   assert.equal(formatDisplayUsd('0'), '$0.00');
 });
 
+test('portfolio money keeps normal cents, distinguishes tiny values and abbreviates large values safely', () => {
+  for (const [value, expected] of [
+    ['0', '$0.00'], ['0.000000', '$0.00'], ['0.000000000000000001', '<$0.01'],
+    ['0.009999', '<$0.01'], ['0.01', '$0.01'], ['0.015', '$0.02'],
+    ['3320', '$3,320.00'], ['1268.4', '$1,268.40'],
+    ['999999.99', '$999,999.99'], ['1000000', '$1M'], ['1234567.89', '~$1.23M'],
+    ['999999999.999', '~$1B'], ['999999999999999.999', '~$1e15'],
+    ['18446744073709551615.000000000000000001', '~$1.84e19'],
+    ['1004999999999999999.999999999999999999', '~$1e18'],
+    ['1005000000000000000.000000000000000001', '~$1.01e18'],
+  ]) assert.equal(formatPortfolioMoney(value), expected, value);
+});
+
+test('portfolio quantities and prices keep positive tiny values meaningful and mark lost precision', () => {
+  for (const [value, expected] of [
+    ['0', '0'], ['12.5', '12.5'], ['123.123456', '123.123456'],
+    ['123.1234567', '~123.123457'], ['0.00000123456789', '~0.00000123457'],
+    ['0.000000000000000001', '1e-18'], ['0.000000000123456789', '~0.000000000123457'],
+    ['1000', '1K'], ['12345.6789', '~12.35K'], ['999999.999', '~1M'],
+    ['9007199254740993.01', '~9.01e15'],
+  ]) assert.equal(formatPortfolioQuantity(value), expected, value);
+  for (const [value, expected] of [
+    ['0', '$0.00'], ['1', '$1'], ['125.123456', '$125.123456'],
+    ['125.1234567', '~$125.123457'], ['0.0000123456789', '~$0.00001235'],
+    ['0.00000001', '$0.00000001'], ['0.000000000000000001', '$1e-18'],
+    ['0.000000000123456789', '~$0.0000000001235'],
+  ]) assert.equal(formatPortfolioPrice(value), expected, value);
+});
+
+test('nine-decimal SOL and readable tiny prices stay decimal until the extreme-value threshold', () => {
+  for (const value of ['0.000000001', '0.000000000001']) {
+    assert.equal(formatPortfolioQuantity(value), value);
+    assert.equal(formatPortfolioPrice(value), `$${value}`);
+  }
+  assert.equal(formatPortfolioQuantity('0.0000000000001'), '1e-13');
+  assert.equal(formatPortfolioPrice('0.0000000000001'), '$1e-13');
+});
+
 test('authentication and read failures stay distinct from empty holdings', () => {
   const authentication = normalizeDexterPortfolio({
     mode: 'authentication_required',
@@ -664,5 +707,194 @@ test('shared selected API fixtures compose into the widget for every view and a 
       assert.equal(model.read.sourceSummary.omittedHoldings, 0);
       assert.equal(model.read.selection.omittedCount, 197);
     }
+  }
+});
+
+function collectionRead({ view = 'summary', offset = 0, count = 5, limit = 6, rich = true, rowIndexes } = {}) {
+  const rows = manySelectedHoldings(8).map((row) => ({
+    ...row, symbol: 'S', name: 'S', amountRaw: '0', displayAmount: '0',
+    valueUsd: null, priceUsd: null, priceObservedAt: null, priceSource: null, priceBlockId: null,
+  }));
+  const fixture = sharedSelectedReadFixture({ view,
+    holdings: rowIndexes ? rowIndexes.map((index) => rows[index]) : rows.slice(offset, offset + count),
+    sourceSummary: { holdingCount: 8, pricedHoldings: 0, unpricedHoldings: 8,
+      pricedValueUsd: '0', portfolioValueUsd: null,
+      enrichment: { metadata: 'complete', pricing: 'unavailable', tokenExtensions: 'complete' } },
+    selection: { offset, limit: view === 'summary' ? 5 : limit,
+      nextCursor: view !== 'summary' && offset + count < 8 ? `after-${offset + count}` : null },
+  });
+  const model = normalizeDexterPortfolio({ structuredContent: portfolioReady(fixture.portfolio),
+    ...(rich ? { _meta: { portfolioCard: fixture.card } } : {}) });
+  assert.equal(model.state, 'selected');
+  return model.read;
+}
+
+test('portfolio collection deduplicates the summary before adding contiguous pages without changing evidence', () => {
+  const summary = collectionRead();
+  const page = collectionRead({ view: 'holdings', count: 6, rich: false });
+  const last = collectionRead({ view: 'holdings', offset: 6, count: 2 });
+  const original = JSON.stringify([summary, page, last]);
+  const initial = accumulatePortfolioRows(null, summary);
+  assert.equal(initial.read, summary);
+  assert.equal(initial.holdings.length, 5);
+  const firstPage = accumulatePortfolioRows(initial, page);
+  assert.equal(firstPage.holdings.length, 6);
+  assert.equal(firstPage.holdings[0].holding, summary.holdings[0]);
+  assert.equal(firstPage.holdings[0].rich, summary.richHoldings[0]);
+  assert.equal(firstPage.holdings[5].rich, null);
+  assert.equal(firstPage.read, page);
+  const complete = accumulatePortfolioRows(firstPage, last);
+  assert.equal(complete.holdings.length, 8);
+  assert.deepEqual(complete.holdings.map(({ holding }) => holding.tokenAccount),
+    [...page.holdings, ...last.holdings].map((holding) => holding.tokenAccount));
+  assert.equal(new Set(complete.holdings.map(({ holding }) => holding.mint)).size, 1);
+  assert.equal(complete.read, last);
+  assert.equal(complete.read.sourceSummary, last.sourceSummary);
+  assert.equal(complete.read.selection.returnedCount, 2);
+  assert.equal(complete.read.selection.omittedCount, 6);
+  assert.equal(complete.read.sourceSummary.holdingCount, 8);
+  assert.equal(complete.holdings[6].rich, last.richHoldings[0]);
+  assert.equal(initial.holdings.length, 5);
+  assert.equal(firstPage.holdings.length, 6);
+  assert.equal(JSON.stringify([summary, page, last]), original);
+});
+
+test('portfolio collection enriches compact rows while rejecting conflicting compact or rich facts', () => {
+  const summary = collectionRead({ rich: false });
+  const page = collectionRead({ view: 'holdings', count: 6 });
+  const initial = accumulatePortfolioRows(null, summary);
+  const enriched = accumulatePortfolioRows(initial, page);
+  assert.equal(enriched.holdings[0].holding, summary.holdings[0]);
+  assert.equal(enriched.holdings[0].rich, page.richHoldings[0]);
+  assert.equal(initial.holdings[0].rich, null);
+  const fullInitial = accumulatePortfolioRows(null, collectionRead());
+  for (const mutate of [
+    (p) => { p.holdings[0].displayAmount = '99'; p.richHoldings[0].displayAmount = '99'; },
+    (p) => { p.holdings[0].symbol = 'OTHER'; p.richHoldings[0].symbol = 'OTHER'; },
+    (p) => { p.richHoldings[0].metadataObservedAt = '2026-07-25T10:29:59.000Z'; },
+    (p) => { p.richHoldings[0].capabilities[0].available = false; },
+  ]) {
+    const changed = structuredClone(page);
+    mutate(changed);
+    assert.equal(accumulatePortfolioRows(fullInitial, changed), null);
+  }
+  const reordered = structuredClone(page);
+  reordered.richHoldings = reordered.richHoldings.map((row) => Object.fromEntries(Object.entries(row).reverse()));
+  assert.ok(accumulatePortfolioRows(fullInitial, reordered));
+});
+
+test('portfolio collection rejects other observations, selectors, offset gaps and exhausted continuation', () => {
+  const page = collectionRead({ view: 'holdings', count: 6 });
+  const next = collectionRead({ view: 'holdings', offset: 6, count: 2 });
+  const collection = accumulatePortfolioRows(null, page);
+  for (const mutate of [
+    (p) => { p.snapshotId = 'another-observation'; },
+    (p) => { p.walletAddress = '11111111111111111111111111111111'; },
+    (p) => { p.network = 'another-network'; },
+    (p) => { p.observedAt = '2026-07-25T10:29:59.000Z'; },
+    (p) => { p.expiresAt = '2026-07-25T10:36:00.000Z'; },
+    (p) => { p.contextSlot += 1; },
+    (p) => { p.sourceSummary.enrichment.pricing = 'complete'; },
+    (p) => { p.sourceSummary.omittedHoldings += 1; },
+    (p) => { p.selection.offset = 5; },
+    (p) => { p.selection.offset = 7; },
+    (p) => { p.selection.view = 'detail'; },
+    (p) => { p.selection.query = 'SOL'; },
+    (p) => { p.selection.mint = p.holdings[0].mint; },
+    (p) => { p.selection.tokenAccount = p.holdings[0].tokenAccount; },
+    (p) => { p.selection.limit = 7; },
+    (p) => { p.selection.matchedCount = 7; },
+  ]) {
+    const changed = structuredClone(next);
+    mutate(changed);
+    assert.equal(accumulatePortfolioRows(collection, changed), null);
+  }
+  const summary = accumulatePortfolioRows(null, collectionRead());
+  const filtered = structuredClone(page);
+  filtered.selection.query = 'SOL';
+  assert.equal(accumulatePortfolioRows(summary, filtered), null);
+  assert.equal(accumulatePortfolioRows(summary, next), null);
+  assert.equal(accumulatePortfolioRows(collection, page), null);
+  const exhausted = accumulatePortfolioRows(collection, next);
+  assert.equal(accumulatePortfolioRows(exhausted, next), null);
+  assert.equal(accumulatePortfolioRows(null, next).read, next);
+});
+
+test('portfolio collection rejects overlapping actual holdings pages before and at cursor exhaustion', () => {
+  for (const [firstCount, nextCount, indexes] of [[3, 3, [0, 4, 5]], [6, 2, [0, 7]]]) {
+    const first = collectionRead({ view: 'holdings', count: firstCount, limit: firstCount });
+    const next = collectionRead({ view: 'holdings', offset: firstCount, count: nextCount,
+      limit: firstCount, rowIndexes: indexes });
+    const collection = accumulatePortfolioRows(null, first);
+    const before = JSON.stringify(collection);
+    assert.equal(portfolioReadMatchesRequest(first, next, portfolioReadRequest(first, 'next')), true);
+    assert.equal(accumulatePortfolioRows(collection, next), null);
+    assert.equal(JSON.stringify(collection), before);
+  }
+});
+
+test('portfolio collection permits summary seeds first consumed on later holdings pages', () => {
+  const summary = collectionRead({ rowIndexes: [7, 5, 3, 0, 6] });
+  const first = collectionRead({ view: 'holdings', count: 3, limit: 3 });
+  const second = collectionRead({ view: 'holdings', offset: 3, count: 3, limit: 3 });
+  const third = collectionRead({ view: 'holdings', offset: 6, count: 2, limit: 3 });
+  let collection = accumulatePortfolioRows(null, summary);
+  for (const page of [first, second, third]) {
+    collection = accumulatePortfolioRows(collection, page);
+    assert.ok(collection);
+    assert.equal(collection.read, page);
+  }
+  assert.equal(collection.holdings.length, 8);
+  assert.deepEqual(collection.holdings.slice(0, 5).map(({ holding }) => holding), summary.holdings);
+  assert.equal(collection.holdings[0].holding, summary.holdings[0]);
+  assert.equal(collection.holdings[0].rich, summary.richHoldings[0]);
+  assert.equal(collection.read.selection.matchedCount, 8);
+  assert.equal(collection.read.selection.nextCursor, null);
+});
+
+test('target continuation rejects overlapping actual pages and retains disjoint targets with their actions', () => {
+  const fixture = targetReadFixture();
+  fixture.portfolio.sourceSummary.targetCount = 3;
+  Object.assign(fixture.portfolio.selection, { limit: 2, matchedCount: 3, omittedCount: 2, nextCursor: 'target-next' });
+  const model = normalizeDexterPortfolio({ structuredContent: portfolioReady(fixture.portfolio),
+    _meta: { portfolioCard: fixture.card } });
+  assert.equal(model.state, 'selected');
+  const first = model.read;
+  const nextPortfolio = structuredClone(fixture.portfolio);
+  Object.assign(nextPortfolio.selection, { offset: 1, returnedCount: 2, omittedCount: 1, nextCursor: null });
+  const other = { ...structuredClone(nextPortfolio.targets[0]), assetId: 'other-approved-asset',
+    mint: 'So11111111111111111111111111111111111111112' };
+  nextPortfolio.targets.push(other);
+  const nextModel = normalizeDexterPortfolio(portfolioReady(nextPortfolio));
+  assert.equal(nextModel.state, 'selected');
+  const next = nextModel.read;
+  const collection = accumulatePortfolioRows(null, first);
+  assert.equal(portfolioReadMatchesRequest(first, next, portfolioReadRequest(first, 'next')), true);
+  assert.equal(accumulatePortfolioRows(collection, next), null);
+  const third = { ...structuredClone(other), assetId: 'third-approved-asset',
+    mint: '11111111111111111111111111111111' };
+  const disjointPortfolio = { ...nextPortfolio, targets: [other, third] };
+  const disjointModel = normalizeDexterPortfolio(portfolioReady(disjointPortfolio));
+  assert.equal(disjointModel.state, 'selected');
+  const disjoint = disjointModel.read;
+  const merged = accumulatePortfolioRows(collection, disjoint);
+  assert.equal(merged.targets.length, 3);
+  assert.equal(merged.targets[0], first.targets[0]);
+  assert.equal(merged.targets[1], disjoint.targets[0]);
+  assert.equal(merged.targets[2], disjoint.targets[1]);
+  assert.deepEqual(merged.targets[1].actions, other.actions);
+  assert.equal(merged.read, disjoint);
+  assert.equal(merged.read.selection.returnedCount, 2);
+  assert.equal(merged.read.sourceSummary.targetCount, 3);
+  for (const mutate of [
+    (p) => { p.targets[0].actions[0].available = !p.targets[0].actions[0].available; },
+    (p) => { p.targets[0].actions[2].reason = 'governed_asset_rail_not_live'; },
+    (p) => { p.targets[0].assetId = 'same-mint-other-asset'; },
+    (p) => { p.targets[0].mint = '11111111111111111111111111111111'; },
+    (p) => { p.targets[0].tokenProgram = 'spl-token'; },
+  ]) {
+    const changed = structuredClone(next);
+    mutate(changed);
+    assert.equal(accumulatePortfolioRows(collection, changed), null);
   }
 });

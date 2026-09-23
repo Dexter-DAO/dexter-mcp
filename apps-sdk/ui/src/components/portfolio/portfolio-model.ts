@@ -160,6 +160,14 @@ export type SelectedPortfolioRead = {
   richHoldings: PortfolioHolding[];
 };
 
+export type PortfolioReadCollection = {
+  read: SelectedPortfolioRead;
+  holdings: Array<{ holding: CompactPortfolioHolding; rich: PortfolioHolding | null }>;
+  targets: CompactPortfolioTarget[];
+  /** Actual page rows already consumed; summary previews are excluded. */
+  consumedHoldingIdentities: string[];
+};
+
 export type PortfolioViewModel =
   | { state: 'loading' }
   | {
@@ -908,6 +916,75 @@ export function portfolioReadMatchesRequest(previous: SelectedPortfolioRead, nex
     && selection.tokenAccount === (request.tokenAccount ?? null);
 }
 
+function samePortfolioFacts(left: unknown, right: unknown): boolean {
+  if (left === right) return true;
+  if (Array.isArray(left) || Array.isArray(right)) {
+    return Array.isArray(left) && Array.isArray(right) && left.length === right.length
+      && left.every((value, index) => samePortfolioFacts(value, right[index]));
+  }
+  const leftRecord = record(left);
+  const rightRecord = record(right);
+  return leftRecord !== null && rightRecord !== null
+    && Object.keys(leftRecord).length === Object.keys(rightRecord).length
+    && Object.keys(leftRecord).every((key) => Object.hasOwn(rightRecord, key)
+      && samePortfolioFacts(leftRecord[key], rightRecord[key]));
+}
+
+/** Collect normalized pages without changing the latest response or its counts. */
+export function accumulatePortfolioRows(
+  previous: PortfolioReadCollection | null,
+  next: SelectedPortfolioRead,
+): PortfolioReadCollection | null {
+  if (previous) {
+    if (!samePortfolioObservation(previous.read, next)) return null;
+    const lastSelection = previous.read.selection;
+    const selection = next.selection;
+    const summaryToHoldings = lastSelection.view === 'summary' && selection.view === 'holdings'
+      && selection.offset === 0 && selection.query === null && selection.mint === null
+      && selection.tokenAccount === null && selection.matchedCount === lastSelection.matchedCount;
+    const continuation = lastSelection.nextCursor !== null
+      && selection.offset === lastSelection.offset + lastSelection.returnedCount
+      && ['view', 'query', 'mint', 'tokenAccount', 'limit', 'matchedCount'].every((key) =>
+        selection[key as keyof PortfolioSelection] === lastSelection[key as keyof PortfolioSelection]);
+    if (!summaryToHoldings && !continuation) return null;
+  }
+
+  const identity = (holding: CompactPortfolioHolding) => `${holding.mint}:${holding.tokenAccount ?? ''}`;
+  const holdings = previous ? [...previous.holdings] : [];
+  const consumedHoldingIdentities = new Set(previous ? previous.consumedHoldingIdentities : []);
+  const holdingIndexes = new Map(holdings.map((row, index) => [identity(row.holding), index]));
+  const richByIdentity = new Map(next.richHoldings.map((holding) => [identity(holding), holding]));
+  for (const holding of next.holdings) {
+    const key = identity(holding);
+    if (next.selection.view !== 'summary') {
+      if (consumedHoldingIdentities.has(key)) return null;
+      consumedHoldingIdentities.add(key);
+    }
+    const rich = richByIdentity.get(key) ?? null;
+    const index = holdingIndexes.get(key);
+    if (index === undefined) {
+      holdingIndexes.set(key, holdings.length);
+      holdings.push({ holding, rich });
+    } else {
+      const retained = holdings[index];
+      if (!sameCompactHolding(retained.holding, holding)
+        || retained.rich && rich && !samePortfolioFacts(retained.rich, rich)) return null;
+      if (retained.rich === null && rich !== null) holdings[index] = { holding: retained.holding, rich };
+    }
+  }
+
+  const targets = previous ? [...previous.targets] : [];
+  const targetsByAsset = new Map(targets.map((target) => [target.assetId, target]));
+  const targetsByMint = new Map(targets.map((target) => [target.mint, target]));
+  for (const target of next.targets) {
+    if (targetsByAsset.has(target.assetId) || targetsByMint.has(target.mint)) return null;
+    targets.push(target);
+    targetsByAsset.set(target.assetId, target);
+    targetsByMint.set(target.mint, target);
+  }
+  return { read: next, holdings, targets, consumedHoldingIdentities: [...consumedHoldingIdentities] };
+}
+
 function safeMessage(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 && value.length <= 240
     ? value.trim()
@@ -950,6 +1027,87 @@ export function formatDisplayUsd(value: string): string {
   const roundedWhole = (atomicCents / 100n).toString();
   const roundedCents = (atomicCents % 100n).toString().padStart(2, '0');
   return `$${formatExactDecimal(roundedWhole)}.${roundedCents}`;
+}
+
+function roundPortfolioDecimal(value: string, places: number): { rounded: bigint; changed: boolean } {
+  const [whole, fraction = ''] = value.split('.');
+  const digits = BigInt(whole + fraction);
+  const removedPlaces = fraction.length - places;
+  if (removedPlaces <= 0) return { rounded: digits * 10n ** BigInt(-removedPlaces), changed: false };
+  const divisor = 10n ** BigInt(removedPlaces);
+  const remainder = digits % divisor;
+  return { rounded: digits / divisor + (remainder * 2n >= divisor ? 1n : 0n), changed: remainder !== 0n };
+}
+
+function portfolioDecimalDigits(value: bigint, places: number): string {
+  if (places === 0) return value.toString();
+  const digits = value.toString().padStart(places + 1, '0');
+  return `${digits.slice(0, -places)}.${digits.slice(-places)}`.replace(/\.?0+$/, '');
+}
+
+function portfolioScientific(value: string, significantDigits: number): { text: string; changed: boolean } {
+  const [whole, fraction = ''] = value.split('.');
+  let exponent = whole !== '0' ? whole.length - 1 : -fraction.search(/[1-9]/) - 1;
+  let result = roundPortfolioDecimal(value, significantDigits - 1 - exponent);
+  if (result.rounded >= 10n ** BigInt(significantDigits)) {
+    exponent += 1;
+    result = roundPortfolioDecimal(value, significantDigits - 1 - exponent);
+  }
+  return { text: `${portfolioDecimalDigits(result.rounded, significantDigits - 1)}e${exponent}`, changed: result.changed };
+}
+
+function portfolioAbbreviation(value: string): { text: string; changed: boolean } {
+  const whole = value.split('.')[0];
+  if (whole.length > 15) return portfolioScientific(value, 3);
+  let exponent = Math.floor((whole.length - 1) / 3) * 3;
+  let result = roundPortfolioDecimal(value, 2 - exponent);
+  if (result.rounded >= 100_000n) {
+    exponent += 3;
+    if (exponent > 12) return portfolioScientific(value, 3);
+    result = roundPortfolioDecimal(value, 2 - exponent);
+  }
+  const suffix = ({ 3: 'K', 6: 'M', 9: 'B', 12: 'T' } as Record<number, string>)[exponent];
+  return { text: `${portfolioDecimalDigits(result.rounded, 2)}${suffix}`, changed: result.changed };
+}
+
+export function formatPortfolioMoney(value: string): string {
+  const [whole, fraction = ''] = value.split('.');
+  if (whole === '0' && !/[1-9]/.test(fraction)) return '$0.00';
+  if (whole === '0' && !/[1-9]/.test(fraction.slice(0, 2))) return '<$0.01';
+  if (whole.length < 7) return formatDisplayUsd(value);
+  const result = portfolioAbbreviation(value);
+  return `${result.changed ? '~' : ''}$${result.text}`;
+}
+
+export function formatPortfolioQuantity(value: string): string {
+  const [whole, fraction = ''] = value.split('.');
+  if (whole === '0' && !/[1-9]/.test(fraction)) return '0';
+  if (whole.length > 3) {
+    const result = portfolioAbbreviation(value);
+    return `${result.changed ? '~' : ''}${result.text}`;
+  }
+  const firstDigit = fraction.search(/[1-9]/);
+  if (whole === '0' && firstDigit >= 12) {
+    const result = portfolioScientific(value, 6);
+    return `${result.changed ? '~' : ''}${result.text}`;
+  }
+  const places = whole === '0' ? firstDigit + 6 : 6;
+  const result = roundPortfolioDecimal(value, places);
+  return `${result.changed ? '~' : ''}${portfolioDecimalDigits(result.rounded, places)}`;
+}
+
+export function formatPortfolioPrice(value: string): string {
+  const [whole, fraction = ''] = value.split('.');
+  if (whole === '0' && !/[1-9]/.test(fraction)) return '$0.00';
+  if (whole.length > 6) return formatPortfolioMoney(value);
+  const firstDigit = fraction.search(/[1-9]/);
+  if (whole === '0' && firstDigit >= 12) {
+    const result = portfolioScientific(value, 4);
+    return `${result.changed ? '~' : ''}$${result.text}`;
+  }
+  const places = whole === '0' ? Math.max(2, firstDigit + 4) : 6;
+  const result = roundPortfolioDecimal(value, places);
+  return `${result.changed ? '~' : ''}$${formatExactDecimal(portfolioDecimalDigits(result.rounded, places))}`;
 }
 
 export function summarizePortfolio(snapshot: Pick<PortfolioSnapshot, 'portfolioValueUsd' | 'pricedHoldings' | 'pricedValueUsd'>): PortfolioSummary {
