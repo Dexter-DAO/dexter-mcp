@@ -14,8 +14,8 @@ import {
 } from '../scripts/materialize-open-tool-descriptors.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
-const API_COMMIT = 'ae00d1d27077c6a6fa0626f25656da302cd1f16a';
-const API_TREE = '20e922af82fbac900bfbdd263264068c600d8f63';
+const API_COMMIT = '922f29405956e768b3fc7c42d7e44e0af1ca48cd';
+const API_TREE = '980b6dc4106b55c93c91dc2acaf61adac588bc04';
 const FACILITATOR_COMMIT = '8d351859ff465a0c051da90e0e59f5f5e812acc7';
 const HISTORICAL_API = 'fa0701b67625911b8ec97a5399f62ec97a69f976';
 const HISTORICAL_PATH = 'tests/fixtures/governed-agent-trade-api-facilitator-binding-v1.json';
@@ -83,6 +83,10 @@ test('reviewed SDK source policy preserves history and derives current producer 
     '54b23f1650bf0b65861f4c7dbe9594cd1a4ea752915819792d7ae8d14d362848');
   assert.equal(hasExactOpenDexterSourceContractsShape(derived, receipt), true);
   for (const mutate of [
+    value => {
+      value.integratedApiRelease.governedContractCommit = 'ae00d1d27077c6a6fa0626f25656da302cd1f16a';
+      value.integratedApiRelease.governedContractTree = '20e922af82fbac900bfbdd263264068c600d8f63';
+    },
     value => {
       value.integratedApiRelease.governedContractCommit = '372dacdebce2ddbd9d8531d05aab85f602ea6bf5';
       value.integratedApiRelease.governedContractTree = 'b2ea9b6393d6b63801a8abcfd160fcdc4beb81c9';
