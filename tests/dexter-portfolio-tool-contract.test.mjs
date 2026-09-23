@@ -40,11 +40,11 @@ test('dexter_wallet_portfolio remains model-visible in the 15-tool server roster
   }), { name: 'dexter_wallet_portfolio', id: 7 });
   assert.match(
     OPEN_TOOL_CONTRACTS.dexter_wallet_portfolio.description,
-    /approvedActionTargets separately list server-approved governed assets even when the wallet holds none/,
+    /view=targets for approved assets, including assets not held/,
   );
   assert.match(
     OPEN_TOOL_CONTRACTS.dexter_wallet_portfolio.description,
-    /never count as holdings or value/,
+    /sourceSummary describes the whole observed source/,
   );
 });
 
@@ -61,7 +61,7 @@ test('public documentation keeps zero-balance targets separate from holdings and
   }
 });
 
-test('registered portfolio accepts no identity input and attaches no legacy widget', async () => {
+test('registered portfolio accepts read selectors without identity inputs and retains its portfolio widget', async () => {
   const server = await readFile(
     new URL('../open-mcp-server.mjs', import.meta.url),
     'utf8',
@@ -72,7 +72,7 @@ test('registered portfolio accepts no identity input and attaches no legacy widg
     start,
     server.indexOf('// ─── Dextercard tools:', start),
   );
-  assert.match(registration, /inputSchema:\s*\{\}/);
+  assert.match(registration, /inputSchema:\s*PORTFOLIO_READ_INPUT_SHAPE/);
   assert.match(registration, /dexterPortfolio\(args,\s*extra\)/);
   assert.doesNotMatch(
     registration,
@@ -95,7 +95,7 @@ test('portfolio implementation derives identity from session and exact wallet eq
   assert.match(implementation, /fetchVaultStateBySession\(sessionId,\s*\{\s*portfolio:\s*true\s*\}\)/);
   assert.match(implementation, /getVaultReceiveAddress\(state\.vault\)/);
   assert.match(implementation, /expectedWalletAddress:\s*receiveAddress/);
-  assert.match(implementation, /modelSafePortfolioSnapshot\(portfolio\)/);
+  assert.match(implementation, /fetchSessionPortfolioSelection\(/);
   assert.doesNotMatch(
     implementation,
     /receiveAddress\s*(?:\?\?|\|\|)\s*state\.vault\.swigAddress/,

@@ -7,7 +7,9 @@ import {
   useAdaptiveMaxHeight,
   useAdaptiveRequestDisplayMode,
   useAdaptiveTheme,
+  useAdaptiveCallToolFn,
   useToolOutput,
+  useToolResponseMetadata,
 } from '../../sdk';
 import { Lockup } from '../wallet/Lockup';
 import { useIntrinsicHeight } from '../x402/useIntrinsicHeight';
@@ -15,12 +17,21 @@ import {
   formatExactDecimal,
   formatExactUsd,
   formatDisplayUsd,
+  formatPriceChangePercent,
   governedActionReason,
+  holdingCapabilityReason,
   normalizeDexterPortfolio,
+  portfolioReadRequest,
+  portfolioReadMatchesRequest,
   type ApprovedActionAvailability,
   type ApprovedActionTarget,
   type PortfolioAction,
+  type HoldingCapabilityReason,
+  type PortfolioEnrichment,
   type PortfolioHolding,
+  type CompactPortfolioHolding,
+  type CompactPortfolioTarget,
+  type PortfolioReadView,
   type PortfolioViewModel,
 } from './portfolio-model';
 
@@ -66,21 +77,78 @@ function holdingStateText(holding: PortfolioHolding): string {
   return `${approval}; account state unknown.`;
 }
 
+function enrichmentText(enrichment: PortfolioEnrichment): string {
+  return `Enrichment: pricing ${enrichment.pricing}; metadata ${enrichment.metadata}; token extensions ${enrichment.tokenExtensions}.`;
+}
+
+function HoldingContext({ holding, section = 'all' }: {
+  holding: PortfolioHolding;
+  section?: 'all' | 'overview' | 'market';
+}) {
+  const market = holding.marketContext;
+  const registry = holding.registryIdentity;
+  const unavailable = new Map<HoldingCapabilityReason, PortfolioAction[]>();
+  for (const capability of holding.capabilities) {
+    if (!capability.available && capability.reasonCode) {
+      unavailable.set(capability.reasonCode, [...(unavailable.get(capability.reasonCode) ?? []), capability.action]);
+    }
+  }
+  const priceSource = holding.priceSource === 'jupiter-price-v3' ? 'Jupiter Price V3'
+    : holding.priceSource === 'jupiter-exact-in-quote' ? 'Jupiter ExactIn valuation quote' : 'Unknown';
+  const marketMetrics = market ? [
+    market.liquidityUsd === null ? null : `Liquidity: ${formatExactUsd(market.liquidityUsd)}`,
+    market.holderCount === null ? null : `holders: ${market.holderCount.toLocaleString()}`,
+    market.activity24h.traderCount === null ? null : `traders (24h): ${market.activity24h.traderCount.toLocaleString()}`,
+  ].filter((metric) => metric !== null).join('; ') : '';
+  return (
+    <>
+      {section !== 'overview' && market ? (
+        <>
+          <br />{marketMetrics ? `${marketMetrics}. ` : ''}
+          Jupiter Tokens V2, observed {formatObservedAt(market.observedAt)}.
+        </>
+      ) : null}
+      {section !== 'market' && registry && (registry.providerName !== null || registry.legalIssuerName !== null) ? (
+        <>
+          <br />Dexter registry:
+          {registry.providerName !== null ? <> provider {registry.providerName}.</> : null}
+          {registry.legalIssuerName !== null ? <> Legal issuer: {registry.legalIssuerName}.</> : null}
+        </>
+      ) : null}
+      {section !== 'overview' && (holding.priceSource !== null || holding.priceObservedAt !== null || holding.priceBlockId !== null) ? (
+        <>
+          <br />Price source: {priceSource}.
+          {holding.priceObservedAt !== null ? <> Observed {formatObservedAt(holding.priceObservedAt)}.</> : null}
+          {holding.priceBlockId !== null ? <> Block: {holding.priceBlockId.toLocaleString()}.</> : null}
+        </>
+      ) : null}
+      {section !== 'overview' && holding.metadataObservedAt !== null ? (
+        <><br />Metadata observed {formatObservedAt(holding.metadataObservedAt)}.</>
+      ) : null}
+      {section !== 'market' && [...unavailable].map(([reason, actions]) => (
+        <span key={reason}>
+          <br />{sentenceCase(readableList(actions))}: {holdingCapabilityReason(reason)}
+        </span>
+      ))}
+    </>
+  );
+}
+
 function unavailableActionText(action: ApprovedActionAvailability): string {
   const name = sentenceCase(action.action);
   if (action.reason?.startsWith('stock_')) {
     return `${name} is unavailable. ${governedActionReason(action.reason)}`;
   }
   if (action.reason === 'protected_agent_send_sdk_required') {
-    return 'Send requires the protected agent SDK.';
+    return 'Sending is unavailable through this connection.';
   }
   if (action.reason === 'governed_asset_action_not_supported') {
     return `${name} is unavailable for this asset.`;
   }
-  return `${name} is unavailable because the governed asset rail is not live.`;
+  return `${name} is currently unavailable for this asset.`;
 }
 
-function targetActionText(target: ApprovedActionTarget): string {
+function targetActionText(target: Pick<ApprovedActionTarget, 'actions'>): string {
   const available = target.actions
     .filter((action) => action.available)
     .map((action) => action.action);
@@ -93,7 +161,7 @@ function targetActionText(target: ApprovedActionTarget): string {
     const names = readableList(available.map((action) => action.replace(/-/g, ' ')));
     sentences.push(`${sentenceCase(names)} ${available.length === 1 ? 'is' : 'are'} available.`);
   } else {
-    sentences.push('No governed actions are currently available.');
+    sentences.push('No actions are currently available.');
   }
 
   return [...sentences, ...unavailable].join(' ');
@@ -135,10 +203,10 @@ function displayAssetLabel(assetId: string | null, assetClass: PortfolioHolding[
 }
 
 function InlineHolding({ holding }: { holding: PortfolioHolding }) {
-  const name = displayAssetLabel(holding.assetId, holding.assetClass);
+  const name = holding.symbol ?? holding.name ?? displayAssetLabel(holding.assetId, holding.assetClass);
   return (
     <li className="dxp-inline-holding">
-      <span className="dxp-inline-holding__name" title={holding.assetId ?? holding.mint}>
+      <span className="dxp-inline-holding__name" title={holding.name ?? holding.assetId ?? holding.mint}>
         {name}
       </span>
       <span className="dxp-inline-holding__amount">
@@ -171,7 +239,7 @@ function InlinePortfolio({
     <article className="dxp-inline" aria-labelledby="dxp-title">
       <header className="dxp-inline__header">
         <WalletLockup />
-        <span>{formatObservedAt(model.snapshot.observedAt)}</span>
+        <span>Solana · {formatObservedAt(model.snapshot.observedAt)}</span>
       </header>
 
       <div className="dxp-inline__summary">
@@ -228,7 +296,13 @@ type InlinePortfolioItem =
   | { kind: 'holding'; holding: PortfolioHolding }
   | { kind: 'target'; target: ApprovedActionTarget };
 
-function InlineBrowserItem({ item }: { item: InlinePortfolioItem }) {
+type DetailSection = 'overview' | 'market' | 'identity';
+
+function InlineBrowserItem({ item, detailSection, walletAddress }: {
+  item: InlinePortfolioItem;
+  detailSection?: DetailSection;
+  walletAddress?: string;
+}) {
   if (item.kind === 'target') {
     return (
       <li className="dxp-browser-item">
@@ -243,19 +317,44 @@ function InlineBrowserItem({ item }: { item: InlinePortfolioItem }) {
   }
 
   const { holding } = item;
-  const name = displayAssetLabel(holding.assetId, holding.assetClass);
+  const name = holding.name ?? holding.symbol ?? displayAssetLabel(holding.assetId, holding.assetClass);
   return (
     <li className="dxp-browser-item">
       <div className="dxp-browser-item__identity">
-        <strong>{name}</strong>
+        <strong>{name}{holding.symbol && holding.symbol !== name ? ` (${holding.symbol})` : ''}</strong>
         <span>{holdingStateText(holding)}</span>
       </div>
       <div className="dxp-browser-item__values">
-        <strong>{formatExactDecimal(holding.displayAmount)}</strong>
+        <strong>{formatExactDecimal(holding.displayAmount)}{holding.symbol ? ` ${holding.symbol}` : ''}</strong>
         <span>{holding.valueUsd === null ? 'Unpriced' : formatExactUsd(holding.valueUsd)}</span>
       </div>
-      <p>{holdingActionText(holding.availableActions)}</p>
-      <code aria-label={`Mint ${holding.mint}`}>Mint {holding.mint}</code>
+      <div className="dxp-browser-item__description dxp-detail-panel" data-detail-section={detailSection ?? 'all'}>
+        {!detailSection || detailSection === 'overview' ? (
+          <p>
+            {holdingActionText(holding.availableActions)}
+            <HoldingContext holding={holding} section="overview" />
+          </p>
+        ) : null}
+        {!detailSection || detailSection === 'market' ? (
+          <p>
+            {holding.priceUsd === null ? 'Price unavailable.' : <>Price per unit: {formatExactUsd(holding.priceUsd)}.</>}
+            {holding.change24hPercent !== null ? (
+              <> 24h price change: {formatPriceChangePercent(holding.change24hPercent)}.</>
+            ) : null}
+            <HoldingContext holding={holding} section="market" />
+          </p>
+        ) : null}
+        {!detailSection || detailSection === 'identity' ? (
+          <div className="dxp-browser-item__codes">
+            {holding.assetId ? <p>Asset identifier: <code>{holding.assetId}</code></p> : null}
+            <p>Mint <code aria-label={`Mint ${holding.mint}`}>{holding.mint}</code></p>
+            {holding.tokenAccount ? <p>Token account <code>{holding.tokenAccount}</code></p> : null}
+            <p>Raw amount: <code>{holding.amountRaw}</code>. Decimals: {holding.decimals}. Token program: {holding.tokenProgram}.</p>
+            {holding.displayMultiplier !== null ? <p>Display multiplier: {formatExactDecimal(holding.displayMultiplier)}.</p> : null}
+            {walletAddress ? <p>Wallet <code>{walletAddress}</code></p> : null}
+          </div>
+        ) : null}
+      </div>
     </li>
   );
 }
@@ -296,7 +395,7 @@ function InlinePortfolioBrowser({
       </header>
 
       <div className="dxp-browser__intro">
-        <h1 id="dxp-browser-title">Portfolio details</h1>
+        <h1 id="dxp-browser-title">Solana portfolio details</h1>
         <p>
           {items.length === 0
             ? 'No held or discoverable assets in this snapshot.'
@@ -321,6 +420,7 @@ function InlinePortfolioBrowser({
         <p>
           Wallet <code>{model.snapshot.walletAddress}</code> · observed{' '}
           {formatObservedAt(model.snapshot.observedAt)}
+          {model.snapshot.enrichment ? <><br />{enrichmentText(model.snapshot.enrichment)}</> : null}
         </p>
         {pageCount > 1 ? (
           <nav aria-label="Portfolio detail pages">
@@ -347,14 +447,14 @@ function InlinePortfolioBrowser({
 }
 
 function HoldingRow({ holding }: { holding: PortfolioHolding }) {
-  const identity = holding.assetId ?? shortenIdentity(holding.mint);
-  const unit = holding.assetId ?? sentenceCase(holding.assetClass);
+  const identity = holding.symbol ?? holding.name ?? holding.assetId ?? shortenIdentity(holding.mint);
+  const unit = holding.symbol ?? holding.assetId ?? sentenceCase(holding.assetClass);
 
   return (
     <li className="dxp-holding">
       <div className="dxp-holding__identity">
         <code title={holding.assetId ?? holding.mint}>{identity}</code>
-        <p>{sentenceCase(holding.assetClass)}. {holdingStateText(holding)}</p>
+        <p>{holding.name ? `${holding.name}. ` : ''}{sentenceCase(holding.assetClass)}. {holdingStateText(holding)}</p>
       </div>
 
       <div className="dxp-holding__amount">
@@ -371,11 +471,19 @@ function HoldingRow({ holding }: { holding: PortfolioHolding }) {
             ? 'No current price'
             : `${formatExactUsd(holding.priceUsd)} per unit`}
         </span>
+        {holding.change24hPercent !== null ? (
+          <span>24h price change: {formatPriceChangePercent(holding.change24hPercent)}</span>
+        ) : null}
       </div>
 
       <p className="dxp-holding__details">
-        {holdingActionText(holding.availableActions)} Mint{' '}
-        <code title={holding.mint}>{shortenIdentity(holding.mint, 9, 9)}</code>.
+        {holdingActionText(holding.availableActions)}
+        {holding.displayMultiplier !== null ? (
+          <> Display multiplier: {formatExactDecimal(holding.displayMultiplier)}.</>
+        ) : null}
+        {holding.assetId ? <> Asset identifier: <code>{holding.assetId}</code>.</> : null}
+        {' '}Mint <code>{holding.mint}</code>.
+        <HoldingContext holding={holding} />
       </p>
     </li>
   );
@@ -424,7 +532,7 @@ function Holdings({ model }: { model: Extract<PortfolioViewModel, { state: 'read
   );
 }
 
-function TargetRow({ target }: { target: ApprovedActionTarget }) {
+function TargetRow({ target, showHoldingState = true }: { target: CompactPortfolioTarget; showHoldingState?: boolean }) {
   return (
     <li className="dxp-target" data-discovery-context="true">
       <div className="dxp-target__title">
@@ -433,7 +541,7 @@ function TargetRow({ target }: { target: ApprovedActionTarget }) {
       </div>
       <code title={target.assetId}>{target.assetId}</code>
       <p>{targetActionText(target)}</p>
-      <span className="dxp-target__holding-state">Not held</span>
+      {showHoldingState ? <span className="dxp-target__holding-state">Not held</span> : null}
     </li>
   );
 }
@@ -460,7 +568,7 @@ function ReadDetails({ model }: { model: Extract<PortfolioViewModel, { state: 'r
   return (
     <footer className="dxp-read-details">
       <p>
-        Wallet <code>{snapshot.walletAddress}</code>
+        Solana wallet <code>{snapshot.walletAddress}</code>
       </p>
       <p>
         Observed {formatObservedAt(snapshot.observedAt)}
@@ -468,6 +576,7 @@ function ReadDetails({ model }: { model: Extract<PortfolioViewModel, { state: 'r
           <> at Solana slot <code>{snapshot.contextSlot.toLocaleString()}</code>.</>
         )}
       </p>
+      {snapshot.enrichment ? <p>{enrichmentText(snapshot.enrichment)}</p> : null}
     </footer>
   );
 }
@@ -550,8 +659,188 @@ function StateLedger({ model, compact }: {
   );
 }
 
+function SelectedPortfolio({
+  model,
+  condensed,
+}: {
+  model: Extract<PortfolioViewModel, { state: 'selected' }>;
+  condensed: boolean;
+}) {
+  const callTool = useAdaptiveCallToolFn();
+  const capabilities = useAdaptiveHostCapabilities();
+  const owner = useRef(model);
+  owner.current = model;
+  const requestId = useRef(0);
+  const mounted = useRef(true);
+  const [response, setResponse] = useState<{ owner: typeof model; value: PortfolioViewModel } | null>(null);
+  const [pending, setPending] = useState<typeof model | null>(null);
+  const [position, setPosition] = useState<{ read: unknown; page: number }>({ read: null, page: 0 });
+  const [detailPosition, setDetailPosition] = useState<{ read: unknown; section: DetailSection }>({ read: null, section: 'overview' });
+  const active = response?.owner === model ? response.value : model;
+  const busy = pending === model;
+  const currentRead = active.state === 'selected' ? active.read : model.read;
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; requestId.current += 1; };
+  }, []);
+
+  const request = async (view: PortfolioReadView | 'next' | 'refresh', holding?: CompactPortfolioHolding) => {
+    if (!capabilities.callTool || busy) return;
+    const requestOwner = model;
+    const id = ++requestId.current;
+    const args = view === 'refresh'
+      ? { view: 'summary', network: currentRead.network }
+      : portfolioReadRequest(currentRead, view, holding);
+    setPending(requestOwner);
+    let next: PortfolioViewModel;
+    try {
+      const result = await callTool('dexter_wallet_portfolio', args);
+      next = normalizeDexterPortfolio(result);
+      if (next.state === 'selected' && (result.isError || (view === 'refresh'
+        ? next.read.selection.view !== 'summary'
+        : !portfolioReadMatchesRequest(currentRead, next.read, args)))) {
+        next = { state: 'invalid', title: 'Portfolio data unavailable', body: 'The response did not match this portfolio request.' };
+      }
+      if (next.state === 'ready' || next.state === 'loading') {
+        next = { state: 'invalid', title: 'Portfolio data unavailable', body: 'The response did not match this portfolio request.' };
+      }
+    } catch {
+      next = { state: 'read_error', title: 'Portfolio unavailable', body: 'The portfolio request could not be completed. Request a fresh summary to try again.' };
+    }
+    if (!mounted.current || owner.current !== requestOwner || requestId.current !== id) return;
+    setResponse({ owner: requestOwner, value: next });
+    setPending(null);
+    setPosition({ read: null, page: 0 });
+  };
+
+  if (active.state !== 'selected') {
+    return (
+      <div className="dxp-browser">
+        {active.state !== 'loading' && active.state !== 'ready' ? <StateLedger model={active} compact={condensed} /> : null}
+        {active.state !== 'authentication_required' && capabilities.callTool ? (
+          <button type="button" disabled={busy} onClick={() => void request('refresh')}>Request fresh summary</button>
+        ) : null}
+        {busy ? <p role="status">Reading portfolio...</p> : null}
+      </div>
+    );
+  }
+
+  const { read, summary, coverage } = active;
+  const selection = read.selection;
+  const source = read.sourceSummary;
+  const pageSize = condensed ? 1 : 2;
+  const pageCount = Math.max(1, Math.ceil(selection.returnedCount / pageSize));
+  const page = position.read === read ? Math.min(position.page, pageCount - 1) : 0;
+  const start = page * pageSize;
+  const end = Math.min(start + pageSize, selection.returnedCount);
+  const isDetail = selection.view === 'detail' && selection.match === 'matched';
+  const detailSection = detailPosition.read === read ? detailPosition.section : 'overview';
+  const displayValue = source.portfolioValueUsd ?? (source.pricedHoldings > 0 ? source.pricedValueUsd : null);
+  const title = selection.view === 'summary' ? summary.label
+    : selection.view === 'targets' ? 'Approved assets'
+      : isDetail ? 'Asset details' : selection.match === 'ambiguous' ? 'Choose an asset' : 'Holdings';
+  const noMatches = selection.match === 'none'
+    ? source.holdingCount === 0 && source.holdingsComplete && selection.view !== 'targets'
+      ? 'No assets held.' : 'No matches in this observation.'
+    : selection.match === 'unavailable' ? 'Approved asset information is unavailable.' : null;
+
+  return (
+    <article className={`dxp-browser dxp-browser--selected${condensed ? ' dxp-browser--condensed' : ''}`} aria-labelledby="dxp-selected-title" aria-busy={busy}>
+      <header className="dxp-browser__header">
+        <WalletLockup />
+        {selection.view !== 'summary' ? (
+          <button type="button" disabled={busy || !capabilities.callTool} onClick={() => void request('summary')}>View summary</button>
+        ) : null}
+      </header>
+      <div className="dxp-browser__intro">
+        <h1 id="dxp-selected-title">{title}</h1>
+        {selection.view === 'summary' ? (
+          <>
+            <strong title={summary.value ?? 'Unknown'}>{displayValue === null ? 'Unknown' : formatDisplayUsd(displayValue)}</strong>
+            <p>{formatCount(source.holdingCount, 'asset')} on Solana in this observation</p>
+          </>
+        ) : null}
+        {selection.returnedCount > 0 ? (
+          <p>
+            Solana · {start + 1}–{end} of {selection.returnedCount} returned
+            {selection.matchedCount === null ? '' : `; ${selection.matchedCount} ${selection.matchedCount === 1 ? 'match' : 'matches'} in this observation`}
+          </p>
+        ) : <p>Solana · {noMatches}</p>}
+        {selection.query ? <p>Search: {selection.query}</p> : null}
+        {coverage ? <p role="status">{coverage}</p> : null}
+      </div>
+      <ul className="dxp-browser__items">
+        {read.holdings.slice(start, end).map((holding, index) => {
+          const rich = read.richHoldings[start + index];
+          if (isDetail && rich) return <InlineBrowserItem key={`${holding.mint}:${holding.tokenAccount}`} item={{ kind: 'holding', holding: rich }} detailSection={detailSection} walletAddress={read.walletAddress} />;
+          return (
+            <li className="dxp-browser-item" key={`${holding.mint}:${holding.tokenAccount}`}>
+              <div className="dxp-browser-item__identity">
+                <strong>{holding.name ?? holding.symbol ?? holding.assetId ?? holding.mint}</strong>
+                {holding.name && holding.symbol ? <span>{holding.symbol}</span> : null}
+              </div>
+              <div className="dxp-browser-item__values">
+                <strong>{formatExactDecimal(holding.displayAmount)}{holding.symbol ? ` ${holding.symbol}` : ''}</strong>
+                <span>{holding.valueUsd === null ? 'Unpriced' : formatDisplayUsd(holding.valueUsd)}</span>
+              </div>
+              {holding.change24hPercent !== null ? <p>24h price change: {formatPriceChangePercent(holding.change24hPercent)}</p> : null}
+              {selection.match === 'ambiguous' ? (
+                <div className="dxp-browser-item__codes">
+                  <p>Mint <code>{holding.mint}</code></p>
+                  {holding.tokenAccount ? <p>Token account <code>{holding.tokenAccount}</code></p> : null}
+                </div>
+              ) : null}
+              <button type="button" disabled={busy || !capabilities.callTool}
+                onClick={() => void request('detail', holding)}
+                aria-label={`View details for ${holding.symbol ?? holding.name ?? holding.mint}`}>View details</button>
+            </li>
+          );
+        })}
+        {read.targets.slice(start, end).map((target) => <TargetRow key={target.assetId} target={target} showHoldingState={false} />)}
+      </ul>
+      {isDetail ? (
+        <nav className="dxp-detail-navigation" aria-label="Asset detail sections">
+          {([['overview', 'Asset overview'], ['market', 'Market data'], ['identity', 'Token identity']] as const).map(([section, label]) => (
+            <button key={section} type="button" aria-pressed={detailSection === section}
+              onClick={() => setDetailPosition({ read, section })}>{label}</button>
+          ))}
+        </nav>
+      ) : null}
+      <footer className="dxp-browser__footer">
+        {busy ? <p role="status">Reading portfolio...</p> : null}
+        {pageCount > 1 ? (
+          <nav aria-label="Returned portfolio rows">
+            <button type="button" disabled={busy || page === 0} onClick={() => setPosition({ read, page: page - 1 })}>Previous</button>
+            <span>Page {page + 1} of {pageCount}</span>
+            <button type="button" disabled={busy || page + 1 === pageCount} onClick={() => setPosition({ read, page: page + 1 })}>Next</button>
+          </nav>
+        ) : null}
+        <nav aria-label="Portfolio reads">
+          {selection.view !== 'holdings' ? (
+            <button type="button" disabled={busy || !capabilities.callTool} onClick={() => void request('holdings')}>View holdings</button>
+          ) : null}
+          {selection.view !== 'targets' ? (
+            <button type="button" disabled={busy || !capabilities.callTool} onClick={() => void request('targets')}>View approved assets</button>
+          ) : null}
+          {selection.nextCursor !== null && page + 1 === pageCount ? (
+            <button type="button" disabled={busy || !capabilities.callTool} onClick={() => void request('next')}>Load next page</button>
+          ) : null}
+        </nav>
+        {!capabilities.callTool ? <p>Ask for holdings or asset details to continue.</p> : null}
+        {selection.omittedCount !== null && selection.omittedCount > 0 ? (
+          <p>{selection.omittedCount} observed {selection.view === 'targets' ? 'approved assets are' : 'holdings are'} outside this response.</p>
+        ) : null}
+        <p>Observed {formatObservedAt(read.observedAt)}.</p>
+        <p>Read expires {formatObservedAt(read.expiresAt)}.</p>
+      </footer>
+    </article>
+  );
+}
+
 export function PortfolioLedger() {
   const toolOutput = useToolOutput();
+  const toolMetadata = useToolResponseMetadata();
   const theme = useAdaptiveTheme();
   const maxHeight = useAdaptiveMaxHeight();
   const displayMode = useAdaptiveDisplayMode();
@@ -559,7 +848,7 @@ export function PortfolioLedger() {
   const hostCapabilities = useAdaptiveHostCapabilities();
   const requestDisplayMode = useAdaptiveRequestDisplayMode();
   const rootRef = useIntrinsicHeight<HTMLDivElement>();
-  const model = useMemo(() => normalizeDexterPortfolio(toolOutput), [toolOutput]);
+  const model = useMemo(() => normalizeDexterPortfolio(toolOutput, toolMetadata), [toolOutput, toolMetadata]);
   const [inlineExpanded, setInlineExpanded] = useState(false);
   const overviewTriggerRef = useRef<HTMLButtonElement | null>(null);
   const inlineDetailRef = useRef<HTMLElement | null>(null);
@@ -638,7 +927,7 @@ export function PortfolioLedger() {
 
   return (
     <div
-      className={`dxp-root ${isFullscreen ? 'dxp-root--fullscreen' : 'dxp-root--inline'}`}
+      className={`dxp-root ${isFullscreen ? 'dxp-root--fullscreen' : 'dxp-root--inline'}${model.state === 'selected' ? ' dxp-root--selected' : ''}`}
       ref={rootRef}
       data-theme={theme}
       data-host-max-height={maxHeight ?? undefined}
@@ -650,6 +939,10 @@ export function PortfolioLedger() {
       } : undefined}
     >
       {model.state === 'loading' ? <LoadingLedger compact={condensed} /> : null}
+      {model.state === 'selected' ? (
+        <SelectedPortfolio model={model} condensed={condensed || hostContext.platform === 'mobile'
+          || (hostContext.containerDimensions?.width ?? Number.POSITIVE_INFINITY) <= 480} />
+      ) : null}
       {model.state === 'ready' && !isFullscreen && !inlineExpanded ? (
         <InlinePortfolio
           model={model}
@@ -672,7 +965,7 @@ export function PortfolioLedger() {
           onClose={closePortfolio}
         />
       ) : null}
-      {model.state !== 'loading' && model.state !== 'ready' ? (
+      {model.state !== 'loading' && model.state !== 'ready' && model.state !== 'selected' ? (
         <StateLedger model={model} compact={condensed} />
       ) : null}
     </div>

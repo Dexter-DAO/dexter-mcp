@@ -298,12 +298,20 @@ authorized MCP session resolves the durable wallet binding and stored
 passkey-vault identity for every product tool. Wallet and portfolio calls use
 that binding. They do not accept a caller-supplied
 wallet address or user handle. `dexter_wallet` reads the bound passkey wallet;
-`dexter_wallet_portfolio` reads its governed asset inventory without changing the
-spendable balance. Its optional `approvedActionTargets` are a separate,
-complete list of server-approved governed assets, including assets the wallet
-does not hold. They enable first-time Buy discovery but never create a holding,
-quantity, balance, or portfolio value; the matching action must be available
-and the exact Prepare response remains authoritative.
+`dexter_wallet_portfolio` starts with a compact Solana portfolio summary. Use
+`view: "detail"` with a mint or name/symbol query for one holding's available
+market and quantity details, `view: "holdings"` for additional rows, and
+`view: "targets"` for approved assets the wallet does not hold. Targets never create
+a holding, quantity, balance, or portfolio value. Their matching action must be
+available and the exact Prepare response remains authoritative.
+
+Pass the returned `snapshotId` to read another view of the same observation;
+pass `nextCursor` to continue a page. `sourceSummary` describes the whole observed
+portfolio, while `selection` reports the response's scope. An expired snapshot
+requires a fresh summary. The portfolio card uses the same read-only tool and
+shows selected details from widget metadata. Historical v1 results, including
+`approvedActionTargets`, remain supported. See
+[portfolio read contract](docs/contracts/PORTFOLIO-SELECTED-READ-V2.md).
 
 **How the npm package differs.** `@dexterai/opendexter` is an independently
 versioned local stdio package for Codex, Claude Code, and other agents. It uses

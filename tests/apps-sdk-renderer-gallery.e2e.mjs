@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
 import { chromium, webkit } from 'playwright';
 import { createServer } from 'vite';
+import { normalizeDexterPortfolio } from '../apps-sdk/ui/src/components/portfolio/portfolio-model.ts';
 
 import { OPEN_TOOL_NAMES } from '../lib/open-tool-contracts.mjs';
 import {
@@ -33,6 +34,8 @@ const LIVE_IMAGES = process.env.DEXTER_RENDERER_GALLERY_LIVE_IMAGES === '1';
 const ACTOR_DETAIL = process.env.DEXTER_RENDERER_GALLERY_ACTOR_DETAIL === '1';
 const TOOL_RESULT_FILE = process.env.DEXTER_RENDERER_GALLERY_TOOL_RESULT_FILE;
 const SEARCH_VIEW = process.env.DEXTER_RENDERER_GALLERY_SEARCH_VIEW || 'initial';
+const PORTFOLIO_DETAILS = process.env.DEXTER_RENDERER_GALLERY_PORTFOLIO_DETAILS === '1';
+const PORTFOLIO_CALLS_FILE = process.env.DEXTER_RENDERER_GALLERY_PORTFOLIO_CALLS_FILE;
 const BASE_CHAIN_MARK = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 111 111" fill="none"><circle cx="55.5" cy="55.5" r="55.5" fill="#0052FF"/><path d="M55.4912 94.222C77.1578 94.222 94.7217 76.881 94.7217 55.4897C94.7217 34.0984 77.1578 16.7573 55.4912 16.7573C34.908 16.7573 17.9917 32.5547 16.3311 52.5543H67.4656V58.425H16.3311C17.9917 78.4247 34.908 94.222 55.4912 94.222Z" fill="white"/></svg>';
 const SOLANA_CHAIN_MARK = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 398 312"><defs><linearGradient id="s" x1="1" y1="0" x2="0" y2="1"><stop stop-color="#00ffa3"/><stop offset="1" stop-color="#dc1fff"/></linearGradient></defs><path fill="url(#s)" d="M65 238c2-2 5-4 9-4h317c6 0 9 7 5 11l-63 63c-2 2-6 4-9 4H7c-6 0-9-7-5-11zM65 4c2-3 5-4 9-4h317c6 0 9 7 5 11l-63 63c-2 2-6 4-9 4H7c-6 0-9-7-5-11zm268 116c-2-2-6-4-9-4H7c-6 0-9 7-5 11l63 63c2 2 5 4 9 4h317c6 0 9-7 5-11z"/></svg>';
 const USDC_ASSET_MARK = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="50" fill="#2775ca"/><path fill="#fff" d="M63.8 57.9c0-7.3-4.4-9.8-13.1-10.8-6.3-.9-7.5-2.5-7.5-5.4s2.1-4.8 6.2-4.8c3.8 0 5.9 1.3 6.9 4.4.2.6.8 1 1.5 1h3.3c.8 0 1.5-.6 1.5-1.5v-.2c-.9-4.6-4.6-8.1-9.4-8.5v-5c0-.9-.6-1.5-1.7-1.7h-3.1c-.8 0-1.5.6-1.7 1.7v4.8c-6.2.8-10.2 5-10.2 10.2 0 6.9 4.2 9.6 12.9 10.6 5.8 1 7.7 2.3 7.7 5.6 0 3.4-2.9 5.7-6.9 5.7-5.4 0-7.3-2.3-7.9-5.4-.2-.8-.8-1.2-1.4-1.2h-3.6c-.8 0-1.4.6-1.4 1.4v.2c.8 5.2 4.2 9 11 10v5c0 .8.6 1.5 1.7 1.7h3.1c.8 0 1.5-.7 1.7-1.7v-5c6.2-1.1 10.4-5.5 10.4-11.1z"/></svg>';
@@ -216,9 +219,11 @@ function installFixtureHost({
   omitToolResult,
   widgetUrl,
   maxHeight,
+  portfolioSteps = [],
 }) {
   window.__rendererGalleryCalls = [];
   window.__rendererGallerySize = null;
+  window.__rendererGalleryPortfolioStep = 0;
   const iframe = document.getElementById('widget');
 
   window.addEventListener('message', (event) => {
@@ -260,12 +265,21 @@ function installFixtureHost({
       case 'ui/request-display-mode':
         respond({ mode: 'inline' });
         break;
-      case 'tools/call':
+      case 'tools/call': {
+        const step = portfolioSteps[window.__rendererGalleryPortfolioStep];
+        const sorted = (value) => JSON.stringify(Object.fromEntries(Object.entries(value ?? {}).sort(([left], [right]) => left.localeCompare(right))));
+        if (step && message.params?.name === 'dexter_wallet_portfolio'
+          && sorted(message.params.arguments) === sorted(step.arguments)) {
+          window.__rendererGalleryPortfolioStep += 1;
+          respond(step.result);
+          break;
+        }
         respond({
           content: [{ type: 'text', text: 'The gallery does not execute tools.' }],
           isError: true,
         });
         break;
+      }
       case 'ui/message':
       case 'ui/update-model-context':
       case 'ui/open-link':
@@ -378,6 +392,70 @@ function isLocalRequest(url, baseUrl) {
   }
 }
 
+async function assertSelectedPortfolioGeometry(frame, stage) {
+  const geometry = await frame.locator('.dxp-browser').first().evaluate((root) => {
+    const rect = (node) => {
+      const bounds = node.getBoundingClientRect();
+      return { top: bounds.top, bottom: bounds.bottom, left: bounds.left, right: bounds.right,
+        width: bounds.width, height: bounds.height };
+    };
+    const visible = (node) => node.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true });
+    const overlap = [];
+    for (const parent of root.querySelectorAll('.dxp-browser-item, .dxp-browser__footer')) {
+      const children = [...parent.children].filter(visible);
+      for (let left = 0; left < children.length; left += 1) {
+        for (let right = left + 1; right < children.length; right += 1) {
+          const a = rect(children[left]); const b = rect(children[right]);
+          if (Math.min(a.right, b.right) - Math.max(a.left, b.left) > 1
+            && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1) {
+            overlap.push({ first: children[left].textContent, second: children[right].textContent, a, b });
+          }
+        }
+      }
+    }
+    const clippedText = [];
+    const splitAmounts = [];
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let node;
+    while ((node = walker.nextNode())) {
+      const element = node.parentElement;
+      if (!node.textContent.trim() || !element || !visible(element)) continue;
+      const range = document.createRange(); range.selectNodeContents(node);
+      for (const textBounds of range.getClientRects()) {
+        if (textBounds.width < 1 || textBounds.height < 1) continue;
+        if (textBounds.left < -1 || textBounds.right > document.documentElement.clientWidth + 1
+          || textBounds.top < -1 || textBounds.bottom > window.innerHeight + 1) {
+          clippedText.push({ text: node.textContent, reason: 'iframe viewport', bounds: rect(range) });
+        }
+        for (let ancestor = element; ancestor && root.contains(ancestor); ancestor = ancestor.parentElement) {
+          const style = getComputedStyle(ancestor); const bounds = rect(ancestor);
+          const clipsX = ['hidden', 'clip', 'auto', 'scroll'].includes(style.overflowX);
+          const clipsY = ['hidden', 'clip', 'auto', 'scroll'].includes(style.overflowY);
+          if ((clipsX && (textBounds.left < bounds.left - 1 || textBounds.right > bounds.right + 1))
+            || (clipsY && (textBounds.top < bounds.top - 1 || textBounds.bottom > bounds.bottom + 1))) {
+            clippedText.push({ text: node.textContent, reason: ancestor.className, bounds });
+          }
+        }
+      }
+      if (element.closest('.dxp-browser-item__values, .dxp-browser__intro')) {
+        for (const match of node.textContent.matchAll(/\$?[0-9][0-9,]*(?:\.[0-9]+)?/g)) {
+          if (match[0].length < 5) continue;
+          const numberRange = document.createRange();
+          numberRange.setStart(node, match.index); numberRange.setEnd(node, match.index + match[0].length);
+          const lines = [...numberRange.getClientRects()].filter((line) => line.width > 0);
+          if (lines.some((line) => Math.abs(line.top - lines[0].top) > 1)) splitAmounts.push(match[0]);
+        }
+      }
+    }
+    return { overlap, clippedText, splitAmounts, height: root.getBoundingClientRect().height,
+      viewport: { width: document.documentElement.clientWidth, height: window.innerHeight } };
+  });
+  assert.deepEqual(geometry.overlap, [], `${stage}: portfolio rows overlap`);
+  assert.deepEqual(geometry.clippedText, [], `${stage}: portfolio text is clipped`);
+  assert.deepEqual(geometry.splitAmounts, [], `${stage}: an amount splits across lines`);
+  return geometry;
+}
+
 async function renderVariant({ browser, baseUrl, surface, device, theme }) {
   const viewport = VIEWPORTS[device];
   const mobile = device === 'mobile';
@@ -455,6 +533,7 @@ async function renderVariant({ browser, baseUrl, surface, device, theme }) {
     omitToolResult: surface.omitToolResult === true,
     widgetUrl,
     maxHeight: viewport.maxHeight,
+    portfolioSteps: surface.portfolioSteps ?? [],
   });
 
   const frame = page.frameLocator('#widget');
@@ -990,6 +1069,8 @@ async function renderVariant({ browser, baseUrl, surface, device, theme }) {
 
   const engineSuffix = BROWSER_ENGINE === 'chromium' ? '' : `--${BROWSER_ENGINE}`;
   const screenshotName = `${surface.id}${ACTOR_DETAIL ? '--actor-detail' : SEARCH_VIEW !== 'initial' ? `--${SEARCH_VIEW}` : ''}--${device}--${theme}${engineSuffix}.png`;
+  const selectedGeometry = surface.id === 'portfolio' && normalizeDexterPortfolio(surface.output, surface.metadata).state === 'selected'
+    ? await assertSelectedPortfolioGeometry(frame, `${device} initial`) : null;
   await page.screenshot({
     path: path.join(OUTPUT_DIR, screenshotName),
     fullPage: true,
@@ -1001,6 +1082,118 @@ async function renderVariant({ browser, baseUrl, surface, device, theme }) {
       size.reported <= size.applied + 1,
       `${surface.id} asked the host for ${size.reported}px but was clipped to ${size.applied}px`,
     );
+  }
+  const detailScreenshots = [];
+  if (PORTFOLIO_DETAILS) {
+    assert.equal(surface.id, 'portfolio', 'Portfolio details require the portfolio surface');
+    const model = normalizeDexterPortfolio(surface.output, surface.metadata);
+    assert.ok(model.state === 'ready' || model.state === 'selected', 'Portfolio detail capture requires a valid portfolio');
+    if (model.state === 'selected') {
+      const steps = surface.portfolioSteps ?? [];
+      for (const [index, step] of steps.entries()) {
+        for (const button of step.beforeButtons ?? []) {
+          await frame.getByRole('button', { name: button, exact: true }).click();
+        }
+        // Narrow screens show fewer already-returned rows. Advance local pages only.
+        if ((step.beforeButtons ?? []).includes('Next') || step.button === 'Load next page') {
+          for (let count = 0; count < model.read.holdings.length; count += 1) {
+            if (await frame.getByRole('button', { name: step.button, exact: true }).count()) break;
+            const next = frame.getByRole('button', { name: 'Next', exact: true });
+            assert.equal(await next.isEnabled(), true, `Requested holding ${step.button} is inaccessible`);
+            await next.click();
+          }
+        }
+        await frame.getByRole('button', { name: step.button, exact: true }).click();
+        await page.waitForFunction((count) => window.__rendererGalleryPortfolioStep === count, index + 1);
+        await frame.getByRole('status').filter({ hasText: 'Reading portfolio...' }).waitFor({ state: 'hidden' });
+        await page.waitForTimeout(100);
+        const browser = frame.locator('.dxp-browser').first();
+        let text = await browser.innerText();
+        const resultModel = normalizeDexterPortfolio(step.result);
+        const sections = [];
+        if (resultModel.state === 'selected' && resultModel.read.selection.view === 'detail'
+          && resultModel.read.selection.match === 'matched') {
+          for (const [section, button] of [['overview', 'Asset overview'], ['market', 'Market data'], ['identity', 'Token identity']]) {
+            await frame.getByRole('button', { name: button, exact: true }).click();
+            await page.waitForTimeout(100);
+            const geometry = await assertSelectedPortfolioGeometry(frame, `${device} detail ${index + 1} ${section}`);
+            const sectionText = await browser.innerText();
+            const screenshot = `${surface.id}--selected-${index + 1}--${section}--${device}--${theme}${engineSuffix}.png`;
+            await page.screenshot({ path: path.join(OUTPUT_DIR, screenshot), fullPage: true, animations: 'disabled' });
+            sections.push({ section, screenshot, geometry, text: sectionText });
+          }
+          await frame.getByRole('button', { name: 'Asset overview', exact: true }).click();
+          await page.waitForTimeout(100);
+          text = sections.map(({ text: sectionText }) => sectionText).join('\n');
+        }
+        if (step.expectedState === 'invalid') {
+          assert.ok(text.includes('The response did not match this portfolio request.'));
+          assert.equal(await frame.getByRole('button', { name: 'View holdings', exact: true }).count(), 0);
+        } else if (resultModel.state === 'selected') {
+          assert.ok(text.includes('Solana'));
+          if (resultModel.read.selection.view === 'detail' && resultModel.read.selection.match === 'matched') {
+            for (const row of resultModel.read.richHoldings) {
+              assert.ok(text.includes(row.mint));
+              if (row.tokenAccount) assert.ok(text.includes(row.tokenAccount));
+              if (row.registryIdentity?.providerName) assert.ok(text.includes(row.registryIdentity.providerName));
+              if (row.registryIdentity?.legalIssuerName) assert.ok(text.includes(row.registryIdentity.legalIssuerName));
+              if (row.marketContext) assert.ok(text.includes('Jupiter Tokens V2'));
+              assert.ok(text.includes(row.amountRaw), 'Raw amount remains accessible in token identity');
+              assert.ok(text.includes(row.tokenProgram), 'Token program remains accessible in token identity');
+              assert.ok(text.includes(resultModel.read.walletAddress), 'Wallet remains accessible in token identity');
+            }
+          }
+        } else {
+          assert.equal(resultModel.state, 'read_error');
+          assert.ok(text.includes(resultModel.title));
+        }
+        const detailGeometry = await assertSelectedPortfolioGeometry(frame, `${device} selected step ${index + 1}`);
+        const detailScreenshot = `${surface.id}--selected-${index + 1}--${device}--${theme}${engineSuffix}.png`;
+        await page.screenshot({ path: path.join(OUTPUT_DIR, detailScreenshot), fullPage: true, animations: 'disabled' });
+        const detailSize = await page.evaluate(() => window.__rendererGallerySize);
+        const width = await browser.evaluate((element) => ({ client: document.documentElement.clientWidth,
+          scroll: document.documentElement.scrollWidth, content: element.scrollWidth, available: element.clientWidth }));
+        assert.ok(detailSize.reported <= detailSize.applied + 1, `Selected portfolio step ${index + 1} exceeds the ${device} host height`);
+        assert.ok(width.scroll <= width.client + 1 && width.content <= width.available + 1,
+          `Selected portfolio step ${index + 1} overflows the ${device} host width`);
+        detailScreenshots.push({ screenshot: detailScreenshot, widgetHeight: detailSize, geometry: detailGeometry, sections, text, arguments: step.arguments });
+      }
+      const calls = await page.evaluate(() => window.__rendererGalleryCalls.filter((call) => call.method === 'tools/call'));
+      assert.equal(calls.length, steps.length, 'Selected portfolio fetched outside the explicit fixture clicks');
+    } else {
+    await frame.getByRole('button', { name: 'View portfolio', exact: true }).click();
+    await frame.locator('.dxp-browser').waitFor();
+    const maximumPages = Math.max(1, model.snapshot.holdings.length + model.snapshot.approvedActionTargets.length);
+    for (let index = 0; index < maximumPages; index += 1) {
+      await page.waitForTimeout(100);
+      const detailScreenshot = `${surface.id}--details-${index + 1}--${device}--${theme}${engineSuffix}.png`;
+      await page.screenshot({ path: path.join(OUTPUT_DIR, detailScreenshot), fullPage: true, animations: 'disabled' });
+      const detailSize = await page.evaluate(() => window.__rendererGallerySize);
+      const detailWidth = await frame.locator('.dxp-browser').evaluate((element) => ({
+        client: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth,
+        content: element.scrollWidth, available: element.clientWidth,
+      }));
+      assert.ok(detailSize.reported <= detailSize.applied + 1, `Portfolio details page ${index + 1} exceeds the ${device} host height`);
+      assert.ok(detailWidth.scroll <= detailWidth.client + 1 && detailWidth.content <= detailWidth.available + 1,
+        `Portfolio details page ${index + 1} overflows the ${device} host width`);
+      const text = await frame.locator('.dxp-browser').innerText();
+      detailScreenshots.push({ screenshot: detailScreenshot, widgetHeight: detailSize, text });
+      const next = frame.getByRole('button', { name: 'Next', exact: true });
+      if (await next.count() === 0 || await next.isDisabled()) break;
+      assert.ok(index + 1 < maximumPages, 'Portfolio pagination did not finish');
+      await next.click();
+    }
+    const detailText = detailScreenshots.map(({ text }) => text).join('\n');
+    for (const holding of model.snapshot.holdings) {
+      assert.ok(detailText.includes(holding.mint), `Portfolio details omitted mint ${holding.mint}`);
+      if (holding.name) assert.ok(detailText.includes(holding.name));
+      if (holding.symbol) assert.ok(detailText.includes(holding.symbol));
+      const registry = holding.registryIdentity;
+      if (registry?.providerName) assert.ok(detailText.includes(registry.providerName));
+      if (registry?.legalIssuerName) assert.ok(detailText.includes(registry.legalIssuerName));
+      if (holding.marketContext) assert.ok(detailText.includes('Jupiter Tokens V2'));
+    }
+    }
   }
   await context.close();
   return {
@@ -1014,6 +1207,8 @@ async function renderVariant({ browser, baseUrl, surface, device, theme }) {
     viewport: { width: viewport.width, height: viewport.height },
     widgetHeight: size,
     screenshot: screenshotName,
+    ...(selectedGeometry ? { geometry: selectedGeometry } : {}),
+    ...(PORTFOLIO_DETAILS ? { detailScreenshots } : {}),
   };
 }
 
@@ -1039,6 +1234,30 @@ galleryTest('current OpenDexter renderers fill one deterministic host-frame gall
       actionSurface.input = { intentId: evidence.intentId, operationId: evidence.operationId };
       if (evidence.operation && evidence.operation !== 'prepare') {
         actionSurface.tools = [evidence.operation === 'execute' ? 'dexter_execute_asset_action' : 'dexter_reconcile_asset_action'];
+      }
+    } else if (SURFACE_FILTER === 'portfolio') {
+      const output = recorded.structuredContent ?? recorded;
+      const model = normalizeDexterPortfolio(output, recorded._meta);
+      assert.ok(model.state === 'ready' || model.state === 'selected', 'Recorded result requires a valid portfolio envelope');
+      const portfolioSurface = allSurfaces.find(({ id }) => id === 'portfolio');
+      assert.ok(portfolioSurface, 'Portfolio gallery surface is absent');
+      portfolioSurface.output = output;
+      portfolioSurface.metadata = recorded._meta ?? {};
+      portfolioSurface.input = {};
+      if (model.state === 'selected') portfolioSurface.readySelector = '.dxp-browser';
+      if (PORTFOLIO_CALLS_FILE) {
+        const steps = JSON.parse(await readFile(PORTFOLIO_CALLS_FILE, 'utf8'));
+        assert.ok(Array.isArray(steps) && steps.length <= 32, 'Portfolio fixture steps must be a bounded array');
+        for (const step of steps) {
+          assert.equal(typeof step.button, 'string');
+          assert.ok(step.expectedState === undefined || ['selected', 'read_error', 'invalid'].includes(step.expectedState));
+          assert.ok(step.beforeButtons === undefined || Array.isArray(step.beforeButtons)
+            && step.beforeButtons.length <= 16 && step.beforeButtons.every((button) => typeof button === 'string'));
+          assert.ok(step.arguments && typeof step.arguments === 'object' && !Array.isArray(step.arguments));
+          const response = normalizeDexterPortfolio(step.result);
+          assert.ok(response.state === 'selected' || response.state === 'read_error', 'Portfolio fixture response must validate');
+        }
+        portfolioSurface.portfolioSteps = steps;
       }
     } else {
       assert.equal(SURFACE_FILTER, 'indexter-search', 'Recorded results require the Search or governed-action surface');
@@ -1088,6 +1307,7 @@ galleryTest('current OpenDexter renderers fill one deterministic host-frame gall
   await mkdir(OUTPUT_DIR, { recursive: true });
   const vite = await createServer({
     root: UI_ROOT,
+    cacheDir: path.join(OUTPUT_DIR, 'vite-cache'),
     configFile: false,
     plugins: [react()],
     server: { host: '127.0.0.1', port: 0 },

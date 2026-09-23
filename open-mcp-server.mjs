@@ -1,5 +1,7 @@
 // Sentry instrumentation (must be before all other imports)
 import './instrument.open-mcp.mjs';
+import { PORTFOLIO_READ_INPUT_SHAPE, PORTFOLIO_READ_INPUT_SCHEMA, portfolioReady } from './lib/portfolio-read-contract.mjs';
+import { fetchSessionPortfolioSelection } from './lib/session-portfolio-selection.mjs';
 import { AGENT_WORK_REPORT_TOOL_NAME, AGENT_WORK_REPORT_INPUT_SCHEMA } from './lib/agent-work-report-contract.mjs';
 import { callAgentWorkReportBackend, buildAgentWorkReportLocalError } from './lib/agent-work-report-client.mjs';
 import { buildAgentWorkReportModelResult } from './lib/agent-work-report-result.mjs';
@@ -2135,7 +2137,21 @@ async function x402Wallet(args, extra) {
   };
 }
 
-function buildPortfolioReadError({ userBound = true } = {}) {
+function buildPortfolioReadError({ userBound = true, readError } = {}) {
+  if (readError === 'portfolio_read_unavailable') {
+    return { ...buildPortfolioReadError({ userBound }), readError };
+  }
+  if (readError) {
+    const messages = {
+      portfolio_query_invalid: 'Choose a portfolio view and a matching name, mint or continuation.',
+      portfolio_snapshot_expired: 'This portfolio observation expired. Request a fresh summary to continue.',
+      portfolio_snapshot_too_large: 'The portfolio exceeds the current snapshot capacity. Its holdings and value remain unknown for this read.',
+      portfolio_result_budget_exceeded: 'This selection exceeds the response limit. Request a smaller page or one holding.',
+      portfolio_read_unavailable: 'Portfolio information is unavailable for this read.',
+    };
+    return { portfolio_status: 'read_error', mode: 'portfolio_read_error', user_bound: userBound,
+      retryable: false, error: 'portfolio_state_read_failed', readError, message: messages[readError] };
+  }
   return {
     portfolio_status: 'read_error',
     mode: 'portfolio_read_error',
@@ -2154,7 +2170,7 @@ function buildPortfolioReadError({ userBound = true } = {}) {
   };
 }
 
-async function dexterPortfolio(_args, extra) {
+async function dexterPortfolio(args, extra) {
   const sessionId = extra ? extractMcpSessionId(extra) : null;
   if (!sessionId) {
     return buildVaultAuthenticationRequired({
@@ -2200,20 +2216,14 @@ async function dexterPortfolio(_args, extra) {
 
   const receiveAddress = getVaultReceiveAddress(state.vault);
   if (!receiveAddress) return buildPortfolioReadError({ userBound: true });
-  const portfolio = await fetchSessionPortfolio({
-    apiBase: API_BASE_FALLBACK,
-    sessionId,
-    expectedWalletAddress: receiveAddress,
-    secret: INTERNAL_HMAC_SECRET,
+  const parsed = PORTFOLIO_READ_INPUT_SCHEMA.safeParse(args ?? {});
+  if (!parsed.success) return buildPortfolioReadError({ readError: 'portfolio_query_invalid' });
+  const selected = await fetchSessionPortfolioSelection({
+    apiBase: API_BASE_FALLBACK, sessionId, expectedWalletAddress: receiveAddress,
+    secret: INTERNAL_HMAC_SECRET, input: parsed.data,
   });
-  const projected = modelSafePortfolioSnapshot(portfolio);
-  if (!projected) return buildPortfolioReadError({ userBound: true });
-  return {
-    portfolio_status: 'ready',
-    mode: 'portfolio_ready',
-    user_bound: true,
-    portfolio: projected,
-  };
+  if (!selected.ok) return buildPortfolioReadError({ readError: selected.error });
+  return { ...portfolioReady(selected.portfolio), _portfolioCard: selected.card };
 }
 
 async function agentWorkReport(args, extra) {
@@ -2728,12 +2738,12 @@ export function createOpenMcpServer({
     title: 'Dexter Wallet Portfolio',
     description:
       'Read the governed asset portfolio bound to this authenticated MCP session. It accepts no identity or authority arguments. Approved holdings expose the canonical assetId accepted by governed Send, Buy, and Sell; unreviewed or blocked holdings expose null.',
-    inputSchema: {},
+    inputSchema: PORTFOLIO_READ_INPUT_SHAPE,
     annotations: { readOnlyHint: true },
     _meta: PORTFOLIO_META,
   }, async (args, extra) => {
     try {
-      const result = await dexterPortfolio(args, extra);
+      const { _portfolioCard, ...result } = await dexterPortfolio(args, extra);
       if (isVaultAuthenticationRequired(result)) {
         return vaultAuthenticationResult(result, PORTFOLIO_META);
       }
@@ -2741,7 +2751,7 @@ export function createOpenMcpServer({
         content: [{ type: 'text', text: portfolioResultText(result) }],
         structuredContent: result,
         isError: result.mode === 'portfolio_read_error',
-        _meta: PORTFOLIO_META,
+        _meta: { ...PORTFOLIO_META, ...(_portfolioCard ? { portfolioCard: _portfolioCard } : {}) },
       };
     } catch (err) {
       const data = buildPortfolioReadError({ userBound: null });

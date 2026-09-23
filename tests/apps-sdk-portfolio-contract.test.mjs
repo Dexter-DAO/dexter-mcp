@@ -23,7 +23,9 @@ test('portfolio widget is a read-only view of the public portfolio contract', as
   assert.match(component, /Holdings, balances, and authority remain separate/);
   assert.match(component, /Prepare checks current authority before any action/);
   assert.doesNotMatch(component, /LedgerMark|dxp-asset-mark|<dl|<dt/);
-  assert.doesNotMatch(component, /useCallTool|callTool\s*\(/);
+  assert.match(component, /useAdaptiveCallToolFn/);
+  assert.match(component, /callTool\('dexter_wallet_portfolio', args\)/);
+  assert.doesNotMatch(component, /callTool\('dexter_(?:prepare|execute|reconcile)_asset_action'/);
   assert.doesNotMatch(component, /useAdaptiveSendFollowUp|sendFollowUpMessage/);
   assert.doesNotMatch(component, /normalizeWalletPayload|portfolioModel/);
   assert.match(model, /opendexter\.portfolio\.v1/);

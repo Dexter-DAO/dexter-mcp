@@ -127,17 +127,18 @@ test('every governed result remains model-visible without granting the renderer 
   }
 });
 
-test('only read-only Indexter discovery is callable from its renderer', () => {
+test('only Indexter discovery and read-only portfolio browsing are callable from renderers', () => {
   for (const name of Object.keys(OPEN_TOOL_CONTRACTS)) {
     const discovery = name === 'indexter_discover';
+    const portfolio = name === 'dexter_wallet_portfolio';
     assert.deepEqual(
       OPEN_TOOL_CONTRACTS[name].visibility,
-      discovery ? ['app'] : ['model'],
+      discovery ? ['app'] : portfolio ? ['model', 'app'] : ['model'],
       `${name} native MCP Apps visibility`,
     );
     assert.equal(
       OPEN_TOOL_CONTRACTS[name].widgetAccessible,
-      discovery,
+      discovery || portfolio,
       `${name} ChatGPT compatibility visibility`,
     );
   }

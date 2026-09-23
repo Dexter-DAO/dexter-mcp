@@ -8,6 +8,11 @@
   -webkit-font-smoothing: antialiased;
 }
 
+/* Keep the selected card at the iframe width during fit-content measurement. */
+.dxp-root--selected {
+  width: 100vw;
+}
+
 .dxp-root code,
 .dxp-hero > strong,
 .dxp-holding__amount strong,
@@ -380,6 +385,50 @@
   overflow-wrap: anywhere;
 }
 
+.dxp-browser-item__description {
+  grid-area: description;
+  min-width: 0;
+}
+
+.dxp-browser-item__description p + p,
+.dxp-browser-item__description p + .dxp-browser-item__codes {
+  margin-top: var(--dx-space-2);
+}
+
+.dxp-browser-item__codes code {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  font-size: var(--dx-text-xs);
+}
+
+.dxp-browser-item > .dxp-browser-item__codes {
+  grid-area: code;
+  min-width: 0;
+}
+
+.dxp-browser--selected .dxp-browser-item__values {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.dxp-browser--selected .dxp-browser-item__values > span {
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+
+.dxp-detail-navigation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--dx-space-1);
+  margin-top: var(--dx-space-3);
+}
+
+.dxp-detail-navigation button[aria-pressed="true"] {
+  color: var(--dx-fg);
+  text-decoration: underline;
+  text-underline-offset: .2em;
+}
+
 .dxp-browser-item > code {
   grid-area: code;
   max-width: 100%;
@@ -398,6 +447,13 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.dxp-browser--selected .dxp-browser__footer > p {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .dxp-browser__footer nav {
