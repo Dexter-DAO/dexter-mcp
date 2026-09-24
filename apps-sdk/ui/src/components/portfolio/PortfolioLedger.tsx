@@ -27,12 +27,15 @@ import {
   normalizeDexterPortfolio,
   portfolioReadRequest,
   portfolioReadMatchesRequest,
+  portfolioHoldingsSource,
   type ApprovedActionAvailability,
   type ApprovedActionTarget,
   type PortfolioAction,
   type HoldingCapabilityReason,
   type PortfolioEnrichment,
   type PortfolioHolding,
+  type SelectedPortfolioHolding,
+  type PortfolioHoldingIdentity,
   type CompactPortfolioHolding,
   type CompactPortfolioTarget,
   type PortfolioReadView,
@@ -751,8 +754,25 @@ function SelectedActionFacts({ holding, target, onExpand }: {
   );
 }
 
+function holdingIdentityLabel(identity: PortfolioHoldingIdentity): string {
+  if (identity.state === 'native') return 'Native SOL';
+  if (identity.state === 'unreviewed') return 'Identity has not been reviewed';
+  if (identity.state === 'unavailable') return 'Identity verification unavailable';
+  return identity.registryState === 'retired' ? 'Verified identity; registry entry retired' : 'Verified identity';
+}
+
+function holdingIdentityReason(identity: Extract<PortfolioHoldingIdentity, { state: 'unavailable' }>): string {
+  const reasons: Record<typeof identity.reason, string> = {
+    source_unavailable: 'The identity source is unavailable.', read_inconsistent: 'The identity records could not be read consistently.',
+    token_identity_mismatch: 'The token does not match its identity record.', release_missing: 'The identity release is unavailable.',
+    lineage_invalid: 'The identity release history could not be verified.', conflicting_material: 'The identity records disagree.',
+    registry_digest_mismatch: 'The registry identity could not be verified.',
+  };
+  return reasons[identity.reason];
+}
+
 function SelectedHoldingDetail({ holding, read, onExpand }: {
-  holding: PortfolioHolding;
+  holding: SelectedPortfolioHolding;
   read: SelectedPortfolioRead;
   onExpand: () => void;
 }) {
@@ -810,7 +830,15 @@ function SelectedHoldingDetail({ holding, read, onExpand }: {
           {holding.tokenAccount !== null ? <Fact label="Token account"><code>{holding.tokenAccount}</code></Fact> : null}
           <Fact label="Wallet"><code>{read.walletAddress}</code></Fact>
           <Fact label="Account state">{sentenceCase(holding.accountState)}</Fact>
-          <Fact label="Asset review">{sentenceCase(holding.approvalStatus)}</Fact>
+          {'identity' in holding ? <>
+            <Fact label="Asset identity">{holdingIdentityLabel(holding.identity)}</Fact>
+            {holding.identity.state === 'unavailable' ? <Fact label="Identity availability">{holdingIdentityReason(holding.identity)}</Fact> : null}
+            {holding.identity.state === 'recognized' ? <>
+              <Fact label="Identity source">{holding.identity.source === 'static_registry' ? 'Dexter asset definitions' : 'Released asset catalog'}</Fact>
+              <Fact label="Registry status">{holding.identity.registryState === 'not_observed' ? 'Not observed' : sentenceCase(holding.identity.registryState)}</Fact>
+              {holding.identity.source === 'released_catalog' ? <Fact label="Identity observed at">{readDate(holding.identity.observedAt)}</Fact> : null}
+            </> : null}
+          </> : <Fact label="Asset review">{sentenceCase(holding.approvalStatus)}</Fact>}
           <Fact label="Amount display">{holding.amountModel === 'scaled-ui-amount' ? 'Scaled token amount' : holding.amountModel === 'raw-decimals' ? 'Token decimals' : 'Unavailable'}</Fact>
           <Fact label="Raw amount"><code>{holding.amountRaw}</code></Fact>
           <Fact label="Decimals">{holding.decimals}</Fact>
@@ -825,11 +853,24 @@ function SelectedHoldingDetail({ holding, read, onExpand }: {
           <Fact label="Price observed at">{holding.priceObservedAt === null ? null : readDate(holding.priceObservedAt)}</Fact>
           <Fact label="Price block">{holding.priceBlockId?.toLocaleString() ?? null}</Fact>
           <Fact label="Metadata observed at">{holding.metadataObservedAt === null ? null : readDate(holding.metadataObservedAt)}</Fact>
-          {registry ? <Fact label="Registry identity source">Dexter approved asset registry</Fact> : null}
+          {registry ? <Fact label="Registry identity source">{'identity' in holding ? 'Dexter asset registry' : 'Dexter approved asset registry'}</Fact> : null}
           <Fact label="Portfolio observed at">{readDate(read.observedAt)}</Fact>
         </dl>
+        {'identity' in holding && holding.identity.state === 'recognized' ? (
+          <details className="dxp-selected-disclosure" onToggle={openDisclosure}>
+            <summary>Identity verification details</summary>
+            <dl className="dxp-selected-facts dxp-selected-facts--diagnostics">
+              <Fact label="Registry identity digest"><code>{holding.identity.material.registryIdentityDigest}</code></Fact>
+              {holding.identity.source === 'released_catalog' ? Object.entries(holding.identity.provenance).map(([key, value]) => (
+                <Fact key={key} label={sentenceCase(key.replace(/([A-Z])/g, ' $1'))}><code>{value}</code></Fact>
+              )) : null}
+            </dl>
+          </details>
+        ) : null}
       </details>
-      <SelectedActionFacts holding={holding} onExpand={onExpand} />
+      {'identity' in holding ? <section className="dxp-selected-actions" aria-label="Trading availability">
+        <h2>Trading availability</h2><p>Trading availability has not been checked. Explore assets to check available actions.</p>
+      </section> : <SelectedActionFacts holding={holding} onExpand={onExpand} />}
     </>
   );
 }
@@ -859,7 +900,7 @@ function SelectedPortfolio({ model, condensed, maxHeight, isFullscreen, onExpand
   };
   const { screen, problem } = session;
   const { read } = screen.model;
-  const source = read.sourceSummary;
+  const source = portfolioHoldingsSource(read);
   const selection = read.selection;
   const busy = pending === model;
   const expired = Date.now() >= Date.parse(read.expiresAt) || Boolean(problem && 'expired' in problem && problem.expired);
@@ -867,7 +908,7 @@ function SelectedPortfolio({ model, condensed, maxHeight, isFullscreen, onExpand
   const isDetail = screen.target === null && selection.view === 'detail' && selection.match === 'matched';
   const isTargets = screen.target === null && selection.view === 'targets';
   const isHoldings = !isDetail && !isTargets && screen.target === null;
-  const displayValue = source.portfolioValueUsd ?? (source.pricedHoldings > 0 ? source.pricedValueUsd : null);
+  const displayValue = source ? source.portfolioValueUsd ?? (source.pricedHoldings > 0 ? source.pricedValueUsd : null) : null;
   const expand = () => onExpand?.();
 
   useEffect(() => {
@@ -911,7 +952,7 @@ function SelectedPortfolio({ model, condensed, maxHeight, isFullscreen, onExpand
     }
     const requestOwner = model;
     const id = ++requestId.current;
-    const args = view === 'refresh' ? { view: 'summary', network: read.network } : portfolioReadRequest(read, view, holding);
+    const args = view === 'refresh' ? { view: 'summary', network: read.network, readVersion: 3 } : portfolioReadRequest(read, view, holding);
     const savedScreen = captureScreen(holding ? holdingKey(holding) : null);
     if (view === 'detail' || view === 'holdings' || view === 'next') expand();
     setPending(requestOwner);
@@ -920,7 +961,7 @@ function SelectedPortfolio({ model, condensed, maxHeight, isFullscreen, onExpand
       const result = await callTool('dexter_wallet_portfolio', args);
       next = normalizeDexterPortfolio(result);
       if (next.state === 'selected' && (result.isError || (view === 'refresh'
-        ? next.read.selection.view !== 'summary' || next.read.walletAddress !== read.walletAddress || next.read.network !== read.network
+        ? next.read.contractVersion !== 'opendexter.portfolio.v3' || next.read.selection.view !== 'summary' || next.read.walletAddress !== read.walletAddress || next.read.network !== read.network
         : !portfolioReadMatchesRequest(read, next.read, args)))) {
         next = { state: 'invalid', title: 'Portfolio data unavailable', body: 'The response did not match this portfolio request.' };
       }
@@ -953,7 +994,7 @@ function SelectedPortfolio({ model, condensed, maxHeight, isFullscreen, onExpand
   const back = () => {
     if (busy) return;
     const previous = session.history.at(-1);
-    if (previous) setStored({ ...session, screen: previous, history: session.history.slice(0, -1), restore: true });
+    if (previous) setStored({ ...session, screen: previous, history: session.history.slice(0, -1), problem: null, restore: true });
     else void request('summary');
   };
   const openTarget = (target: CompactPortfolioTarget) => {
@@ -962,22 +1003,32 @@ function SelectedPortfolio({ model, condensed, maxHeight, isFullscreen, onExpand
     setStored({ ...session, screen: { ...screen, target, scrollTop: 0, focusKey: null },
       history: [...session.history, captureScreen(target.assetId)], restore: false });
   };
-  const loadedHoldings = [screen, ...session.history].flatMap((item) => item.collection.holdings);
-  const allObservedLoaded = source.holdingsComplete && new Set(loadedHoldings.map((item) => holdingKey(item.holding))).size === source.holdingCount;
-  const heldLabel = (mint: string) => loadedHoldings.some((item) => item.holding.mint === mint) ? 'Held' : allObservedLoaded ? 'Not held' : null;
-  const hasMore = selection.nextCursor !== null || selection.view === 'summary' && source.holdingCount > screen.collection.holdings.length;
+  const holdingSnapshotId = read.contractVersion === 'opendexter.portfolio.v3' && read.source.kind === 'action_targets'
+    ? read.source.holdingSnapshotId : read.snapshotId;
+  const holdingScreens = [screen, ...session.history].filter((item) => item.model.read.snapshotId === holdingSnapshotId
+    && item.model.read.walletAddress === read.walletAddress && item.model.read.network === read.network
+    && portfolioHoldingsSource(item.model.read) !== null);
+  const loadedHoldings = holdingScreens.flatMap((item) => item.collection.holdings);
+  const correlatedSource = holdingScreens.length ? portfolioHoldingsSource(holdingScreens[0].model.read) : null;
+  const allObservedLoaded = correlatedSource?.holdingsComplete && new Set(loadedHoldings.map((item) => holdingKey(item.holding))).size === correlatedSource.holdingCount;
+  const heldLabel = (mint: string) => loadedHoldings.some((item) => item.holding.mint === mint)
+    ? read.contractVersion === 'opendexter.portfolio.v3' ? 'Held in portfolio observation' : 'Held'
+    : allObservedLoaded ? read.contractVersion === 'opendexter.portfolio.v3' ? 'Not held in portfolio observation' : 'Not held' : null;
+  const hasMore = selection.nextCursor !== null || selection.view === 'summary' && source !== null && source.holdingCount > screen.collection.holdings.length;
   const narrowedSelection = selection.match === 'ambiguous' || selection.query !== null || selection.mint !== null;
   const listedCount = isTargets ? screen.collection.targets.length : screen.collection.holdings.length;
-  const collectionCount = isTargets || narrowedSelection ? selection.matchedCount : source.holdingCount;
-  const coverage = [
+  const collectionCount = isTargets || narrowedSelection ? selection.matchedCount : source?.holdingCount ?? null;
+  const coverage = source ? [
     source.omittedHoldings > 0 ? `${formatCount(source.omittedHoldings, 'holding')} could not be included.` : !source.holdingsComplete ? 'Some holdings could not be read.' : null,
     source.unpricedHoldings > 0 ? `Prices are unavailable for ${formatCount(source.unpricedHoldings, 'asset')}.` : null,
-  ].filter(Boolean).join(' ');
+  ].filter(Boolean).join(' ') : '';
   const title = screen.target ? screen.target.name : isTargets ? 'Explore assets'
     : selection.match === 'ambiguous' ? 'Choose an asset' : narrowedSelection ? 'Matching holdings'
-      : locked ? 'Last observed value' : screen.model.summary.label === 'Priced subtotal' ? 'Priced subtotal' : 'Portfolio value';
+      : locked ? 'Last observed value' : screen.model.summary?.label === 'Priced subtotal' ? 'Priced subtotal' : 'Portfolio value';
   const detailedHolding = isDetail ? read.richHoldings[0] : null;
-  const backLabel = session.history.at(-1)?.model.read.selection.view === 'targets' ? 'Back to Explore assets' : 'Back to portfolio';
+  const backLabel = session.history.at(-1)?.model.read.selection.view === 'targets' ? 'Back to Explore assets'
+    : session.history.length === 0 && read.contractVersion === 'opendexter.portfolio.v3' && read.source.kind === 'action_targets'
+      ? 'Read current portfolio' : 'Back to portfolio';
 
   if (problem?.state === 'authentication_required') return <StateLedger model={problem} compact={condensed} />;
 
@@ -1029,7 +1080,7 @@ function SelectedPortfolio({ model, condensed, maxHeight, isFullscreen, onExpand
             ) : (
               <>
                 <SelectedMoney value={displayValue} />
-                <p className="dxp-selected-freshness">{formatCount(source.holdingCount, source.holdingsComplete ? 'holding' : 'observed holding')} · {readDate(read.observedAt)}</p>
+                {source ? <p className="dxp-selected-freshness">{formatCount(source.holdingCount, source.holdingsComplete ? 'holding' : 'observed holding')} · {readDate(read.observedAt)}</p> : null}
                 {coverage ? <p className="dxp-selected-note">{coverage}</p> : null}
               </>
             )}
@@ -1039,7 +1090,11 @@ function SelectedPortfolio({ model, condensed, maxHeight, isFullscreen, onExpand
             <ul className="dxp-selected-list">
               {screen.collection.holdings.map(({ holding }) => {
                 const row = <>
-                  <span className="dxp-selected-identity"><strong>{holdingLabel(holding)}</strong>{holding.name && holding.name !== holding.symbol ? <span>{holding.name}</span> : null}</span>
+                  <span className="dxp-selected-identity"><strong>{holdingLabel(holding)}</strong>{holding.name && holding.name !== holding.symbol ? <span>{holding.name}</span> : null}
+                    {holding.identityStatus === 'retired' ? <span>Registry entry retired</span>
+                      : holding.identityStatus === 'unreviewed' ? <span>Identity unreviewed</span>
+                        : holding.identityStatus === 'unavailable' ? <span>Identity unavailable</span> : null}
+                  </span>
                   <span className="dxp-selected-values"><strong>{holding.valueUsd === null ? 'Unpriced' : formatPortfolioMoney(holding.valueUsd)}</strong>
                     <span>{holding.amountModel === 'unknown' ? 'Amount unavailable' : `${formatPortfolioQuantity(holding.displayAmount)}${holding.symbol ? ` ${holding.symbol}` : ''}`}</span>
                     <SelectedChange value={holding.change24hPercent} />
@@ -1067,7 +1122,7 @@ function SelectedPortfolio({ model, condensed, maxHeight, isFullscreen, onExpand
               })}
             </ul>
           )}
-          {selection.match === 'none' ? <p className="dxp-selected-note">{isTargets ? 'No supported assets match this request.' : source.holdingCount === 0 && source.holdingsComplete ? 'No assets held.' : 'No matching holdings were found.'}</p> : null}
+          {selection.match === 'none' ? <p className="dxp-selected-note">{isTargets ? 'No supported assets match this request.' : source?.holdingCount === 0 && source.holdingsComplete ? 'No assets held.' : 'No matching holdings were found.'}</p> : null}
           {selection.match === 'unavailable' ? <p className="dxp-selected-note">Supported asset information is unavailable.</p> : null}
           {collectionCount !== null && listedCount < collectionCount ? <p className="dxp-selected-note" data-testid="portfolio-list-count">Showing {listedCount.toLocaleString()} of {formatCount(collectionCount, isTargets ? 'supported asset' : 'holding')}</p> : null}
           {hasMore && !locked && capabilities.callTool ? <button type="button" className="dxp-selected-more" data-testid="more-holdings" disabled={busy}
@@ -1077,13 +1132,14 @@ function SelectedPortfolio({ model, condensed, maxHeight, isFullscreen, onExpand
       {busy ? <p className="dxp-selected-note" role="status">Reading portfolio...</p> : null}
       {!locked && !capabilities.callTool ? <p className="dxp-selected-note">Ask for holdings or asset details to continue.</p> : null}
       <footer className="dxp-selected-footer">
-        {isHoldings && !locked && capabilities.callTool ? <button type="button" data-testid="explore-assets" disabled={busy} onClick={() => void request('targets')}>Explore assets</button> : null}
+        {(isHoldings || isDetail && read.contractVersion === 'opendexter.portfolio.v3') && !locked && capabilities.callTool ? <button type="button" data-testid="explore-assets" disabled={busy} onClick={() => void request('targets')}>Explore assets</button> : null}
         <details className="dxp-selected-disclosure" data-testid="observation-details" onToggle={(event) => { if (event.currentTarget.open) expand(); }}>
           <summary>Observation details</summary>
           <dl className="dxp-selected-facts dxp-selected-facts--diagnostics">
             <Fact label="Observed at">{readDate(read.observedAt)}</Fact>
             <Fact label="Read expires at">{readDate(read.expiresAt)}</Fact>
             <Fact label="Wallet"><code>{read.walletAddress}</code></Fact>
+            {source ? <>
             <Fact label="Observed holdings">{source.holdingCount.toLocaleString()}</Fact>
             <Fact label="Loaded holdings">{new Set(loadedHoldings.map((item) => holdingKey(item.holding))).size.toLocaleString()}</Fact>
             <Fact label="Exact portfolio value (USD)">{source.portfolioValueUsd === null ? null : formatExactUsd(source.portfolioValueUsd)}</Fact>
@@ -1094,6 +1150,16 @@ function SelectedPortfolio({ model, condensed, maxHeight, isFullscreen, onExpand
             <Fact label="Asset metadata">{sentenceCase(source.enrichment.metadata)}</Fact>
             <Fact label="Token display data">{sentenceCase(source.enrichment.tokenExtensions)}</Fact>
             <Fact label="Solana slot">{read.contextSlot?.toLocaleString() ?? null}</Fact>
+            {'identityCoverage' in source ? <>
+              <Fact label="Recognized identities">{source.identityCoverage.recognized.toLocaleString()}</Fact>
+              <Fact label="Unreviewed identities">{source.identityCoverage.unreviewed.toLocaleString()}</Fact>
+              <Fact label="Identity verification unavailable">{source.identityCoverage.unavailable.toLocaleString()}</Fact>
+              <Fact label="Trading availability">Not checked</Fact>
+            </> : null}
+            </> : read.contractVersion === 'opendexter.portfolio.v3' && read.source.kind === 'action_targets' ? <>
+              <Fact label="Supported assets">{read.source.targetCount?.toLocaleString() ?? null}</Fact>
+              <Fact label="Holdings observation">{read.source.holdingSnapshotId ? <code>{read.source.holdingSnapshotId}</code> : 'Not linked'}</Fact>
+            </> : null}
           </dl>
           {!locked && capabilities.callTool ? <button type="button" data-testid="portfolio-refresh" disabled={busy} onClick={() => void request('refresh')}>Refresh portfolio</button> : null}
         </details>

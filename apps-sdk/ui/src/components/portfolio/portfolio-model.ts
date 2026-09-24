@@ -1,3 +1,8 @@
+import {
+  portfolioHoldingIdentityV3Schema, portfolioHoldingV3IsValid, compactPortfolioHoldingV3Schema,
+  portfolioSourceV3Schema, isPortfolioPublicKey, isPortfolioObservedAtV3, type PortfolioHoldingIdentityV3,
+} from '../../../../../lib/portfolio-read-v3-contract.mjs';
+
 export const PORTFOLIO_ACTIONS = [
   'view',
   'receive',
@@ -79,6 +84,13 @@ export type PortfolioHolding = {
   availableActions: PortfolioAction[];
 };
 
+export type PortfolioHoldingIdentity = PortfolioHoldingIdentityV3;
+export type PortfolioHoldingV3 = Omit<PortfolioHolding, 'approvalStatus' | 'capabilities' | 'availableActions'> & {
+  identity: PortfolioHoldingIdentity;
+};
+export type SelectedPortfolioHolding = PortfolioHolding | PortfolioHoldingV3;
+export type PortfolioIdentityStatus = PortfolioHoldingIdentity['state'] | 'retired';
+
 export type ApprovedActionAvailability = {
   action: GovernedAction;
   available: boolean;
@@ -122,7 +134,7 @@ export type PortfolioSummary = {
 export type PortfolioReadView = 'summary' | 'holdings' | 'detail' | 'targets';
 export type CompactPortfolioHolding = Pick<PortfolioHolding,
   'assetId' | 'mint' | 'tokenAccount' | 'symbol' | 'name' | 'displayAmount'
-  | 'amountModel' | 'valueUsd' | 'change24hPercent'>;
+  | 'amountModel' | 'valueUsd' | 'change24hPercent'> & { identityStatus?: PortfolioIdentityStatus };
 export type CompactPortfolioTarget = Pick<ApprovedActionTarget,
   'assetId' | 'mint' | 'tokenProgram' | 'symbol' | 'name' | 'actions'>;
 export type PortfolioSourceSummary = Pick<PortfolioSnapshot,
@@ -145,7 +157,17 @@ export type PortfolioSelection = {
   nextCursor: string | null;
   match: 'matched' | 'none' | 'ambiguous' | 'unavailable';
 };
-export type SelectedPortfolioRead = {
+export type PortfolioHoldingsSource = Omit<PortfolioSourceSummary, 'targetCount'> & {
+  kind: 'holdings'; identityCoverage: { recognized: number; unreviewed: number; unavailable: number };
+  tradingAvailability: { state: 'not_evaluated' };
+};
+export type PortfolioTargetsSource = { kind: 'action_targets'; targetCount: number | null; holdingSnapshotId: string | null };
+type SelectedPortfolioBase = {
+  network: 'solana-mainnet'; walletAddress: string; observedAt: string; contextSlot: number | null;
+  snapshotId: string; expiresAt: string; selection: PortfolioSelection;
+  holdings: CompactPortfolioHolding[]; targets: CompactPortfolioTarget[];
+};
+export type SelectedPortfolioReadV2 = {
   contractVersion: 'opendexter.portfolio.v2';
   network: 'solana-mainnet';
   walletAddress: string;
@@ -159,10 +181,15 @@ export type SelectedPortfolioRead = {
   targets: CompactPortfolioTarget[];
   richHoldings: PortfolioHolding[];
 };
+export type SelectedPortfolioReadV3 = SelectedPortfolioBase & {
+  contractVersion: 'opendexter.portfolio.v3'; source: PortfolioHoldingsSource | PortfolioTargetsSource;
+  richHoldings: PortfolioHoldingV3[];
+};
+export type SelectedPortfolioRead = SelectedPortfolioReadV2 | SelectedPortfolioReadV3;
 
 export type PortfolioReadCollection = {
   read: SelectedPortfolioRead;
-  holdings: Array<{ holding: CompactPortfolioHolding; rich: PortfolioHolding | null }>;
+  holdings: Array<{ holding: CompactPortfolioHolding; rich: SelectedPortfolioHolding | null }>;
   targets: CompactPortfolioTarget[];
   /** Actual page rows already consumed; summary previews are excluded. */
   consumedHoldingIdentities: string[];
@@ -192,7 +219,7 @@ export type PortfolioViewModel =
   | {
       state: 'selected';
       read: SelectedPortfolioRead;
-      summary: PortfolioSummary;
+      summary: PortfolioSummary | null;
       coverage: string | null;
     };
 
@@ -289,7 +316,7 @@ function nullableIsoDate(value: unknown): string | null | undefined {
   return isoDate(value) ?? undefined;
 }
 
-function parseMarketContext(value: unknown, holdingMint: string): PortfolioMarketContext | null | undefined {
+function parseMarketContext(value: unknown, holdingMint: string, parseObservedAt: (value: unknown) => string | null = isoDate): PortfolioMarketContext | null | undefined {
   if (value === null) return null;
   const source = record(value);
   const activity = record(source?.activity24h);
@@ -297,7 +324,7 @@ function parseMarketContext(value: unknown, holdingMint: string): PortfolioMarke
     || source.source !== 'jupiter-tokens-v2'
     || source.mint !== (holdingMint === 'native:SOL' ? WRAPPED_SOL_MINT : holdingMint)
     || !activity || !exactKeys(activity, ['traderCount'])) return undefined;
-  const observedAt = isoDate(source.observedAt);
+  const observedAt = parseObservedAt(source.observedAt);
   const liquidityUsd = optionalHoldingDecimal(source, 'liquidityUsd');
   const holderCount = nullableCount(source.holderCount);
   const traderCount = nullableCount(activity.traderCount);
@@ -774,7 +801,7 @@ function compactTarget(value: unknown): CompactPortfolioTarget | null {
     symbol: source.symbol as string, name: source.name as string, actions };
 }
 
-function parseSelectedRead(value: unknown, cardValue: unknown): SelectedPortfolioRead | null {
+function parseSelectedRead(value: unknown, cardValue: unknown): SelectedPortfolioReadV2 | null {
   const source = record(value);
   const summary = record(source?.sourceSummary);
   const selection = record(source?.selection);
@@ -884,8 +911,152 @@ function parseSelectedRead(value: unknown, cardValue: unknown): SelectedPortfoli
   };
 }
 
+const V3_RICH_KEYS = new Set([...RICH_HOLDING_KEYS].filter((key) => !['approvalStatus', 'capabilities', 'availableActions'].includes(key)).concat('identity'));
+const V3_REQUIRED_RICH_KEYS = ['assetId', 'mint', 'tokenAccount', 'tokenProgram', 'assetClass', 'amountRaw', 'decimals',
+  'displayAmount', 'amountModel', 'accountState', 'valueUsd', 'priceUsd', 'priceObservedAt', 'identity'];
+
+function canonicalDecimal(value: unknown): value is string {
+  return typeof value === 'string' && value.length <= 384 && CANONICAL_SIGNED_DECIMAL.test(value) && !value.startsWith('-');
+}
+
+function observedAtV3(value: unknown): string | null {
+  return isPortfolioObservedAtV3(value) ? value : null;
+}
+
+function nullableObservedAtV3(value: unknown): string | null | undefined {
+  return value === null ? null : observedAtV3(value) ?? undefined;
+}
+
+function selectedRichHoldingV3(value: unknown): PortfolioHoldingV3 | null {
+  const source = record(value);
+  if (!source || Object.keys(source).some((key) => !V3_RICH_KEYS.has(key))
+    || V3_REQUIRED_RICH_KEYS.some((key) => !Object.hasOwn(source, key))
+    || !(source.assetId === null || typeof source.assetId === 'string' && ASSET_ID.test(source.assetId))
+    || !(source.mint === 'native:SOL' || isPortfolioPublicKey(source.mint)) || !(source.tokenAccount === null || isPortfolioPublicKey(source.tokenAccount))
+    || !['native', 'spl-token', 'token-2022'].includes(String(source.tokenProgram))
+    || !['cash', 'yield', 'token', 'stock', 'fund', 'nft', 'rwa'].includes(String(source.assetClass))
+    || typeof source.amountRaw !== 'string' || source.amountRaw.length > 20 || !INTEGER.test(source.amountRaw)
+    || safeCount(source.decimals) === null || (source.decimals as number) > 255
+    || !canonicalDecimal(source.displayAmount)
+    || !['raw-decimals', 'scaled-ui-amount', 'unknown'].includes(String(source.amountModel))
+    || !['initialized', 'frozen', 'unknown'].includes(String(source.accountState))
+    || !(source.valueUsd === null || canonicalDecimal(source.valueUsd))
+    || !(source.priceUsd === null || canonicalDecimal(source.priceUsd))
+    || nullableObservedAtV3(source.priceObservedAt) === undefined) return null;
+  const symbol = optionalHoldingLabel(source, 'symbol', 32), name = optionalHoldingLabel(source, 'name', 128);
+  const displayMultiplier = optionalHoldingDecimal(source, 'displayMultiplier');
+  const change24hPercent = optionalHoldingDecimal(source, 'change24hPercent', true);
+  const priceSource = source.priceSource == null ? null : ['jupiter-price-v3', 'jupiter-exact-in-quote', 'unknown'].includes(String(source.priceSource)) ? source.priceSource : undefined;
+  const priceBlockId = Object.hasOwn(source, 'priceBlockId') ? nullableCount(source.priceBlockId) : null;
+  const metadataObservedAt = Object.hasOwn(source, 'metadataObservedAt') ? nullableObservedAtV3(source.metadataObservedAt) : null;
+  const marketContext = Object.hasOwn(source, 'marketContext') ? parseMarketContext(source.marketContext, source.mint as string, observedAtV3) : null;
+  const registryIdentity = Object.hasOwn(source, 'registryIdentity') ? parseRegistryIdentity(source.registryIdentity) : null;
+  const identity = portfolioHoldingIdentityV3Schema.safeParse(source.identity);
+  if ([symbol, name, displayMultiplier, change24hPercent, priceSource, priceBlockId, metadataObservedAt, marketContext, registryIdentity].some((item) => item === undefined)
+    || !identity.success) return null;
+  const holding = { ...source, symbol, name, displayMultiplier, change24hPercent, priceSource, priceBlockId,
+    metadataObservedAt, marketContext, registryIdentity, identity: identity.data } as PortfolioHoldingV3;
+  return portfolioHoldingV3IsValid(holding) ? holding : null;
+}
+
+function identityStatus(holding: PortfolioHoldingV3): PortfolioIdentityStatus {
+  return holding.identity.state === 'recognized' && holding.identity.registryState === 'retired' ? 'retired' : holding.identity.state;
+}
+
+function compactProjectionV3(holding: PortfolioHoldingV3): CompactPortfolioHolding {
+  return { ...Object.fromEntries(COMPACT_HOLDING_KEYS.map((key) => [key, holding[key]])), identityStatus: identityStatus(holding) } as CompactPortfolioHolding;
+}
+
+function compactHoldingV3(value: unknown): CompactPortfolioHolding | null {
+  const parsed = compactPortfolioHoldingV3Schema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
+
+function parseSourceV3(value: unknown): PortfolioHoldingsSource | PortfolioTargetsSource | null {
+  const parsed = portfolioSourceV3Schema.safeParse(value);
+  return parsed.success ? parsed.data as PortfolioHoldingsSource | PortfolioTargetsSource : null;
+}
+
+function parseSelectedReadV3(value: unknown, cardValue: unknown): SelectedPortfolioReadV3 | null {
+  const raw = record(value), source = parseSourceV3(raw?.source), s = record(raw?.selection);
+  if (!raw || !exactKeys(raw, ['contractVersion', 'network', 'walletAddress', 'observedAt', 'contextSlot', 'snapshotId', 'expiresAt', 'source', 'selection', 'holdings', 'targets'])
+    || raw.contractVersion !== 'opendexter.portfolio.v3' || raw.network !== 'solana-mainnet'
+    || !isPortfolioPublicKey(raw.walletAddress)
+    || !isPortfolioObservedAtV3(raw.observedAt) || !isPortfolioObservedAtV3(raw.expiresAt) || Date.parse(raw.expiresAt) <= Date.parse(raw.observedAt)
+    || nullableCount(raw.contextSlot) === undefined || !opaque(raw.snapshotId, 128) || !source || !s
+    || !exactKeys(s, ['view', 'query', 'mint', 'tokenAccount', 'limit', 'offset', 'matchedCount', 'returnedCount', 'omittedCount', 'nextCursor', 'match'])
+    || !Array.isArray(raw.holdings) || !Array.isArray(raw.targets)) return null;
+  const target = source.kind === 'action_targets', count = target ? source.targetCount : source.holdingCount;
+  const limit = safeCount(s.limit), offset = safeCount(s.offset), returned = safeCount(s.returnedCount);
+  const matched = nullableCount(s.matchedCount), omitted = nullableCount(s.omittedCount);
+  if (!['summary', 'holdings', 'detail', 'targets'].includes(String(s.view)) || target !== (s.view === 'targets')
+    || target && (raw.contextSlot !== null || source.holdingSnapshotId === raw.snapshotId)
+    || limit === null || limit < 1 || limit > 32 || offset === null || returned === null || returned > limit || matched === undefined || omitted === undefined
+    || !(s.query === null || typeof s.query === 'string' && s.query.trim() === s.query && s.query.length > 0 && new TextEncoder().encode(s.query).length <= 128)
+    || !(s.mint === null || s.mint === 'native:SOL' || isPortfolioPublicKey(s.mint))
+    || !(s.tokenAccount === null || isPortfolioPublicKey(s.tokenAccount))
+    || s.query !== null && s.mint !== null || s.tokenAccount !== null && (s.view !== 'detail' || s.mint === null || s.mint === 'native:SOL')
+    || s.view === 'detail' && s.query === null && s.mint === null
+    || !(s.nextCursor === null || opaque(s.nextCursor, 1024))
+    || s.view === 'summary' && (limit !== 5 || offset !== 0 || s.nextCursor !== null || s.query !== null || s.mint !== null || s.tokenAccount !== null)
+    || raw.holdings.length + raw.targets.length !== returned || (target ? raw.holdings.length !== 0 : raw.targets.length !== 0)) return null;
+  if (count === null) {
+    if (matched !== null || omitted !== null || returned !== 0 || offset !== 0 || s.nextCursor !== null || s.match !== 'unavailable') return null;
+  } else if (matched === null || matched > count || offset + returned > matched || omitted !== count - returned
+    || s.query === null && s.mint === null && matched !== count
+    || s.match !== (matched === 0 ? 'none' : s.view === 'detail' && matched > 1 ? 'ambiguous' : 'matched')
+    || s.view !== 'summary' && (s.nextCursor !== null) !== (offset + returned < matched)
+    || s.nextCursor !== null && returned === 0) return null;
+  const richDetail = s.view === 'detail' && matched === 1;
+  if (richDetail && returned !== 1) return null;
+  const rawHoldings = raw.holdings;
+  const details = richDetail ? rawHoldings.map(selectedRichHoldingV3) : [];
+  if (details.some((item) => item === null)) return null;
+  const holdings = richDetail ? (details as PortfolioHoldingV3[]).map(compactProjectionV3) : raw.holdings.map(compactHoldingV3);
+  const targets = raw.targets.map(compactTarget);
+  if (holdings.some((item) => item === null) || targets.some((item) => item === null || !isPortfolioPublicKey(item.mint))) return null;
+  const h = holdings as CompactPortfolioHolding[], t = targets as CompactPortfolioTarget[];
+  const rows = target ? t : h;
+  if (new Set(h.map((item) => `${item.mint}:${item.tokenAccount ?? ''}`)).size !== h.length
+    || new Set(t.map((item) => item.assetId)).size !== t.length || new Set(t.map((item) => item.mint)).size !== t.length
+    || rows.some((row) => s.mint !== null && row.mint !== s.mint
+      || s.tokenAccount !== null && (!('tokenAccount' in row) || row.tokenAccount !== s.tokenAccount)
+      || s.query !== null && ![row.assetId, row.symbol, row.name].some((field) => typeof field === 'string' && field.toLowerCase().includes((s.query as string).toLowerCase())))) return null;
+  let richHoldings = details as PortfolioHoldingV3[];
+  if (cardValue !== undefined) {
+    const card = record(cardValue);
+    if (!card || !exactKeys(card, ['contractVersion', 'snapshotId', 'sourceKind', 'holdings', 'approvedActionTargets'])
+      || card.contractVersion !== 'opendexter.portfolio-card.v3' || card.snapshotId !== raw.snapshotId || card.sourceKind !== source.kind
+      || !Array.isArray(card.holdings) || card.holdings.length !== h.length
+      || !Array.isArray(card.approvedActionTargets) || card.approvedActionTargets.length !== t.length
+      || new TextEncoder().encode(JSON.stringify({ ok: true, portfolio: value, card })).length > 512 * 1024) return null;
+    const cardHoldings = card.holdings;
+    const rich = cardHoldings.map(selectedRichHoldingV3), approved = card.approvedActionTargets.map(parseApprovedTarget);
+    if (rich.some((item, i) => !item || !samePortfolioFacts(compactProjectionV3(item), h[i])
+      || richDetail && !samePortfolioFacts(cardHoldings[i], rawHoldings[i]))
+      || approved.some((item, i) => !item || !samePortfolioFacts({ assetId: item.assetId, mint: item.mint, tokenProgram: item.tokenProgram,
+        symbol: item.symbol, name: item.name, actions: item.actions }, t[i]))) return null;
+    richHoldings = rich as PortfolioHoldingV3[];
+  }
+  if (source.kind === 'holdings') {
+    const selected = { recognized: 0, unreviewed: 0, unavailable: 0 };
+    for (const holding of h) selected[holding.identityStatus === 'unreviewed' || holding.identityStatus === 'unavailable' ? holding.identityStatus : 'recognized']++;
+    if (Object.keys(selected).some((key) => selected[key as keyof typeof selected] > source.identityCoverage[key as keyof typeof selected])) return null;
+  }
+  return { contractVersion: 'opendexter.portfolio.v3', network: 'solana-mainnet', walletAddress: raw.walletAddress as string,
+    observedAt: raw.observedAt as string, contextSlot: raw.contextSlot as number | null, snapshotId: raw.snapshotId, expiresAt: raw.expiresAt as string,
+    source, selection: s as PortfolioSelection, holdings: h, targets: t, richHoldings };
+}
+
+export function portfolioHoldingsSource(read: SelectedPortfolioRead): PortfolioSourceSummary | PortfolioHoldingsSource | null {
+  return read.contractVersion === 'opendexter.portfolio.v2' ? read.sourceSummary : read.source.kind === 'holdings' ? read.source : null;
+}
+
 export function portfolioReadRequest(read: SelectedPortfolioRead, view: PortfolioReadView | 'next', holding?: CompactPortfolioHolding): Record<string, unknown> {
-  const common = { network: read.network, snapshotId: read.snapshotId };
+  const v3 = read.contractVersion === 'opendexter.portfolio.v3';
+  if (v3 && view === 'targets' && read.source.kind === 'holdings') return { readVersion: 3, network: read.network, view, holdingSnapshotId: read.snapshotId };
+  if (v3 && view === 'summary' && read.source.kind === 'action_targets') return { readVersion: 3, network: read.network, view };
+  const common = { network: read.network, snapshotId: read.snapshotId, ...(v3 ? { readVersion: 3 } : {}) };
   if (view === 'next') return { ...common, cursor: read.selection.nextCursor };
   if (view === 'detail' && holding) return { ...common, view, mint: holding.mint,
     ...(holding.tokenAccount === null ? {} : { tokenAccount: holding.tokenAccount }) };
@@ -893,6 +1064,13 @@ export function portfolioReadRequest(read: SelectedPortfolioRead, view: Portfoli
 }
 
 export function samePortfolioObservation(left: SelectedPortfolioRead, right: SelectedPortfolioRead): boolean {
+  if (left.contractVersion !== right.contractVersion) return false;
+  if (left.contractVersion === 'opendexter.portfolio.v3' && right.contractVersion === 'opendexter.portfolio.v3') {
+    return left.snapshotId === right.snapshotId && left.walletAddress === right.walletAddress && left.network === right.network
+      && left.observedAt === right.observedAt && left.expiresAt === right.expiresAt && left.contextSlot === right.contextSlot
+      && samePortfolioFacts(left.source, right.source);
+  }
+  if (left.contractVersion !== 'opendexter.portfolio.v2' || right.contractVersion !== 'opendexter.portfolio.v2') return false;
   return left.snapshotId === right.snapshotId && left.walletAddress === right.walletAddress
     && left.network === right.network && left.observedAt === right.observedAt && left.expiresAt === right.expiresAt
     && left.contextSlot === right.contextSlot
@@ -903,6 +1081,23 @@ export function samePortfolioObservation(left: SelectedPortfolioRead, right: Sel
 }
 
 export function portfolioReadMatchesRequest(previous: SelectedPortfolioRead, next: SelectedPortfolioRead, request: Record<string, unknown>): boolean {
+  if (previous.contractVersion === 'opendexter.portfolio.v3') {
+    if (request.readVersion !== 3 || next.contractVersion !== 'opendexter.portfolio.v3'
+      || next.network !== previous.network || next.walletAddress !== previous.walletAddress) return false;
+    if (request.holdingSnapshotId !== undefined) {
+      return previous.source.kind === 'holdings' && request.holdingSnapshotId === previous.snapshotId
+        && request.snapshotId === undefined && request.cursor === undefined && request.view === 'targets'
+        && next.source.kind === 'action_targets' && next.source.holdingSnapshotId === previous.snapshotId
+        && next.snapshotId !== previous.snapshotId && next.selection.view === 'targets' && next.selection.offset === 0
+        && next.selection.query === (request.query ?? null) && next.selection.mint === (request.mint ?? null)
+        && next.selection.tokenAccount === null;
+    }
+    if (previous.source.kind === 'action_targets' && request.view === 'summary' && request.snapshotId === undefined) {
+      return next.source.kind === 'holdings' && next.snapshotId !== previous.snapshotId && next.selection.view === 'summary'
+        && next.selection.offset === 0 && next.selection.query === null && next.selection.mint === null
+        && next.selection.tokenAccount === null;
+    }
+  }
   if (!samePortfolioObservation(previous, next)) return false;
   const selection = next.selection;
   if (request.cursor !== undefined) {
@@ -967,7 +1162,7 @@ export function accumulatePortfolioRows(
       holdings.push({ holding, rich });
     } else {
       const retained = holdings[index];
-      if (!sameCompactHolding(retained.holding, holding)
+      if (!samePortfolioFacts(retained.holding, holding)
         || retained.rich && rich && !samePortfolioFacts(retained.rich, rich)) return null;
       if (retained.rich === null && rich !== null) holdings[index] = { holding: retained.holding, rich };
     }
@@ -1216,9 +1411,10 @@ export function normalizeDexterPortfolio(value: unknown, metadata?: unknown): Po
     };
   }
 
-  if (record(source.portfolio)?.contractVersion === 'opendexter.portfolio.v2') {
+  if (['opendexter.portfolio.v2', 'opendexter.portfolio.v3'].includes(String(record(source.portfolio)?.contractVersion))) {
     const meta = record(metadata ?? record(value)?._meta);
-    const read = parseSelectedRead(source.portfolio, meta?.portfolioCard);
+    const read = record(source.portfolio)?.contractVersion === 'opendexter.portfolio.v3'
+      ? parseSelectedReadV3(source.portfolio, meta?.portfolioCard) : parseSelectedRead(source.portfolio, meta?.portfolioCard);
     if (source.mode !== 'portfolio_ready' || source.portfolio_status !== 'ready' || source.user_bound !== true || !read
       || !exactKeys(source, ['portfolio_status', 'mode', 'user_bound', 'portfolio'])
       || new TextEncoder().encode(JSON.stringify(source)).length > (read.selection.view === 'summary' ? 2048 : read.selection.view === 'detail' ? 8192 : 6144)
@@ -1226,7 +1422,9 @@ export function normalizeDexterPortfolio(value: unknown, metadata?: unknown): Po
       return { state: 'invalid', title: 'Portfolio data unavailable',
         body: 'OpenDexter did not return a portfolio that this view can verify.' };
     }
-    return { state: 'selected', read, summary: summarizePortfolio(read.sourceSummary), coverage: portfolioCoverage(read.sourceSummary) };
+    const holdingsSource = portfolioHoldingsSource(read);
+    return { state: 'selected', read, summary: holdingsSource ? summarizePortfolio(holdingsSource) : null,
+      coverage: holdingsSource ? portfolioCoverage(holdingsSource) : null };
   }
 
   const snapshot = parseSnapshot(source.portfolio);

@@ -236,7 +236,7 @@ test('selected transport requests an explicit view and forwards selectors withou
   const input = { view: 'detail', network: 'solana-mainnet', mint: wire.portfolio.selection.mint,
     snapshotId: wire.portfolio.snapshotId };
   let calls = 0;
-  const result = await fetchSessionPortfolioSelection({ ...config, input, fetchImpl: async (url, init) => {
+  const result = await fetchSessionPortfolioSelection({ ...config, input: { readVersion: 2, ...input }, fetchImpl: async (url, init) => {
     calls++;
     const request = new URL(url);
     assert.equal(request.pathname, `/api/passkey-anon/mcp-portfolio/${SESSION_ID}`);
@@ -247,7 +247,7 @@ test('selected transport requests an explicit view and forwards selectors withou
   } });
   assert.deepEqual(result, wire);
   assert.equal(calls, 1);
-  await fetchSessionPortfolioSelection({ ...config, input: {}, fetchImpl: async url => {
+  await fetchSessionPortfolioSelection({ ...config, input: { readVersion: 2 }, fetchImpl: async url => {
     assert.equal(new URL(url).searchParams.get('view'), 'summary');
     return new Response(JSON.stringify(selectedReadFixture()));
   } });
@@ -279,7 +279,7 @@ test('structurally valid responses must still match the requested observation an
   ]) {
     assert.ok(validate(wire), 'the response is valid independently of the request');
     let calls = 0;
-    const result = await fetchSessionPortfolioSelection({ ...config, input, fetchImpl: async () => {
+    const result = await fetchSessionPortfolioSelection({ ...config, input: { readVersion: 2, ...input }, fetchImpl: async () => {
       calls++;
       return new Response(JSON.stringify(wire));
     } });
@@ -309,7 +309,7 @@ test('selection HTTP failures preserve only matching public codes and never retr
   for (const [status, body] of [[500, { ok: false, error: 'internal secret' }],
     [400, { ok: false, error: 'portfolio_snapshot_expired' }], [503, 'not-json']]) {
     let calls = 0;
-    const result = await fetchSessionPortfolioSelection({ ...config, input: {}, fetchImpl: async () => {
+    const result = await fetchSessionPortfolioSelection({ ...config, input: { readVersion: 2 }, fetchImpl: async () => {
       calls++; return new Response(typeof body === 'string' ? body : JSON.stringify(body), { status });
     } });
     assert.equal(result.error, 'portfolio_read_unavailable');
@@ -329,19 +329,19 @@ test('the public read-error schema accepts only the five defined selected-read c
 
 test('transport exceptions and oversized responses do not cause another request', async () => {
   let calls = 0;
-  const failed = await fetchSessionPortfolioSelection({ ...config, input: {}, fetchImpl: async () => {
+  const failed = await fetchSessionPortfolioSelection({ ...config, input: { readVersion: 2 }, fetchImpl: async () => {
     calls++; throw new Error('offline transport failed');
   } });
   assert.equal(calls, 1);
   assert.equal(failed.error, 'portfolio_read_unavailable');
   let bodyReads = 0;
-  const oversized = await fetchSessionPortfolioSelection({ ...config, input: {}, fetchImpl: async () => ({
+  const oversized = await fetchSessionPortfolioSelection({ ...config, input: { readVersion: 2 }, fetchImpl: async () => ({
     ok: true, status: 200, headers: { get: () => String(512 * 1024 + 1) },
     text: async () => { bodyReads++; return JSON.stringify(selectedReadFixture()); },
   }) });
   assert.equal(bodyReads, 0);
   assert.equal(oversized.error, 'portfolio_read_unavailable');
-  const oversizedBody = await fetchSessionPortfolioSelection({ ...config, input: {},
+  const oversizedBody = await fetchSessionPortfolioSelection({ ...config, input: { readVersion: 2 },
     fetchImpl: async () => new Response(`${' '.repeat(512 * 1024)}${JSON.stringify(selectedReadFixture())}`) });
   assert.equal(oversizedBody.error, 'portfolio_read_unavailable', 'the body ceiling does not trust Content-Length');
 });
@@ -350,7 +350,7 @@ test('an expired successful response remains historical data and cannot become a
   const wire = selectedReadFixture();
   assert.ok(validate(wire), 'the timeless validator can still validate saved evidence');
   let calls = 0;
-  const result = await fetchSessionPortfolioSelection({ ...config, input: {},
+  const result = await fetchSessionPortfolioSelection({ ...config, input: { readVersion: 2 },
     now: () => Date.parse(wire.portfolio.expiresAt), fetchImpl: async () => {
       calls++;
       return new Response(JSON.stringify(wire));
@@ -363,7 +363,7 @@ for (const stage of ['headers', 'body']) {
   test(`the selected-read deadline includes a stalled ${stage} without retry`, { timeout: 1000 }, async () => {
     let calls = 0;
     let signal;
-    const result = await fetchSessionPortfolioSelection({ ...config, input: {}, timeoutMs: 20,
+    const result = await fetchSessionPortfolioSelection({ ...config, input: { readVersion: 2 }, timeoutMs: 20,
       fetchImpl: async (_url, init) => {
         calls++;
         signal = init.signal;

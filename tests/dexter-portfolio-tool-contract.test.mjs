@@ -40,11 +40,11 @@ test('dexter_wallet_portfolio remains model-visible in the 15-tool server roster
   }), { name: 'dexter_wallet_portfolio', id: 7 });
   assert.match(
     OPEN_TOOL_CONTRACTS.dexter_wallet_portfolio.description,
-    /view=targets for approved assets, including assets not held/,
+    /view=targets as a separate observation/,
   );
   assert.match(
     OPEN_TOOL_CONTRACTS.dexter_wallet_portfolio.description,
-    /sourceSummary describes the whole observed source/,
+    /source describes the whole observation/,
   );
 });
 

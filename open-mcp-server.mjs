@@ -2737,7 +2737,7 @@ export function createOpenMcpServer({
   registerOpenTool(server, 'dexter_wallet_portfolio', {
     title: 'Dexter Wallet Portfolio',
     description:
-      'Read the governed asset portfolio bound to this authenticated MCP session. It accepts no identity or authority arguments. Approved holdings expose the canonical assetId accepted by governed Send, Buy, and Sell; unreviewed or blocked holdings expose null.',
+      'Read Solana holdings, values and market facts for this session. Start with a compact summary; request holding details or more rows using the returned snapshot and readVersion 3. Explore supported assets with view targets as a separate observation; holdingSnapshotId can retain the holdings context. Holdings identify assets without checking trading availability. Saved unversioned handles retain version 2 behavior. Action preparation checks current permission.',
     inputSchema: PORTFOLIO_READ_INPUT_SHAPE,
     annotations: { readOnlyHint: true },
     _meta: PORTFOLIO_META,
