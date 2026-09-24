@@ -174,9 +174,11 @@ const EXPECTED_SOURCE_CONTRACTS = Object.freeze({
   // validation, frozen snapshots and bounded selection contracts.
   // Its timing successor adds request-local stage diagnostics without changing
   // response, authorization, retry or timeout behavior.
+  // The accepted Phone continuation adds owner web routes and an exact-intent
+  // receipt reader while preserving the existing MCP contracts.
   // Later releases must preserve these API_GOVERNED_CONTRACT_PATHS bytes.
-  integratedGovernedCommit: '922f29405956e768b3fc7c42d7e44e0af1ca48cd',
-  integratedGovernedTree: '980b6dc4106b55c93c91dc2acaf61adac588bc04',
+  integratedGovernedCommit: '2528ded8321a5fdf9ec4d1ce5afe3317637cc8d0',
+  integratedGovernedTree: 'c5307641066c1748914bad2df43f52592d6aae11',
   apiFixtureSha256:
     'ad06690a3914e0ef0f359c4164eb62f78ca54abe6697a52672d739df63c2c352',
   apiCanonicalBodyDigest:
