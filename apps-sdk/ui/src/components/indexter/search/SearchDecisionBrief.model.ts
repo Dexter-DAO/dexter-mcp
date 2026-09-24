@@ -423,8 +423,10 @@ export function summarizeSearchResource(
   const primaryRoute = resource.chains?.[0];
   const action = getSearchResourceAction(resource);
   const requiredInputs = requiredFieldLabels(resource, false);
-  const arrays = trustedRequestInput(resource.requestInput)?.fields.filter(field => field.type === 'array') ?? [];
-  const arrayInputsLabel = arrays.map(field => `${fieldLabel(field.name)}: ${field.required ? 'required' : 'optional'} ${field.items!.type} array, ${field.minItems}–${field.maxItems} items`).join('; ') || null;
+  const arrayInputsLabel = (trustedRequestInput(resource.requestInput)?.fields.flatMap(field => {
+    if (field.type !== 'array') return [];
+    return [`${fieldLabel(field.name)}: ${field.required ? 'required' : 'optional'} ${field.items!.type} array, ${field.minItems}–${field.maxItems} items`];
+  }) ?? []).join('; ') || null;
   const qualityScore =
     typeof resource.qualityScore === 'number' &&
     Number.isFinite(resource.qualityScore)
