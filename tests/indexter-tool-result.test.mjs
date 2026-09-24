@@ -289,7 +289,7 @@ test('overview projection combines provider, endpoint, and catalog-only Actor re
 
   assert.equal(result.isError, undefined);
   assert.equal(result.content.length, 1);
-  assert.equal(result.content[0].text, 'Indexter returned 1 providers and 2 featured offerings.');
+  assert.equal(result.content[0].text, 'Indexter returned 1 provider and 2 featured offerings.');
   assert.doesNotMatch(result.content[0].text, /[{}\[\]"]/);
   assert.deepEqual(result.structuredContent.counts, {
     returned: 3,
@@ -1688,7 +1688,7 @@ test('request-details caveat counts only affected returned listings and preserve
     const affected = rows.filter(row => row !== usable).length;
     assert.deepEqual(result.structuredContent.results.map(row => row.resourceId), rows.map(row => row.resourceId));
     assert.equal(result.structuredContent.counts.endpoints, rows.length);
-    assert.equal(result.content[0].text, `Indexter returned ${rows.length} matches for this request.`
+    assert.equal(result.content[0].text, `Indexter returned ${rows.length} ${rows.length === 1 ? 'match' : 'matches'} for this request.`
       + (affected ? ` Request details are unavailable for ${affected} ${affected === 1 ? 'listing' : 'listings'} in this result.` : ''));
     assert.equal(OPEN_TOOL_CONTRACTS.indexter_search.outputSchema.safeParse(result.structuredContent).success, true);
     for (const row of result.structuredContent.results.filter(row => row.resourceId !== usable.resourceId)) {
@@ -1758,4 +1758,52 @@ test('request-details caveat reflects final bounded rows and keeps error summari
   assert.ok(Buffer.byteLength(JSON.stringify(result), 'utf8') <= INDEXTER_TOOL_RESULT_MAX_JSON_BYTES);
   const failure = buildIndexterToolResult({ route: 'task', payload: { success: false, strongResults: [], relatedResults: [] } });
   assert.equal(failure.content[0].text, 'Indexter could not load results for this request.');
+});
+
+
+test('count-aware summaries preserve zero, singular and plural across overview, provider and task routes', () => {
+  const providerLabels = ['0 providers', '1 provider', '2 providers'];
+  const offeringLabels = ['0 featured offerings', '1 featured offering', '2 featured offerings'];
+  for (const providerCount of [0, 1, 2]) {
+    for (const offeringCount of [0, 1, 2]) {
+      const payload = discoveryPayload();
+      payload.providers = Array.from({ length: providerCount }, (_, index) => ({
+        ...structuredClone(payload.providers[0]), id: `provider-${index}`,
+        providerKey: `provider-${index}`, providerSlug: `provider-${index}`,
+        capabilityGroups: [], actorCatalog: { ...payload.providers[0].actorCatalog, items: [] },
+      }));
+      payload.featuredOfferings = Array.from({ length: offeringCount }, (_, index) => discoveryEndpoint(index + 1));
+      const result = buildIndexterToolResult({ route: 'overview', payload });
+      assert.equal(result.content[0].text,
+        `Indexter returned ${providerLabels[providerCount]} and ${offeringLabels[offeringCount]}.`);
+      assert.equal(result.structuredContent.counts.providers, providerCount);
+      assert.equal(result.structuredContent.counts.endpoints, offeringCount);
+    }
+  }
+  const providerSentences = [
+    'Indexter found no current offerings for this provider.',
+    'Indexter returned 1 offering for this provider.',
+    'Indexter returned 2 offerings for this provider.',
+  ];
+  const taskSentences = [
+    'Indexter found no current matches for this request.',
+    'Indexter returned 1 match for this request.',
+    'Indexter returned 2 matches for this request.',
+  ];
+  for (const count of [0, 1, 2]) {
+    const payload = discoveryPayload();
+    payload.mode = 'provider';
+    payload.requestedProvider = 'Apify';
+    payload.featuredOfferings = [];
+    payload.providers[0].capabilityGroups[0].resources = Array.from({ length: count }, (_, index) => discoveryEndpoint(index + 1));
+    payload.providers[0].actorCatalog.items = [];
+    const providerResult = buildIndexterToolResult({ route: 'provider', provider: 'Apify', payload });
+    assert.equal(providerResult.content[0].text, providerSentences[count]);
+    assert.equal(providerResult.structuredContent.counts.endpoints, count);
+    const taskResult = buildIndexterToolResult({ route: 'task', payload: {
+      success: true, strongResults: Array.from({ length: count }, (_, index) => endpoint(index + 1)), relatedResults: [],
+    } });
+    assert.equal(taskResult.content[0].text, taskSentences[count]);
+    assert.equal(taskResult.structuredContent.counts.endpoints, count);
+  }
 });
