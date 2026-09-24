@@ -24,11 +24,11 @@ Prepared September 24, 2026. This is a review draft; it has not been submitted t
 
 Short description:
 
-> Finish paid projects through your Dexter Account. Find services, use the spending allowance you approve, and keep the results and receipts with your account.
+> Finish paid work through your Dexter Account. Find services, use the spending allowance you approve, and get useful results with their cost and receipts in your conversation.
 
 Long description:
 
-> OpenDexter connects Muse to your Dexter Account. Ask Muse to research a project, find a suitable service and use it within the allowance you approved. Dexter handles the account's permissions and payments, and returns the work and its receipt. Your account and history remain available when you use another supported agent. You can review or revoke the agent's authority from Dexter Wallet.
+> OpenDexter connects Muse to your Dexter Account. Ask Muse to research a project, find a suitable service and use it within the allowance you approved. Dexter handles the account's permissions and payments, then returns the useful work, actual cost and receipt to the conversation. Your assets and financial history stay with your Dexter Account when you use another supported agent. You can review or revoke the agent's authority from Dexter Wallet.
 
 These descriptions state the proposed directory experience. Attach proof of that complete experience before representing it as verified in Muse. Availability depends on the service, network, account state and current tool catalog.
 
@@ -36,7 +36,7 @@ These descriptions state the proposed directory experience. Attach proof of that
 
 - "Use my Dexter Account to research this project. Show me the services and price before starting."
 - "Finish the approved research project within my Dexter allowance and return the report with its receipts."
-- "Show the work I paid for through Dexter and the amount remaining in this agent's allowance."
+- "Show my Dexter Account's cash and the permissions this agent currently has."
 
 The reviewer should choose an available service from the current catalog. These prompts do not authorize a purchase during submission preparation.
 
@@ -80,7 +80,7 @@ Test credentials have not been created or attached. A reviewer should create the
 3. Review the requested scope and any advance allowance, approve with the passkey, and return to Muse. Record successful token exchange and a protected account read without recording tokens.
 4. Check the wallet's readiness, authorized limits and remaining allowance. An OAuth success alone does not prove spending authority.
 5. Select a currently available paid service, agree on the exact test spend, run the project and retrieve its result. Record the project or intent ID, final payment state, delivered result and receipt. Verify that an uncertain response is recovered by status without making a duplicate purchase.
-6. Open a fresh Muse conversation and read the same account and completed work. Exercise token renewal, then revoke the connection and verify that protected access stops.
+6. Open a fresh Muse conversation and read the same account. Recover the original purchase's status with its preserved intent ID; do not claim a full project archive or transfer its output to another agent. Exercise token renewal, then revoke the connection and verify that protected access stops.
 
 This draft contains no completed Muse test results. Use `tests/test_opendexter.py` for the adapter's local checks; platform acceptance requires the separate sequence above.
 
@@ -95,7 +95,7 @@ Requests can include project input, account identifiers and the context needed f
 ## Remaining submission fields and evidence
 
 - Verify Meta's full developer terms, financial-service eligibility and any payment requirements inside the submission flow. Public platform material does not establish approval for wallet or x402 functionality.
-- Publish the Muse guide and preserve its tested version. The public docs root at `https://docs.dexter.cash/docs/` still described guest-first discovery when checked; correct that conflict before using it for review.
+- Publish the Muse guide and preserve its tested version. Verify its authentication instructions against the current protected endpoint before supplying the review URL.
 - Attach the owner's developer contact, reviewer onboarding instructions and the completed end-to-end evidence. Any reviewer credit or payment budget still needs a concrete arrangement.
 - Confirm the exact form limits and icon requirements when the owner opens the portal. Review duration, acceptance odds, fees and revenue share are unknown.
 
