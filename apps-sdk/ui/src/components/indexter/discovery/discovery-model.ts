@@ -71,7 +71,7 @@ export type IndexterEndpointAction =
     }
   | {
       kind: 'endpoint_unavailable';
-      label: 'Unavailable';
+      label: 'Unavailable' | 'Request details unavailable';
       state: 'unavailable';
       reason: 'safety_unavailable' | 'execution_unavailable' | 'input_contract_unavailable';
       resourceId: string;
@@ -829,7 +829,9 @@ function isEndpointAction(
     || value.resourceUrl !== resourceUrl
   ) return false;
   if (value.kind === 'endpoint_unavailable') {
-    return value.label === 'Unavailable'
+    return (value.label === 'Unavailable'
+        || (value.reason === 'input_contract_unavailable'
+          && value.label === 'Request details unavailable'))
       && value.state === 'unavailable'
       && (
         value.reason === 'safety_unavailable'

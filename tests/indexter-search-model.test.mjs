@@ -531,3 +531,26 @@ test('bounded request arrays preserve primitive items and reject malformed or tr
     { name: 'apiKey' }, { name: 'system_prompt' },
   ]) assert.equal(isSafeSearchRequestInput(input(patch)), false, JSON.stringify(patch));
 });
+
+
+test('request-details labels preserve strict search parsing for direct and managed listings', () => {
+  for (const label of ['Unavailable', 'Request details unavailable']) {
+    for (const managed of [false, true]) {
+      const row = { ...strictResource, requestInput: null,
+        url: managed ? null : strictResource.url,
+        access: { ...strictResource.access, kind: managed ? 'managed_resolvable' : 'direct_url' },
+        action: { kind: 'endpoint_unavailable', label, state: 'unavailable',
+          reason: 'input_contract_unavailable', resourceId: strictResource.resourceId,
+          resourceUrl: managed ? null : strictResource.url } };
+      const payload = strictPayload({ strongResults: [row] });
+      assert.equal(isSafeSearchPayload(payload), true);
+      const normalized = normalizeSearchPayload(payload).strongResults[0];
+      assert.equal(normalized.resourceId, row.resourceId);
+      assert.equal(normalized.requestInput, null);
+      assert.equal(normalized.action.label, label);
+      for (const patch of [{ label: 'Check now' }, { reason: 'execution_unavailable' }, { resourceId: '88888888-8888-4888-8888-888888888888' }]) {
+        assert.equal(isSafeSearchPayload(strictPayload({ strongResults: [{ ...row, action: { ...row.action, ...patch } }] })), false);
+      }
+    }
+  }
+});

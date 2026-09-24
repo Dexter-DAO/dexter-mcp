@@ -124,6 +124,18 @@ export function getSearchResourceAction(
 ): SearchResourceAction {
   const execution = resource.execution;
   const requestInput = trustedRequestInput(resource.requestInput);
+  if (execution?.availability === 'available'
+    && execution.userExecution === 'allowed'
+    && !requestInput
+    && resource.action?.kind === 'endpoint_unavailable'
+    && resource.action.reason === 'input_contract_unavailable') {
+    return {
+      kind: 'unsupported',
+      label: 'Request details unavailable',
+      helperText: 'This listing has no usable request details for a terms check.',
+      disabled: true,
+    };
+  }
   if (!execution || !requestInput) {
     return {
       kind: 'unsupported',

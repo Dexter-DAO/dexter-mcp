@@ -267,9 +267,14 @@ function ResourceRow({
     && typeof resource.resourceId === 'string'
     && resource.resourceId.length > 0;
   const requiresRequestReview = resource.action.kind === 'review_endpoint';
-  const actionLabel = resource.action.label;
+  const actionLabel = resource.action.kind === 'endpoint_unavailable'
+    && resource.action.reason === 'input_contract_unavailable'
+    ? 'Request details unavailable'
+    : resource.action.label;
   const actionAriaLabel = resource.action.kind === 'endpoint_unavailable'
-    ? `${resource.displayName} from ${provider.displayName} is unavailable to check`
+    ? resource.action.reason === 'input_contract_unavailable'
+      ? `Request details unavailable for ${resource.displayName} from ${provider.displayName}`
+      : `${resource.displayName} from ${provider.displayName} is unavailable to check`
     : requiresRequestReview
       ? `Review exact request before checking current terms for ${resource.displayName} from ${provider.displayName}`
       : `Check current terms for ${resource.displayName} from ${provider.displayName}`;
