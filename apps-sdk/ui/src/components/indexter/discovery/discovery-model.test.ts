@@ -947,3 +947,53 @@ it('request-details labels retain unavailable discovery rows without a check fol
     }
   }
 });
+
+describe('nested v2 managed discovery contract', () => {
+  it('keeps the complete shared contract through producer, strict result and widget followup', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { projectIndexterDiscoveryEndpointActions, buildIndexterToolResult } = await import('../../../../../../lib/indexter-tool-result.mjs');
+    const { applyOpenToolResultPolicy, OPEN_TOOL_CONTRACTS, PROVIDER_DATA_POLICY } = await import('../../../../../../lib/open-tool-contracts.mjs');
+    const fixture = JSON.parse(readFileSync(new URL('../../../../../../tests/fixtures/indexter-request-input-v2.json', import.meta.url), 'utf8'));
+    const source = endpointPayload();
+    const original = source.providers[0].capabilityGroups[0].resources[0];
+    const raw = { ...original, resourceUrl: null, method: 'POST',
+      access: { kind: 'managed_resolvable', checkable: true, requiresFreshCheck: true },
+      inputSchema: fixture.schema, pathParams: null,
+      execution: { sideEffectful: false, effect: null, automatedVerification: 'enabled', userExecution: 'allowed',
+        confirmationRequired: false, availability: 'available', requiresExplicitInput: true, quoteMayCreateProviderReservation: false } };
+    const rawPayload = { ...source, discoveryResultSetId: '11111111-1111-4111-8111-111111111111',
+      requestedProvider: 'Massive', error: null, message: null, source: 'Indexter', providerDataPolicy: PROVIDER_DATA_POLICY, providers: [{ ...source.providers[0], capabilityGroups: [
+      { ...source.providers[0].capabilityGroups[0], resources: [raw] },
+    ] }] };
+    const projected = projectIndexterDiscoveryEndpointActions(rawPayload);
+    expect(isIndexterDiscoveryPayload(projected)).toBe(true);
+    const discoveryValidation = OPEN_TOOL_CONTRACTS.indexter_discover.outputSchema.safeParse(projected);
+    expect(discoveryValidation.success, JSON.stringify(discoveryValidation.error?.issues)).toBe(true);
+    const result = applyOpenToolResultPolicy('indexter_search', buildIndexterToolResult({ route: 'provider', provider: 'Massive', payload: projected }));
+    expect(OPEN_TOOL_CONTRACTS.indexter_search.outputSchema.safeParse(result.structuredContent).success).toBe(true);
+    const view = result._meta.indexterPayload.data;
+    expect(isIndexterDiscoveryPayload(view)).toBe(true);
+    const selected = view.providers[0].capabilityGroups[0].resources[0];
+    expect(selected.requestInput).toEqual(fixture.expectedContract);
+    expect(selected.resourceId).toBe(original.resourceId);
+    expect(selected.action.kind).toBe('review_endpoint');
+    const prompt = buildResourceCheckFollowUp(view.providers[0], selected);
+    expect(prompt).toContain('requestInputVersion:2');
+    const fields = prompt!.match(/BEGIN_BOUNDED_ENDPOINT\n(.*?)\nEND_BOUNDED_ENDPOINT/s);
+    expect(fields).not.toBeNull();
+    expect(JSON.parse(fields![1]).requestInput).toEqual(fixture.expectedContract);
+
+    for (const method of ['GET', 'POST']) {
+      const unsupported = structuredClone(rawPayload);
+      const target = unsupported.providers[0].capabilityGroups[0].resources[0];
+      target.method = method;
+      if (method === 'POST') target.inputSchema.properties.options.additionalProperties = true;
+      const refused = projectIndexterDiscoveryEndpointActions(unsupported);
+      expect(isIndexterDiscoveryPayload(refused)).toBe(true);
+      const row = refused.providers[0].capabilityGroups[0].resources[0];
+      expect(row.requestInput).toBeNull();
+      expect(row.action.reason).toBe('input_contract_unavailable');
+      expect(buildResourceCheckFollowUp(refused.providers[0], row)).toBeNull();
+    }
+  });
+});

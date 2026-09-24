@@ -1,3 +1,4 @@
+import { parseIndexterRequestInputV2 } from '../../../../../../lib/indexter-request-input-v2.mjs';
 import type {
   SearchIntent,
   SearchMeta,
@@ -481,6 +482,14 @@ function isSafeExecution(value: unknown): boolean {
 
 export function isSafeSearchRequestInput(value: unknown): boolean {
   if (!isRecord(value)) return false;
+  if (value.version === 2) {
+    const parsed = parseIndexterRequestInputV2(value);
+    return parsed !== null && parsed.fields.every((field) => {
+      const nodes = field.type === 'object' ? [field, ...field.fields] : [field];
+      return nodes.every((node) => isSafeObjectKey(node.name, 64) && isSafeText(node.name, 64)
+        && (!('enum' in node) || node.enum === undefined || node.enum.every((item) => isSafeText(item, 128))));
+    });
+  }
   if (
     value.version !== 1
     || !Array.isArray(value.fields)
@@ -587,7 +596,9 @@ function isSafeResource(value: unknown, expectedTier?: 'strong' | 'related'): va
   if (value.resourceUrl !== undefined && value.resourceUrl !== url) return false;
   const requestFields = (value.requestInput as { fields: Array<{ location: string }> } | null)?.fields ?? [];
   if (
-    requestFields.some((field) => field.location === 'path')
+    (isRecord(value.requestInput) && value.requestInput.version === 2
+      && (value.method === 'GET' || access.kind !== 'managed_resolvable'))
+    || requestFields.some((field) => field.location === 'path')
     || (value.method === 'GET' && requestFields.some((field) => field.location === 'body'))
     || (access.kind === 'managed_resolvable'
       && requestFields.some((field) => field.location !== 'body'))

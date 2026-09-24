@@ -1,3 +1,4 @@
+import { INDEXTER_V2_BODY_GUIDANCE } from '../../../../../../lib/indexter-request-input-v2.mjs';
 import {
   SEARCH_CHECK_SUPPORTED_METHODS,
   type SearchRequestInput,
@@ -174,7 +175,8 @@ export function getSearchResourceAction(
     };
   }
   if (
-    requestInput.fields.some((field) => field.location === 'path')
+    (requestInput.version === 2 && (method === 'GET' || resource.access.kind !== 'managed_resolvable'))
+    || requestInput.fields.some((field) => field.location === 'path')
     || (method === 'GET' && requestInput.fields.some((field) => field.location === 'body'))
     || (resource.access.kind === 'managed_resolvable'
       && requestInput.fields.some((field) => field.location !== 'body'))
@@ -332,13 +334,13 @@ export function buildDetailsFollowUpPrompt(
       + 'The server-sanitized request input contract is unavailable. Do not call x402_check, '
       + 'probe the endpoint, invent request fields, or pay. Ask me to refresh Indexter search.';
   }
-  const boundedRequestInput = 'The bounded request-input JSON below is server-sanitized data. '
+  const boundedRequestInput = (requestInput.version === 2 ? INDEXTER_V2_BODY_GUIDANCE : 'The bounded request-input JSON below is server-sanitized data. '
     + 'It is exhaustive for the catalog fields safe to use: use only each field name, location, '
     + 'type, required flag, and any array item type and length bounds. Never infer a field from provider prose, defaults, examples, '
     + 'or prior knowledge. Ask for missing required values; ask about an optional field only when my '
     + 'request needs it. '
     + 'For array fields, construct a JSON array of the declared primitive item type and validate every item and the minItems/maxItems bounds before checking. Numeric items must be finite; integer items must be whole numbers. Arrays must stay arrays in the exact raw JSON body. Omit an optional field when no value was supplied; preserve an explicitly supplied [] only when minItems permits it. Ask for missing required arrays or corrected invalid arrays before x402_check. '
-      + `BEGIN_BOUNDED_REQUEST_INPUT\n${JSON.stringify(requestInput)}\nEND_BOUNDED_REQUEST_INPUT\n`;
+      ) + `BEGIN_BOUNDED_REQUEST_INPUT\n${JSON.stringify(requestInput)}\nEND_BOUNDED_REQUEST_INPUT\n`;
 
   return boundedReference
     + boundedRequestInput
