@@ -27,10 +27,12 @@ availability. This skill adds Grok Bot setup and useful work patterns.
    A Connected badge alone does not show that setup finished. Follow a returned
    setup action, then resume the same request. If the host cannot complete
    OAuth, report the failed step and preserve the canonical endpoint.
-4. State what is ready and continue the user's task. Connecting an account or
-   adding this template grants no spending authority. A new account may need
-   further setup before a particular action is available. Use current results
-   to establish that requirement; zero cash alone does not establish it.
+4. State what is ready and continue the user's task. Adding this template
+   does not request a purchase or trade. Use only the account permissions the
+   owner actually approved, together with their task instructions. A new
+   account may need further setup before a particular action is available.
+   Use current results to establish that requirement; zero cash alone does
+   not establish it.
 
 For a later authentication error, resume the same host-native authorization.
 Never substitute a personal connector URL, another MCP endpoint, or a copied
