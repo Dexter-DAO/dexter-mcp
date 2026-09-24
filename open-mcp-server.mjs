@@ -1033,9 +1033,6 @@ async function x402IntentStatus({ intentId, checkRequestId }, extra) {
       } });
     }
     const response = await callOpenX402IntentApi('checkStatus', { sessionId: session.sessionId, checkRequestId });
-    if (response.data?.delivery || response.data?.payment) {
-      return { ...sanitizeOpenX402IntentResult(response.data, { httpStatus: response.httpStatus, includeData: false }), checkRequestId };
-    }
     return buildHostedCheckStatusModelResult({ checkRequestId, checkResult: { ...response.data, httpStatus: response.httpStatus } });
   }
   const session = await resolveIntentSession(extra);
@@ -1514,6 +1511,7 @@ async function runCanonicalX402Check(args, session) {
         ...(args.url ? { url: args.url } : { resourceId: args.resourceId }),
         method: args.method || 'GET',
         ...(Object.prototype.hasOwnProperty.call(args, 'body') ? { body: args.body } : {}),
+        ...(Object.prototype.hasOwnProperty.call(args, 'requestInputVersion') ? { requestInputVersion: args.requestInputVersion } : {}),
       }),
     });
     } catch {
@@ -1582,6 +1580,7 @@ async function runCanonicalX402Check(args, session) {
       ?? result?.resolvedMethod
       ?? args.method
       ?? 'GET',
+    validationMethod: args.method || 'GET',
     rawBody: args.body,
     rawBodyProvided: Object.prototype.hasOwnProperty.call(args, 'body'),
     enrichment,

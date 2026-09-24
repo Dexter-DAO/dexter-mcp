@@ -1,3 +1,4 @@
+import type { IndexterRequestInputV2 } from '../../../../../../lib/indexter-request-input-v2.mjs';
 export type SearchSeller = {
   payTo?: string | null;
   displayName: string | null;
@@ -61,7 +62,7 @@ export type SearchRequestInputField = {
 export type SearchRequestInput = {
   version: 1;
   fields: SearchRequestInputField[];
-};
+} | IndexterRequestInputV2;
 
 export type SearchResource = {
   kind: 'endpoint';
