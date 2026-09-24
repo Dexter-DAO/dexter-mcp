@@ -1601,6 +1601,18 @@ async function runCanonicalX402Check(args, session) {
 
 const SOLANA_MAINNET_CAIP2 = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
 
+function readWalletCash(onchain) {
+  const value = onchain?.usdcAtomic;
+  const atomic = typeof value === 'string' ? value
+    : typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
+      ? String(value) : null;
+  if (atomic === null || !/^(0|[1-9]\d{0,19})$/.test(atomic)
+    || BigInt(atomic) > 18446744073709551615n) {
+    return { atomic: null, usd: null };
+  }
+  return { atomic, usd: Number(atomic) / 1e6 };
+}
+
 /**
  * dexter_wallet is the non-custodial vault dashboard.
  *
@@ -1619,9 +1631,8 @@ const SOLANA_MAINNET_CAIP2 = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
  * removing. When EVM-vault parity ships (see strategy doc in dexter-api), this
  * tool starts returning a real evmAddress again.
  *
- * Multi-chain widget shape preserved: chainBalances keys all 6 chains, but the
- * non-Solana ones report zero with available='0'. That keeps the widget
- * rendering rather than crashing on a missing key.
+ * chainBalances contains measured balances only. Chain support is separate
+ * from balance observations; an unobserved chain does not establish zero.
  */
 // ─── Dextercard-in-wallet (board #94/#95) ───────────────────────────────────
 // The wallet payload carries a small read-only card summary; reveal/freeze
@@ -1845,8 +1856,7 @@ async function x402Wallet(args, extra) {
     // swig by design; honor that fail-safe rather than show a fund-losing address.
     const receiveAddress = getVaultReceiveAddress(state.vault);
     const onchainPending = state.onchain || null;
-    const pendingUsdcAtomic = String(onchainPending?.usdcAtomic ?? '0');
-    const pendingUsdc = Number(pendingUsdcAtomic) / 1e6;
+    const { atomic: pendingUsdcAtomic, usd: pendingUsdc } = readWalletCash(onchainPending);
     return {
       mode: 'vault_not_activated',
       paySource: 'anon_vault',
@@ -1882,18 +1892,23 @@ async function x402Wallet(args, extra) {
       // "Activation" is the one-tap Swig deployment that happens on the
       // first SIGNING action (withdraw/pay) and needs a $1+ balance.
       message:
-        pendingUsdc > 0
+        pendingUsdc === null
+          ? 'Your wallet is set up, but its cash balance could not be read. Retry this wallet read before deciding whether to add funds.'
+          : pendingUsdc > 0
           ? `You have $${pendingUsdc.toFixed(2)} USDC in your wallet. To spend it, finish setup at dexter.cash/wallet — ` +
             'one tap of the passkey you already created (any action, e.g. withdraw or pay, completes it).'
           : receiveAddress
             ? `Your wallet is ready to receive: send USDC on Solana to ${receiveAddress}. ` +
               'Once it holds at least $1, one passkey tap at dexter.cash/wallet (any action) finishes setup and payments unlock.'
             : 'Your wallet is set up to receive deposits, but the deposit address could not be read just now — try again in a moment.',
-      instructions:
-        'The wallet exists and CAN receive deposits right now — the deposit address is valid from birth; the sender\'s ' +
+      instructions: pendingUsdc === null
+        ? 'Wallet activation is still required at dexter.cash/wallet. Retry this wallet read to check its current balance.'
+        : 'The wallet exists and CAN receive deposits right now — the deposit address is valid from birth; the sender\'s ' +
         'transfer creates the token account. Spending is what needs the one-time setup tap: after the wallet holds $1+, ' +
         'any action at dexter.cash/wallet (withdraw, pay) completes it with one passkey tap, then x402_fetch works normally.',
-      tip: receiveAddress
+      tip: pendingUsdc === null
+        ? 'Cash balance unavailable. Retry this wallet read; the receive address and activation state are shown separately.'
+        : receiveAddress
         ? `Deposits work now (send USDC on Solana to ${receiveAddress}). First spend needs one passkey tap at dexter.cash/wallet.`
         : 'Deposits work once the address loads; first spend needs one passkey tap at dexter.cash/wallet.',
     };
@@ -1921,23 +1936,15 @@ async function x402Wallet(args, extra) {
     cursor: args?.activityCursor,
   });
   const onchain = state.onchain || null;
-  const usdcAtomic = String(onchain?.usdcAtomic ?? '0');
-  const usdcAvailable = Number(usdcAtomic) / 1e6;
+  const { atomic: usdcAtomic, usd: usdcAvailable } = readWalletCash(onchain);
   const ataExists = Boolean(onchain?.usdcAtaExists);
   const pendingVoucherCount = onchain?.pendingVoucherCount ?? 0;
   const withdrawalBlocked = Boolean(onchain?.withdrawalBlocked);
 
-  // chainBalances keys every supported chain so the widget doesn't have to
-  // special-case Solana. Non-Solana chains honestly report zero — the vault
-  // is Solana-only today, and we're not pretending otherwise. EVM-parity
-  // tracked in dexter-api/2026-05-30-opendexter-two-distributions-and-evm-parity.md
-  const chainBalances = {
+  // Only the Solana cash balance is observed by this response. Unobserved
+  // chains remain absent rather than acquiring a fabricated zero balance.
+  const chainBalances = usdcAtomic === null ? {} : {
     [SOLANA_MAINNET_CAIP2]: { available: usdcAtomic, name: 'Solana', tier: 'first' },
-    'eip155:8453': { available: '0', name: 'Base', tier: 'first' },
-    'eip155:137': { available: '0', name: 'Polygon', tier: 'second' },
-    'eip155:42161': { available: '0', name: 'Arbitrum', tier: 'second' },
-    'eip155:10': { available: '0', name: 'Optimism', tier: 'second' },
-    'eip155:43114': { available: '0', name: 'Avalanche', tier: 'second' },
   };
 
   // Money composition (state.money rides ?money=1): cash, a read-only credit
@@ -1966,8 +1973,8 @@ async function x402Wallet(args, extra) {
     : 0;
   const creditCapacityReported = creditAvailUsd > 0;
   const isEarning = Boolean(money?.isEarning);
-  const accountCapacityUsd = usdcAvailable + creditAvailUsd;
-  const spendingPower = money
+  const accountCapacityUsd = usdcAvailable === null ? null : usdcAvailable + creditAvailUsd;
+  const spendingPower = money && accountCapacityUsd !== null
     ? {
         totalUsd: Number(accountCapacityUsd.toFixed(6)),
         cashAtomic: usdcAtomic,
@@ -2001,7 +2008,16 @@ async function x402Wallet(args, extra) {
         graphPaused: creditReadStatus === 'available' ? (money.creditGraphPaused ?? null) : null,
       }
     : null;
-  const paymentReadiness = usdcAvailable > 0
+  const paymentReadiness = usdcAvailable === null
+    ? {
+        status: 'unknown',
+        cashAvailable: null,
+        creditReadStatus,
+        creditCapacityReported,
+        exactIntentCheckRequired: true,
+        note: 'Cash balance could not be read. Retry this wallet read; payment eligibility is determined for each checked request.',
+      }
+    : usdcAvailable > 0
     ? {
         status: 'cash_available',
         cashAvailable: true,
@@ -2060,7 +2076,11 @@ async function x402Wallet(args, extra) {
   const personhood = { verified: Boolean(onchain?.isVerified) };
 
   let tip;
-  if (paymentReadiness.status === 'credit_capacity_reported') {
+  if (usdcAvailable === null) {
+    tip = creditCapacityReported
+      ? `Cash balance is unavailable. Reported credit capacity is $${creditAvailUsd.toFixed(2)}. Retry this wallet read for current cash; the exact checked intent determines payment eligibility.`
+      : 'Cash balance is unavailable. Retry this wallet read before deciding whether to add funds.';
+  } else if (paymentReadiness.status === 'credit_capacity_reported') {
     tip = `$${creditAvailUsd.toFixed(2)} of credit capacity is reported and cash is $0.00. Whether a purchase can use it is decided only for the exact checked intent. Do not request a deposit or promise credit execution from this wallet read alone.`;
   } else if (paymentReadiness.status === 'unknown') {
     tip = 'Cash is $0.00 and credit could not be read, so payment readiness is unknown. Retry the read or inspect the exact intent; do not tell the user to fund based only on this result.';
@@ -2709,7 +2729,7 @@ export function createOpenMcpServer({
 
   registerOpenTool(server, 'dexter_wallet', {
     title: 'Dexter Wallet',
-    description: "Read-only view of the user's Dexter wallet, the non-custodial passkey vault bound to this session. Returns its receive address, cash, reported credit capacity and read status, payment-readiness guidance, and recent activity after native OpenDexter authorization. Cash, reported credit, and exact-intent execution eligibility are distinct: never infer that a deposit is required from zero cash alone, and never promise that credit can fund an endpoint until its exact intent is checked. A missing or stale authorization triggers the host's Connect flow; it never creates a separate connector URL. Dexter holds no keys and runs no server-side session wallet.",
+    description: "Read-only view of the user's Dexter wallet, the non-custodial passkey vault bound to this session. Returns its receive address, cash, reported credit capacity and read status, payment-readiness guidance, and recent activity after native OpenDexter authorization. Unknown cash remains null, and unobserved chains have no balance entry. Cash, reported credit, and exact-intent execution eligibility are distinct: never infer that a deposit is required from zero cash alone, and never promise that credit can fund an endpoint until its exact intent is checked. A missing or stale authorization triggers the host's Connect flow; it never creates a separate connector URL. Dexter holds no keys and runs no server-side session wallet.",
     inputSchema: {
       activityLimit: z.number().int().min(1).max(100).optional().describe('Maximum activity rows; defaults to 25.'),
       activityCursor: z.string().min(1).max(4096).optional().describe('Opaque nextCursor from this wallet activityPage; omit for newest activity.'),
@@ -3490,9 +3510,14 @@ const httpServer = http.createServer(async (req, res) => {
           respond(activityPage ? 200 : 502, { ok: Boolean(activityPage), activityPage });
           return;
         }
+        const cash = readWalletCash(state.onchain);
+        if (cash.atomic === null) {
+          respond(502, { ok: false, error: 'balance_unavailable' });
+          return;
+        }
         respond(200, {
           ok: true,
-          usdcAtomic: String(state.onchain?.usdcAtomic ?? '0'),
+          usdcAtomic: cash.atomic,
           isActivated: state.vault.isActivated !== false,
         });
       } catch (err) {

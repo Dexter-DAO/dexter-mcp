@@ -94,7 +94,7 @@ function WalletApp() {
     // balance-aware sentence (funds waiting vs. ready to receive).
     view = (
       <SimpleState
-        title={payload.balances.usdc > 0 ? 'Money received. Approve spending.' : 'Ready to receive'}
+        title={payload.balances.usdc !== null && payload.balances.usdc > 0 ? 'Money received. Approve spending.' : 'Ready to receive'}
         body={payload.message ||
           'Deposits work right now. When you\'re ready to spend, one tap of your passkey finishes setup.'}
         cta="Open your wallet"

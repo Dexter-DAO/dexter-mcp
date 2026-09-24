@@ -3,6 +3,9 @@ import { describe, expect, it } from 'vitest';
 
 import { CompositionBar } from './CompositionBar';
 import { SpendHeadline } from './SpendHeadline';
+import { WalletHome } from './WalletHome';
+import { CreditSheet } from './CreditSheet';
+import { normalizeWalletPayload } from '../x402/walletPayload';
 import { splitUsd } from './format';
 
 describe('wallet money presentation', () => {
@@ -61,5 +64,42 @@ describe('wallet money presentation', () => {
     expect(markup).toContain('class="sr-only"');
     expect(markup).toContain('$7.45</span>');
     expect(markup).toContain('class="dxw-spend-amount" aria-hidden="true"');
+  });
+
+  it('keeps wallet views and reported credit available when cash could not be read', () => {
+    const payload = normalizeWalletPayload({ address: '11111111111111111111111111111111',
+      balances: { usdc: null }, spendingPower: null,
+      credit: { readStatus: 'available', capAtomic: '50000000', borrowedAtomic: '20000000', availableAtomic: '30000000' },
+      paymentReadiness: { status: 'unknown' } });
+    const markup = renderToStaticMarkup(<WalletHome payload={payload} walletToken={null}
+      onOpenExternal={() => {}} isFullscreen={false} condensed={false} onRequestDisplayMode={null} />);
+    expect(markup).toContain('Balance unavailable');
+    expect(markup).toContain('Reported credit');
+    expect(markup).toContain('$30.00');
+    expect(markup).toContain('Receive');
+    expect(markup).toContain('Assets');
+    expect(markup).toContain('Activity');
+    expect(markup).not.toContain('$0.00');
+    expect(markup).not.toContain('dxw-comp-bar--empty');
+    expect(markup).not.toContain('funding_required');
+  });
+
+  it('still renders an observed zero as zero', () => {
+    const payload = normalizeWalletPayload({ address: '11111111111111111111111111111111', balances: { usdc: 0 } });
+    const markup = renderToStaticMarkup(<WalletHome payload={payload} walletToken={null}
+      onOpenExternal={() => {}} isFullscreen={false} condensed={false} onRequestDisplayMode={null} />);
+    expect(markup).toContain('$0.00');
+    expect(markup).toContain('dxw-comp-bar--empty');
+    expect(markup).not.toContain('Balance unavailable');
+  });
+
+  it('keeps known credit facts while withholding a cash-dependent net value', () => {
+    const markup = renderToStaticMarkup(<CreditSheet lineUsd={50} drawnUsd={20} cashUsd={null} onClose={() => {}} />);
+    expect(markup).toContain('$50.00');
+    expect(markup).toContain('$20.00');
+    expect(markup).toContain('$30.00');
+    expect(markup).toContain('balance <b class="dxw-mono">Unavailable</b>');
+    expect(markup).toContain('net <b class="dxw-mono">Unavailable</b>');
+    expect(markup).not.toContain('$0.00');
   });
 });
