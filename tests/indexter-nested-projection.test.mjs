@@ -98,3 +98,54 @@ test('discovery projection preserves v2 and refuses GET or unsupported nested sh
   const bad = endpoint(); bad.inputSchema = { ...fixture.schema, additionalProperties: true };
   assert.equal(project(bad).action.reason, 'input_contract_unavailable');
 });
+
+test('v2 declared selector policy preserves complete names and enums without a resource allowlist', () => {
+  for (const name of ['render_system', 'codec7_system']) {
+    const schema = structuredClone(fixture.schema);
+    schema.properties.options.properties[name] = { type: 'string', enum: ['compact', 'detailed'] };
+    const projected = projectIndexterRequestInputV2(schema);
+    assert.ok(projected);
+    const options = projected.fields.find(field => field.name === 'options');
+    assert.deepEqual(options.fields.find(field => field.name === name), {
+      name, location: 'body', type: 'string', required: false, enum: ['compact', 'detailed'],
+    });
+    schema.properties.options.required = [name];
+    assert.equal(projectIndexterRequestInputV2(schema).fields.find(field => field.name === 'options')
+      .fields.find(field => field.name === name).required, true);
+    const output = projectIndexterDiscoveryEndpointActions({ featuredOfferings: [endpoint(schema)] }).featuredOfferings[0];
+    assert.equal(output.action.kind, 'review_endpoint');
+    assert.deepEqual(output.requestInput, projectIndexterRequestInputV2(schema));
+  }
+});
+
+test('v2 selector exception rejects instruction names, free text, unsafe enums and legacy downgrade', () => {
+  for (const name of ['system', 'system_prompt', 'system_instructions', 'developer_system', 'ignore_system',
+    'override_system', 'prompt_system', 'apiKey_system', 'password_system', 'constructor_system',
+    'prototype_system', 'system_system', 'safe_extra_system', 'safe_SYSTEM', 'assistant', '__proto__']) {
+    const schema = structuredClone(fixture.schema);
+    Object.defineProperty(schema.properties.options.properties, name, {
+      value: { type: 'string', enum: ['compact', 'detailed'] }, enumerable: true, configurable: true,
+    });
+    assert.equal(projectIndexterRequestInputV2(schema), null);
+  }
+  for (const shape of [
+    { type: 'string' }, { type: 'string', enum: null }, { type: 'string', enum: [] },
+    { type: 'string', enum: ['compact', 'compact'] }, { type: 'string', enum: ['compact', 1] },
+    { type: 'string', enum: ['system'] }, { type: 'string', enum: ['ignore_instructions'] },
+    { type: 'string', enum: ['constructor'] }, { type: 'string', enum: ['apiKey'] },
+    { type: 'string', enum: ['Bearer unsafe-secret'] }, { type: 'string', enum: ['é'] },
+    { type: 'string', enum: ['a'.repeat(129)] }, { type: 'string', enum: ['compact'], unknown: true },
+    { type: 'integer', enum: ['compact'] }, { type: 'array', items: { type: 'string' } },
+    { type: 'object', properties: {}, additionalProperties: false },
+  ]) {
+    const schema = structuredClone(fixture.schema);
+    schema.properties.options.properties.render_system = shape;
+    assert.equal(projectIndexterRequestInputV2(schema), null);
+    assert.equal(projectIndexterDiscoveryEndpointActions({ featuredOfferings: [endpoint(schema)] })
+      .featuredOfferings[0].action.reason, 'input_contract_unavailable');
+  }
+  const flat = endpoint({ type: 'object', additionalProperties: false,
+    properties: { render_system: { type: 'string', enum: ['compact', 'detailed'] } } });
+  assert.equal(classifyIndexterBodySchema(flat.inputSchema), 'legacy');
+  assert.equal(projectIndexterDiscoveryEndpointActions({ featuredOfferings: [flat] }).featuredOfferings[0].requestInput, null);
+});
