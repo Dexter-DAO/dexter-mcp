@@ -121,6 +121,7 @@ const API_GOVERNED_CONTRACT_PATHS = Object.freeze([
   'src/routes/passkeyMcpBinding.ts',
   'src/portfolio/readSessionPortfolio.ts',
   'src/portfolio/selectPortfolioRead.ts',
+  'src/portfolio/selectedReadTiming.ts',
   'src/portfolio/portfolioReadSnapshots.ts',
   'src/portfolio/selectedPortfolioContract.ts',
   'src/portfolio/contract.ts',
@@ -171,9 +172,11 @@ const EXPECTED_SOURCE_CONTRACTS = Object.freeze({
   // constant binds the finalized program readback and generated admission.
   // The reviewed selected portfolio read adds session binding, source
   // validation, frozen snapshots and bounded selection contracts.
+  // Its timing successor adds request-local stage diagnostics without changing
+  // response, authorization, retry or timeout behavior.
   // Later releases must preserve these API_GOVERNED_CONTRACT_PATHS bytes.
-  integratedGovernedCommit: 'ae00d1d27077c6a6fa0626f25656da302cd1f16a',
-  integratedGovernedTree: '20e922af82fbac900bfbdd263264068c600d8f63',
+  integratedGovernedCommit: '922f29405956e768b3fc7c42d7e44e0af1ca48cd',
+  integratedGovernedTree: '980b6dc4106b55c93c91dc2acaf61adac588bc04',
   apiFixtureSha256:
     'ad06690a3914e0ef0f359c4164eb62f78ca54abe6697a52672d739df63c2c352',
   apiCanonicalBodyDigest:
