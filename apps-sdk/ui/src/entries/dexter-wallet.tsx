@@ -11,6 +11,7 @@ import {
   useAdaptiveRequestDisplayMode,
   useAdaptiveTheme,
   useAdaptiveMaxHeight,
+  useToolInvocationLifecycle,
   useToolOutput,
   useToolResponseMetadata,
 } from '../sdk';
@@ -29,8 +30,24 @@ import { WalletHome, SimpleState } from '../components/wallet';
 const WALLET_URL = 'https://dexter.cash/wallet';
 const SETUP_URL = 'https://dexter.cash/wallet/setup-passkey';
 
+const INVOCATION_FAILURES = {
+  malformed: {
+    title: 'Wallet result unavailable',
+    body: 'This wallet result could not be verified. Ask to view your wallet again.',
+  },
+  cancelled: {
+    title: 'Wallet read cancelled',
+    body: 'This wallet read was cancelled. Ask to view your wallet again when you are ready.',
+  },
+  timed_out: {
+    title: 'Wallet read timed out',
+    body: 'The wallet result did not arrive in time. You can ask to view your wallet again.',
+  },
+} as const;
+
 function WalletApp() {
   const toolOutput = useToolOutput();
+  const lifecycle = useToolInvocationLifecycle();
   const hasToolOutput = toolOutput !== null && toolOutput !== undefined;
   const meta = useToolResponseMetadata<{
     dexterCardToken?: string;
@@ -58,9 +75,16 @@ function WalletApp() {
 
   const hasAddress = Boolean(payload.solanaAddress || payload.address);
   const mode = payload.mode;
+  const invocationFailure = lifecycle.status === 'malformed'
+    || lifecycle.status === 'cancelled'
+    || lifecycle.status === 'timed_out'
+    ? INVOCATION_FAILURES[lifecycle.status]
+    : null;
 
   let view;
-  if (!hasToolOutput) {
+  if (invocationFailure) {
+    view = <SimpleState {...invocationFailure} announcement="error" />;
+  } else if (!hasToolOutput) {
     view = (
       <SimpleState
         title="Reading your money"
@@ -142,6 +166,7 @@ function WalletApp() {
   return (
     <div
       className="dxw-root"
+      data-tool-invocation-status={lifecycle.status}
       data-theme={theme}
       data-display-mode={displayMode}
       data-host-max-height={maxHeight ?? undefined}
