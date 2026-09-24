@@ -87,7 +87,7 @@ export type SearchResource = {
   requestInput: SearchRequestInput | null;
   action?: {
     kind: 'endpoint_unavailable';
-    label: 'Unavailable';
+    label: 'Unavailable' | 'Request details unavailable';
     state: 'unavailable';
     reason: 'input_contract_unavailable';
     resourceId: string;
