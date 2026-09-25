@@ -185,8 +185,8 @@ const EXPECTED_SOURCE_CONTRACTS = Object.freeze({
   // The normal PR364 producer separates priced holdings from target preparation
   // and retains held-asset identity evidence in independent v3 observations.
   // Later releases must preserve these API_GOVERNED_CONTRACT_PATHS bytes.
-  integratedGovernedCommit: '1cf819f09115cc8e004e4b579b63e809a9801931',
-  integratedGovernedTree: '8b10e97ead81718ae967d7575660460c5658245b',
+  integratedGovernedCommit: '06086fd00d4e87a1bd0505fa7b8eb907c35c200a',
+  integratedGovernedTree: 'bc5429901fa6d9cac51c302e3becb618a792606f',
   apiFixtureSha256:
     'ad06690a3914e0ef0f359c4164eb62f78ca54abe6697a52672d739df63c2c352',
   apiCanonicalBodyDigest:
