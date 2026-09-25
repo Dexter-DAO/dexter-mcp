@@ -33,14 +33,19 @@ for (const name of Object.keys(literal.valid)) {
 }
 
 test('zero, unknown targets and identity-unavailable prices remain distinct', () => {
-  assert.equal(selected(fixture('empty_holdings')).summary.value, '0');
+  const empty = selected(fixture('empty_holdings'));
+  assert.equal(empty.summary.value, '$0');
+  assert.equal(empty.read.source.portfolioValueUsd, '0');
+  assert.equal(empty.read.source.pricedValueUsd, '0');
   const targets = selected(fixture('standalone_unavailable_targets'));
   assert.equal(targets.summary, null);
   assert.equal(portfolioHoldingsSource(targets.read), null);
   assert.equal(targets.read.source.targetCount, null);
   for (const name of ['retired_priced_detail', 'identity_unavailable_priced_detail']) {
     const value = selected(fixture(name));
-    assert.equal(value.summary.value, '100');
+    assert.equal(value.summary.value, '$100');
+    assert.equal(value.read.source.portfolioValueUsd, '100');
+    assert.equal(value.read.source.pricedValueUsd, '100');
     assert.equal(value.read.richHoldings[0].valueUsd, '100');
     for (const key of ['approvalStatus', 'availableActions', 'capabilities']) assert.equal(Object.hasOwn(value.read.richHoldings[0], key), false);
   }

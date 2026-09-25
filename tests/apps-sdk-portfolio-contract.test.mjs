@@ -22,7 +22,23 @@ test('portfolio widget is a read-only view of the public portfolio contract', as
   assert.match(component, /data-discovery-context="true"/);
   assert.match(component, /Holdings, balances, and authority remain separate/);
   assert.match(component, /Prepare checks current authority before any action/);
-  assert.doesNotMatch(component, /LedgerMark|dxp-asset-mark|<dl|<dt/);
+  assert.doesNotMatch(component, /LedgerMark|dxp-asset-mark/);
+  // Selected detail facts use semantic label/value lists; legacy layouts stay flat.
+  const factFunction = component.match(/function Fact\([\s\S]*?\n\}/)?.[0] ?? '';
+  assert.match(factFunction, /<dt>\{label\}<\/dt><dd>\{children \?\? 'Unavailable'\}<\/dd>/);
+  assert.doesNotMatch(component.replace(factFunction, ''), /<dt\b/);
+  const definitionLists = [...component.matchAll(/<dl\b([^>]*)>/g)].map((match) => match[1].trim());
+  assert.ok(definitionLists.length > 0);
+  for (const attributes of definitionLists) {
+    assert.match(attributes, /^className="dxp-selected-facts(?: dxp-selected-facts--(?:reasons|exact|diagnostics))?"$/);
+  }
+  for (const testId of ['exact-balance', 'asset-diagnostics', 'observation-details']) {
+    const start = component.indexOf(`data-testid="${testId}"`);
+    assert.ok(start >= 0, `Missing selected disclosure ${testId}`);
+    const end = component.indexOf('</details>', start);
+    assert.ok(end > start, `Unclosed selected disclosure ${testId}`);
+    assert.match(component.slice(start, end), /<dl className="dxp-selected-facts/);
+  }
   assert.match(component, /useAdaptiveCallToolFn/);
   assert.match(component, /callTool\('dexter_wallet_portfolio', args\)/);
   assert.doesNotMatch(component, /callTool\('dexter_(?:prepare|execute|reconcile)_asset_action'/);
@@ -43,10 +59,22 @@ test('portfolio visual is flat and leaves the outer container to the host', asyn
   assert.match(rootRule, /background:\s*transparent/);
   assert.doesNotMatch(rootRule, /overflow(?:-[xy])?:\s*auto/);
   assert.match(ledgerRule, /background:\s*transparent/);
-  const visibleBorders = [...css.matchAll(/\bborder(?:-(?!radius\b)[a-z]+)?\s*:\s*([^;]+);/g)]
-    .map((match) => match[1].trim())
-    .filter((value) => value !== '0' && value !== 'none');
-  assert.deepEqual(visibleBorders, []);
+  const visibleBorders = [];
+  const rules = css.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{([^{}]*)\}/g);
+  for (const rule of rules) {
+    const selector = rule[1].trim().replace(/\s+/g, ' ');
+    for (const declaration of rule[2].matchAll(/\b(border(?:-(?!radius\b)[a-z]+)?)\s*:\s*([^;]+);/g)) {
+      const value = declaration[2].trim();
+      if (value !== '0' && value !== 'none') visibleBorders.push({ selector, property: declaration[1], value });
+    }
+  }
+  // These draw the existing chevron and two disclosure separators, not containers.
+  assert.deepEqual(visibleBorders, [
+    { selector: '.dxp-selected-chevron', property: 'border-top', value: '1.3px solid var(--dx-ink-muted)' },
+    { selector: '.dxp-selected-chevron', property: 'border-right', value: '1.3px solid var(--dx-ink-muted)' },
+    { selector: '.dxp-selected-disclosure', property: 'border-top', value: '1px solid var(--dx-hairline)' },
+    { selector: '.dxp-selected-footer', property: 'border-top', value: '1px solid var(--dx-hairline)' },
+  ]);
   assert.doesNotMatch(css, /box-shadow\s*:/);
   assert.doesNotMatch(holdingRule, /background\s*:/);
   assert.doesNotMatch(targetRule, /background\s*:/);
