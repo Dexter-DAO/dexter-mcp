@@ -182,9 +182,11 @@ const EXPECTED_SOURCE_CONTRACTS = Object.freeze({
   // response, authorization, retry or timeout behavior.
   // The accepted Phone continuation adds owner web routes and an exact-intent
   // receipt reader while preserving the existing MCP contracts.
+  // The normal PR364 producer separates priced holdings from target preparation
+  // and retains held-asset identity evidence in independent v3 observations.
   // Later releases must preserve these API_GOVERNED_CONTRACT_PATHS bytes.
-  integratedGovernedCommit: '2528ded8321a5fdf9ec4d1ce5afe3317637cc8d0',
-  integratedGovernedTree: 'c5307641066c1748914bad2df43f52592d6aae11',
+  integratedGovernedCommit: '1cf819f09115cc8e004e4b579b63e809a9801931',
+  integratedGovernedTree: '8b10e97ead81718ae967d7575660460c5658245b',
   apiFixtureSha256:
     'ad06690a3914e0ef0f359c4164eb62f78ca54abe6697a52672d739df63c2c352',
   apiCanonicalBodyDigest:
