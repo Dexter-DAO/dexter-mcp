@@ -1866,7 +1866,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/indexter-search-4c706da9",
+          "resourceUri": "ui://dexter/indexter-search-7e9b3eef",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash",
@@ -1884,8 +1884,8 @@
             "app"
           ]
         },
-        "ui/resourceUri": "ui://dexter/indexter-search-4c706da9",
-        "openai/outputTemplate": "ui://dexter/indexter-search-4c706da9",
+        "ui/resourceUri": "ui://dexter/indexter-search-7e9b3eef",
+        "openai/outputTemplate": "ui://dexter/indexter-search-7e9b3eef",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -2929,7 +2929,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/indexter-search-4c706da9",
+          "resourceUri": "ui://dexter/indexter-search-7e9b3eef",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash",
@@ -2947,8 +2947,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/indexter-search-4c706da9",
-        "openai/outputTemplate": "ui://dexter/indexter-search-4c706da9",
+        "ui/resourceUri": "ui://dexter/indexter-search-7e9b3eef",
+        "openai/outputTemplate": "ui://dexter/indexter-search-7e9b3eef",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -3727,7 +3727,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-pricing-04390b16",
+          "resourceUri": "ui://dexter/x402-pricing-de71a421",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash",
@@ -3744,8 +3744,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/x402-pricing-04390b16",
-        "openai/outputTemplate": "ui://dexter/x402-pricing-04390b16",
+        "ui/resourceUri": "ui://dexter/x402-pricing-de71a421",
+        "openai/outputTemplate": "ui://dexter/x402-pricing-de71a421",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -4084,7 +4084,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-fetch-result-26414eee",
+          "resourceUri": "ui://dexter/x402-fetch-result-1bcade6f",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash",
@@ -4101,8 +4101,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/x402-fetch-result-26414eee",
-        "openai/outputTemplate": "ui://dexter/x402-fetch-result-26414eee",
+        "ui/resourceUri": "ui://dexter/x402-fetch-result-1bcade6f",
+        "openai/outputTemplate": "ui://dexter/x402-fetch-result-1bcade6f",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -4811,7 +4811,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-fetch-result-26414eee",
+          "resourceUri": "ui://dexter/x402-fetch-result-1bcade6f",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash",
@@ -4828,8 +4828,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/x402-fetch-result-26414eee",
-        "openai/outputTemplate": "ui://dexter/x402-fetch-result-26414eee",
+        "ui/resourceUri": "ui://dexter/x402-fetch-result-1bcade6f",
+        "openai/outputTemplate": "ui://dexter/x402-fetch-result-1bcade6f",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -5304,7 +5304,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-pricing-04390b16",
+          "resourceUri": "ui://dexter/x402-pricing-de71a421",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash",
@@ -5321,8 +5321,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/x402-pricing-04390b16",
-        "openai/outputTemplate": "ui://dexter/x402-pricing-04390b16",
+        "ui/resourceUri": "ui://dexter/x402-pricing-de71a421",
+        "openai/outputTemplate": "ui://dexter/x402-pricing-de71a421",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -6084,7 +6084,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/dexter-wallet-6f8ec575",
+          "resourceUri": "ui://dexter/dexter-wallet-37f40c3f",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash",
@@ -6103,8 +6103,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/dexter-wallet-6f8ec575",
-        "openai/outputTemplate": "ui://dexter/dexter-wallet-6f8ec575",
+        "ui/resourceUri": "ui://dexter/dexter-wallet-37f40c3f",
+        "openai/outputTemplate": "ui://dexter/dexter-wallet-37f40c3f",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -8388,7 +8388,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/portfolio-68e464ec",
+          "resourceUri": "ui://dexter/portfolio-3a7cfa1a",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash"
@@ -8405,8 +8405,8 @@
             "app"
           ]
         },
-        "ui/resourceUri": "ui://dexter/portfolio-68e464ec",
-        "openai/outputTemplate": "ui://dexter/portfolio-68e464ec",
+        "ui/resourceUri": "ui://dexter/portfolio-3a7cfa1a",
+        "openai/outputTemplate": "ui://dexter/portfolio-3a7cfa1a",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -11693,7 +11693,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/governed-action-7aecc51f",
+          "resourceUri": "ui://dexter/governed-action-9d04df89",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash"
@@ -11709,8 +11709,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/governed-action-7aecc51f",
-        "openai/outputTemplate": "ui://dexter/governed-action-7aecc51f",
+        "ui/resourceUri": "ui://dexter/governed-action-9d04df89",
+        "openai/outputTemplate": "ui://dexter/governed-action-9d04df89",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -14213,7 +14213,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/governed-action-7aecc51f",
+          "resourceUri": "ui://dexter/governed-action-9d04df89",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash"
@@ -14229,8 +14229,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/governed-action-7aecc51f",
-        "openai/outputTemplate": "ui://dexter/governed-action-7aecc51f",
+        "ui/resourceUri": "ui://dexter/governed-action-9d04df89",
+        "openai/outputTemplate": "ui://dexter/governed-action-9d04df89",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -17090,7 +17090,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/governed-action-7aecc51f",
+          "resourceUri": "ui://dexter/governed-action-9d04df89",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash"
@@ -17106,8 +17106,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/governed-action-7aecc51f",
-        "openai/outputTemplate": "ui://dexter/governed-action-7aecc51f",
+        "ui/resourceUri": "ui://dexter/governed-action-9d04df89",
+        "openai/outputTemplate": "ui://dexter/governed-action-9d04df89",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -20064,7 +20064,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/governed-action-7aecc51f",
+          "resourceUri": "ui://dexter/governed-action-9d04df89",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash"
@@ -20080,8 +20080,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/governed-action-7aecc51f",
-        "openai/outputTemplate": "ui://dexter/governed-action-7aecc51f",
+        "ui/resourceUri": "ui://dexter/governed-action-9d04df89",
+        "openai/outputTemplate": "ui://dexter/governed-action-9d04df89",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -23009,7 +23009,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/governed-history-f862492a",
+          "resourceUri": "ui://dexter/governed-history-5b4a2767",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash"
@@ -23025,8 +23025,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/governed-history-f862492a",
-        "openai/outputTemplate": "ui://dexter/governed-history-f862492a",
+        "ui/resourceUri": "ui://dexter/governed-history-5b4a2767",
+        "openai/outputTemplate": "ui://dexter/governed-history-5b4a2767",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
