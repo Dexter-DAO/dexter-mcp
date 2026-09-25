@@ -1,0 +1,546 @@
+{
+  "schemaVersion": 1,
+  "status": "literal-fixtures-authored-unrun",
+  "canonicalRegistryIdentity": {
+    "preimage": "{\"assetClass\":\"stock\",\"assetId\":\"backpack-spcx\",\"decimals\":6,\"issuer\":\"Trek Nexus Markets Ltd\",\"legalIssuerName\":\"Trek Nexus Markets Ltd\",\"mint\":\"SPCXxcqXj6e5dJDVNovHN8744zkbhM2bYudU45BimGb\",\"name\":\"SpaceX\",\"namespace\":\"dexter-governed-asset-registry-identity/v1\",\"network\":\"solana-mainnet\",\"providerName\":\"Backpack Securities\",\"symbol\":\"SPCX\",\"tokenProgram\":\"token-2022\"}",
+    "sha256": "46531f07c6804d3b525a10a32570c3a629e7c3f602e36cdf9dbc9ac144b31d0c"
+  },
+  "valid": {
+    "empty_holdings": {
+      "ok": true,
+      "portfolio": {
+        "contractVersion": "opendexter.portfolio.v3",
+        "network": "solana-mainnet",
+        "walletAddress": "11111111111111111111111111111111",
+        "observedAt": "2026-09-24T00:00:00.000Z",
+        "contextSlot": 1,
+        "snapshotId": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "expiresAt": "2026-09-24T00:05:00.000Z",
+        "source": {
+          "kind": "holdings",
+          "holdingCount": 0,
+          "pricedHoldings": 0,
+          "unpricedHoldings": 0,
+          "holdingsComplete": true,
+          "omittedHoldings": 0,
+          "pricedValueUsd": "0",
+          "portfolioValueUsd": "0",
+          "enrichment": {
+            "metadata": "complete",
+            "pricing": "complete",
+            "tokenExtensions": "complete"
+          },
+          "identityCoverage": {
+            "recognized": 0,
+            "unreviewed": 0,
+            "unavailable": 0
+          },
+          "tradingAvailability": {
+            "state": "not_evaluated"
+          }
+        },
+        "selection": {
+          "view": "summary",
+          "query": null,
+          "mint": null,
+          "tokenAccount": null,
+          "limit": 5,
+          "offset": 0,
+          "matchedCount": 0,
+          "returnedCount": 0,
+          "omittedCount": 0,
+          "nextCursor": null,
+          "match": "none"
+        },
+        "holdings": [],
+        "targets": []
+      },
+      "card": {
+        "contractVersion": "opendexter.portfolio-card.v3",
+        "snapshotId": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "sourceKind": "holdings",
+        "holdings": [],
+        "approvedActionTargets": []
+      }
+    },
+    "native_summary": {
+      "ok": true,
+      "portfolio": {
+        "contractVersion": "opendexter.portfolio.v3",
+        "network": "solana-mainnet",
+        "walletAddress": "11111111111111111111111111111111",
+        "observedAt": "2026-09-24T00:00:00.000Z",
+        "contextSlot": 1,
+        "snapshotId": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "expiresAt": "2026-09-24T00:05:00.000Z",
+        "source": {
+          "kind": "holdings",
+          "holdingCount": 1,
+          "pricedHoldings": 1,
+          "unpricedHoldings": 0,
+          "holdingsComplete": true,
+          "omittedHoldings": 0,
+          "pricedValueUsd": "100",
+          "portfolioValueUsd": "100",
+          "enrichment": {
+            "metadata": "complete",
+            "pricing": "complete",
+            "tokenExtensions": "complete"
+          },
+          "identityCoverage": {
+            "recognized": 1,
+            "unreviewed": 0,
+            "unavailable": 0
+          },
+          "tradingAvailability": {
+            "state": "not_evaluated"
+          }
+        },
+        "selection": {
+          "view": "summary",
+          "query": null,
+          "mint": null,
+          "tokenAccount": null,
+          "limit": 5,
+          "offset": 0,
+          "matchedCount": 1,
+          "returnedCount": 1,
+          "omittedCount": 0,
+          "nextCursor": null,
+          "match": "matched"
+        },
+        "holdings": [
+          {
+            "assetId": "solana",
+            "mint": "native:SOL",
+            "tokenAccount": null,
+            "symbol": "SOL",
+            "name": "Solana",
+            "displayAmount": "1",
+            "amountModel": "raw-decimals",
+            "valueUsd": "100",
+            "change24hPercent": null,
+            "identityStatus": "native"
+          }
+        ],
+        "targets": []
+      },
+      "card": {
+        "contractVersion": "opendexter.portfolio-card.v3",
+        "snapshotId": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "sourceKind": "holdings",
+        "holdings": [
+          {
+            "assetId": "solana",
+            "mint": "native:SOL",
+            "tokenAccount": null,
+            "tokenProgram": "native",
+            "assetClass": "cash",
+            "symbol": "SOL",
+            "name": "Solana",
+            "amountRaw": "1000000000",
+            "decimals": 9,
+            "displayAmount": "1",
+            "amountModel": "raw-decimals",
+            "displayMultiplier": null,
+            "accountState": "initialized",
+            "valueUsd": "100",
+            "priceUsd": "100",
+            "priceObservedAt": "2026-09-24T00:00:00.000Z",
+            "change24hPercent": null,
+            "priceSource": "jupiter-price-v3",
+            "priceBlockId": 1,
+            "metadataObservedAt": null,
+            "marketContext": null,
+            "registryIdentity": null,
+            "identity": {
+              "state": "native",
+              "source": "solana"
+            }
+          }
+        ],
+        "approvedActionTargets": []
+      }
+    },
+    "retired_priced_detail": {
+      "ok": true,
+      "portfolio": {
+        "contractVersion": "opendexter.portfolio.v3",
+        "network": "solana-mainnet",
+        "walletAddress": "11111111111111111111111111111111",
+        "observedAt": "2026-09-24T00:00:00.000Z",
+        "contextSlot": 1,
+        "snapshotId": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "expiresAt": "2026-09-24T00:05:00.000Z",
+        "source": {
+          "kind": "holdings",
+          "holdingCount": 1,
+          "pricedHoldings": 1,
+          "unpricedHoldings": 0,
+          "holdingsComplete": true,
+          "omittedHoldings": 0,
+          "pricedValueUsd": "100",
+          "portfolioValueUsd": "100",
+          "enrichment": {
+            "metadata": "complete",
+            "pricing": "complete",
+            "tokenExtensions": "complete"
+          },
+          "identityCoverage": {
+            "recognized": 1,
+            "unreviewed": 0,
+            "unavailable": 0
+          },
+          "tradingAvailability": {
+            "state": "not_evaluated"
+          }
+        },
+        "selection": {
+          "view": "detail",
+          "query": null,
+          "mint": "SPCXxcqXj6e5dJDVNovHN8744zkbhM2bYudU45BimGb",
+          "tokenAccount": null,
+          "limit": 32,
+          "offset": 0,
+          "matchedCount": 1,
+          "returnedCount": 1,
+          "omittedCount": 0,
+          "nextCursor": null,
+          "match": "matched"
+        },
+        "holdings": [
+          {
+            "assetId": "backpack-spcx",
+            "mint": "SPCXxcqXj6e5dJDVNovHN8744zkbhM2bYudU45BimGb",
+            "tokenAccount": "11111111111111111111111111111111",
+            "tokenProgram": "token-2022",
+            "assetClass": "stock",
+            "symbol": "SPCX",
+            "name": "SpaceX",
+            "amountRaw": "1000000",
+            "decimals": 6,
+            "displayAmount": "1",
+            "amountModel": "raw-decimals",
+            "displayMultiplier": null,
+            "accountState": "initialized",
+            "valueUsd": "100",
+            "priceUsd": "100",
+            "priceObservedAt": "2026-09-24T00:00:00.000Z",
+            "change24hPercent": null,
+            "priceSource": "jupiter-price-v3",
+            "priceBlockId": 1,
+            "metadataObservedAt": null,
+            "marketContext": null,
+            "registryIdentity": {
+              "source": "dexter-registry",
+              "providerName": "Backpack Securities",
+              "legalIssuerName": "Trek Nexus Markets Ltd"
+            },
+            "identity": {
+              "state": "recognized",
+              "source": "released_catalog",
+              "registryState": "retired",
+              "observedAt": "2026-09-24T00:00:00.000Z",
+              "material": {
+                "namespace": "dexter-governed-asset-registry-identity/v1",
+                "network": "solana-mainnet",
+                "assetId": "backpack-spcx",
+                "assetClass": "stock",
+                "symbol": "SPCX",
+                "name": "SpaceX",
+                "issuer": "Trek Nexus Markets Ltd",
+                "mint": "SPCXxcqXj6e5dJDVNovHN8744zkbhM2bYudU45BimGb",
+                "tokenProgram": "token-2022",
+                "decimals": 6,
+                "providerName": "Backpack Securities",
+                "legalIssuerName": "Trek Nexus Markets Ltd",
+                "registryIdentityDigest": "46531f07c6804d3b525a10a32570c3a629e7c3f602e36cdf9dbc9ac144b31d0c"
+              },
+              "provenance": {
+                "variantId": "11111111-1111-4111-8111-111111111111",
+                "variantDigest": "1111111111111111111111111111111111111111111111111111111111111111",
+                "profileId": "22222222-2222-4222-8222-222222222222",
+                "profileDigest": "2222222222222222222222222222222222222222222222222222222222222222",
+                "releaseId": "33333333-3333-4333-8333-333333333333",
+                "releaseDigest": "3333333333333333333333333333333333333333333333333333333333333333",
+                "productId": "44444444-4444-4444-8444-444444444444",
+                "productDigest": "4444444444444444444444444444444444444444444444444444444444444444",
+                "issuerId": "55555555-5555-4555-8555-555555555555",
+                "issuerDigest": "5555555555555555555555555555555555555555555555555555555555555555",
+                "onchainId": "66666666-6666-4666-8666-666666666666",
+                "onchainDigest": "6666666666666666666666666666666666666666666666666666666666666666"
+              }
+            }
+          }
+        ],
+        "targets": []
+      },
+      "card": {
+        "contractVersion": "opendexter.portfolio-card.v3",
+        "snapshotId": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "sourceKind": "holdings",
+        "holdings": [
+          {
+            "assetId": "backpack-spcx",
+            "mint": "SPCXxcqXj6e5dJDVNovHN8744zkbhM2bYudU45BimGb",
+            "tokenAccount": "11111111111111111111111111111111",
+            "tokenProgram": "token-2022",
+            "assetClass": "stock",
+            "symbol": "SPCX",
+            "name": "SpaceX",
+            "amountRaw": "1000000",
+            "decimals": 6,
+            "displayAmount": "1",
+            "amountModel": "raw-decimals",
+            "displayMultiplier": null,
+            "accountState": "initialized",
+            "valueUsd": "100",
+            "priceUsd": "100",
+            "priceObservedAt": "2026-09-24T00:00:00.000Z",
+            "change24hPercent": null,
+            "priceSource": "jupiter-price-v3",
+            "priceBlockId": 1,
+            "metadataObservedAt": null,
+            "marketContext": null,
+            "registryIdentity": {
+              "source": "dexter-registry",
+              "providerName": "Backpack Securities",
+              "legalIssuerName": "Trek Nexus Markets Ltd"
+            },
+            "identity": {
+              "state": "recognized",
+              "source": "released_catalog",
+              "registryState": "retired",
+              "observedAt": "2026-09-24T00:00:00.000Z",
+              "material": {
+                "namespace": "dexter-governed-asset-registry-identity/v1",
+                "network": "solana-mainnet",
+                "assetId": "backpack-spcx",
+                "assetClass": "stock",
+                "symbol": "SPCX",
+                "name": "SpaceX",
+                "issuer": "Trek Nexus Markets Ltd",
+                "mint": "SPCXxcqXj6e5dJDVNovHN8744zkbhM2bYudU45BimGb",
+                "tokenProgram": "token-2022",
+                "decimals": 6,
+                "providerName": "Backpack Securities",
+                "legalIssuerName": "Trek Nexus Markets Ltd",
+                "registryIdentityDigest": "46531f07c6804d3b525a10a32570c3a629e7c3f602e36cdf9dbc9ac144b31d0c"
+              },
+              "provenance": {
+                "variantId": "11111111-1111-4111-8111-111111111111",
+                "variantDigest": "1111111111111111111111111111111111111111111111111111111111111111",
+                "profileId": "22222222-2222-4222-8222-222222222222",
+                "profileDigest": "2222222222222222222222222222222222222222222222222222222222222222",
+                "releaseId": "33333333-3333-4333-8333-333333333333",
+                "releaseDigest": "3333333333333333333333333333333333333333333333333333333333333333",
+                "productId": "44444444-4444-4444-8444-444444444444",
+                "productDigest": "4444444444444444444444444444444444444444444444444444444444444444",
+                "issuerId": "55555555-5555-4555-8555-555555555555",
+                "issuerDigest": "5555555555555555555555555555555555555555555555555555555555555555",
+                "onchainId": "66666666-6666-4666-8666-666666666666",
+                "onchainDigest": "6666666666666666666666666666666666666666666666666666666666666666"
+              }
+            }
+          }
+        ],
+        "approvedActionTargets": []
+      }
+    },
+    "identity_unavailable_priced_detail": {
+      "ok": true,
+      "portfolio": {
+        "contractVersion": "opendexter.portfolio.v3",
+        "network": "solana-mainnet",
+        "walletAddress": "11111111111111111111111111111111",
+        "observedAt": "2026-09-24T00:00:00.000Z",
+        "contextSlot": 1,
+        "snapshotId": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "expiresAt": "2026-09-24T00:05:00.000Z",
+        "source": {
+          "kind": "holdings",
+          "holdingCount": 1,
+          "pricedHoldings": 1,
+          "unpricedHoldings": 0,
+          "holdingsComplete": true,
+          "omittedHoldings": 0,
+          "pricedValueUsd": "100",
+          "portfolioValueUsd": "100",
+          "enrichment": {
+            "metadata": "complete",
+            "pricing": "complete",
+            "tokenExtensions": "complete"
+          },
+          "identityCoverage": {
+            "recognized": 0,
+            "unreviewed": 0,
+            "unavailable": 1
+          },
+          "tradingAvailability": {
+            "state": "not_evaluated"
+          }
+        },
+        "selection": {
+          "view": "detail",
+          "query": null,
+          "mint": "SPCXxcqXj6e5dJDVNovHN8744zkbhM2bYudU45BimGb",
+          "tokenAccount": null,
+          "limit": 32,
+          "offset": 0,
+          "matchedCount": 1,
+          "returnedCount": 1,
+          "omittedCount": 0,
+          "nextCursor": null,
+          "match": "matched"
+        },
+        "holdings": [
+          {
+            "assetId": null,
+            "mint": "SPCXxcqXj6e5dJDVNovHN8744zkbhM2bYudU45BimGb",
+            "tokenAccount": "11111111111111111111111111111111",
+            "tokenProgram": "token-2022",
+            "assetClass": "token",
+            "symbol": "SPCX",
+            "name": "SpaceX",
+            "amountRaw": "1000000",
+            "decimals": 6,
+            "displayAmount": "1",
+            "amountModel": "raw-decimals",
+            "displayMultiplier": null,
+            "accountState": "initialized",
+            "valueUsd": "100",
+            "priceUsd": "100",
+            "priceObservedAt": "2026-09-24T00:00:00.000Z",
+            "change24hPercent": null,
+            "priceSource": "jupiter-price-v3",
+            "priceBlockId": 1,
+            "metadataObservedAt": null,
+            "marketContext": null,
+            "registryIdentity": null,
+            "identity": {
+              "state": "unavailable",
+              "source": "none",
+              "reason": "lineage_invalid"
+            }
+          }
+        ],
+        "targets": []
+      },
+      "card": {
+        "contractVersion": "opendexter.portfolio-card.v3",
+        "snapshotId": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "sourceKind": "holdings",
+        "holdings": [
+          {
+            "assetId": null,
+            "mint": "SPCXxcqXj6e5dJDVNovHN8744zkbhM2bYudU45BimGb",
+            "tokenAccount": "11111111111111111111111111111111",
+            "tokenProgram": "token-2022",
+            "assetClass": "token",
+            "symbol": "SPCX",
+            "name": "SpaceX",
+            "amountRaw": "1000000",
+            "decimals": 6,
+            "displayAmount": "1",
+            "amountModel": "raw-decimals",
+            "displayMultiplier": null,
+            "accountState": "initialized",
+            "valueUsd": "100",
+            "priceUsd": "100",
+            "priceObservedAt": "2026-09-24T00:00:00.000Z",
+            "change24hPercent": null,
+            "priceSource": "jupiter-price-v3",
+            "priceBlockId": 1,
+            "metadataObservedAt": null,
+            "marketContext": null,
+            "registryIdentity": null,
+            "identity": {
+              "state": "unavailable",
+              "source": "none",
+              "reason": "lineage_invalid"
+            }
+          }
+        ],
+        "approvedActionTargets": []
+      }
+    },
+    "linked_empty_targets": {
+      "ok": true,
+      "portfolio": {
+        "contractVersion": "opendexter.portfolio.v3",
+        "network": "solana-mainnet",
+        "walletAddress": "11111111111111111111111111111111",
+        "observedAt": "2026-09-24T00:00:00.000Z",
+        "contextSlot": null,
+        "snapshotId": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+        "expiresAt": "2026-09-24T00:05:00.000Z",
+        "source": {
+          "kind": "action_targets",
+          "targetCount": 0,
+          "holdingSnapshotId": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        },
+        "selection": {
+          "view": "targets",
+          "query": null,
+          "mint": null,
+          "tokenAccount": null,
+          "limit": 32,
+          "offset": 0,
+          "matchedCount": 0,
+          "returnedCount": 0,
+          "omittedCount": 0,
+          "nextCursor": null,
+          "match": "none"
+        },
+        "holdings": [],
+        "targets": []
+      },
+      "card": {
+        "contractVersion": "opendexter.portfolio-card.v3",
+        "snapshotId": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+        "sourceKind": "action_targets",
+        "holdings": [],
+        "approvedActionTargets": []
+      }
+    },
+    "standalone_unavailable_targets": {
+      "ok": true,
+      "portfolio": {
+        "contractVersion": "opendexter.portfolio.v3",
+        "network": "solana-mainnet",
+        "walletAddress": "11111111111111111111111111111111",
+        "observedAt": "2026-09-24T00:00:00.000Z",
+        "contextSlot": null,
+        "snapshotId": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+        "expiresAt": "2026-09-24T00:05:00.000Z",
+        "source": {
+          "kind": "action_targets",
+          "targetCount": null,
+          "holdingSnapshotId": null
+        },
+        "selection": {
+          "view": "targets",
+          "query": null,
+          "mint": null,
+          "tokenAccount": null,
+          "limit": 32,
+          "offset": 0,
+          "matchedCount": null,
+          "returnedCount": 0,
+          "omittedCount": null,
+          "nextCursor": null,
+          "match": "unavailable"
+        },
+        "holdings": [],
+        "targets": []
+      },
+      "card": {
+        "contractVersion": "opendexter.portfolio-card.v3",
+        "snapshotId": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+        "sourceKind": "action_targets",
+        "holdings": [],
+        "approvedActionTargets": []
+      }
+    }
+  }
+}

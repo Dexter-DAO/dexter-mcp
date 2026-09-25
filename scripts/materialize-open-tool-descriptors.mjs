@@ -126,6 +126,12 @@ const API_GOVERNED_CONTRACT_PATHS = Object.freeze([
   'src/portfolio/selectedPortfolioContract.ts',
   'src/portfolio/contract.ts',
   'src/portfolio/readPortfolioSnapshot.ts',
+  'src/portfolio/heldStockRegistryIdentity.ts',
+  'src/portfolio/portfolioObservationV3.ts',
+  'src/portfolio/readPortfolioHoldingsV3.ts',
+  'src/portfolio/readSessionPortfolioV3.ts',
+  'src/portfolio/selectPortfolioReadV3.ts',
+  'src/portfolio/selectedPortfolioV3Contract.ts',
   'src/routes/defaultGovernedDelegatedAssetActions.ts',
   'src/routes/governedDelegatedAssetActions.ts',
   'src/routes/governedAssetPrepare.ts',
@@ -176,9 +182,11 @@ const EXPECTED_SOURCE_CONTRACTS = Object.freeze({
   // response, authorization, retry or timeout behavior.
   // The accepted Phone continuation adds owner web routes and an exact-intent
   // receipt reader while preserving the existing MCP contracts.
+  // The normal PR364 producer separates priced holdings from target preparation
+  // and retains held-asset identity evidence in independent v3 observations.
   // Later releases must preserve these API_GOVERNED_CONTRACT_PATHS bytes.
-  integratedGovernedCommit: '2528ded8321a5fdf9ec4d1ce5afe3317637cc8d0',
-  integratedGovernedTree: 'c5307641066c1748914bad2df43f52592d6aae11',
+  integratedGovernedCommit: '06086fd00d4e87a1bd0505fa7b8eb907c35c200a',
+  integratedGovernedTree: 'bc5429901fa6d9cac51c302e3becb618a792606f',
   apiFixtureSha256:
     'ad06690a3914e0ef0f359c4164eb62f78ca54abe6697a52672d739df63c2c352',
   apiCanonicalBodyDigest:

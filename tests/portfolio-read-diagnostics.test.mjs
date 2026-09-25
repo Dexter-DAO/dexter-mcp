@@ -13,7 +13,7 @@ const now = () => Date.parse('2026-07-25T10:30:10.000Z');
 const unavailable = { ok: false, error: 'portfolio_read_unavailable' };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const poison = 'SENSITIVE-body-token-signed-url-wallet-session';
-const args = { apiBase: 'https://api.invalid', sessionId, secret, expectedWalletAddress: WALLET_ADDRESS, now };
+const args = { apiBase: 'https://api.invalid', sessionId, secret, expectedWalletAddress: WALLET_ADDRESS, now, input: { readVersion: 2 } };
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status });
 async function run(fetchImpl, overrides = {}) {
   const records = []; const requests = [];
