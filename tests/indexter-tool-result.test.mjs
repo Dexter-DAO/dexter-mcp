@@ -1667,3 +1667,95 @@ test('consequential request review retains reservation and confirmation facts wi
   const endpoint = roundtrip.structuredContent.results.find((item) => item.kind === 'endpoint');
   assert.deepEqual(endpoint.action.review, action.review);
 });
+
+
+test('request-details caveat counts only affected returned listings and preserves mixed task order', () => {
+  const blocked = endpoint(91, { method: 'POST', inputSchema: { published: true } });
+  // Synthetic current-row shape: a required nested object must remain intact.
+  const managed = endpoint(92, { method: 'POST', inputSchema: {
+    type: 'object', required: ['document', 'options'], properties: {
+      document: { type: 'string' },
+      options: { type: 'object', properties: { mode: { type: 'string' }, format: { type: 'string' } } },
+    },
+  },
+    access: { kind: 'managed_resolvable', checkable: true, requiresFreshCheck: true },
+    resourceUrl: null, url: null });
+  const usable = endpoint(93);
+  for (const rows of [[blocked], [blocked, usable, managed], [usable]]) {
+    const result = buildIndexterToolResult({ route: 'task', payload: {
+      success: true, strongResults: rows, relatedResults: [],
+    } });
+    const affected = rows.filter(row => row !== usable).length;
+    assert.deepEqual(result.structuredContent.results.map(row => row.resourceId), rows.map(row => row.resourceId));
+    assert.equal(result.structuredContent.counts.endpoints, rows.length);
+    assert.equal(result.content[0].text, `Indexter returned ${rows.length} matches for this request.`
+      + (affected ? ` Request details are unavailable for ${affected} ${affected === 1 ? 'listing' : 'listings'} in this result.` : ''));
+    assert.equal(OPEN_TOOL_CONTRACTS.indexter_search.outputSchema.safeParse(result.structuredContent).success, true);
+    for (const row of result.structuredContent.results.filter(row => row.resourceId !== usable.resourceId)) {
+      assert.equal(row.requestInput, null);
+      assert.equal(row.action.label, 'Request details unavailable');
+      assert.equal(row.action.kind, 'endpoint_unavailable');
+      assert.equal(row.action.reason, 'input_contract_unavailable');
+      assert.equal(row.action.resourceUrl, row.resourceId === managed.resourceId ? null : blocked.resourceUrl);
+    }
+  }
+});
+
+test('request-details label survives producer, strict discovery contract and trusted legacy roundtrip', () => {
+  for (const route of ['overview', 'provider']) {
+    const payload = { ...discoveryPayload(),
+      discoveryResultSetId: '44444444-4444-4444-8444-444444444444',
+      providerDataPolicy: PROVIDER_DATA_POLICY };
+    if (route === 'provider') {
+      payload.mode = 'provider';
+      payload.requestedProvider = 'Apify';
+      payload.page.namespace = 'indexter.endpoint.provider-capabilities.v1';
+      payload.page.scope = 'provider_capabilities';
+      payload.page.order = 'curated_capability_breadth_v1';
+    }
+    for (const row of [payload.providers[0].capabilityGroups[0].resources[0], payload.featuredOfferings[0]]) {
+      row.method = 'POST';
+      row.inputSchema = { published: true };
+    }
+    if (route === 'provider') payload.featuredOfferings = [];
+    const projected = projectIndexterDiscoveryEndpointActions(payload);
+    const row = projected.providers[0].capabilityGroups[0].resources[0];
+    assert.equal(row.action.label, 'Request details unavailable');
+    for (const label of ['Request details unavailable', 'Unavailable']) {
+      const retained = structuredClone(projected);
+      retained.providers[0].capabilityGroups[0].resources[0].action.label = label;
+      if (retained.featuredOfferings[0]) retained.featuredOfferings[0].action.label = label;
+      const validation = OPEN_TOOL_CONTRACTS.indexter_discover.outputSchema.safeParse(retained);
+      assert.equal(validation.success, true, JSON.stringify({ route, label, issues: validation.error?.issues }));
+      const result = buildIndexterToolResult({ route, provider: route === 'provider' ? 'Apify' : undefined, payload: retained });
+      const listing = result.structuredContent.results.find(row => row.kind === 'endpoint');
+      assert.equal(listing.resourceId, row.resourceId);
+      assert.equal(listing.requestInput, null);
+      assert.equal(listing.action.label, 'Request details unavailable');
+      assert.equal(listing.action.reason, 'input_contract_unavailable');
+      assert.equal(result.structuredContent.counts.endpoints, 1);
+      assert.match(result.content[0].text, /Request details are unavailable for 1 listing in this result\.$/);
+      assert.equal(OPEN_TOOL_CONTRACTS.indexter_search.outputSchema.safeParse(result.structuredContent).success, true);
+    }
+    for (const reason of ['safety_unavailable', 'execution_unavailable']) {
+      const wrongReason = structuredClone(projected);
+      wrongReason.providers[0].capabilityGroups[0].resources[0].action.reason = reason;
+      assert.equal(OPEN_TOOL_CONTRACTS.indexter_discover.outputSchema.safeParse(wrongReason).success, false);
+    }
+  }
+});
+
+test('request-details caveat reflects final bounded rows and keeps error summaries unchanged', () => {
+  const result = buildIndexterToolResult({ route: 'task', payload: {
+    success: true,
+    strongResults: Array.from({ length: 40 }, (_, index) => endpoint(100 + index, {
+      method: 'POST', inputSchema: { published: true },
+    })), relatedResults: [],
+  } });
+  const returned = result.structuredContent.results.filter(row => row.kind === 'endpoint').length;
+  assert.ok(returned > 0 && returned < 40);
+  assert.match(result.content[0].text, new RegExp(`Request details are unavailable for ${returned} listings in this result\\.$`));
+  assert.ok(Buffer.byteLength(JSON.stringify(result), 'utf8') <= INDEXTER_TOOL_RESULT_MAX_JSON_BYTES);
+  const failure = buildIndexterToolResult({ route: 'task', payload: { success: false, strongResults: [], relatedResults: [] } });
+  assert.equal(failure.content[0].text, 'Indexter could not load results for this request.');
+});
