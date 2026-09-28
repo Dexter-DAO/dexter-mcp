@@ -12,6 +12,7 @@ const PROTOCOL = readFileSync(join(ROOT, 'skills/x402-protocol/SKILL.md'), 'utf8
 const DEBUGGING = readFileSync(join(ROOT, 'skills/x402-debugging/SKILL.md'), 'utf8');
 
 const EXPECTED_TOOLS = [
+  'dexter_find_assets',
   'indexter_discover',
   'indexter_search',
   'x402_fetch',
@@ -45,7 +46,7 @@ test('hosted skill resources are loaded from this release checkout', () => {
   assert.doesNotMatch(SERVER, /opendexter-ide.*opendexter-plugin.*skills/s);
 });
 
-test('hosted workflow names only the fifteen connected product tools', () => {
+test('hosted workflow names only the sixteen connected product tools', () => {
   for (const name of EXPECTED_TOOLS) {
     assert.match(WORKFLOW, new RegExp(`\\\`${name}\\\``));
   }
@@ -153,7 +154,7 @@ test('generated runtime instructions put the complete safety boundary first', ()
   assert.match(SERVER, /const SERVER_INSTRUCTIONS = buildOpenServerInstructions\(\)/);
 });
 
-test('generated runtime instructions route the complete fifteen-tool product', () => {
+test('generated runtime instructions route the complete sixteen-tool product', () => {
   const runtime = buildOpenServerInstructions();
 
   assert.deepEqual(mentionedOpenDexterTools(runtime), [...EXPECTED_TOOLS].sort());
@@ -218,7 +219,7 @@ test('generated runtime instructions preserve current wallet and authority truth
 
   assert.match(runtime, /requires OpenDexter OAuth before initialization or tool discovery/);
   assert.match(runtime, /native OpenDexter Connect action/);
-  assert.match(runtime, /registers fifteen tools[\s\S]*Fourteen are model-visible/);
+  assert.match(runtime, /registers sixteen tools[\s\S]*Fifteen are model-visible/);
   assert.match(runtime, /Connected label[\s\S]*successful authenticated tool discovery or a successful tool call proves wallet authorization/);
   assert.match(runtime, /Connected appears without authorization[\s\S]*plugin or integration settings/);
   assert.match(runtime, /plugin or integration settings[\s\S]*Authorize or Authenticate/);

@@ -20,6 +20,7 @@ import {
 } from '../lib/open-tool-auth.mjs';
 import {
   approvedActionTarget,
+  expandedApprovedActionTargets,
   rehashApprovedActionTarget,
   zeroHoldingBuyDiscoveryPortfolio,
 } from './fixtures/approved-action-target-fixtures.mjs';
@@ -29,6 +30,7 @@ import {
 } from '../lib/session-portfolio.mjs';
 
 const EXPECTED_TOOLS = [
+  'dexter_find_assets',
   'indexter_discover',
   'indexter_search',
   'x402_mcp_tools',
@@ -75,7 +77,7 @@ function outputUnknownKeys(schema) {
   return undefined;
 }
 
-test('contract is exactly the canonical hosted fifteen', () => {
+test('contract is exactly the canonical hosted roster', () => {
   assert.deepEqual(OPEN_TOOL_NAMES, EXPECTED_TOOLS);
   assert.deepEqual(Object.keys(OPEN_TOOL_CONTRACTS).sort(), [...EXPECTED_TOOLS].sort());
   assert.doesNotMatch(OPEN_TOOL_NAMES.join(','), /card_/);
@@ -90,6 +92,7 @@ test('contract is exactly the canonical hosted fifteen', () => {
         'x402_fetch',
         'x402_status',
         'dexter_wallet_portfolio',
+        'dexter_find_assets',
         'dexter_report_work',
         'dexter_prepare_asset_action',
         'dexter_execute_asset_action',
@@ -609,6 +612,20 @@ test('portfolio output accepts old and new shapes but rejects invented or contra
   );
 });
 
+test('portfolio output preserves every validated target beyond 128 and still rejects a changed final identity', () => {
+  const snapshot = { ...zeroHoldingBuyDiscoveryPortfolio(), approvedActionTargets: expandedApprovedActionTargets() };
+  const portfolio = modelSafePortfolioSnapshot(validateAndBoundPortfolioSnapshotV1(snapshot));
+  const result = { portfolio_status: 'ready', mode: 'portfolio_ready', user_bound: true, portfolio };
+  const schema = OPEN_TOOL_CONTRACTS.dexter_wallet_portfolio.outputSchema;
+  const parsed = schema.safeParse(result);
+  assert.equal(parsed.success, true);
+  assert.deepEqual(parsed.data.portfolio.approvedActionTargets, snapshot.approvedActionTargets);
+  const altered = structuredClone(result);
+  altered.portfolio.approvedActionTargets[128].mint = altered.portfolio.approvedActionTargets[0].mint;
+  altered.portfolio.approvedActionTargets[128] = rehashApprovedActionTarget(altered.portfolio.approvedActionTargets[128]);
+  assert.equal(schema.safeParse(altered).success, false);
+});
+
 test('portfolio policy preserves only validated target display fields that resemble credentials', () => {
   const schema = OPEN_TOOL_CONTRACTS.dexter_wallet_portfolio.outputSchema;
   const symbol = 'open_abcdefghijklmnop';
@@ -869,7 +886,7 @@ test('both supported registration APIs close after finalization', () => {
   );
 });
 
-test('behavior annotations reflect the canonical fifteen operations', () => {
+test('behavior annotations reflect the canonical sixteen operations', () => {
   assert.deepEqual(OPEN_TOOL_CONTRACTS.indexter_discover.annotations, {
     readOnlyHint: true,
     destructiveHint: false,
@@ -1270,6 +1287,7 @@ test('real SDK tools/list exposes executable schemas, OAuth, annotations, and me
         'x402_fetch',
         'x402_status',
         'dexter_wallet_portfolio',
+        'dexter_find_assets',
         'dexter_report_work',
         'dexter_prepare_asset_action',
         'dexter_execute_asset_action',
@@ -1371,7 +1389,7 @@ test('real SDK tools/list exposes executable schemas, OAuth, annotations, and me
 });
 
 for (const clientName of ['Generic MCP', 'ChatGPT', 'Claude']) {
-  test(`${clientName} connected discovery receives the same raw fifteen and no retired calls`, async () => {
+  test(`${clientName} connected discovery receives the same raw sixteen and no retired calls`, async () => {
     const server = new McpServer({
       name: 'host-discovery-test',
       version: '0.4.0',
@@ -1519,7 +1537,7 @@ test('vault-bound hosted discovery retains the exact protected roster', async ()
   assert.deepEqual(OPEN_OAUTH_PROMOTED_TOOL_NAMES, OPEN_TOOL_NAMES);
 });
 
-test('the contract exposes zero tools anonymously and all fifteen after OAuth', () => {
+test('the contract exposes zero tools anonymously and all sixteen after OAuth', () => {
   assert.deepEqual(OPEN_ANONYMOUS_TOOL_NAMES, []);
   assert.deepEqual(OPEN_OAUTH_PROMOTED_TOOL_NAMES, OPEN_TOOL_NAMES);
   for (const name of OPEN_TOOL_NAMES) {

@@ -1,5 +1,7 @@
 // Sentry instrumentation (must be before all other imports)
 import './instrument.open-mcp.mjs';
+import { ASSET_SEARCH_TOOL, ASSET_SEARCH_INPUT_SCHEMA } from './lib/asset-search-contract.mjs';
+import { assetSearchTool } from './lib/asset-search-client.mjs';
 import { PORTFOLIO_READ_INPUT_SHAPE, PORTFOLIO_READ_INPUT_SCHEMA, portfolioReady } from './lib/portfolio-read-contract.mjs';
 import { fetchSessionPortfolioSelection } from './lib/session-portfolio-selection.mjs';
 import { AGENT_WORK_REPORT_TOOL_NAME, AGENT_WORK_REPORT_INPUT_SCHEMA } from './lib/agent-work-report-contract.mjs';
@@ -1906,13 +1908,15 @@ async function x402Wallet(args, extra) {
   const receiveAddress = getVaultReceiveAddress(state.vault);
   // Start optional widget reads as soon as the verified wallet address exists.
   // They run concurrently with money composition below; portfolio has a finite
-  // 20s deadline for wallet resolution, stock authority and holdings. It still
+  // 20s deadline for wallet resolution and holdings. Purchase targets use the
+  // separate paged portfolio read. This optional wallet read still
   // degrades to unavailable if that complete read cannot finish in time.
   const portfolioPromise = fetchSessionPortfolio({
     apiBase: API_BASE_FALLBACK,
     sessionId,
     expectedWalletAddress: receiveAddress,
     secret: INTERNAL_HMAC_SECRET,
+    includeActionTargets: false,
   });
   const cardSummaryPromise = readCardSummary(sessionId);
   const activityPromise = fetchSessionActivity({
@@ -2763,6 +2767,9 @@ export function createOpenMcpServer({
       };
     }
   });
+
+  registerOpenTool(server, ASSET_SEARCH_TOOL, { inputSchema: ASSET_SEARCH_INPUT_SCHEMA },
+    args => assetSearchTool(args));
 
   registerOpenTool(server, AGENT_WORK_REPORT_TOOL_NAME, {
     inputSchema: AGENT_WORK_REPORT_INPUT_SCHEMA,

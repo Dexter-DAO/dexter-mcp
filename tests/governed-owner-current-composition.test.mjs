@@ -67,7 +67,7 @@ async function hosted(t) {
   t.after(async () => { await client.close(); await server.close(); });
   await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
   const listed = (await client.listTools()).tools;
-  assert.equal(listed.length, 15);
+  assert.equal(listed.length, 16);
   assert.ok(listed.some(tool => tool.name === 'dexter_report_work'));
   const validators = new Map();
   for (const [, name] of publicOperations) {

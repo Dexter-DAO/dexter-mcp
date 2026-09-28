@@ -19,7 +19,7 @@ const literals = JSON.parse(readFileSync(new URL('./fixtures/portfolio-selected-
 const clone = value => JSON.parse(JSON.stringify(value));
 const source = readFileSync(new URL('../open-mcp-server.mjs', import.meta.url), 'utf8');
 const start = source.indexOf("  registerOpenTool(server, 'dexter_wallet_portfolio'");
-const registration = source.slice(start, source.indexOf('  registerOpenTool(server, AGENT_WORK_REPORT_TOOL_NAME', start));
+const registration = source.slice(start, source.indexOf('  registerOpenTool(server, ASSET_SEARCH_TOOL,', start));
 const producer = source.slice(source.indexOf('function buildPortfolioReadError('), source.indexOf('async function governedAssetAction('));
 const sessionId = '019f97fb-9684-7571-9c0c-9ba39bd54570';
 const config = wire => ({ apiBase: 'https://api.invalid', sessionId, secret: 'offline-v3-fixture-only',

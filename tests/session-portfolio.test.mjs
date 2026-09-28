@@ -4,7 +4,6 @@ import test from 'node:test';
 import {
   MAX_PORTFOLIO_BYTES,
   MAX_PORTFOLIO_HOLDINGS,
-  MAX_APPROVED_ACTION_TARGETS,
   SESSION_PORTFOLIO_SIGNATURE_PURPOSE,
   approvedActionTargetsAreValid,
   fetchSessionPortfolio,
@@ -20,6 +19,7 @@ import {
 } from './fixtures/wallet-portfolio-fixtures.mjs';
 import {
   approvedActionTarget,
+  expandedApprovedActionTargets,
   rehashApprovedActionTarget,
   secondApprovedActionTarget,
   zeroHoldingBuyDiscoveryPortfolio,
@@ -78,6 +78,31 @@ test('validates and returns a bounded exact PortfolioSnapshotV1', async () => {
   assert.equal(requestInit.headers['x-internal-signature'].length, 64);
   assert.deepEqual(result, snapshot);
   assert.notEqual(result, snapshot, 'boundary returns a detached canonical copy');
+});
+
+test('wallet-only legacy reads preserve holdings and totals with a 1068-target catalog', async () => {
+  const snapshot = completePortfolio();
+  const full = { ...snapshot, approvedActionTargets: expandedApprovedActionTargets(1068) };
+  assert.ok(Buffer.byteLength(JSON.stringify(full)) > MAX_PORTFOLIO_BYTES);
+  let reads = 0;
+  const fetchImpl = async (url, init) => {
+    reads++;
+    assert.match(init.headers['x-internal-signature'], /^[0-9a-f]{64}$/);
+    const query = new URL(url).searchParams;
+    assert.deepEqual([...query.keys()], ['includeActionTargets']);
+    assert.equal(query.get('includeActionTargets'), 'false');
+    return responseFor({ ok: true, portfolio: snapshot });
+  };
+  const result = await fetchSessionPortfolio({ apiBase: 'http://127.0.0.1:3030',
+    sessionId: SESSION_ID, expectedWalletAddress: WALLET_ADDRESS, secret: SECRET,
+    includeActionTargets: false, fetchImpl });
+  assert.deepEqual(result, snapshot);
+  assert.deepEqual(numericPortfolioSummary(result), numericPortfolioSummary(snapshot));
+  assert.equal(reads, 1);
+  const oversized = await fetchSessionPortfolio({ apiBase: 'http://127.0.0.1:3030',
+    sessionId: SESSION_ID, expectedWalletAddress: WALLET_ADDRESS, secret: SECRET,
+    includeActionTargets: false, fetchImpl: async () => responseFor({ ok: true, portfolio: full }) });
+  assert.equal(oversized, null, 'the unchanged byte bound still rejects an API that ignores the option');
 });
 
 test('accepts the old PortfolioSnapshotV1 unchanged when approved targets are absent', () => {
@@ -146,6 +171,26 @@ test('preserves a complete target whose three governed actions are unavailable',
     true,
   );
   assert.deepEqual(modelSafePortfolioSnapshot(portfolio).holdings, []);
+});
+
+test('reads every target beyond the former 128-target ceiling within the existing body budget', async () => {
+  const source = { ...zeroHoldingBuyDiscoveryPortfolio(), approvedActionTargets: expandedApprovedActionTargets() };
+  assert.ok(Buffer.byteLength(JSON.stringify({ portfolio: source }), 'utf8') < MAX_PORTFOLIO_BYTES);
+  const portfolio = await fetchSessionPortfolio({
+    apiBase: 'http://127.0.0.1:3030', sessionId: SESSION_ID, expectedWalletAddress: WALLET_ADDRESS, secret: SECRET,
+    fetchImpl: async () => responseFor({ portfolio: source }),
+  });
+  assert.deepEqual(portfolio, source);
+  assert.deepEqual(modelSafePortfolioSnapshot(portfolio).approvedActionTargets, source.approvedActionTargets);
+
+  const malformedTail = structuredClone(source);
+  malformedTail.approvedActionTargets[128].actions[0].assetId = 'different-asset';
+  malformedTail.approvedActionTargets[128] = rehashApprovedActionTarget(malformedTail.approvedActionTargets[128]);
+  assert.equal(validateAndBoundPortfolioSnapshotV1(malformedTail), null);
+
+  const tooLarge = { ...source, approvedActionTargets: expandedApprovedActionTargets(300) };
+  assert.ok(Buffer.byteLength(JSON.stringify(tooLarge), 'utf8') > MAX_PORTFOLIO_BYTES);
+  assert.equal(validateAndBoundPortfolioSnapshotV1(tooLarge), null);
 });
 
 test('fails closed on malformed, contradictory, duplicate, or unsorted approved targets', () => {
@@ -217,7 +262,7 @@ test('fails closed on malformed, contradictory, duplicate, or unsorted approved 
     sourceWithTarget([secondApprovedActionTarget(), approvedActionTarget()]),
     sourceWithTarget([approvedActionTarget(), duplicateIdentityRehashed]),
     sourceWithTarget(Array.from(
-      { length: MAX_APPROVED_ACTION_TARGETS + 1 },
+      { length: 129 },
       () => approvedActionTarget(),
     )),
   ];

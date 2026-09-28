@@ -85,6 +85,7 @@ test('hosted dexter_wallet keeps verified portfolio display data in widget metad
   );
 
   assert.match(walletImplementation, /fetchSessionPortfolio\(\{/);
+  assert.match(walletImplementation, /includeActionTargets:\s*false/);
   assert.match(walletImplementation, /sessionId,/);
   assert.match(walletImplementation, /expectedWalletAddress:\s*receiveAddress/);
   assert.match(walletImplementation, /getVaultReceiveAddress\(state\.vault\)/);
