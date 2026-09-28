@@ -4,7 +4,6 @@ import test from 'node:test';
 import {
   MAX_PORTFOLIO_BYTES,
   MAX_PORTFOLIO_HOLDINGS,
-  MAX_APPROVED_ACTION_TARGETS,
   SESSION_PORTFOLIO_SIGNATURE_PURPOSE,
   approvedActionTargetsAreValid,
   fetchSessionPortfolio,
@@ -20,6 +19,7 @@ import {
 } from './fixtures/wallet-portfolio-fixtures.mjs';
 import {
   approvedActionTarget,
+  expandedApprovedActionTargets,
   rehashApprovedActionTarget,
   secondApprovedActionTarget,
   zeroHoldingBuyDiscoveryPortfolio,
@@ -148,6 +148,26 @@ test('preserves a complete target whose three governed actions are unavailable',
   assert.deepEqual(modelSafePortfolioSnapshot(portfolio).holdings, []);
 });
 
+test('reads every target beyond the former 128-target ceiling within the existing body budget', async () => {
+  const source = { ...zeroHoldingBuyDiscoveryPortfolio(), approvedActionTargets: expandedApprovedActionTargets() };
+  assert.ok(Buffer.byteLength(JSON.stringify({ portfolio: source }), 'utf8') < MAX_PORTFOLIO_BYTES);
+  const portfolio = await fetchSessionPortfolio({
+    apiBase: 'http://127.0.0.1:3030', sessionId: SESSION_ID, expectedWalletAddress: WALLET_ADDRESS, secret: SECRET,
+    fetchImpl: async () => responseFor({ portfolio: source }),
+  });
+  assert.deepEqual(portfolio, source);
+  assert.deepEqual(modelSafePortfolioSnapshot(portfolio).approvedActionTargets, source.approvedActionTargets);
+
+  const malformedTail = structuredClone(source);
+  malformedTail.approvedActionTargets[128].actions[0].assetId = 'different-asset';
+  malformedTail.approvedActionTargets[128] = rehashApprovedActionTarget(malformedTail.approvedActionTargets[128]);
+  assert.equal(validateAndBoundPortfolioSnapshotV1(malformedTail), null);
+
+  const tooLarge = { ...source, approvedActionTargets: expandedApprovedActionTargets(300) };
+  assert.ok(Buffer.byteLength(JSON.stringify(tooLarge), 'utf8') > MAX_PORTFOLIO_BYTES);
+  assert.equal(validateAndBoundPortfolioSnapshotV1(tooLarge), null);
+});
+
 test('fails closed on malformed, contradictory, duplicate, or unsorted approved targets', () => {
   const sourceWithTarget = (targetOrTargets) => ({
     ...zeroHoldingBuyDiscoveryPortfolio(),
@@ -217,7 +237,7 @@ test('fails closed on malformed, contradictory, duplicate, or unsorted approved 
     sourceWithTarget([secondApprovedActionTarget(), approvedActionTarget()]),
     sourceWithTarget([approvedActionTarget(), duplicateIdentityRehashed]),
     sourceWithTarget(Array.from(
-      { length: MAX_APPROVED_ACTION_TARGETS + 1 },
+      { length: 129 },
       () => approvedActionTarget(),
     )),
   ];

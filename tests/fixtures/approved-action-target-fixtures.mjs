@@ -64,6 +64,24 @@ export function secondApprovedActionTarget() {
   });
 }
 
+export function expandedApprovedActionTargets(count = 129) {
+  const alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+  return Array.from({ length: count }, (_, index) => {
+    const hex = canonicalHash({ fixtureMint: index });
+    let value = BigInt(`0x${hex}`);
+    let encoded = '';
+    while (value > 0n) {
+      encoded = alphabet[Number(value % 58n)] + encoded;
+      value /= 58n;
+    }
+    const leadingZeros = hex.match(/^(?:00)*/)[0].length / 2;
+    return approvedActionTarget({
+      assetId: `stock-${String(index).padStart(6, '0')}`,
+      mint: '1'.repeat(leadingZeros) + encoded,
+    });
+  });
+}
+
 export function zeroHoldingBuyDiscoveryPortfolio() {
   return {
     ...completePortfolio(),

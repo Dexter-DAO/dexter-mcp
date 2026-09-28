@@ -20,6 +20,7 @@ import {
 } from '../lib/open-tool-auth.mjs';
 import {
   approvedActionTarget,
+  expandedApprovedActionTargets,
   rehashApprovedActionTarget,
   zeroHoldingBuyDiscoveryPortfolio,
 } from './fixtures/approved-action-target-fixtures.mjs';
@@ -609,6 +610,20 @@ test('portfolio output accepts old and new shapes but rejects invented or contra
     newResult.portfolio.approvedActionTargets,
     [approvedActionTarget()],
   );
+});
+
+test('portfolio output preserves every validated target beyond 128 and still rejects a changed final identity', () => {
+  const snapshot = { ...zeroHoldingBuyDiscoveryPortfolio(), approvedActionTargets: expandedApprovedActionTargets() };
+  const portfolio = modelSafePortfolioSnapshot(validateAndBoundPortfolioSnapshotV1(snapshot));
+  const result = { portfolio_status: 'ready', mode: 'portfolio_ready', user_bound: true, portfolio };
+  const schema = OPEN_TOOL_CONTRACTS.dexter_wallet_portfolio.outputSchema;
+  const parsed = schema.safeParse(result);
+  assert.equal(parsed.success, true);
+  assert.deepEqual(parsed.data.portfolio.approvedActionTargets, snapshot.approvedActionTargets);
+  const altered = structuredClone(result);
+  altered.portfolio.approvedActionTargets[128].mint = altered.portfolio.approvedActionTargets[0].mint;
+  altered.portfolio.approvedActionTargets[128] = rehashApprovedActionTarget(altered.portfolio.approvedActionTargets[128]);
+  assert.equal(schema.safeParse(altered).success, false);
 });
 
 test('portfolio policy preserves only validated target display fields that resemble credentials', () => {
