@@ -37,6 +37,7 @@ import {
 const execFileAsync = promisify(execFile);
 
 const CONNECTED = [
+  'dexter_find_assets',
   'indexter_discover',
   'indexter_search',
   'x402_mcp_tools',
@@ -46,6 +47,7 @@ const CONNECTED = [
   'x402_access',
   'dexter_wallet',
   'dexter_wallet_portfolio',
+  'dexter_report_work',
   'dexter_prepare_asset_action',
   'dexter_execute_asset_action',
   'dexter_asset_action_status',
@@ -269,7 +271,6 @@ test('--emit-json emits exactly one descriptor document and exits', () => {
     'x402_status',
     'x402_access',
     'dexter_wallet',
-    'dexter_wallet_portfolio',
   ]) {
     const tool = descriptor.tools.find((candidate) => candidate.name === name);
     assert.ok(tool, name);
@@ -507,8 +508,8 @@ test('source materializer emits one deterministic full hosted descriptor', async
     repository: 'https://github.com/Dexter-DAO/dexter-api',
     commit: acceptedProduction.api.sourceCommit,
     tree: acceptedProduction.api.sourceTree,
-    governedContractCommit: '06086fd00d4e87a1bd0505fa7b8eb907c35c200a',
-    governedContractTree: 'bc5429901fa6d9cac51c302e3becb618a792606f',
+    governedContractCommit: '8db711622bda434003be19755e227428a4e4ad56',
+    governedContractTree: '76647a88c7589740aee51b74c36d7b65a0bf3491',
   });
   assert.deepEqual(descriptor.sourceContracts.portfolioProjection, {
     repository: 'https://github.com/Dexter-DAO/dexter-api',
@@ -654,10 +655,17 @@ test('source materializer emits one deterministic full hosted descriptor', async
   const portfolio = descriptor.tools.find(
     ({ name }) => name === 'dexter_wallet_portfolio',
   );
-  const targets =
-    portfolio.outputSchema.properties.portfolio.properties.approvedActionTargets;
+  const variants = portfolio.outputSchema.properties.portfolio.anyOf;
+  const legacy = variants.find((variant) =>
+    variant.properties?.contractVersion?.const === 'opendexter.portfolio.v1');
+  assert.ok(legacy);
+  assert.ok(variants.some((variant) =>
+    variant.properties?.contractVersion?.const === 'opendexter.portfolio.v3'));
+  const targets = legacy.properties.approvedActionTargets;
   assert.equal(targets.type, 'array');
-  assert.equal(targets.maxItems, 128);
+  assert.equal(Object.hasOwn(targets, 'maxItems'), false);
+  assert.equal(portfolio._meta['openai/widgetAccessible'], true);
+  assert.deepEqual(portfolio._meta.ui.visibility, ['model', 'app']);
   assert.deepEqual(
     targets.items.properties.actions.items.properties.action.enum,
     ['buy', 'sell', 'send'],
@@ -691,7 +699,9 @@ test('descriptor check is byte-exact and refuses schema or OAuth drift', async (
   );
 
   const missingMeta = JSON.parse(expected);
-  delete missingMeta.tools[0]._meta['openai/outputTemplate'];
+  const widgetTool = missingMeta.tools.find(tool => tool.name === 'indexter_discover');
+  assert.equal(typeof widgetTool._meta['openai/outputTemplate'], 'string');
+  delete widgetTool._meta['openai/outputTemplate'];
   writeFileSync(descriptorPath, `${JSON.stringify(missingMeta, null, 2)}\n`);
   await assert.rejects(
     verifyOpenToolDescriptor({ descriptorPath, descriptor }),
