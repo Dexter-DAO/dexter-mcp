@@ -120,6 +120,10 @@ const API_GOVERNED_CONTRACT_PATHS = Object.freeze([
   'src/portfolio/decimal.ts',
   'src/routes/passkeyMcpBinding.ts',
   'src/portfolio/readSessionPortfolio.ts',
+  'src/portfolio/readOnlyPortfolioConnection.ts',
+  'src/portfolio/assetDiscovery.ts',
+  'src/routes/assetDiscovery.ts',
+  'src/portfolio/stockCatalog/productSourceSql.ts',
   'src/portfolio/selectPortfolioRead.ts',
   'src/portfolio/selectedReadTiming.ts',
   'src/portfolio/portfolioReadSnapshots.ts',
@@ -184,9 +188,11 @@ const EXPECTED_SOURCE_CONTRACTS = Object.freeze({
   // receipt reader while preserving the existing MCP contracts.
   // The normal PR364 producer separates priced holdings from target preparation
   // and retains held-asset identity evidence in independent v3 observations.
+  // The reviewed Phone recovery adds current asset discovery, per-read RPC
+  // fallback, complete target catalogs and bounded wallet holdings reads.
   // Later releases must preserve these API_GOVERNED_CONTRACT_PATHS bytes.
-  integratedGovernedCommit: '06086fd00d4e87a1bd0505fa7b8eb907c35c200a',
-  integratedGovernedTree: 'bc5429901fa6d9cac51c302e3becb618a792606f',
+  integratedGovernedCommit: 'ab9bb274d2ea01273cade4a511e9824dfdbc287f',
+  integratedGovernedTree: '54f181f3f4a145dc4326b03dc5161e24865bf977',
   apiFixtureSha256:
     'ad06690a3914e0ef0f359c4164eb62f78ca54abe6697a52672d739df63c2c352',
   apiCanonicalBodyDigest:
