@@ -21,10 +21,12 @@ UI handoffs, and the exact available roster to the host. Do not copy another
 surface byte-for-byte or advertise a tool or workflow this surface does not
 actually ship.
 
+Search stocks and tokens outside the wallet with `dexter_find_assets`, using a company name, ticker or exact mint. Keep issuer variants and same-symbol tokens distinct. Continue stock matches with the returned nextOffset. Token candidates cover the provider search batch and may be incomplete. Prepare checks the connected wallet before an order can proceed.
+
 ## Product tools
 
 OpenDexter requires host-native OAuth before tool discovery or use. One
-successful authorization exposes all fifteen tools (fourteen model-visible and one app-only browser) on the same canonical
+successful authorization exposes all sixteen tools (fifteen model-visible and one app-only browser) on the same canonical
 connection and covers discovery, search, wallet, portfolio, identity-gated
 access, payment, and governed actions.
 
@@ -37,6 +39,7 @@ access, payment, and governed actions.
 | Inspect one intent without redispatch | `x402_status` |
 | Use wallet-proof or Sign-In-With-X access | `x402_access` |
 | Read wallet readiness, cash, reported credit capacity, deposit address, and activity | `dexter_wallet` |
+| Find stocks and tokens by name, ticker or mint | `dexter_find_assets` |
 | Read governed assets and currently allowed actions | `dexter_wallet_portfolio` |
 | Prepare an exact governed Send, Buy, or Sell | `dexter_prepare_asset_action` |
 | Execute one prepared governed intent | `dexter_execute_asset_action` |

@@ -1,5 +1,7 @@
 // Sentry instrumentation (must be before all other imports)
 import './instrument.open-mcp.mjs';
+import { ASSET_SEARCH_TOOL, ASSET_SEARCH_INPUT_SCHEMA } from './lib/asset-search-contract.mjs';
+import { assetSearchTool } from './lib/asset-search-client.mjs';
 import { PORTFOLIO_READ_INPUT_SHAPE, PORTFOLIO_READ_INPUT_SCHEMA, portfolioReady } from './lib/portfolio-read-contract.mjs';
 import { fetchSessionPortfolioSelection } from './lib/session-portfolio-selection.mjs';
 import { AGENT_WORK_REPORT_TOOL_NAME, AGENT_WORK_REPORT_INPUT_SCHEMA } from './lib/agent-work-report-contract.mjs';
@@ -2763,6 +2765,9 @@ export function createOpenMcpServer({
       };
     }
   });
+
+  registerOpenTool(server, ASSET_SEARCH_TOOL, { inputSchema: ASSET_SEARCH_INPUT_SCHEMA },
+    args => assetSearchTool(args));
 
   registerOpenTool(server, AGENT_WORK_REPORT_TOOL_NAME, {
     inputSchema: AGENT_WORK_REPORT_INPUT_SCHEMA,

@@ -236,7 +236,7 @@ for (const operation of Object.keys(inputs)) {
     t.after(async () => { await client.close(); await server.close(); });
     await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
     const tools = (await client.listTools()).tools;
-    assert.equal(tools.length, 15);
+    assert.equal(tools.length, 16);
     assert.ok(tools.some(tool => tool.name === 'dexter_report_work'));
     const listed = tools.find(tool => tool.name === name);
     const result = await client.callTool({ name, arguments: inputs[operation] });

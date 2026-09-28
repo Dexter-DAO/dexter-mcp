@@ -9,13 +9,15 @@ purchase. Dexter, not the caller, owns the request, seller terms, route, and
 execution state. The caller receives one opaque `intentId` and never carries a
 prepared purchase object between tools.
 
+`dexter_find_assets` searches current catalog stocks and provider token candidates by company, ticker or mint. Discovery retains exact identities and issuer distinctions. Prepare checks current trading permission and route availability.
+
 ## Authorized roster
 
 The canonical `https://open.dexter.cash/mcp` resource requires OAuth
 `scope=vault` before MCP initialization, tool discovery, or invocation. One
 successful authorization covers discovery and search, exact request checks,
 wallet and portfolio reads, identity-gated access, payment, and governed
-actions. The authorized roster has fifteen tools. Fourteen are model-visible;
+actions. The authorized roster has sixteen tools. Fifteen are model-visible;
 `indexter_discover` is app-only:
 
 - `indexter_discover`
@@ -27,6 +29,7 @@ actions. The authorized roster has fifteen tools. Fourteen are model-visible;
 - `x402_access`
 - `dexter_wallet`
 - `dexter_wallet_portfolio`
+- `dexter_find_assets`
 - `dexter_prepare_asset_action`
 - `dexter_execute_asset_action`
 - `dexter_asset_action_status`
