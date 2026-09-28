@@ -191,8 +191,8 @@ const EXPECTED_SOURCE_CONTRACTS = Object.freeze({
   // The reviewed Phone recovery adds current asset discovery, per-read RPC
   // fallback, complete target catalogs and bounded wallet holdings reads.
   // Later releases must preserve these API_GOVERNED_CONTRACT_PATHS bytes.
-  integratedGovernedCommit: 'ab9bb274d2ea01273cade4a511e9824dfdbc287f',
-  integratedGovernedTree: '54f181f3f4a145dc4326b03dc5161e24865bf977',
+  integratedGovernedCommit: '8db711622bda434003be19755e227428a4e4ad56',
+  integratedGovernedTree: '76647a88c7589740aee51b74c36d7b65a0bf3491',
   apiFixtureSha256:
     'ad06690a3914e0ef0f359c4164eb62f78ca54abe6697a52672d739df63c2c352',
   apiCanonicalBodyDigest:
