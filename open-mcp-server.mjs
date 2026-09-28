@@ -1908,13 +1908,15 @@ async function x402Wallet(args, extra) {
   const receiveAddress = getVaultReceiveAddress(state.vault);
   // Start optional widget reads as soon as the verified wallet address exists.
   // They run concurrently with money composition below; portfolio has a finite
-  // 20s deadline for wallet resolution, stock authority and holdings. It still
+  // 20s deadline for wallet resolution and holdings. Purchase targets use the
+  // separate paged portfolio read. This optional wallet read still
   // degrades to unavailable if that complete read cannot finish in time.
   const portfolioPromise = fetchSessionPortfolio({
     apiBase: API_BASE_FALLBACK,
     sessionId,
     expectedWalletAddress: receiveAddress,
     secret: INTERNAL_HMAC_SECRET,
+    includeActionTargets: false,
   });
   const cardSummaryPromise = readCardSummary(sessionId);
   const activityPromise = fetchSessionActivity({
