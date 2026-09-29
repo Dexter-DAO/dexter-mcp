@@ -16,15 +16,15 @@
     },
     "integratedApiRelease": {
       "repository": "https://github.com/Dexter-DAO/dexter-api",
-      "commit": "8db711622bda434003be19755e227428a4e4ad56",
-      "tree": "76647a88c7589740aee51b74c36d7b65a0bf3491",
+      "commit": "66fc2189dad6661a876848e829ad3bcfdb9bc6a1",
+      "tree": "855daf926c711cb2ca2d68e9b94f784f4b7a469f",
       "governedContractCommit": "8db711622bda434003be19755e227428a4e4ad56",
       "governedContractTree": "76647a88c7589740aee51b74c36d7b65a0bf3491"
     },
     "portfolioProjection": {
       "repository": "https://github.com/Dexter-DAO/dexter-api",
-      "commit": "8db711622bda434003be19755e227428a4e4ad56",
-      "tree": "76647a88c7589740aee51b74c36d7b65a0bf3491",
+      "commit": "66fc2189dad6661a876848e829ad3bcfdb9bc6a1",
+      "tree": "855daf926c711cb2ca2d68e9b94f784f4b7a469f",
       "sourcePaths": [
         "src/portfolio/approvedActionTargets.ts",
         "src/routes/passkeyMcpBinding.ts",
@@ -39,8 +39,8 @@
     },
     "facilitator": {
       "repository": "https://github.com/Dexter-DAO/dexter-facilitator",
-      "commit": "0a9ea4335c22224fbb48605113e8711a9f7dc90a",
-      "tree": "e566033360f1ab8ae53a2d4b5a852916399fdce1",
+      "commit": "40f3b5550ae263003be345f0751e3c6d65eb2029",
+      "tree": "ec353e55dc34a873704be1dd3bf94eb15118d838",
       "bindingFixture": {
         "consumerPath": "tests/fixtures/governed-agent-trade-api-facilitator-binding-vault-0434.json",
         "apiPath": "tests/fixtures/governed-agent-trade-api-facilitator-binding-v1.json",
@@ -2188,7 +2188,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/indexter-search-7e9b3eef",
+          "resourceUri": "ui://dexter/indexter-search-4c706da9",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash",
@@ -2206,8 +2206,8 @@
             "app"
           ]
         },
-        "ui/resourceUri": "ui://dexter/indexter-search-7e9b3eef",
-        "openai/outputTemplate": "ui://dexter/indexter-search-7e9b3eef",
+        "ui/resourceUri": "ui://dexter/indexter-search-4c706da9",
+        "openai/outputTemplate": "ui://dexter/indexter-search-4c706da9",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -3251,7 +3251,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/indexter-search-7e9b3eef",
+          "resourceUri": "ui://dexter/indexter-search-4c706da9",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash",
@@ -3269,8 +3269,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/indexter-search-7e9b3eef",
-        "openai/outputTemplate": "ui://dexter/indexter-search-7e9b3eef",
+        "ui/resourceUri": "ui://dexter/indexter-search-4c706da9",
+        "openai/outputTemplate": "ui://dexter/indexter-search-4c706da9",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -4049,7 +4049,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-pricing-de71a421",
+          "resourceUri": "ui://dexter/x402-pricing-04390b16",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash",
@@ -4066,8 +4066,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/x402-pricing-de71a421",
-        "openai/outputTemplate": "ui://dexter/x402-pricing-de71a421",
+        "ui/resourceUri": "ui://dexter/x402-pricing-04390b16",
+        "openai/outputTemplate": "ui://dexter/x402-pricing-04390b16",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -4406,7 +4406,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-fetch-result-1bcade6f",
+          "resourceUri": "ui://dexter/x402-fetch-result-26414eee",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash",
@@ -4423,8 +4423,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/x402-fetch-result-1bcade6f",
-        "openai/outputTemplate": "ui://dexter/x402-fetch-result-1bcade6f",
+        "ui/resourceUri": "ui://dexter/x402-fetch-result-26414eee",
+        "openai/outputTemplate": "ui://dexter/x402-fetch-result-26414eee",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -5133,7 +5133,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-fetch-result-1bcade6f",
+          "resourceUri": "ui://dexter/x402-fetch-result-26414eee",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash",
@@ -5150,8 +5150,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/x402-fetch-result-1bcade6f",
-        "openai/outputTemplate": "ui://dexter/x402-fetch-result-1bcade6f",
+        "ui/resourceUri": "ui://dexter/x402-fetch-result-26414eee",
+        "openai/outputTemplate": "ui://dexter/x402-fetch-result-26414eee",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -5626,7 +5626,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-pricing-de71a421",
+          "resourceUri": "ui://dexter/x402-pricing-04390b16",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash",
@@ -5643,8 +5643,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/x402-pricing-de71a421",
-        "openai/outputTemplate": "ui://dexter/x402-pricing-de71a421",
+        "ui/resourceUri": "ui://dexter/x402-pricing-04390b16",
+        "openai/outputTemplate": "ui://dexter/x402-pricing-04390b16",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -6406,7 +6406,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/dexter-wallet-37f40c3f",
+          "resourceUri": "ui://dexter/dexter-wallet-6f8ec575",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash",
@@ -6425,8 +6425,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/dexter-wallet-37f40c3f",
-        "openai/outputTemplate": "ui://dexter/dexter-wallet-37f40c3f",
+        "ui/resourceUri": "ui://dexter/dexter-wallet-6f8ec575",
+        "openai/outputTemplate": "ui://dexter/dexter-wallet-6f8ec575",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -8709,7 +8709,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/portfolio-3a7cfa1a",
+          "resourceUri": "ui://dexter/portfolio-68e464ec",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash"
@@ -8726,8 +8726,8 @@
             "app"
           ]
         },
-        "ui/resourceUri": "ui://dexter/portfolio-3a7cfa1a",
-        "openai/outputTemplate": "ui://dexter/portfolio-3a7cfa1a",
+        "ui/resourceUri": "ui://dexter/portfolio-68e464ec",
+        "openai/outputTemplate": "ui://dexter/portfolio-68e464ec",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -11987,6 +11987,364 @@
             "properties": {
               "presentation": {
                 "$ref": "#/anyOf/0/properties/presentation"
+              },
+              "recovery": {
+                "type": "object",
+                "properties": {
+                  "namespace": {
+                    "type": "string",
+                    "const": "dexter-stock-prepare-recovery/v1"
+                  },
+                  "status": {
+                    "type": "string",
+                    "const": "uncertain"
+                  },
+                  "executed": {
+                    "type": "boolean",
+                    "const": false
+                  },
+                  "requestId": {
+                    "$ref": "#/anyOf/0/properties/requestId"
+                  },
+                  "operationId": {
+                    "$ref": "#/anyOf/0/properties/requestId"
+                  },
+                  "code": {
+                    "type": "string",
+                    "const": "stock_trading_setup_pending"
+                  },
+                  "retryWithSameRequestOnly": {
+                    "type": "boolean",
+                    "const": true
+                  },
+                  "retryAfterMs": {
+                    "type": "number",
+                    "const": 5000
+                  },
+                  "settlement": {
+                    "type": "string",
+                    "const": "not-submitted"
+                  },
+                  "arguments": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "operationId": {
+                            "type": "string",
+                            "minLength": 8,
+                            "maxLength": 128,
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+                            "description": "Stable idempotency identity for this exact request. Reuse it only for an exact replay of the same operation and arguments."
+                          },
+                          "action": {
+                            "type": "string",
+                            "const": "send"
+                          },
+                          "assetId": {
+                            "$ref": "#/anyOf/0/properties/business/properties/assetId/anyOf/0"
+                          },
+                          "amountAtomic": {
+                            "$ref": "#/anyOf/0/properties/business/properties/amountAtomic/anyOf/0",
+                            "description": "Exact selected-asset amount in integer base units. Use the server-certified decimals returned for this asset; never infer decimals from its symbol."
+                          },
+                          "destinationOwner": {
+                            "type": "string",
+                            "minLength": 32,
+                            "maxLength": 44,
+                            "pattern": "^[1-9A-HJ-NP-Za-km-z]+$",
+                            "description": "Canonical Solana base58 destination owner address."
+                          }
+                        },
+                        "required": [
+                          "operationId",
+                          "action",
+                          "assetId",
+                          "amountAtomic",
+                          "destinationOwner"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "operationId": {
+                            "$ref": "#/anyOf/1/properties/recovery/properties/arguments/anyOf/0/properties/operationId"
+                          },
+                          "action": {
+                            "type": "string",
+                            "const": "buy"
+                          },
+                          "assetId": {
+                            "$ref": "#/anyOf/0/properties/business/properties/assetId/anyOf/0"
+                          },
+                          "amountAtomic": {
+                            "$ref": "#/anyOf/0/properties/business/properties/amountAtomic/anyOf/0",
+                            "description": "Exact USDC budget to spend, in integer base units. The canonical settlement asset uses 6 decimals, so 1000000 means 1 USDC; assetId identifies the asset being bought."
+                          },
+                          "memo": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 566
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "Optional trade memo. Send does not support a memo and exposes no memo field."
+                          },
+                          "maxSlippageBps": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 10000
+                          },
+                          "maxPriceImpactBps": {
+                            "$ref": "#/anyOf/1/properties/recovery/properties/arguments/anyOf/1/properties/maxSlippageBps"
+                          }
+                        },
+                        "required": [
+                          "operationId",
+                          "action",
+                          "assetId",
+                          "amountAtomic"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "operationId": {
+                            "$ref": "#/anyOf/1/properties/recovery/properties/arguments/anyOf/0/properties/operationId"
+                          },
+                          "action": {
+                            "type": "string",
+                            "const": "buy"
+                          },
+                          "companyQuery": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 256,
+                            "description": "Human company or stock query for the catalog-owned stock route, such as Tesla, NVIDIA, or Moderna. Dexter normalizes the query and selects, pins, and returns the exact current Solana stock product. Never replace this with a remembered assetId, mint, or symbol."
+                          },
+                          "amountAtomic": {
+                            "$ref": "#/anyOf/0/properties/business/properties/amountAtomic/anyOf/0",
+                            "description": "Exact USDC budget to spend, in integer base units with 6 decimals, on the stock Dexter selects from the current catalog."
+                          },
+                          "memo": {
+                            "$ref": "#/anyOf/1/properties/recovery/properties/arguments/anyOf/1/properties/memo"
+                          },
+                          "maxSlippageBps": {
+                            "$ref": "#/anyOf/1/properties/recovery/properties/arguments/anyOf/1/properties/maxSlippageBps"
+                          },
+                          "maxPriceImpactBps": {
+                            "$ref": "#/anyOf/1/properties/recovery/properties/arguments/anyOf/1/properties/maxSlippageBps"
+                          }
+                        },
+                        "required": [
+                          "operationId",
+                          "action",
+                          "companyQuery",
+                          "amountAtomic"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "operationId": {
+                            "$ref": "#/anyOf/1/properties/recovery/properties/arguments/anyOf/0/properties/operationId"
+                          },
+                          "action": {
+                            "type": "string",
+                            "const": "buy"
+                          },
+                          "companyQuery": {
+                            "$ref": "#/anyOf/1/properties/recovery/properties/arguments/anyOf/2/properties/companyQuery"
+                          },
+                          "shareQuantity": {
+                            "type": "string",
+                            "maxLength": 39,
+                            "pattern": "^(?:0|[1-9][0-9]{0,19})(?:\\.[0-9]{1,18})?$",
+                            "description": "Minimum underlying-share-equivalent quantity requested for the current catalog-selected Solana stock product, expressed as a human decimal such as 10 or 0.25. Dexter resolves the exact product version, current display multiplier, and raw token amount. This is a minimum-receive target and execution may receive slightly more."
+                          },
+                          "maximumSpendAtomic": {
+                            "$ref": "#/anyOf/0/properties/business/properties/amountAtomic/anyOf/0",
+                            "description": "Optional maximum USDC input permitted for this share-quantity Buy, in integer base units with 6 decimals. It is valid only with shareQuantity."
+                          },
+                          "memo": {
+                            "$ref": "#/anyOf/1/properties/recovery/properties/arguments/anyOf/1/properties/memo"
+                          },
+                          "maxSlippageBps": {
+                            "$ref": "#/anyOf/1/properties/recovery/properties/arguments/anyOf/1/properties/maxSlippageBps"
+                          },
+                          "maxPriceImpactBps": {
+                            "$ref": "#/anyOf/1/properties/recovery/properties/arguments/anyOf/1/properties/maxSlippageBps"
+                          }
+                        },
+                        "required": [
+                          "operationId",
+                          "action",
+                          "companyQuery",
+                          "shareQuantity"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "operationId": {
+                            "$ref": "#/anyOf/1/properties/recovery/properties/arguments/anyOf/0/properties/operationId"
+                          },
+                          "action": {
+                            "type": "string",
+                            "const": "sell"
+                          },
+                          "assetId": {
+                            "$ref": "#/anyOf/0/properties/business/properties/assetId/anyOf/0"
+                          },
+                          "amountAtomic": {
+                            "$ref": "#/anyOf/0/properties/business/properties/amountAtomic/anyOf/0",
+                            "description": "Exact selected-asset amount to sell, in integer base units. Use the server-certified decimals returned for this asset; never infer decimals from its symbol."
+                          },
+                          "memo": {
+                            "$ref": "#/anyOf/1/properties/recovery/properties/arguments/anyOf/1/properties/memo"
+                          },
+                          "maxSlippageBps": {
+                            "$ref": "#/anyOf/1/properties/recovery/properties/arguments/anyOf/1/properties/maxSlippageBps"
+                          },
+                          "maxPriceImpactBps": {
+                            "$ref": "#/anyOf/1/properties/recovery/properties/arguments/anyOf/1/properties/maxSlippageBps"
+                          }
+                        },
+                        "required": [
+                          "operationId",
+                          "action",
+                          "assetId",
+                          "amountAtomic"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "operationId": {
+                            "$ref": "#/anyOf/1/properties/recovery/properties/arguments/anyOf/0/properties/operationId"
+                          },
+                          "action": {
+                            "type": "string",
+                            "const": "sell"
+                          },
+                          "companyQuery": {
+                            "$ref": "#/anyOf/1/properties/recovery/properties/arguments/anyOf/2/properties/companyQuery"
+                          },
+                          "amountAtomic": {
+                            "$ref": "#/anyOf/0/properties/business/properties/amountAtomic/anyOf/0",
+                            "description": "Exact selected-stock token input in integer base units. Dexter resolves the current catalog product, token program, and decimals; never infer them from the company name or symbol."
+                          },
+                          "memo": {
+                            "$ref": "#/anyOf/1/properties/recovery/properties/arguments/anyOf/1/properties/memo"
+                          },
+                          "maxSlippageBps": {
+                            "$ref": "#/anyOf/1/properties/recovery/properties/arguments/anyOf/1/properties/maxSlippageBps"
+                          },
+                          "maxPriceImpactBps": {
+                            "$ref": "#/anyOf/1/properties/recovery/properties/arguments/anyOf/1/properties/maxSlippageBps"
+                          }
+                        },
+                        "required": [
+                          "operationId",
+                          "action",
+                          "companyQuery",
+                          "amountAtomic"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "operationId": {
+                            "$ref": "#/anyOf/1/properties/recovery/properties/arguments/anyOf/0/properties/operationId"
+                          },
+                          "action": {
+                            "$ref": "#/anyOf/1/properties/recovery/properties/arguments/anyOf/4/properties/action"
+                          },
+                          "assetId": {
+                            "$ref": "#/anyOf/0/properties/business/properties/assetId/anyOf/0"
+                          },
+                          "memo": {
+                            "$ref": "#/anyOf/1/properties/recovery/properties/arguments/anyOf/1/properties/memo"
+                          },
+                          "maxSlippageBps": {
+                            "$ref": "#/anyOf/1/properties/recovery/properties/arguments/anyOf/1/properties/maxSlippageBps"
+                          },
+                          "maxPriceImpactBps": {
+                            "$ref": "#/anyOf/1/properties/recovery/properties/arguments/anyOf/1/properties/maxSlippageBps"
+                          },
+                          "valueUsd": {
+                            "type": "string",
+                            "maxLength": 39,
+                            "pattern": "^(?:0|[1-9][0-9]{0,19})(?:\\.[0-9]{1,18})?$",
+                            "description": "USD market value to sell at preparation, as a positive human decimal such as 1 or 12.50. Dexter sizes the token input from the latest reported USD price. Dexter checks the selected value against the current sale quote. Net USDC proceeds are approximate until the receipt. Use valueUsd or amountAtomic, never both."
+                          }
+                        },
+                        "required": [
+                          "operationId",
+                          "action",
+                          "assetId",
+                          "valueUsd"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "operationId": {
+                            "$ref": "#/anyOf/1/properties/recovery/properties/arguments/anyOf/0/properties/operationId"
+                          },
+                          "action": {
+                            "$ref": "#/anyOf/1/properties/recovery/properties/arguments/anyOf/5/properties/action"
+                          },
+                          "companyQuery": {
+                            "$ref": "#/anyOf/1/properties/recovery/properties/arguments/anyOf/2/properties/companyQuery"
+                          },
+                          "memo": {
+                            "$ref": "#/anyOf/1/properties/recovery/properties/arguments/anyOf/1/properties/memo"
+                          },
+                          "maxSlippageBps": {
+                            "$ref": "#/anyOf/1/properties/recovery/properties/arguments/anyOf/1/properties/maxSlippageBps"
+                          },
+                          "maxPriceImpactBps": {
+                            "$ref": "#/anyOf/1/properties/recovery/properties/arguments/anyOf/1/properties/maxSlippageBps"
+                          },
+                          "valueUsd": {
+                            "$ref": "#/anyOf/1/properties/recovery/properties/arguments/anyOf/6/properties/valueUsd"
+                          }
+                        },
+                        "required": [
+                          "operationId",
+                          "action",
+                          "companyQuery",
+                          "valueUsd"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "namespace",
+                  "status",
+                  "executed",
+                  "requestId",
+                  "operationId",
+                  "code",
+                  "retryWithSameRequestOnly",
+                  "retryAfterMs",
+                  "settlement",
+                  "arguments"
+                ],
+                "additionalProperties": false
               }
             },
             "required": [
@@ -12014,7 +12372,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/governed-action-9d04df89",
+          "resourceUri": "ui://dexter/governed-action-7aecc51f",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash"
@@ -12030,8 +12388,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/governed-action-9d04df89",
-        "openai/outputTemplate": "ui://dexter/governed-action-9d04df89",
+        "ui/resourceUri": "ui://dexter/governed-action-7aecc51f",
+        "openai/outputTemplate": "ui://dexter/governed-action-7aecc51f",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -14534,7 +14892,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/governed-action-9d04df89",
+          "resourceUri": "ui://dexter/governed-action-7aecc51f",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash"
@@ -14550,8 +14908,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/governed-action-9d04df89",
-        "openai/outputTemplate": "ui://dexter/governed-action-9d04df89",
+        "ui/resourceUri": "ui://dexter/governed-action-7aecc51f",
+        "openai/outputTemplate": "ui://dexter/governed-action-7aecc51f",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -17411,7 +17769,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/governed-action-9d04df89",
+          "resourceUri": "ui://dexter/governed-action-7aecc51f",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash"
@@ -17427,8 +17785,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/governed-action-9d04df89",
-        "openai/outputTemplate": "ui://dexter/governed-action-9d04df89",
+        "ui/resourceUri": "ui://dexter/governed-action-7aecc51f",
+        "openai/outputTemplate": "ui://dexter/governed-action-7aecc51f",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -20385,7 +20743,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/governed-action-9d04df89",
+          "resourceUri": "ui://dexter/governed-action-7aecc51f",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash"
@@ -20401,8 +20759,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/governed-action-9d04df89",
-        "openai/outputTemplate": "ui://dexter/governed-action-9d04df89",
+        "ui/resourceUri": "ui://dexter/governed-action-7aecc51f",
+        "openai/outputTemplate": "ui://dexter/governed-action-7aecc51f",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -23330,7 +23688,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/governed-history-5b4a2767",
+          "resourceUri": "ui://dexter/governed-history-f862492a",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash"
@@ -23346,8 +23704,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/governed-history-5b4a2767",
-        "openai/outputTemplate": "ui://dexter/governed-history-5b4a2767",
+        "ui/resourceUri": "ui://dexter/governed-history-f862492a",
+        "openai/outputTemplate": "ui://dexter/governed-history-f862492a",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,

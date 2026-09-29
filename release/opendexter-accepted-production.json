@@ -4,22 +4,22 @@
   "api": {
     "endpoint": "https://api.dexter.cash/health",
     "repository": "https://github.com/Dexter-DAO/dexter-api",
-    "releaseId": "8db711622bda-795b998feb0ba423-93bc37f62ba2",
-    "sourceCommit": "8db711622bda434003be19755e227428a4e4ad56",
-    "sourceTree": "76647a88c7589740aee51b74c36d7b65a0bf3491",
-    "toolingCommit": "8db711622bda434003be19755e227428a4e4ad56",
-    "artifactSha256": "795b998feb0ba423a0e40558da249312d029d890dd0132f2a33c43bee1b1e6d8",
-    "metadataBindingSha256": "80c77df929ceaef5f107cb08aa9e4dd464308f2aa0fc07d19e7f9a44e91c8f48"
+    "releaseId": "66fc2189dad6-7d20bea26ea8bc00-93bc37f62ba2",
+    "sourceCommit": "66fc2189dad6661a876848e829ad3bcfdb9bc6a1",
+    "sourceTree": "855daf926c711cb2ca2d68e9b94f784f4b7a469f",
+    "toolingCommit": "66fc2189dad6661a876848e829ad3bcfdb9bc6a1",
+    "artifactSha256": "7d20bea26ea8bc0038be7a139fac28c6c75c7b8b39092b07dff165791eb11817",
+    "metadataBindingSha256": "8e3a4dfbbfab4cf12a1ef401234a702b31ca41784c7d7b1868e98b91c358126a"
   },
   "facilitator": {
     "endpoint": "https://x402.dexter.cash/version",
     "repository": "https://github.com/Dexter-DAO/dexter-facilitator",
     "namespace": "dexter-facilitator-immutable-release/v1",
-    "sourceCommit": "0a9ea4335c22224fbb48605113e8711a9f7dc90a",
-    "sourceTree": "e566033360f1ab8ae53a2d4b5a852916399fdce1",
-    "sourceArchiveSha256": "e01de890e19d930a60dbaaa8255d5cf5dace5b8947a2435eddb57b9759e2eee6",
-    "artifactSha256": "de9986ac8d3d0d790d7033b6737dfd6ab9c7c08d0a1596ab61d91f62882385fe",
-    "artifactBindingDigest": "7fb61fd0597c3e822a72d66301177fb13e4a9d4e4c7bbc76cbfb2d88d8312dc0",
-    "metadataBindingDigest": "d24de8b3c453c8837486d04d93c5758b418e542afb1ec4877314399e3b96db7c"
+    "sourceCommit": "40f3b5550ae263003be345f0751e3c6d65eb2029",
+    "sourceTree": "ec353e55dc34a873704be1dd3bf94eb15118d838",
+    "sourceArchiveSha256": "9d3d5e0c2c1366ca9259782cb7958bb11a952cea3c92a585c398ae2b09f1f342",
+    "artifactSha256": "899d349af43fd5c074e2484cc464f592711ee975d3982003b4bb053d321518c4",
+    "artifactBindingDigest": "f2b82a0265e009db3c071016b4cc5cc840f47ff21192417e0145823fa2ed33ac",
+    "metadataBindingDigest": "fa1ba23321ec8793e2a848148755e7e23187978cfd80e0e719b79aca968b1512"
   }
 }
