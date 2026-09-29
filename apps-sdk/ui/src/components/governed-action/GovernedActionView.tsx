@@ -132,7 +132,7 @@ function exactTerms(model: GovernedActionViewModel): Term[] {
 
   if (model.action === 'buy') {
     if (model.quotedSpend) {
-      terms.push({ label: 'Spend', value: `$${model.quotedSpend}`, detail: 'USDC' });
+      terms.push({ label: model.technicalSetupPending ? 'Budget' : 'Spend', value: `$${model.quotedSpend}`, detail: 'USDC' });
     }
     if (requested) {
       terms.push({
@@ -190,6 +190,13 @@ function exactTerms(model: GovernedActionViewModel): Term[] {
 }
 
 function Economics({ model }: { model: GovernedActionViewModel }) {
+  if (model.actualTokenAmounts) return (
+    <dl className="dx-action__terms" aria-label="Recorded transaction amounts">
+      {[{ label: 'Paid', value: model.actualTokenAmounts.debit }, { label: 'Received', value: model.actualTokenAmounts.credit }].map(({ label, value }) => (
+        <div key={label}><dt>{label}</dt><dd><strong>{value.amount}</strong><span>{value.symbol}</span></dd></div>
+      ))}
+    </dl>
+  );
   const terms = exactTerms(model);
   if (terms.length === 0) return null;
   return (
@@ -366,7 +373,7 @@ function Execution({ model }: { model: GovernedActionViewModel }) {
 }
 
 function ReceiptDetails({ model }: { model: GovernedActionViewModel }) {
-  const fields: Term[] = [
+  const fields: Term[] = ([
     model.confirmedExecutionOutcome && model.explanation
       ? { label: 'Original explanation', value: model.explanation, wrap: true }
       : null,
@@ -402,7 +409,7 @@ function ReceiptDetails({ model }: { model: GovernedActionViewModel }) {
     model.receiptPhases.length > 0 ? { label: 'Receipt phases', value: model.receiptPhases.map(displayCode).join(', ') } : null,
     model.evidenceDigest ? { label: 'Execution evidence', value: shortenSolanaIdentity(model.evidenceDigest, 7) ?? model.evidenceDigest } : null,
     model.reconciliationEvidenceDigest ? { label: 'Reconciliation evidence', value: shortenSolanaIdentity(model.reconciliationEvidenceDigest, 7) ?? model.reconciliationEvidenceDigest } : null,
-  ].filter((field): field is Term => field !== null);
+  ] satisfies (Term | null)[]).filter((field): field is Exclude<typeof field, null> => field !== null);
   if (fields.length === 0) return null;
 
   return (
@@ -429,10 +436,9 @@ function QuoteDetails({ model }: { model: GovernedActionViewModel }) {
   const feeLines = model.fees
     ? [
         model.fees.platformFee
-          ? ['Platform fee', feeLineLabel(
-              model.fees.platformFee.amountAtomic,
-              model.fees.platformFee.mint,
-            )]
+          ? ['Platform fee', model.actualTokenAmounts && model.fees.platformFee.mint === 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'
+              ? `${formatAtomicDecimal(model.fees.platformFee.amountAtomic, 6, 6)} USDC`
+              : feeLineLabel(model.fees.platformFee.amountAtomic, model.fees.platformFee.mint)]
           : null,
         ...model.fees.routeFees.map((fee, index) => [
           `Route fee ${index + 1}`,
@@ -458,7 +464,7 @@ function QuoteDetails({ model }: { model: GovernedActionViewModel }) {
 
   return (
     <details className="dx-action__details">
-      <summary>Quote details</summary>
+      <summary>{model.actualTokenAmounts ? 'Recorded fees' : 'Quote details'}</summary>
       <dl className="dx-action__receipt-grid">
         {fields.map(([label, value]) => (
           <div key={label}>
@@ -530,7 +536,7 @@ export function GovernedActionDetail({
 
       {compact ? (
         <section className="dx-action__compact-evidence" aria-label="Authority and execution summary">
-          <dl className="dx-action__facts">
+          {!model.technicalSetupPending ? <dl className="dx-action__facts">
             <div>
               <dt>Owner approval</dt>
               <dd>{approvalLabel(model)}</dd>
@@ -539,7 +545,7 @@ export function GovernedActionDetail({
               <dt>Execution</dt>
               <dd>{executionSentence(model)}</dd>
             </div>
-          </dl>
+          </dl> : null}
           {model.approvalRequired && model.ownerDecision !== 'approved' ? (
             <p className="dx-action__approval-note">
               Approval belongs in Dexter Wallet. This view cannot grant it or execute the action.
@@ -558,11 +564,10 @@ export function GovernedActionDetail({
         </section>
       ) : (
         <>
-          <Authority model={model} />
-          <Execution model={model} />
+          {!model.technicalSetupPending ? <><Authority model={model} /><Execution model={model} /></> : null}
           <AssetIdentity model={model} />
 
-          {model.explanation && model.explanation !== model.supporting && !model.confirmedExecutionOutcome ? (
+          {model.explanation && model.explanation !== model.supporting && !model.confirmedExecutionOutcome && !model.technicalSetupPending ? (
             <p className="dx-action__explanation" role={model.stage === 'failure' ? 'alert' : undefined}>
               {model.explanation}
             </p>

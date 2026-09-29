@@ -117,7 +117,7 @@ async function dispatch(t, operation, input, body, { bypassBackendValidation = f
   const [successSchema, errorSchema] = listed.outputSchema.anyOf;
   assert.ok(successSchema.required.includes('presentation'));
   assert.deepEqual(errorSchema.required, ['presentation']);
-  assert.deepEqual(Object.keys(errorSchema.properties), ['presentation']);
+  assert.deepEqual(Object.keys(errorSchema.properties), operation === 'prepare' ? ['presentation', 'recovery'] : ['presentation']);
   assert.equal(errorSchema.additionalProperties, false);
   const result = await client.callTool({ name, arguments: input });
   if (result.structuredContent !== undefined) {

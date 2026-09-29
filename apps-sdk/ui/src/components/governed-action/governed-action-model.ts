@@ -1,3 +1,4 @@
+import { readTokenOutcome, tokenSetupRecovery } from '../../../../../lib/governed-token-result.mjs';
 import { sha256 } from '@noble/hashes/sha256';
 import { bytesToHex, utf8ToBytes } from '@noble/hashes/utils';
 import {
@@ -54,6 +55,7 @@ export type GovernedActionViewModel = {
   action: 'buy' | 'sell' | 'send' | 'unknown';
   rawStatus: string;
   needsStatusCheck: boolean;
+  technicalSetupPending?: boolean;
   intentId: string | null;
   attemptId: string | null;
   requestId: string | null;
@@ -87,6 +89,7 @@ export type GovernedActionViewModel = {
   priceImpactBps: number | null;
   quoteExpiresAtUnixMs: number | null;
   fees: GovernedFeeSummary | null;
+  actualTokenAmounts?: { debit: { amount: string; symbol: string }; credit: { amount: string; symbol: string } } | null;
   transactionSignature: string | null;
   solscanUrl: string | null;
   confirmationCommitment: 'confirmed' | 'finalized' | null;
@@ -543,6 +546,8 @@ function exactSuccessEnvelopeIdentity(input: {
   business: UnknownRecord | null;
   tradeSummary: UnknownRecord | null;
 }): boolean {
+  const token = readTokenOutcome(input.status);
+  if (token) return true;
   const selection = record(input.status.stockSelection);
   const durableIdentity = record(input.status.stockV2Identity);
   const product = record(input.tradeSummary?.productIdentity);
@@ -941,7 +946,14 @@ export function normalizeGovernedAction(
     root.action,
     input?.action,
   );
+  const tokenOutcome = readTokenOutcome(status);
+  const tokenReceipt = tokenOutcome?.receipt;
+  const tokenAmount = tokenReceipt ? (action === 'sell' ? tokenReceipt.debit : tokenReceipt.credit) : null;
   const product = normalizeProduct(productIdentity, preview, business, status);
+  if (tokenOutcome) {
+    product.assetId = tokenOutcome.summary.assetId; product.mint = tokenOutcome.summary.mint; product.assetClass = 'token';
+    if (tokenAmount) { product.symbol = tokenAmount.symbol; product.productName = tokenAmount.symbol; product.decimals = tokenAmount.decimals; }
+  }
   const destinationOwner = firstString(
     preview?.destinationOwner,
     status.destinationOwner,
@@ -985,6 +997,9 @@ export function normalizeGovernedAction(
     firstString(status.status, business?.lifecycle, root.status, root.outcome)
     ?? (preview ? 'prepared' : 'unknown')
   ).toLowerCase();
+  const tokenSetup = tokenSetupRecovery(root, input) !== null || (status.status === 'setup-pending'
+    && record(status.authorityIdentity)?.authorityNamespace === 'token-family-v2' && status.attemptId === null
+    && status.submitted === false && status.executionSucceeded === null && status.tradeSummary === null);
   const signature = exactSignature(
     status.transactionSignature,
     business?.transactionSignature,
@@ -1078,7 +1093,10 @@ export function normalizeGovernedAction(
     : action === 'sell'
       ? 6
       : null;
-  const copy = maintenance ? {
+  const copy = tokenSetup ? {
+    stageLabel: 'Setting up', headline: 'Token trading setup is pending',
+    supporting: 'Your trade has not been submitted. Continue the original request after setup finishes.',
+  } : maintenance ? {
     stageLabel: 'Maintenance',
     headline: 'Vault operations are temporarily unavailable',
     supporting: 'Affected actions can resume after maintenance. Saved results remain available.',
@@ -1114,7 +1132,7 @@ export function normalizeGovernedAction(
     business?.reconciliation && record(business.reconciliation)?.availableToOwner,
     root.canReconcile,
   ) === true;
-  const needsStatusCheck = stage === 'pending' && (
+  const needsStatusCheck = !tokenSetup && stage === 'pending' && (
     ['uncertain', 'ambiguous', 'reconciliation-required', 'unknown'].includes(rawStatus)
     || commitment !== null
     || intentId !== null
@@ -1145,7 +1163,9 @@ export function normalizeGovernedAction(
     && root.landingProof !== false
     && (status.landingProof === true || root.landingProof === true || business?.settlement === 'landed')
   );
-  const recovery: GovernedActionViewModel['recovery'] = maintenance
+  const recovery: GovernedActionViewModel['recovery'] = tokenSetup
+    ? { kind: 'same-request', sentence: 'Continue the saved preparation with its original terms.' }
+    : maintenance
     ? intentId
       ? { kind: 'read', sentence: 'Check the result of your original request.' }
       : { kind: 'same-request', sentence: 'Resume your original request after maintenance.' }
@@ -1179,9 +1199,11 @@ export function normalizeGovernedAction(
     operation,
     stage,
     ...copy,
+    ...(stage === 'success' && tokenReceipt ? { headline: `${action === 'sell' ? 'Sale' : 'Purchase'} ${commitment === 'finalized' ? 'finalized' : 'confirmed'}` } : {}),
     action,
     rawStatus,
     needsStatusCheck,
+    technicalSetupPending: tokenSetup,
     intentId,
     attemptId: firstString(status.attemptId, root.attemptId),
     requestId: firstString(status.requestId, root.requestId, root.operationId),
@@ -1232,7 +1254,10 @@ export function normalizeGovernedAction(
     slippageBps: safeInteger(preview?.slippageBps, 0, 10_000),
     priceImpactBps: safeInteger(preview?.priceImpactBps, 0, 10_000),
     quoteExpiresAtUnixMs: safeInteger(preview?.quoteExpiresAtUnixMs, 0),
-    fees: normalizeFees(feeSummary),
+    fees: stage === 'success' && tokenReceipt ? { summary: 'Recorded transaction fees.',
+      platformFee: tokenReceipt.fees.serviceFee, routeFees: [], networkFeeStatus: 'recorded', networkFeeLamports: tokenReceipt.fees.networkFee.amountLamports } : normalizeFees(feeSummary),
+    actualTokenAmounts: stage === 'success' && tokenReceipt ? { debit: { amount: tokenReceipt.debit.amount, symbol: tokenReceipt.debit.symbol },
+      credit: { amount: tokenReceipt.credit.amount, symbol: tokenReceipt.credit.symbol } } : null,
     transactionSignature: signature,
     solscanUrl: signature ? `https://solscan.io/tx/${signature}` : null,
     confirmationCommitment: commitment,
