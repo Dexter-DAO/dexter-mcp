@@ -190,9 +190,12 @@ const EXPECTED_SOURCE_CONTRACTS = Object.freeze({
   // and retains held-asset identity evidence in independent v3 observations.
   // The reviewed Phone recovery adds current asset discovery, per-read RPC
   // fallback, complete target catalogs and bounded wallet holdings reads.
+  // The accepted Phone first-use release adds exact unsent setup continuation,
+  // shared Buy authority preparation, current catalog selection and multiplier
+  // evidence. Its source and compiled runtime were independently reviewed.
   // Later releases must preserve these API_GOVERNED_CONTRACT_PATHS bytes.
-  integratedGovernedCommit: '8db711622bda434003be19755e227428a4e4ad56',
-  integratedGovernedTree: '76647a88c7589740aee51b74c36d7b65a0bf3491',
+  integratedGovernedCommit: '06ddd9ab12e21908c6739bc95f30b58f44490a2e',
+  integratedGovernedTree: '5dcc1a4c1ee2159a2e5e15c09b7aa49f9a02131d',
   apiFixtureSha256:
     'ad06690a3914e0ef0f359c4164eb62f78ca54abe6697a52672d739df63c2c352',
   apiCanonicalBodyDigest:

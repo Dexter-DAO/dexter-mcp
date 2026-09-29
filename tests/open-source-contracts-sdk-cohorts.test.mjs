@@ -14,8 +14,8 @@ import {
 } from '../scripts/materialize-open-tool-descriptors.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
-const API_COMMIT = '8db711622bda434003be19755e227428a4e4ad56';
-const API_TREE = '76647a88c7589740aee51b74c36d7b65a0bf3491';
+const API_COMMIT = '06ddd9ab12e21908c6739bc95f30b58f44490a2e';
+const API_TREE = '5dcc1a4c1ee2159a2e5e15c09b7aa49f9a02131d';
 const FACILITATOR_COMMIT = '8d351859ff465a0c051da90e0e59f5f5e812acc7';
 const HISTORICAL_API = 'fa0701b67625911b8ec97a5399f62ec97a69f976';
 const HISTORICAL_PATH = 'tests/fixtures/governed-agent-trade-api-facilitator-binding-v1.json';
