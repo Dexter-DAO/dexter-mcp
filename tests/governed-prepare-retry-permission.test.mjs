@@ -72,3 +72,37 @@ test('optional permission does not permit unrelated unknown response fields', ()
   const normalized = normalizeGovernedAssetResult({operation: 'prepare', input: f.input, httpStatus: 503, body: {...f.body, retryable: false, newAuthority: true}});
   assert.equal(normalized.body.code, 'governed_backend_response_invalid');
 });
+
+test('a database rejection stays an internal failure through the complete tool result boundary', () => {
+  const f = structuredClone(cases[0][1]);
+  f.body.code = 'stock_prepare_internal_error';
+  f.body.retryable = false;
+  f.body.status = 'refused';
+  delete f.body.retryWithSameRequestOnly;
+  f.body.business.lifecycle = 'not-created';
+  f.body.business.ambiguity = { status: 'none', retrySameRequestOnly: false };
+  f.body.business.refusalOrEscalationReasons = [f.body.code];
+  f.body.explanation = 'Dexter could not prepare this trade because of an internal error. No trade was submitted.';
+  const normalized = normalizeGovernedAssetResult({ operation: 'prepare', input: f.input, httpStatus: 422, body: f.body });
+  assert.deepEqual(normalized.body, f.body);
+  const tool = applyOpenToolResultPolicy('dexter_prepare_asset_action', buildGovernedAssetToolResult(normalized));
+  assert.equal(GOVERNED_PRESENTED_OUTPUT_SCHEMAS.prepare.safeParse(tool.structuredContent).success, true);
+  assert.equal(tool.structuredContent.presentation.summary, f.body.explanation);
+  assert.equal(tool.structuredContent.presentation.retryable, false);
+  assert.equal(tool.structuredContent.presentation.nextActions[0].action, 'use_returned_recovery');
+  assert.equal(tool.structuredContent.recovery, undefined);
+  assert.deepEqual(tool._meta['dexter/governedWidgetResult'], f.body);
+});
+
+for (const code of ['stock_prepare_storage_unavailable', 'jupiter_request_failed']) {
+  test(`${code} preserves same-request recovery without inventing a missing route`, () => {
+    const f = structuredClone(cases[0][1]);
+    f.body.code = code;
+    f.body.business.refusalOrEscalationReasons = [code];
+    const tool = project(f, true);
+    assert.equal(tool.structuredContent.presentation.nextActions[0].action, 'retry_same_preparation');
+    assert.match(tool.structuredContent.presentation.summary, /same request/);
+    assert.doesNotMatch(tool.structuredContent.presentation.summary, /no.*route|usable.*route/i);
+    assert.equal(tool.structuredContent.recovery, undefined, 'Uncertainty cannot acquire the unsent setup recovery.');
+  });
+}
