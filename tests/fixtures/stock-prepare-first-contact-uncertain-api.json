@@ -1,0 +1,47 @@
+{
+  "provenance": {
+    "sourceCommit": "c469dcd9cca7e6bc5881f3c347759c7bc831ce9b",
+    "producer": "src/portfolio/governedWrites/delegatedStockLifecycle.ts:emptyStockBusiness/uncertain/prepareDelegatedStockAction",
+    "capture": "Producer-derived fixture for prepareFresh throwing after a first contact; the same-key Prepare calls runtime.recover before prepareFresh. This fixture is not a claim that a transaction occurred."
+  },
+  "input": {
+    "action": "sell",
+    "valueUsd": "4",
+    "operationId": "sell-apple-4usd-20260930-2345a",
+    "companyQuery": "Apple"
+  },
+  "body": {
+    "namespace": "dexter-governed-agent-action/v1",
+    "status": "uncertain",
+    "executed": false,
+    "requestId": "sell-apple-4usd-20260930-2345a",
+    "attribution": null,
+    "business": {
+      "action": "sell",
+      "assetId": null,
+      "requestedCompanyQuery": "Apple",
+      "amountAtomic": null,
+      "destinationOwner": null,
+      "protocolId": "jupiter-v2",
+      "lifecycle": "unknown",
+      "settlement": "not-submitted",
+      "finality": "not-final",
+      "executionSucceeded": null,
+      "programError": false,
+      "refusalOrEscalationReasons": [
+        "stock_prepare_first_contact_uncertain"
+      ],
+      "ambiguity": {
+        "status": "unresolved",
+        "retrySameRequestOnly": true
+      },
+      "reconciliation": {
+        "required": false,
+        "availableToOwner": false
+      }
+    },
+    "code": "stock_prepare_first_contact_uncertain",
+    "explanation": "The one permitted fresh stock Prepare contact did not return a durable receipt. Retry only with this same request key.",
+    "retryWithSameRequestOnly": true
+  }
+}

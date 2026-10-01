@@ -1,0 +1,47 @@
+{
+  "provenance": {
+    "sourceCommit": "c469dcd9cca7e6bc5881f3c347759c7bc831ce9b",
+    "producer": "resolveGovernedMcpPrincipal -> delegatedAgentService.authenticate -> prepareDelegatedCatalogStockAction",
+    "capture": "Actual compiled resolver and stock lifecycle with one injected DB failure; authenticate forwards the resolver result exactly as production. No database/network/Prepare contact occurred."
+  },
+  "input": {
+    "action": "sell",
+    "valueUsd": "4",
+    "operationId": "sell-apple-4usd-20260930-2345a",
+    "companyQuery": "Apple"
+  },
+  "body": {
+    "namespace": "dexter-governed-agent-action/v1",
+    "status": "uncertain",
+    "executed": false,
+    "requestId": "sell-apple-4usd-20260930-2345a",
+    "attribution": null,
+    "business": {
+      "action": "sell",
+      "assetId": null,
+      "requestedCompanyQuery": "Apple",
+      "amountAtomic": null,
+      "destinationOwner": null,
+      "protocolId": "jupiter-v2",
+      "lifecycle": "unknown",
+      "settlement": "not-submitted",
+      "finality": "not-final",
+      "executionSucceeded": null,
+      "programError": false,
+      "refusalOrEscalationReasons": [
+        "principal_lookup_unavailable"
+      ],
+      "ambiguity": {
+        "status": "unresolved",
+        "retrySameRequestOnly": true
+      },
+      "reconciliation": {
+        "required": false,
+        "availableToOwner": false
+      }
+    },
+    "code": "principal_lookup_unavailable",
+    "explanation": "The governed principal binding could not be loaded right now.",
+    "retryWithSameRequestOnly": true
+  }
+}
