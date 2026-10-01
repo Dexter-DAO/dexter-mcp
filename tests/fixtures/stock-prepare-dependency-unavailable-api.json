@@ -1,0 +1,39 @@
+{
+  "provenance": {
+    "sourceCommit": "c469dcd9cca7e6bc5881f3c347759c7bc831ce9b",
+    "producer": "src/portfolio/governedWrites/stockV2PrepareRuntime.ts:emptyBusiness/nonPreparedResult/failureFromError",
+    "capture": "Reconstructed exact API error body from the committed producer and retained 2026-09-30 Phone tool arguments; the normalized presentation was captured in the incident. No failed HTTP body was retained."
+  },
+  "input": {
+    "action": "sell",
+    "valueUsd": "4",
+    "operationId": "sell-apple-4usd-20260930-2345a",
+    "companyQuery": "Apple"
+  },
+  "body": {
+    "namespace": "dexter-governed-agent-action/v1",
+    "status": "uncertain",
+    "executed": false,
+    "requestId": "sell-apple-4usd-20260930-2345a",
+    "attribution": null,
+    "business": {
+      "action": "sell",
+      "assetId": null,
+      "requestedCompanyQuery": "Apple",
+      "amountAtomic": null,
+      "destinationOwner": null,
+      "protocolId": "jupiter-v2",
+      "lifecycle": "unknown",
+      "settlement": "not-submitted",
+      "finality": "not-final",
+      "executionSucceeded": null,
+      "programError": false,
+      "refusalOrEscalationReasons": ["stock_prepare_dependency_unavailable"],
+      "ambiguity": { "status": "unresolved", "retrySameRequestOnly": true },
+      "reconciliation": { "required": false, "availableToOwner": false }
+    },
+    "code": "stock_prepare_dependency_unavailable",
+    "explanation": "Dexter could not prove the current released stock capability for this request.",
+    "retryWithSameRequestOnly": true
+  }
+}
