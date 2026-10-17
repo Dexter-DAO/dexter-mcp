@@ -37,6 +37,7 @@ import {
 const execFileAsync = promisify(execFile);
 
 const CONNECTED = [
+  'dexter_trade',
   'dexter_find_assets',
   'indexter_discover',
   'indexter_search',

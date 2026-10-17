@@ -95,11 +95,12 @@ that also authenticates the provenance bytes. It replaces only
 `dexter-open-mcp`, while proving the separate full `dexter-mcp` PID, path,
 configuration, and restart counters remain unchanged. It verifies the new
 public process's PM2 and kernel paths, protected environment, health-reported
-release identity and 16-tool server roster, and public asset bytes and MIME
+release identity and 17-tool server roster, and public asset bytes and MIME
 types before `pm2 save`. Any mismatch independently restores and re-verifies
 the prior public OpenDexter process without restarting the private service. It
 never reloads or updates an existing process in place. The OAuth challenge,
-authenticated `tools/list`, 15-model-visible plus one app-only visibility split,
+authenticated `tools/list`, 16-model-visible plus one app-only visibility split
+for the Primary (15 plus one for other clients),
 and real-user experience remain separate post-deploy proof gates. This is still
 activation, not authorization to deploy.
 
@@ -115,7 +116,7 @@ portfolio reads, identity-gated access, payment, and governed actions on the
 same connection. Consequential calls still require the exact user instruction
 or bounded policy authority described below.
 
-The authorized server roster is 16 registered tools:
+The authorized server roster is 17 registered tools:
 
 1) `indexter_discover`
 2) `indexter_search`
@@ -133,6 +134,12 @@ The authorized server roster is 16 registered tools:
 14) `dexter_wallet_history`
 15) `dexter_report_work`
 16) `dexter_find_assets`
+17) `dexter_trade` (Primary-only)
+
+`dexter_trade` buys or sells the confirmed investment and amount in one call.
+Only the admitted Primary runtime can discover or call it; the public manifest
+and other connected clients retain sixteen tools. Its answer and refusal bodies
+pass through unchanged. A failed call can have an uncertain outcome.
 
 `dexter_find_assets` searches stock products and token candidates beyond the connected wallet holdings. It accepts a company name, ticker or exact mint. Stock results preserve issuer identity and expose catalog pagination. Token results cover the provider search batch. Prepare checks whether the connected wallet can trade the selected asset.
 
@@ -161,8 +168,8 @@ session reference. `X-Dexter-Seed-Request-Id` carries that generated ID to the
 API for log correlation. These diagnostics exclude credentials and response
 bodies. Recovery keeps the original session and operation identifiers.
 
-The MCP Apps visibility metadata exposes 15 of these tools to the model in
-clients that honor it. The remaining registered tool, `indexter_discover`, is
+The MCP Apps visibility metadata exposes 16 of these tools to the model in
+the Primary runtime and 15 in other clients that honor it. The remaining registered tool, `indexter_discover`, is
 reserved for app browsing. Text-only clients use `indexter_search` and its
 structured result; MCP Apps clients render the widget, with additional
 ChatGPT display controls where supported.

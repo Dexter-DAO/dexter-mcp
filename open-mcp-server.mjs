@@ -1,5 +1,6 @@
 // Sentry instrumentation (must be before all other imports)
 import './instrument.open-mcp.mjs';
+import { GOVERNED_TRADE_TOOL_NAME, GOVERNED_TRADE_INPUT_SCHEMA } from './lib/governed-trade-contract.mjs';
 import { ASSET_SEARCH_TOOL, ASSET_SEARCH_INPUT_SCHEMA } from './lib/asset-search-contract.mjs';
 import { assetSearchTool } from './lib/asset-search-client.mjs';
 import { PORTFOLIO_READ_INPUT_SHAPE, PORTFOLIO_READ_INPUT_SCHEMA, portfolioReady } from './lib/portfolio-read-contract.mjs';
@@ -87,6 +88,7 @@ import {
 } from './lib/session-portfolio.mjs';
 import {
   callGovernedAssetBackend,
+  callGovernedTradeBackend,
 } from './lib/governed-asset-client.mjs';
 import {
   readGovernedAgentActionsHmacSecret,
@@ -144,6 +146,7 @@ import {
 import {
   OPEN_TOOL_CONTRACTS,
   OPEN_TOOL_NAMES,
+  OPEN_PRIMARY_ONLY_TOOL_NAMES,
   PROVIDER_DATA_POLICY,
   finalizeOpenToolContracts,
   installOpenToolContracts,
@@ -2291,6 +2294,24 @@ async function governedAssetAction(operation, args, extra) {
   return buildGovernedAssetToolResult(result, GOVERNED_ASSET_META[operation]);
 }
 
+function isPrimaryToolRequest(extra) {
+  return typeof extra?.authInfo?.extra?.primaryRunId === 'string';
+}
+
+async function governedTrade(args, extra) {
+  if (!isPrimaryToolRequest(extra)) throw new Error('governed_trade_primary_required');
+  return callGovernedTradeBackend({
+    apiBase: API_BASE_FALLBACK,
+    secret: GOVERNED_AGENT_ACTIONS_HMAC_SECRET,
+    input: args,
+    mcpSessionId: extractMcpSessionId(extra),
+    // Transport metadata, never model arguments. The worker must pass the
+    // deadline of its whole operation, including authorization and discovery.
+    deadlineUnixMs: extra?._meta?.['dexter/operationDeadlineUnixMs'],
+    signal: extra.signal,
+  });
+}
+
 // ─── MCP Server Setup ───────────────────────────────────────────────────────
 
 // ─── Server instructions + skill resources ──────────────────────────────────
@@ -2775,6 +2796,11 @@ export function createOpenMcpServer({
     inputSchema: AGENT_WORK_REPORT_INPUT_SCHEMA,
   }, agentWorkReport);
 
+  registerOpenTool(server, GOVERNED_TRADE_TOOL_NAME, {
+    inputSchema: GOVERNED_TRADE_INPUT_SCHEMA,
+    _meta: { 'dexter/primaryOnly': true },
+  }, governedTrade);
+
   for (const operation of ['prepare', 'execute', 'status', 'reconcile', 'history']) {
     const tool = GOVERNED_ASSET_TOOL_NAMES[operation];
     registerOpenTool(server, tool, {
@@ -2820,7 +2846,8 @@ export function createOpenMcpServer({
   // connector doesn't register, refuse to boot (drift register R1).
   assertInstructionRosterParity(SERVER_INSTRUCTIONS, ALL_TOOLS);
   finalizeOpenToolContracts(server, {
-    listedToolNames: listedToolNames ?? OPEN_TOOL_NAMES,
+    listedToolNames: listedToolNames ?? ((_request, extra) =>
+      OPEN_TOOL_NAMES.filter(name => !OPEN_PRIMARY_ONLY_TOOL_NAMES.includes(name) || isPrimaryToolRequest(extra))),
   });
 
   return server;
@@ -3683,6 +3710,15 @@ const httpServer = http.createServer(async (req, res) => {
       return;
     }
     oauthAuthorization = { bearer, verification };
+    // SDK authInfo is server-owned. Dispatch below happens only after
+    // oauth-seed re-verifies the claim and admits the live Primary run.
+    if (verification.payload.dexter_primary_run) {
+      req.auth = {
+        token: bearer, clientId: 'dexter-primary-runtime', scopes: ['vault'],
+        expiresAt: verification.payload.exp,
+        extra: { primaryRunId: verification.payload.dexter_primary_run.id },
+      };
+    }
   }
 
   // A session belongs permanently to the exact MCP resource that initialized

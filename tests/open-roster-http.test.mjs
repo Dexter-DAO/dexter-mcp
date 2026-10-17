@@ -22,6 +22,8 @@ import {
   buildVaultWwwAuthenticate,
 } from '../lib/open-tool-auth.mjs';
 
+const PUBLIC_TOOL_NAMES = OPEN_TOOL_NAMES.filter(name => name !== 'dexter_trade');
+
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const ENTRYPOINT = fileURLToPath(new URL('../open-mcp-server.mjs', import.meta.url));
 const INITIALIZE_MESSAGE = Object.freeze({
@@ -173,9 +175,11 @@ async function signVaultToken(privateKey, kid, {
   scope = 'vault',
   audience = OPEN_MCP_VAULT_AUDIENCE,
   jwtId = undefined,
+  primaryRun = undefined,
 }) {
   const now = Math.floor(Date.now() / 1_000);
-  let signer = new SignJWT({ scope, dexter_surface: surface })
+  let signer = new SignJWT({ scope, dexter_surface: surface,
+    ...(primaryRun ? { dexter_primary_run: primaryRun } : {}) })
     .setProtectedHeader({ alg: 'ES256', kid })
     .setIssuer('https://dexter.cash')
     .setAudience(audience)
@@ -317,7 +321,7 @@ test('OAuth seed default budget allows delayed catalog and Prepare while repairi
       state.provenance = { sessionId: transport.sessionId, userHandle: 'overwritten', tokenScoped: false };
       const before = state.seedCalls;
       if (operation === 'catalog') {
-        assert.deepEqual((await client.listTools()).tools.map(({ name }) => name), OPEN_TOOL_NAMES);
+        assert.deepEqual((await client.listTools()).tools.map(({ name }) => name), PUBLIC_TOOL_NAMES);
       } else {
         const result = await client.callTool({ name: 'dexter_prepare_asset_action', arguments: stock.input });
         assert.equal(result.isError, false);
@@ -382,7 +386,7 @@ test('OAuth seed timeout and refusal never dispatch Prepare or damage same-sessi
     const foreign = await sessionRequest(fixture.mcpUrl, { sessionId: transport.sessionId, bearer: fixture.foreignToken });
     assert.equal(foreign.status, 401);
     assert.equal(state.seedCalls, before, 'foreign identity must refuse before seed');
-    assert.deepEqual((await client.listTools()).tools.map(({ name }) => name), OPEN_TOOL_NAMES);
+    assert.deepEqual((await client.listTools()).tools.map(({ name }) => name), PUBLIC_TOOL_NAMES);
     const recovered = await client.callTool({ name: 'dexter_prepare_asset_action', arguments: stock.input });
     assert.equal(recovered.structuredContent.requestId, stock.input.operationId);
     assert.equal(recovered.structuredContent.intentId, stock.prepared.intentId);
@@ -669,7 +673,7 @@ test('canonical /mcp authenticates and seeds before initialize, then pins one OA
     let seedCountBeforeRequest = seedBodies.length;
     assert.deepEqual(
       (await client.listTools()).tools.map(({ name }) => name),
-      OPEN_TOOL_NAMES,
+      PUBLIC_TOOL_NAMES,
     );
     assert.ok(
       seedBodies.length >= seedCountBeforeRequest + 1,
@@ -685,7 +689,7 @@ test('canonical /mcp authenticates and seeds before initialize, then pins one OA
     seedCountBeforeRequest = seedBodies.length;
     assert.deepEqual(
       (await client.listTools()).tools.map(({ name }) => name),
-      OPEN_TOOL_NAMES,
+      PUBLIC_TOOL_NAMES,
     );
     assert.equal(
       seedBodies.length,
@@ -706,7 +710,7 @@ test('canonical /mcp authenticates and seeds before initialize, then pins one OA
     seedCountBeforeRequest = seedBodies.length;
     assert.deepEqual(
       (await client.listTools()).tools.map(({ name }) => name),
-      OPEN_TOOL_NAMES,
+      PUBLIC_TOOL_NAMES,
       'JWKS outage damaged the original session',
     );
     assert.equal(seedBodies.length, seedCountBeforeRequest + 1);
@@ -719,7 +723,7 @@ test('canonical /mcp authenticates and seeds before initialize, then pins one OA
     seedCountBeforeRequest = seedBodies.length;
     assert.deepEqual(
       (await client.listTools()).tools.map(({ name }) => name),
-      OPEN_TOOL_NAMES,
+      PUBLIC_TOOL_NAMES,
       'null-provenance overwrite was not repaired',
     );
     assert.equal(seedBodies.length, seedCountBeforeRequest + 1);
@@ -790,7 +794,7 @@ test('canonical /mcp authenticates and seeds before initialize, then pins one OA
     seedCountBeforeRequest = seedBodies.length;
     assert.deepEqual(
       (await client.listTools()).tools.map(({ name }) => name),
-      OPEN_TOOL_NAMES,
+      PUBLIC_TOOL_NAMES,
       'reseed failures damaged the original session',
     );
     assert.equal(seedBodies.length, seedCountBeforeRequest + 1);
@@ -807,7 +811,7 @@ test('canonical /mcp authenticates and seeds before initialize, then pins one OA
     seedCountBeforeRequest = seedBodies.length;
     assert.deepEqual(
       (await client.listTools()).tools.map(({ name }) => name),
-      OPEN_TOOL_NAMES,
+      PUBLIC_TOOL_NAMES,
       'foreign identity damaged the original session',
     );
     assert.equal(seedBodies.length, seedCountBeforeRequest + 1);
@@ -828,7 +832,7 @@ test('canonical /mcp authenticates and seeds before initialize, then pins one OA
     }
     assert.deepEqual(
       (await client.listTools()).tools.map(({ name }) => name),
-      OPEN_TOOL_NAMES,
+      PUBLIC_TOOL_NAMES,
       'unauthorized DELETE damaged the session',
     );
 
@@ -1029,7 +1033,7 @@ test('issued dlt connectors stay fail-closed and cannot change a session authori
     let bindCallsBeforeRequest = linkBodies.length;
     assert.deepEqual(
       (await pathClient.listTools()).tools.map(({ name }) => name),
-      OPEN_TOOL_NAMES,
+      PUBLIC_TOOL_NAMES,
     );
     assert.ok(
       linkBodies.length >= bindCallsBeforeRequest + 1,
@@ -1049,7 +1053,7 @@ test('issued dlt connectors stay fail-closed and cannot change a session authori
     bindCallsBeforeRequest = linkBodies.length;
     assert.deepEqual(
       (await pathClient.listTools()).tools.map(({ name }) => name),
-      OPEN_TOOL_NAMES,
+      PUBLIC_TOOL_NAMES,
       'null-provenance link overwrite was not repaired',
     );
     assert.equal(linkBodies.length, bindCallsBeforeRequest + 1);
@@ -1069,7 +1073,7 @@ test('issued dlt connectors stay fail-closed and cannot change a session authori
     bindCallsBeforeRequest = linkBodies.length;
     assert.deepEqual(
       (await pathClient.listTools()).tools.map(({ name }) => name),
-      OPEN_TOOL_NAMES,
+      PUBLIC_TOOL_NAMES,
       'foreign link token damaged the original session',
     );
     assert.equal(linkBodies.length, bindCallsBeforeRequest + 1);
@@ -1086,7 +1090,7 @@ test('issued dlt connectors stay fail-closed and cannot change a session authori
     bindCallsBeforeRequest = linkBodies.length;
     assert.deepEqual(
       (await pathClient.listTools()).tools.map(({ name }) => name),
-      OPEN_TOOL_NAMES,
+      PUBLIC_TOOL_NAMES,
       'returned link identity mismatch damaged the original session',
     );
     assert.equal(linkBodies.length, bindCallsBeforeRequest + 1);
@@ -1120,7 +1124,7 @@ test('issued dlt connectors stay fail-closed and cannot change a session authori
     bindCallsBeforeRequest = linkBodies.length;
     assert.deepEqual(
       (await pathClient.listTools()).tools.map(({ name }) => name),
-      OPEN_TOOL_NAMES,
+      PUBLIC_TOOL_NAMES,
       'revoked request destroyed the session',
     );
     assert.equal(linkBodies.length, bindCallsBeforeRequest + 1);
@@ -1132,7 +1136,7 @@ test('issued dlt connectors stay fail-closed and cannot change a session authori
     assert.equal(oauthModeSwitch.status, 401);
     assert.deepEqual(
       (await pathClient.listTools()).tools.map(({ name }) => name),
-      OPEN_TOOL_NAMES,
+      PUBLIC_TOOL_NAMES,
     );
 
     const unknownSession = '00000000-0000-4000-8000-000000000001';
@@ -1160,7 +1164,7 @@ test('issued dlt connectors stay fail-closed and cannot change a session authori
     await headerClient.connect(headerTransport);
     assert.deepEqual(
       (await headerClient.listTools()).tools.map(({ name }) => name),
-      OPEN_TOOL_NAMES,
+      PUBLIC_TOOL_NAMES,
     );
   } finally {
     await closeClient(pathClient);
@@ -1168,4 +1172,135 @@ test('issued dlt connectors stay fail-closed and cannot change a session authori
     await stopChild(fixture.child);
     await closeServer(fixture.dependencyServer);
   }
+});
+
+test('dexter_trade is Primary-only and preserves route answers through the HTTP SDK', { timeout: 20_000 }, async t => {
+  const { privateKey, publicKey } = await generateKeyPair('ES256');
+  const publicJwk = { ...await exportJWK(publicKey), kid: 'trade-test' };
+  const subject = 'trade-test-owner';
+  const primaryRun = {
+    id: '419f981c-9215-4141-84f2-d89ffe9cbece', leaseGeneration: '1',
+    grantId: '819f981c-9215-4141-84f2-d89ffe9cbece', grantRevision: 1,
+    grantRevisionDigest: 'b'.repeat(64),
+  };
+  const primaryToken = await signVaultToken(privateKey, publicJwk.kid, {
+    subject, surface: 'a'.repeat(64), primaryRun,
+  });
+  const ordinaryToken = await signVaultToken(privateKey, publicJwk.kid, {
+    subject, surface: 'c'.repeat(64),
+  });
+  const state = { calls: 0, status: 200, body: {}, disconnect: false, seedDelay: 0, revoked: false };
+  const fixture = await startRuntimeFixture({ publicJwk, async handleDependency(request, response, url) {
+    if (url.pathname === '/api/passkey-vault/pair/oauth-seed') {
+      await readJsonBody(request);
+      if (state.seedDelay) await new Promise(resolve => setTimeout(resolve, state.seedDelay));
+      response.writeHead(state.revoked ? 400 : 200, { 'content-type': 'application/json' });
+      response.end(JSON.stringify(state.revoked
+        ? { ok: false, error: 'surface_not_live' } : { ok: true, user_handle: subject }));
+      return true;
+    }
+    if (url.pathname === '/api/passkey-vault/governed-assets/agent/trades') {
+      const body = await readJsonBody(request);
+      assert.deepEqual(body, { action: 'buy', companyQuery: 'Apple', amountAtomic: '1000000' });
+      assert.equal(request.headers['idempotency-key'], 'trade-http-0001');
+      state.calls++;
+      if (state.disconnect) request.socket.destroy();
+      else {
+        response.writeHead(state.status, { 'content-type': 'application/json' });
+        response.end(JSON.stringify(state.body));
+      }
+      return true;
+    }
+    return false;
+  } });
+  const clients = [];
+  t.after(async () => {
+    for (const client of clients) await closeClient(client);
+    await stopChild(fixture.child);
+    await closeServer(fixture.dependencyServer);
+  });
+  const connect = async token => {
+    // A client-supplied Primary name confers no access on ordinary OAuth.
+    const client = new Client({ name: 'dexter-primary-runtime', version: '1.0.0' });
+    clients.push(client);
+    await client.connect(new StreamableHTTPClientTransport(fixture.mcpUrl, {
+      requestInit: { headers: { Authorization: `Bearer ${token}` } },
+    }));
+    return client;
+  };
+  const primary = await connect(primaryToken);
+  const ordinary = await connect(ordinaryToken);
+  assert.deepEqual((await primary.listTools()).tools.map(tool => tool.name), OPEN_TOOL_NAMES);
+  assert.deepEqual((await ordinary.listTools()).tools.map(tool => tool.name), PUBLIC_TOOL_NAMES);
+  const args = { operationId: 'trade-http-0001', action: 'buy', companyQuery: 'Apple', amountAtomic: '1000000' };
+  const request = () => ({ name: 'dexter_trade', arguments: args,
+    _meta: { 'dexter/operationDeadlineUnixMs': Date.now() + 50_000 } });
+  const denied = await ordinary.callTool(request());
+  assert.equal(denied.isError, true);
+  assert.match(denied.content[0].text, /governed_trade_primary_required/);
+  assert.equal(state.calls, 0);
+  for (const [status, outcome] of [[200, 'filled'], [202, 'sending'], [202, 'checking']]) {
+    state.status = status;
+    state.body = {
+      namespace: 'dexter-governed-agent-trade/v1', operationId: args.operationId,
+      action: 'buy', outcome, retrySafe: false, intentId: primaryRun.id,
+      transactionSignature: null, code: null, explanation: null, requotes: 0,
+      chain: [{ requestId: args.operationId, intentId: primaryRun.id, outcome }],
+      prepare: { approval: { url: 'https://example.test/approve?token=keep-exact' } },
+      execute: { nested: { privateKey: 'verbatim-test-marker', future: [1, null] } },
+      status: { outcome, retrySafe: false },
+    };
+    const before = state.calls;
+    const result = await primary.callTool(request());
+    assert.equal(result.isError, false);
+    assert.deepEqual(result.structuredContent, state.body);
+    assert.deepEqual(JSON.parse(result.content[0].text), state.body);
+    assert.equal(state.calls, before + 1);
+  }
+  for (const status of [409, 503]) {
+    state.status = status;
+    state.body = {
+      namespace: 'dexter-governed-agent-http-refusal/v1', status: 'refused',
+      code: 'test_refusal', explanation: 'Test refusal.', executed: false,
+      signed: false, submitted: false, settlementFinalized: false,
+    };
+    const before = state.calls;
+    const result = await primary.callTool(request());
+    assert.equal(result.isError, true);
+    assert.deepEqual(result.structuredContent, state.body);
+    assert.deepEqual(JSON.parse(result.content[0].text), state.body);
+    assert.equal(state.calls, before + 1);
+  }
+  // This budget fits before authorization delay, including the 1 s reserve.
+  const seedBudgetMs = 40_000;
+  const controlCalls = state.calls;
+  const control = await primary.callTool({ ...request(),
+    _meta: { 'dexter/operationDeadlineUnixMs': Date.now() + seedBudgetMs } });
+  assert.deepEqual(control.structuredContent, state.body);
+  assert.equal(state.calls, controlCalls + 1);
+  const before = state.calls;
+  for (const metadata of [undefined, { 'dexter/operationDeadlineUnixMs': Date.now() - 1 }]) {
+    const result = await primary.callTool({ name: 'dexter_trade', arguments: args, _meta: metadata });
+    assert.equal(result.isError, true);
+    assert.match(result.content[0].text, /governed_trade_deadline/);
+  }
+  // Authorization work consumes the same deadline rather than resetting it.
+  state.seedDelay = 2_000;
+  const expiredWhileSeeding = await primary.callTool({ ...request(),
+    _meta: { 'dexter/operationDeadlineUnixMs': Date.now() + seedBudgetMs } });
+  assert.equal(expiredWhileSeeding.isError, true);
+  assert.match(expiredWhileSeeding.content[0].text, /governed_trade_deadline/);
+  state.seedDelay = 0;
+  assert.equal(state.calls, before);
+  state.disconnect = true;
+  const uncertain = await primary.callTool(request());
+  assert.equal(uncertain.isError, true);
+  assert.equal(uncertain.structuredContent, undefined);
+  assert.match(uncertain.content[0].text, /governed_trade_result_uncertain/);
+  assert.doesNotMatch(JSON.stringify(uncertain), /"(?:executed|submitted)":false/);
+  assert.equal(state.calls, before + 1);
+  state.revoked = true;
+  await assert.rejects(primary.listTools());
+  await assert.rejects(primary.callTool(request()));
+  assert.equal(state.calls, before + 1);
 });

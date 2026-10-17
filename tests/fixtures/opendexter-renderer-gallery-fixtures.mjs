@@ -192,6 +192,13 @@ export const MCP_APPS_HOST_TOKENS = Object.freeze({
 });
 
 export const TOOL_RENDERER_BEHAVIORS = Object.freeze({
+  dexter_trade: Object.freeze({
+    renderer: 'none',
+    family: null,
+    resourceToken: null,
+    resourceUri: null,
+    metadataName: null,
+  }),
   indexter_discover: Object.freeze({
     family: 'indexter-search',
     galleryFamilies: Object.freeze(['indexter-discovery', 'indexter-provider']),

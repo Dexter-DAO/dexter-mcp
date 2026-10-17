@@ -6,6 +6,7 @@ import {
   OPEN_ANONYMOUS_TOOL_NAMES,
   OPEN_OAUTH_PROMOTED_TOOL_NAMES,
   OPEN_TOOL_NAMES,
+  OPEN_PRIMARY_ONLY_TOOL_NAMES,
 } from '../lib/open-tool-contracts.mjs';
 import {
   OPEN_MCP_AUTHORIZATION_SERVER,
@@ -15,6 +16,8 @@ import {
   OPEN_MCP_VAULT_AUDIENCE,
   buildOpenMcpAuthorizationServerMetadata,
 } from '../lib/open-tool-auth.mjs';
+
+const publicTools = names => names.filter(name => !OPEN_PRIMARY_ONLY_TOOL_NAMES.includes(name));
 
 test('well-known manifest advertises the required sixteen-tool OAuth contract', () => {
   const manifest = buildOpenMcpManifest();
@@ -31,15 +34,17 @@ test('well-known manifest advertises the required sixteen-tool OAuth contract', 
     ).scopes_supported,
     ['vault'],
   );
-  assert.deepEqual(manifest.auth.protectedTools, OPEN_TOOL_NAMES);
+  assert.deepEqual(manifest.auth.protectedTools, publicTools(OPEN_TOOL_NAMES));
   assert.deepEqual(manifest.auth.conditionallyProtectedTools, []);
-  assert.deepEqual(manifest.rosters.anonymous, OPEN_ANONYMOUS_TOOL_NAMES);
-  assert.deepEqual(manifest.rosters.oauthPromotes, OPEN_OAUTH_PROMOTED_TOOL_NAMES);
-  assert.deepEqual(manifest.rosters.connected, OPEN_TOOL_NAMES);
+  assert.deepEqual(manifest.rosters.anonymous, publicTools(OPEN_ANONYMOUS_TOOL_NAMES));
+  assert.deepEqual(manifest.rosters.oauthPromotes, publicTools(OPEN_OAUTH_PROMOTED_TOOL_NAMES));
+  assert.deepEqual(manifest.rosters.connected, publicTools(OPEN_TOOL_NAMES));
   assert.equal(manifest.rosters.anonymous.length, 0);
-  assert.deepEqual(manifest.rosters.oauthPromotes, OPEN_TOOL_NAMES);
-  assert.deepEqual(manifest.tools.map((tool) => tool.name), OPEN_TOOL_NAMES);
+  assert.deepEqual(manifest.rosters.oauthPromotes, publicTools(OPEN_TOOL_NAMES));
+  assert.deepEqual(manifest.tools.map((tool) => tool.name), publicTools(OPEN_TOOL_NAMES));
   assert.equal(manifest.tools.length, 16);
+  assert.deepEqual(OPEN_PRIMARY_ONLY_TOOL_NAMES, ['dexter_trade']);
+  assert.doesNotMatch(JSON.stringify(manifest), /dexter_trade/);
   assert.match(manifest.description, /autonomous governed Buy and Sell/);
   assert.match(manifest.description, /preserved Send input fails closed at Prepare/);
   assert.match(manifest.description, /exact Prepare response is authoritative/);
@@ -119,31 +124,16 @@ test('hosted source documentation states the current opaque-intent product contr
   for (const name of OPEN_TOOL_NAMES) {
     assert.ok(currentContract.includes(`\`${name}\``), name);
   }
-  assert.match(currentContract, /sixteen(?:-tool| tools)/i);
+  assert.match(currentContract, /seventeen(?:-tool| tools)/i);
 
-  for (const name of [
-    'indexter_discover',
-    'indexter_search',
-    'x402_fetch',
-    'x402_status',
-    'x402_check',
-    'x402_access',
-    'dexter_wallet',
-    'dexter_wallet_portfolio',
-    'dexter_report_work',
-    'dexter_prepare_asset_action',
-    'dexter_execute_asset_action',
-    'dexter_asset_action_status',
-    'dexter_reconcile_asset_action',
-    'dexter_wallet_history',
-  ]) {
+  for (const name of OPEN_TOOL_NAMES) {
     assert.ok(readme.includes(`\`${name}\``), name);
   }
-  assert.match(readme, /health-reported\s+release identity and 16-tool server roster/i);
+  assert.match(readme, /health-reported\s+release identity and 17-tool server roster/i);
   assert.match(readme, /authenticated `tools\/list`/i);
-  assert.match(readme, /15[- ]model-visible(?: tools)? plus one app-only/i);
-  assert.match(readme, /authorized server roster is 16 registered tools/i);
-  assert.match(readme, /visibility metadata exposes 15 of these tools to the model/i);
+  assert.match(readme, /16[- ]model-visible(?: tools)? plus one app-only/i);
+  assert.match(readme, /authorized server roster is 17 registered tools/i);
+  assert.match(readme, /visibility metadata exposes 16 of these tools to the model/i);
   assert.match(readme, /replaces only\s+`dexter-open-mcp`/i);
   assert.match(readme, /full `dexter-mcp` PID, path,\s+configuration, and restart counters remain unchanged/i);
   assert.doesNotMatch(readme, /deletes both named PM2\s+processes/i);
