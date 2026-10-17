@@ -1,6 +1,6 @@
-import { GOVERNED_TRADE_TOOL_NAME, GOVERNED_TRADE_INPUT_SCHEMA } from './lib/governed-trade-contract.mjs';
 // Sentry instrumentation (must be before all other imports)
 import './instrument.open-mcp.mjs';
+import { GOVERNED_TRADE_TOOL_NAME, GOVERNED_TRADE_INPUT_SCHEMA } from './lib/governed-trade-contract.mjs';
 import { ASSET_SEARCH_TOOL, ASSET_SEARCH_INPUT_SCHEMA } from './lib/asset-search-contract.mjs';
 import { assetSearchTool } from './lib/asset-search-client.mjs';
 import { PORTFOLIO_READ_INPUT_SHAPE, PORTFOLIO_READ_INPUT_SCHEMA, portfolioReady } from './lib/portfolio-read-contract.mjs';
