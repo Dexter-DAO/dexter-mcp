@@ -542,7 +542,7 @@ function hasUnavailableInputContract(value: Record<string, unknown>): boolean {
     && isRecord(action)
     && Object.keys(action).sort().join(',') === 'kind,label,reason,resourceId,resourceUrl,state'
     && action.kind === 'endpoint_unavailable'
-    && action.label === 'Unavailable'
+    && (action.label === 'Unavailable' || action.label === 'Request details unavailable')
     && action.state === 'unavailable'
     && action.reason === 'input_contract_unavailable'
     && action.resourceId === value.resourceId

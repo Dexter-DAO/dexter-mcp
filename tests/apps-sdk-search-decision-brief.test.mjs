@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   buildSearchDecision,
+  buildDetailsFollowUpPrompt,
   summarizeSearchResource,
 } from '../apps-sdk/ui/src/components/indexter/search/SearchDecisionBrief.model.ts';
 
@@ -166,4 +167,29 @@ test('summarizes why, quality, and the first listed route price', () => {
       disabled: true,
     },
   });
+});
+
+
+test('request-details listing stays disabled with specific copy for retained and current labels', () => {
+  for (const label of ['Unavailable', 'Request details unavailable']) {
+    const row = resource({ resourceId: 'd8e019c0-545d-4395-8638-63a1d4fa065f',
+      name: 'Document parsing', url: null, method: 'POST', requestInput: null,
+      access: { kind: 'managed_resolvable', checkable: true, requiresFreshCheck: true },
+      execution: { availability: 'available', userExecution: 'allowed' },
+      action: { kind: 'endpoint_unavailable', label, state: 'unavailable',
+        reason: 'input_contract_unavailable', resourceId: 'd8e019c0-545d-4395-8638-63a1d4fa065f', resourceUrl: null } });
+    assert.deepEqual(summarizeSearchResource(row).action, {
+      kind: 'unsupported', label: 'Request details unavailable',
+      helperText: 'This listing has no usable request details for a terms check.', disabled: true,
+    });
+    const followUp = buildDetailsFollowUpPrompt(row, { kind: 'indexter_endpoint_reference_v1',
+      resourceId: row.resourceId, method: 'POST', resourceUrl: null,
+      merchant: { providerKey: null, name: 'Document provider' }, offering: row.name });
+    assert.match(followUp, /Do not call x402_check/);
+    for (const execution of [undefined, { availability: 'unsupported', userExecution: 'unsupported' }]) {
+      const action = summarizeSearchResource({ ...row, execution }).action;
+      assert.equal(action.disabled, true);
+      assert.equal(action.label, 'Unsupported');
+    }
+  }
 });
