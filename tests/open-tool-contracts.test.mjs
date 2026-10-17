@@ -30,6 +30,7 @@ import {
 } from '../lib/session-portfolio.mjs';
 
 const EXPECTED_TOOLS = [
+  'dexter_trade',
   'dexter_find_assets',
   'indexter_discover',
   'indexter_search',

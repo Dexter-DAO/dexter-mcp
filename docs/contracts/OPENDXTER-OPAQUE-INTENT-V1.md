@@ -17,7 +17,8 @@ The canonical `https://open.dexter.cash/mcp` resource requires OAuth
 `scope=vault` before MCP initialization, tool discovery, or invocation. One
 successful authorization covers discovery and search, exact request checks,
 wallet and portfolio reads, identity-gated access, payment, and governed
-actions. The authorized roster has sixteen tools. Fifteen are model-visible;
+actions. The authorized roster has seventeen tools. Sixteen are model-visible
+to the Primary runtime; other connected clients retain fifteen model-visible tools.
 `indexter_discover` is app-only:
 
 - `indexter_discover`
@@ -36,6 +37,12 @@ actions. The authorized roster has sixteen tools. Fifteen are model-visible;
 - `dexter_reconcile_asset_action`
 - `dexter_wallet_history`
 - `dexter_report_work`
+- `dexter_trade` (Primary-only)
+
+Only the admitted Primary runtime can discover or call `dexter_trade`. The
+public manifest and other connected clients list sixteen tools. A trade prepares,
+re-quotes when needed, and submits once; answer and refusal bodies pass through
+unchanged. Transport failures leave the outcome uncertain.
 
 Each tool carries the OAuth security scheme and requires the current vault
 Bearer on every invocation. The authenticated MCP session supplies the durable

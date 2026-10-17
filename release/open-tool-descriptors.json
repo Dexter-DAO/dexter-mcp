@@ -77,6 +77,7 @@
   },
   "anonymousToolNames": [],
   "oauthPromotedToolNames": [
+    "dexter_trade",
     "dexter_find_assets",
     "indexter_discover",
     "indexter_search",
@@ -95,6 +96,7 @@
     "dexter_wallet_history"
   ],
   "connectedToolNames": [
+    "dexter_trade",
     "dexter_find_assets",
     "indexter_discover",
     "indexter_search",
@@ -114,6 +116,465 @@
   ],
   "optionalOAuthToolNames": [],
   "tools": [
+    {
+      "name": "dexter_trade",
+      "title": "Trade a Confirmed Investment",
+      "description": "Buy or sell the exact investment and amount confirmed by the user. Dexter prepares, re-quotes when needed, and submits in one call. For a stock, use companyQuery to select the current catalog product. Use a new operationId for a new confirmed instruction. Keep that ID and all arguments when checking an unresolved trade. Report the returned outcome and retrySafe fields; a failed call has an uncertain outcome.",
+      "inputSchema": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "operationId": {
+                "type": "string",
+                "minLength": 8,
+                "maxLength": 120,
+                "pattern": "^(?!.*\\.q[0-9]+$)[A-Za-z0-9][A-Za-z0-9._:-]{7,119}$",
+                "description": "Stable identity for these exact trade terms, at most 120 characters; never a child key ending in .q and digits."
+              },
+              "action": {
+                "type": "string",
+                "const": "buy"
+              },
+              "assetId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[a-z0-9][a-z0-9._:-]*$",
+                "description": "Canonical assetId returned by dexter_wallet_portfolio from an approved holding or approvedActionTarget. Pass the assetId itself; Dexter resolves its exact network, mint, token program, decimals, and capability record."
+              },
+              "amountAtomic": {
+                "type": "string",
+                "maxLength": 20,
+                "pattern": "^[1-9][0-9]*$",
+                "description": "Exact USDC budget to spend, in integer base units. The canonical settlement asset uses 6 decimals, so 1000000 means 1 USDC; assetId identifies the asset being bought."
+              },
+              "memo": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 566
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Optional trade memo. Send does not support a memo and exposes no memo field."
+              },
+              "maxSlippageBps": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 10000
+              },
+              "maxPriceImpactBps": {
+                "$ref": "#/anyOf/0/properties/maxSlippageBps"
+              }
+            },
+            "required": [
+              "operationId",
+              "action",
+              "assetId",
+              "amountAtomic"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "operationId": {
+                "$ref": "#/anyOf/0/properties/operationId"
+              },
+              "action": {
+                "type": "string",
+                "const": "buy"
+              },
+              "companyQuery": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256,
+                "description": "Human company or stock query for the catalog-owned stock route, such as Tesla, NVIDIA, or Moderna. Dexter normalizes the query and selects, pins, and returns the exact current Solana stock product. Never replace this with a remembered assetId, mint, or symbol."
+              },
+              "amountAtomic": {
+                "$ref": "#/anyOf/0/properties/amountAtomic",
+                "description": "Exact USDC budget to spend, in integer base units with 6 decimals, on the stock Dexter selects from the current catalog."
+              },
+              "memo": {
+                "$ref": "#/anyOf/0/properties/memo"
+              },
+              "maxSlippageBps": {
+                "$ref": "#/anyOf/0/properties/maxSlippageBps"
+              },
+              "maxPriceImpactBps": {
+                "$ref": "#/anyOf/0/properties/maxSlippageBps"
+              }
+            },
+            "required": [
+              "operationId",
+              "action",
+              "companyQuery",
+              "amountAtomic"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "operationId": {
+                "$ref": "#/anyOf/0/properties/operationId"
+              },
+              "action": {
+                "type": "string",
+                "const": "buy"
+              },
+              "companyQuery": {
+                "$ref": "#/anyOf/1/properties/companyQuery"
+              },
+              "shareQuantity": {
+                "type": "string",
+                "maxLength": 39,
+                "pattern": "^(?:0|[1-9][0-9]{0,19})(?:\\.[0-9]{1,18})?$",
+                "description": "Minimum underlying-share-equivalent quantity requested for the current catalog-selected Solana stock product, expressed as a human decimal such as 10 or 0.25. Dexter resolves the exact product version, current display multiplier, and raw token amount. This is a minimum-receive target and execution may receive slightly more."
+              },
+              "maximumSpendAtomic": {
+                "$ref": "#/anyOf/0/properties/amountAtomic",
+                "description": "Optional maximum USDC input permitted for this share-quantity Buy, in integer base units with 6 decimals. It is valid only with shareQuantity."
+              },
+              "memo": {
+                "$ref": "#/anyOf/0/properties/memo"
+              },
+              "maxSlippageBps": {
+                "$ref": "#/anyOf/0/properties/maxSlippageBps"
+              },
+              "maxPriceImpactBps": {
+                "$ref": "#/anyOf/0/properties/maxSlippageBps"
+              }
+            },
+            "required": [
+              "operationId",
+              "action",
+              "companyQuery",
+              "shareQuantity"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "operationId": {
+                "$ref": "#/anyOf/0/properties/operationId"
+              },
+              "action": {
+                "$ref": "#/anyOf/2/properties/action"
+              },
+              "shareQuantity": {
+                "$ref": "#/anyOf/2/properties/shareQuantity"
+              },
+              "maximumSpendAtomic": {
+                "$ref": "#/anyOf/2/properties/maximumSpendAtomic"
+              },
+              "memo": {
+                "$ref": "#/anyOf/0/properties/memo"
+              },
+              "maxSlippageBps": {
+                "$ref": "#/anyOf/0/properties/maxSlippageBps"
+              },
+              "maxPriceImpactBps": {
+                "$ref": "#/anyOf/0/properties/maxSlippageBps"
+              },
+              "assetId": {
+                "$ref": "#/anyOf/0/properties/assetId"
+              }
+            },
+            "required": [
+              "operationId",
+              "action",
+              "shareQuantity",
+              "assetId"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "operationId": {
+                "$ref": "#/anyOf/0/properties/operationId"
+              },
+              "action": {
+                "type": "string",
+                "const": "sell"
+              },
+              "assetId": {
+                "$ref": "#/anyOf/0/properties/assetId"
+              },
+              "amountAtomic": {
+                "$ref": "#/anyOf/0/properties/amountAtomic",
+                "description": "Exact selected-asset amount to sell, in integer base units. Use the server-certified decimals returned for this asset; never infer decimals from its symbol."
+              },
+              "memo": {
+                "$ref": "#/anyOf/0/properties/memo"
+              },
+              "maxSlippageBps": {
+                "$ref": "#/anyOf/0/properties/maxSlippageBps"
+              },
+              "maxPriceImpactBps": {
+                "$ref": "#/anyOf/0/properties/maxSlippageBps"
+              }
+            },
+            "required": [
+              "operationId",
+              "action",
+              "assetId",
+              "amountAtomic"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "operationId": {
+                "$ref": "#/anyOf/0/properties/operationId"
+              },
+              "action": {
+                "type": "string",
+                "const": "sell"
+              },
+              "companyQuery": {
+                "$ref": "#/anyOf/1/properties/companyQuery"
+              },
+              "amountAtomic": {
+                "$ref": "#/anyOf/0/properties/amountAtomic",
+                "description": "Exact selected-stock token input in integer base units. Dexter resolves the current catalog product, token program, and decimals; never infer them from the company name or symbol."
+              },
+              "memo": {
+                "$ref": "#/anyOf/0/properties/memo"
+              },
+              "maxSlippageBps": {
+                "$ref": "#/anyOf/0/properties/maxSlippageBps"
+              },
+              "maxPriceImpactBps": {
+                "$ref": "#/anyOf/0/properties/maxSlippageBps"
+              }
+            },
+            "required": [
+              "operationId",
+              "action",
+              "companyQuery",
+              "amountAtomic"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "operationId": {
+                "$ref": "#/anyOf/0/properties/operationId"
+              },
+              "action": {
+                "$ref": "#/anyOf/4/properties/action"
+              },
+              "assetId": {
+                "$ref": "#/anyOf/0/properties/assetId"
+              },
+              "memo": {
+                "$ref": "#/anyOf/0/properties/memo"
+              },
+              "maxSlippageBps": {
+                "$ref": "#/anyOf/0/properties/maxSlippageBps"
+              },
+              "maxPriceImpactBps": {
+                "$ref": "#/anyOf/0/properties/maxSlippageBps"
+              },
+              "valueUsd": {
+                "type": "string",
+                "maxLength": 39,
+                "pattern": "^(?:0|[1-9][0-9]{0,19})(?:\\.[0-9]{1,18})?$",
+                "description": "USD market value to sell at preparation, as a positive human decimal such as 1 or 12.50. Dexter sizes the token input from the latest reported USD price. Dexter checks the selected value against the current sale quote. Net USDC proceeds are approximate until the receipt. Use valueUsd or amountAtomic, never both."
+              }
+            },
+            "required": [
+              "operationId",
+              "action",
+              "assetId",
+              "valueUsd"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "operationId": {
+                "$ref": "#/anyOf/0/properties/operationId"
+              },
+              "action": {
+                "$ref": "#/anyOf/5/properties/action"
+              },
+              "companyQuery": {
+                "$ref": "#/anyOf/1/properties/companyQuery"
+              },
+              "memo": {
+                "$ref": "#/anyOf/0/properties/memo"
+              },
+              "maxSlippageBps": {
+                "$ref": "#/anyOf/0/properties/maxSlippageBps"
+              },
+              "maxPriceImpactBps": {
+                "$ref": "#/anyOf/0/properties/maxSlippageBps"
+              },
+              "valueUsd": {
+                "$ref": "#/anyOf/6/properties/valueUsd"
+              }
+            },
+            "required": [
+              "operationId",
+              "action",
+              "companyQuery",
+              "valueUsd"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "operationId": {
+                "$ref": "#/anyOf/0/properties/operationId"
+              },
+              "action": {
+                "$ref": "#/anyOf/0/properties/action"
+              },
+              "amountAtomic": {
+                "$ref": "#/anyOf/0/properties/amountAtomic"
+              },
+              "memo": {
+                "$ref": "#/anyOf/0/properties/memo"
+              },
+              "maxSlippageBps": {
+                "$ref": "#/anyOf/0/properties/maxSlippageBps"
+              },
+              "maxPriceImpactBps": {
+                "$ref": "#/anyOf/0/properties/maxSlippageBps"
+              },
+              "tokenMint": {
+                "type": "string",
+                "minLength": 32,
+                "maxLength": 44
+              }
+            },
+            "required": [
+              "operationId",
+              "action",
+              "amountAtomic",
+              "tokenMint"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "operationId": {
+                "$ref": "#/anyOf/0/properties/operationId"
+              },
+              "action": {
+                "$ref": "#/anyOf/4/properties/action"
+              },
+              "amountAtomic": {
+                "$ref": "#/anyOf/4/properties/amountAtomic"
+              },
+              "memo": {
+                "$ref": "#/anyOf/0/properties/memo"
+              },
+              "maxSlippageBps": {
+                "$ref": "#/anyOf/0/properties/maxSlippageBps"
+              },
+              "maxPriceImpactBps": {
+                "$ref": "#/anyOf/0/properties/maxSlippageBps"
+              },
+              "tokenMint": {
+                "$ref": "#/anyOf/8/properties/tokenMint"
+              }
+            },
+            "required": [
+              "operationId",
+              "action",
+              "amountAtomic",
+              "tokenMint"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "operationId": {
+                "$ref": "#/anyOf/0/properties/operationId"
+              },
+              "action": {
+                "$ref": "#/anyOf/4/properties/action"
+              },
+              "memo": {
+                "$ref": "#/anyOf/0/properties/memo"
+              },
+              "maxSlippageBps": {
+                "$ref": "#/anyOf/0/properties/maxSlippageBps"
+              },
+              "maxPriceImpactBps": {
+                "$ref": "#/anyOf/0/properties/maxSlippageBps"
+              },
+              "valueUsd": {
+                "$ref": "#/anyOf/6/properties/valueUsd"
+              },
+              "tokenMint": {
+                "$ref": "#/anyOf/8/properties/tokenMint"
+              }
+            },
+            "required": [
+              "operationId",
+              "action",
+              "valueUsd",
+              "tokenMint"
+            ],
+            "additionalProperties": false
+          }
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": true,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      },
+      "securitySchemes": [
+        {
+          "type": "oauth2",
+          "scopes": [
+            "vault"
+          ]
+        }
+      ],
+      "_meta": {
+        "dexter/primaryOnly": true,
+        "securitySchemes": [
+          {
+            "type": "oauth2",
+            "scopes": [
+              "vault"
+            ]
+          }
+        ],
+        "ui": {
+          "visibility": [
+            "model"
+          ]
+        },
+        "openai/widgetAccessible": false
+      }
+    },
     {
       "name": "dexter_find_assets",
       "title": "Find Stocks and Tokens",

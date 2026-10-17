@@ -52,6 +52,18 @@ function selectedResourceBlock(sourceText) {
   return sourceText.slice(start, end + 3);
 }
 
+test('the Primary trade has no renderer or widget metadata', async () => {
+  assert.deepEqual(TOOL_RENDERER_BEHAVIORS.dexter_trade, {
+    renderer: 'none', family: null, resourceToken: null, resourceUri: null, metadataName: null,
+  });
+  const server = await source('open-mcp-server.mjs');
+  const start = server.indexOf('registerOpenTool(server, GOVERNED_TRADE_TOOL_NAME,');
+  assert.notEqual(start, -1);
+  const registration = server.slice(start, server.indexOf('registerOpenTool(server,', start + 1));
+  assert.match(registration, /_meta: \{ 'dexter\/primaryOnly': true \}/);
+  assert.doesNotMatch(registration, /resourceUri|outputTemplate|WIDGET|_META/);
+});
+
 test('every current OpenDexter tool has one explicit renderer behavior', () => {
   const mappedTools = Object.keys(TOOL_RENDERER_BEHAVIORS);
   assert.deepEqual(
@@ -63,6 +75,10 @@ test('every current OpenDexter tool has one explicit renderer behavior', () => {
   for (const toolName of OPEN_TOOL_NAMES) {
     const behavior = TOOL_RENDERER_BEHAVIORS[toolName];
     assert.ok(behavior, `${toolName} has no renderer behavior`);
+    if (behavior.renderer === 'none') {
+      assert.equal(toolName, 'dexter_trade');
+      continue;
+    }
     assert.equal(
       typeof behavior.resourceUri,
       'string',
@@ -100,7 +116,7 @@ test('every current OpenDexter tool has one explicit renderer behavior', () => {
     'The retired x402 search entrypoint must not re-enter the current inventory',
   );
   assert.deepEqual(
-    unique(OPEN_TOOL_NAMES.map((name) => TOOL_RENDERER_BEHAVIORS[name].family)),
+    unique(OPEN_TOOL_NAMES.filter(name => TOOL_RENDERER_BEHAVIORS[name].renderer !== 'none').map((name) => TOOL_RENDERER_BEHAVIORS[name].family)),
     [
       'indexter-search',
       'access-terms',
@@ -122,6 +138,7 @@ test('the executable server attaches the inventoried renderer metadata', async (
   const governedMetadata = server.slice(governedStart, governedEnd);
 
   for (const [toolName, behavior] of Object.entries(TOOL_RENDERER_BEHAVIORS)) {
+    if (behavior.renderer === 'none') continue;
     if (behavior.metadataName.startsWith('GOVERNED_ASSET_META.')) {
       const operation = behavior.metadataName.split('.')[1];
       assert.match(

@@ -32,6 +32,7 @@ import {
 } from '../lib/open-tool-auth.mjs';
 
 const TOOL_ROSTER = [
+  'dexter_trade',
   'dexter_find_assets',
   'indexter_discover',
   'indexter_search',
