@@ -1315,7 +1315,8 @@ function serveOAuthMetadata(pathname, res, req) {
 // OAuth callback handler
 function handleOAuthCallback(url, res) {
   writeCors(res);
-  res.writeHead(200, { 'Content-Type': 'text/html' });
+  // Never hand the callback URL (it carries the authorization code) to another window.
+  res.writeHead(200, { 'Content-Type': 'text/html', 'Cross-Origin-Opener-Policy': 'same-origin', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' });
   res.end(`
     <!DOCTYPE html>
     <html>
@@ -1323,13 +1324,6 @@ function handleOAuthCallback(url, res) {
     <body>
       <h1>Authorization Successful</h1>
       <p>You can now close this window and return to your MCP client.</p>
-      <script>
-        // Try to communicate back to parent window if opened as popup
-        if (window.opener) {
-          window.opener.postMessage({ type: 'oauth-callback', url: window.location.href }, '*');
-          window.close();
-        }
-      </script>
     </body>
     </html>
   `);
