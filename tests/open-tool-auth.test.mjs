@@ -255,6 +255,7 @@ test('path-inserted OpenDexter authorization metadata is fixed and vault-only', 
       grant_types_supported: ['authorization_code', 'refresh_token'],
       code_challenge_methods_supported: ['S256'],
       scopes_supported: ['vault'],
+      client_id_metadata_document_supported: true,
     },
   );
 });
