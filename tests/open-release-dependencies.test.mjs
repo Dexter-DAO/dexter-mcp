@@ -376,7 +376,7 @@ test('hosted source declares one exact internal dependency train', async () => {
       '@dexterai/x402@6.0.3',
       '@modelcontextprotocol/sdk@1.30.0',
       '@modelcontextprotocol/ext-apps@1.6.0',
-      'zod@3.25.76',
+      'zod@4.6.7',
     ],
   );
   assert.equal(manifest.schemaVersion, 2);
@@ -1311,7 +1311,7 @@ test('release activation uses only the sealed candidate verifier and transaction
     await readFile(new URL('../package.json', import.meta.url), 'utf8'),
   );
   assert.equal(pkg.dependencies['@anthropic-ai/claude-agent-sdk'], undefined);
-  assert.equal(pkg.dependencies.zod, '3.25.76');
+  assert.equal(pkg.dependencies.zod, '4.6.7');
   assert.equal(
     pkg.scripts['studio:setup'],
     'npm ci --prefix scripts/studio-runtime --omit=dev --ignore-scripts',

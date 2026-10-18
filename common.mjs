@@ -184,7 +184,8 @@ function normalizeSchema(schema, fallback) {
   }
 
   if (schema instanceof z.ZodObject) {
-    return schema._def.shape();
+    return Object.keys(schema.shape).length === 0 ? {}
+      : z.object(schema.shape).meta({ additionalProperties: false });
   }
 
   if (schema instanceof z.ZodType) {
@@ -196,7 +197,7 @@ function normalizeSchema(schema, fallback) {
       Object.prototype.hasOwnProperty.call(schema, 'type') ||
       Object.prototype.hasOwnProperty.call(schema, '$schema') ||
       Object.prototype.hasOwnProperty.call(schema, 'properties');
-    if (looksLikeJsonSchema) {
+    if (looksLikeJsonSchema && !Object.values(schema).every(value => value instanceof z.ZodType)) {
       return schema;
     }
     const out = {};
@@ -206,7 +207,8 @@ function normalizeSchema(schema, fallback) {
       }
       out[key] = value;
     }
-    return out;
+    return Object.keys(out).length === 0 ? {}
+      : z.object(out).meta({ additionalProperties: false });
   }
 
   throw new TypeError('registerTool: unsupported schema type');

@@ -1,3 +1,4 @@
+import { integer } from '../lib/zod-contract-primitives.mjs';
 import { z } from 'zod';
 import { resolveWalletForRequest, userOwnsWallet } from './wallet-auth.mjs';
 function headersFromExtra(extra){
@@ -60,16 +61,16 @@ export function registerTradingTools(server, options = {}) {
     inputSchema: {
       wallet_id: z.string().optional(),
       min_ui: z.coerce.number().nonnegative().optional(),
-      limit: z.coerce.number().int().optional()
+      limit: z.coerce.number().multipleOf(1).meta({ type: 'integer', multipleOf: undefined }).optional()
     },
     outputSchema: {
       items: z.array(z.object({
         mint: z.string(),
         ata: z.string(),
-        decimals: z.number().int(),
+        decimals: integer(),
         amount_ui: z.number(),
         amount_raw: z.string(),
-      }))
+      }).meta({ additionalProperties: false }))
     }
   }, async ({ wallet_id, min_ui, limit }, extra) => {
     try {
@@ -147,8 +148,8 @@ export function registerTradingTools(server, options = {}) {
     description: 'Resolve a token name or symbol to Solana mint addresses using DexScreener search.',
     inputSchema: {
       query: z.string().describe('Token name or symbol to search for (e.g., "BONK", "LABUBU")'),
-      chain: z.enum(['solana']).default('solana').optional().describe('Blockchain to search on'),
-      limit: z.coerce.number().int().min(1).max(10).default(5).optional().describe('Maximum results to return')
+      chain: z.enum(['solana']).optional().meta({ default: 'solana' }).describe('Blockchain to search on'),
+      limit: z.coerce.number().int().min(1).max(10).optional().meta({ default: 5 }).describe('Maximum results to return')
     },
     outputSchema: {
       results: z.array(z.object({
@@ -163,9 +164,9 @@ export function registerTradingTools(server, options = {}) {
         price_change_h1_pct: z.number().optional(),
         fdv_usd: z.number().optional(),
         market_cap_usd: z.number().optional(),
-        txns_24h_buys: z.number().int().optional(),
-        txns_24h_sells: z.number().int().optional(),
-        pair_created_at: z.number().int().optional(),
+        txns_24h_buys: integer().optional(),
+        txns_24h_sells: integer().optional(),
+        pair_created_at: integer().optional(),
         dex_id: z.string().optional(),
         pair_address: z.string().optional(),
         url: z.string().nullable(),
@@ -181,13 +182,13 @@ export function registerTradingTools(server, options = {}) {
           quote_amount: z.number().optional(),
           price_change_24h_pct: z.number().optional(),
           price_change_h1_pct: z.number().optional(),
-          txns_24h_buys: z.number().int().optional(),
-          txns_24h_sells: z.number().int().optional(),
+          txns_24h_buys: integer().optional(),
+          txns_24h_sells: integer().optional(),
           fdv_usd: z.number().optional(),
           market_cap_usd: z.number().optional(),
-          pair_created_at: z.number().int().optional(),
-        })).optional()
-      }))
+          pair_created_at: integer().optional(),
+        }).meta({ additionalProperties: false })).optional()
+      }).meta({ additionalProperties: false }))
     }
   }, async ({ query, chain = 'solana', limit = 5 }) => {
     try {
@@ -433,8 +434,8 @@ export function registerTradingTools(server, options = {}) {
       token_amount: z.number().nonnegative().optional(),
       percent_of_balance: z.number().nonnegative().max(100).optional(),
       outputs: z.array(z.string()).optional().describe('Preferred output mints, defaults to [SOL] then USDC'),
-      slippages_bps: z.array(z.number().int()).optional().describe('Slippages to try in bps, defaults [100,200,300]'),
-      priority_lamports: z.number().int().optional(),
+      slippages_bps: z.array(integer()).optional().describe('Slippages to try in bps, defaults [100,200,300]'),
+      priority_lamports: integer().optional(),
       max_price_impact_pct: z.number().optional(),
     },
     outputSchema: {
@@ -446,7 +447,7 @@ export function registerTradingTools(server, options = {}) {
       tokens_sold_ui: z.number().nullable(),
       out_mint: z.string().nullable(),
       out_amount_ui: z.string().nullable(),
-      slippage_bps_used: z.number().int().nullable(),
+      slippage_bps_used: integer().nullable(),
       solscan_url: z.string().nullable(),
     }
   }, async ({ wallet_id, token_mint, token_amount, percent_of_balance, outputs, slippages_bps, priority_lamports, max_price_impact_pct }, extra) => {
@@ -520,8 +521,8 @@ export function registerTradingTools(server, options = {}) {
       out_amount_ui: z.number().positive().optional(),
       use_exact_out: z.boolean().optional(),
       input_mints: z.array(z.string()).optional().describe('Preferred input mints, defaults to [SOL]'),
-      slippages_bps: z.array(z.number().int()).optional().describe('Slippages to try in bps, defaults [100,200,300]'),
-      priority_lamports: z.number().int().optional(),
+      slippages_bps: z.array(integer()).optional().describe('Slippages to try in bps, defaults [100,200,300]'),
+      priority_lamports: integer().optional(),
       max_price_impact_pct: z.number().optional(),
     },
     outputSchema: {
@@ -533,7 +534,7 @@ export function registerTradingTools(server, options = {}) {
       tokens_bought_ui: z.string().nullable(),
       in_mint: z.string().nullable(),
       in_amount_ui: z.string().nullable(),
-      slippage_bps_used: z.number().int().nullable(),
+      slippage_bps_used: integer().nullable(),
       price_impact: z.any().optional(),
       solscan_url: z.string().nullable(),
     }
@@ -605,7 +606,7 @@ export function registerTradingTools(server, options = {}) {
     inputSchema: {
       token_mint: z.string(),
       sol_amount: z.number().positive(),
-      slippage_bps: z.number().int().optional(),
+      slippage_bps: integer().optional(),
     },
     outputSchema: {
       expected_tokens: z.number(),
@@ -632,7 +633,7 @@ export function registerTradingTools(server, options = {}) {
     inputSchema: {
       token_mint: z.string(),
       token_amount: z.number().nonnegative(),
-      slippage_bps: z.number().int().optional(),
+      slippage_bps: integer().optional(),
       output_mint: z.string().optional(),
     },
     outputSchema: {
@@ -665,8 +666,8 @@ export function registerTradingTools(server, options = {}) {
       wallet_id: z.string().optional(),
       token_mint: z.string(),
       sol_amount: z.number().positive(),
-      slippage_bps: z.number().int().optional(),
-      priority_lamports: z.number().int().optional(),
+      slippage_bps: integer().optional(),
+      priority_lamports: integer().optional(),
     },
     outputSchema: {
       success: z.boolean(),
@@ -758,8 +759,8 @@ export function registerTradingTools(server, options = {}) {
       wallet_id: z.string().optional(),
       token_mint: z.string(),
       token_amount: z.number().nonnegative(),
-      slippage_bps: z.number().int().optional(),
-      priority_lamports: z.number().int().optional(),
+      slippage_bps: integer().optional(),
+      priority_lamports: integer().optional(),
       output_mint: z.string().optional(),
     },
     outputSchema: {
@@ -834,8 +835,8 @@ export function registerTradingTools(server, options = {}) {
     inputSchema: {
       wallet_id: z.string().optional(),
       token_mint: z.string(),
-      slippage_bps: z.number().int().optional(),
-      priority_lamports: z.number().int().optional(),
+      slippage_bps: integer().optional(),
+      priority_lamports: integer().optional(),
     },
     outputSchema: {
       success: z.boolean(),
@@ -906,7 +907,7 @@ export function registerTradingTools(server, options = {}) {
     title: 'Get Transaction Status',
     description: 'Check the status of a transaction by signature/hash',
     inputSchema: { tx_hash: z.string() },
-    outputSchema: { confirmed: z.boolean().optional(), status: z.string().optional(), error: z.any().optional(), slot: z.number().int().optional(), tx_hash: z.string() }
+    outputSchema: { confirmed: z.boolean().optional(), status: z.string().optional(), error: z.any().optional(), slot: integer().optional(), tx_hash: z.string() }
   }, async ({ tx_hash }) => {
     try {
       const conn = await getRpcConnection();
@@ -924,7 +925,7 @@ export function registerTradingTools(server, options = {}) {
     inputSchema: {
       wallet_id: z.string().optional(),
       token_mint: z.string(),
-      slippage_bps: z.number().int().optional(),
+      slippage_bps: integer().optional(),
     },
     outputSchema: {
       preview: z.boolean(),
@@ -975,10 +976,10 @@ export function registerTradingTools(server, options = {}) {
       query: z.string().optional(),
       q: z.string().optional(),
       limit: z.number().int().positive().max(500).optional(),
-      offset: z.number().int().min(0).optional(),
+      offset: integer().min(0).optional(),
       include_admin: z.boolean().optional()
     },
-    outputSchema: { wallets: z.array(z.object({ id: z.string(), public_key: z.string(), wallet_name: z.string().nullable(), user_id: z.any().nullable() })) }
+    outputSchema: { wallets: z.array(z.object({ id: z.string(), public_key: z.string(), wallet_name: z.string().nullable(), user_id: z.any().nullable() }).meta({ additionalProperties: false })) }
   }, async ({ search, query, q, limit, offset, include_admin, __issuer, __sub }, extra) => {
     const searchTerm = search ?? query ?? q;
     const take = Math.max(1, Math.min(500, Number(limit) || 100));

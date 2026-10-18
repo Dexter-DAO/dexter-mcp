@@ -1,4 +1,4 @@
-import { ChainIcon, UsdcIcon, getChain } from '../x402';
+import { ChainIcon, UsdcIcon, getChain } from '../x402/ChainIcon';
 import type { X402PaymentRoute } from '../x402/check-result-model';
 
 function readableAsset(asset: string | null): string | null {

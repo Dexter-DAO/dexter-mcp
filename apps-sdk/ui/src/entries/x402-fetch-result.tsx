@@ -16,7 +16,7 @@ import {
   useToolOutput,
 } from '../sdk';
 import { captureWidgetException } from '../sdk/init-sentry';
-import { useIntrinsicHeight } from '../components/x402';
+import { useIntrinsicHeight } from '../components/x402/useIntrinsicHeight';
 import {
   MISSING_TOOL_RESULT_TIMEOUT_SECONDS,
   receiptLoadingState,

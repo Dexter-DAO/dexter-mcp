@@ -1,3 +1,4 @@
+import { integer } from '../../lib/zod-contract-primitives.mjs';
 import { z } from 'zod';
 import { createWidgetMeta } from '../widgetMeta.mjs';
 
@@ -297,15 +298,11 @@ export function registerPumpstreamToolset(server) {
           .max(MAX_PAGE_SIZE)
           .describe('Deprecated alias for pageSize; kept for backward compatibility.')
           .optional(),
-        offset: z
-          .number()
-          .int()
+        offset: integer()
           .min(0)
           .describe('Zero-based index of the first stream to return after filtering. Use with pageSize for pagination.')
           .optional(),
-        page: z
-          .number()
-          .int()
+        page: integer()
           .min(1)
           .describe('1-based page number. Overrides offset when provided.')
           .optional(),

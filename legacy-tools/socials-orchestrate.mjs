@@ -1,3 +1,4 @@
+import { integer } from '../lib/zod-contract-primitives.mjs';
 import { z } from 'zod';
 import path from 'node:path';
 import fs from 'node:fs';
@@ -11,9 +12,9 @@ export function registerSocialsOrchestrateTools(server) {
     inputSchema: {
       mint_address: z.string().min(32),
       steps: z.string().optional(),
-      x_concurrency: z.number().int().optional(),
+      x_concurrency: integer().optional(),
       collect_members: z.boolean().optional(),
-      max_members: z.number().int().optional()
+      max_members: integer().optional()
     },
     outputSchema: { report_path: z.string().optional() }
   }, async ({ mint_address, steps, x_concurrency, collect_members, max_members }) => {

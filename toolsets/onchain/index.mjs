@@ -221,7 +221,7 @@ const SharedFilterSchema = z.object({
   timeframe: z.union([z.string(), z.number()]).optional(),
   limit: z.number().int().min(1).max(25).optional(),
   includeRaw: z.boolean().default(true),
-});
+}).meta({ additionalProperties: false });
 
 const ActivityBaseSchema = z
   .object({

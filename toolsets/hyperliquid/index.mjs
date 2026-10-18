@@ -54,18 +54,18 @@ const optInSchema = z.object({
     .max(64, 'managed_wallet_too_long')
     .optional(),
   agentName: z.string().min(3, 'agent_name_short').max(31, 'agent_name_long').optional(),
-});
+}).meta({ additionalProperties: false });
 
 const fundSchema = z.object({
   managedWalletPublicKey: z.string().min(1, 'managed_wallet_required'),
   amountSol: z.number().positive('amount_must_be_positive'),
   token: z.enum(['USDC', 'ETH']).optional(),
-});
+}).meta({ additionalProperties: false });
 
 const depositSchema = z.object({
   managedWalletPublicKey: z.string().min(1, 'managed_wallet_required'),
   amountUsd: z.number().positive('amount_must_be_positive'),
-});
+}).meta({ additionalProperties: false });
 
 const perpTradeSchema = z.object({
   managedWalletPublicKey: z.string().min(1, 'managed_wallet_required'),
@@ -78,7 +78,7 @@ const perpTradeSchema = z.object({
   reduceOnly: z.boolean().optional(),
   allowMarket: z.boolean().optional(),
   leverage: z.number().positive('leverage_must_be_positive').optional(),
-});
+}).meta({ additionalProperties: false });
 
 export function registerHyperliquidToolset(server) {
   const base = resolveApiBase();

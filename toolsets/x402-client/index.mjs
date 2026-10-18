@@ -1,3 +1,4 @@
+import { urlString } from '../../lib/zod-contract-primitives.mjs';
 /**
  * x402-client toolset — user-facing search & pay for any x402 resource
  *
@@ -505,11 +506,11 @@ export function registerX402ClientToolset(server, { callIntentApi = callOpenX402
       'Supports any x402 resource URL — use x402_search to discover available endpoints.',
     annotations: { destructiveHint: true },
     inputSchema: {
-      url: z.string().url().describe('The x402 resource URL to call'),
+      url: urlString().describe('The x402 resource URL to call'),
       method: z.enum(['GET', 'POST', 'PUT', 'DELETE']).default('GET').describe('HTTP method'),
-      params: z.record(z.any()).optional()
+      params: z.record(z.string(), z.any()).optional()
         .describe('For GET: query parameters. For POST/PUT: JSON body fields.'),
-      headers: z.record(z.string()).optional().describe('Optional custom request headers'),
+      headers: z.record(z.string(), z.string()).optional().describe('Optional custom request headers'),
     },
     _meta: {
       category: 'x402.payments',
@@ -549,10 +550,10 @@ export function registerX402ClientToolset(server, { callIntentApi = callOpenX402
     inputSchema: {
       intentId: z.string().regex(OPEN_X402_INTENT_ID_RE).optional().describe('Opaque intentId from x402_check.'),
       maxAmountAtomic: z.string().regex(/^[1-9]\d{0,19}$/).optional().describe('Approved maximum charge in USDC base units for that intent.'),
-      url: z.string().url().optional().describe('Legacy HTTP resource URL; omit for intent purchases.'),
+      url: urlString().optional().describe('Legacy HTTP resource URL; omit for intent purchases.'),
       method: z.enum(['GET', 'POST', 'PUT', 'DELETE']).optional().describe('Legacy HTTP method; defaults to GET.'),
-      params: z.record(z.any()).optional().describe('For GET: query params. For POST/PUT: JSON body fields.'),
-      headers: z.record(z.string()).optional().describe('Optional custom request headers'),
+      params: z.record(z.string(), z.any()).optional().describe('For GET: query params. For POST/PUT: JSON body fields.'),
+      headers: z.record(z.string(), z.string()).optional().describe('Optional custom request headers'),
     },
     _meta: {
       category: 'x402.payments',
@@ -605,7 +606,7 @@ export function registerX402ClientToolset(server, { callIntentApi = callOpenX402
     title: 'x402 Check',
     description: 'Check an HTTP URL or the exact mcp target selected through x402_mcp_tools. Copy the discovered schema string verbatim and serialize the tool arguments once. An MCP check invokes the tool and may change provider state. A purchasable result returns intentId for x402_fetch with an approved maxAmountAtomic ceiling; inspect uncertain purchases with x402_status.',
     inputSchema: {
-      url: z.string().url().optional().describe('HTTP URL; omit for an MCP tool check.'),
+      url: urlString().optional().describe('HTTP URL; omit for an MCP tool check.'),
       mcp: nativeMcpTargetSchema.optional(),
       method: z.enum(['GET', 'POST', 'PUT', 'DELETE']).optional().describe('HTTP method, default GET; omit for mcp.'),
     },

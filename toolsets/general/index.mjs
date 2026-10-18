@@ -1,3 +1,4 @@
+import { urlString } from '../../lib/zod-contract-primitives.mjs';
 import { z } from 'zod';
 import { tavily as createTavilyClient } from '@tavily/core';
 import { createWidgetMeta } from '../widgetMeta.mjs';
@@ -176,7 +177,7 @@ export function registerGeneralToolset(server) {
         ...FETCH_WIDGET_META,
       },
       inputSchema: {
-        url: z.string().url().describe('URL returned by the search tool.'),
+        url: urlString().describe('URL returned by the search tool.'),
         extract_depth: z.enum(['basic', 'advanced']).describe('Extraction depth for the page content.').optional(),
         include_images: z.boolean().describe('Include extracted image URLs.').optional(),
       },

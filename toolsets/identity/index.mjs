@@ -1,3 +1,4 @@
+import { urlString } from '../../lib/zod-contract-primitives.mjs';
 import { z } from 'zod';
 import { createWidgetMeta } from '../widgetMeta.mjs';
 
@@ -197,7 +198,7 @@ export function registerIdentityToolset(server) {
           name: z.string(),
           endpoint: z.string(),
           version: z.string().optional(),
-        })),
+        }).meta({ additionalProperties: false })),
         status: z.string(),
         mintTxHash: z.string().nullable(),
         mintError: z.string().nullable(),
@@ -207,7 +208,7 @@ export function registerIdentityToolset(server) {
         mintedAt: z.string().nullable(),
         createdAt: z.string(),
         updatedAt: z.string(),
-      }).nullable().optional(),
+      }).meta({ additionalProperties: false }).nullable().optional(),
       identities: z.array(z.object({
         id: z.string(),
         supabaseUserId: z.string(),
@@ -225,7 +226,7 @@ export function registerIdentityToolset(server) {
           name: z.string(),
           endpoint: z.string(),
           version: z.string().optional(),
-        })),
+        }).meta({ additionalProperties: false })),
         status: z.string(),
         mintTxHash: z.string().nullable(),
         mintError: z.string().nullable(),
@@ -235,7 +236,7 @@ export function registerIdentityToolset(server) {
         mintedAt: z.string().nullable(),
         createdAt: z.string(),
         updatedAt: z.string(),
-      })).optional(),
+      }).meta({ additionalProperties: false })).optional(),
       hasBase: z.boolean().optional(),
       hasSolana: z.boolean().optional(),
     }
@@ -315,7 +316,7 @@ export function registerIdentityToolset(server) {
       chain: z.enum(['base', 'solana']).describe('Chain to mint on: "base" for EVM or "solana" for Solana/SATI'),
       name: z.string().min(1).max(255).describe('Name for your agent identity'),
       description: z.string().max(1000).optional().describe('Description of your agent'),
-      imageUrl: z.string().url().optional().describe('URL to agent avatar image'),
+      imageUrl: urlString().optional().describe('URL to agent avatar image'),
     },
     outputSchema: {
       success: z.boolean(),
@@ -336,7 +337,7 @@ export function registerIdentityToolset(server) {
           name: z.string(),
           endpoint: z.string(),
           version: z.string().optional(),
-        })),
+        }).meta({ additionalProperties: false })),
         status: z.string(),
         mintTxHash: z.string().nullable(),
         mintError: z.string().nullable(),
@@ -346,7 +347,7 @@ export function registerIdentityToolset(server) {
         mintedAt: z.string().nullable(),
         createdAt: z.string(),
         updatedAt: z.string(),
-      }).optional(),
+      }).meta({ additionalProperties: false }).optional(),
       txHash: z.string().nullable().optional(),
       message: z.string().optional(),
       error: z.string().optional(),
@@ -436,7 +437,7 @@ export function registerIdentityToolset(server) {
         negativeCount: z.number(),
         dexterTransactionCount: z.number().optional(),
         dexterVolumeUsd: z.number().optional(),
-      }).nullable(),
+      }).meta({ additionalProperties: false }).nullable(),
     }
   }, async (args, extra) => {
     try {
@@ -516,12 +517,12 @@ export function registerIdentityToolset(server) {
         negativeCount: z.number().optional(),
         imageUrl: z.string().nullable().optional(),
         agentWallet: z.string().nullable().optional(),
-      })),
+      }).meta({ additionalProperties: false })),
       pagination: z.object({
         limit: z.number(),
         offset: z.number(),
         hasMore: z.boolean(),
-      }),
+      }).meta({ additionalProperties: false }),
     }
   }, async (args, extra) => {
     try {
@@ -662,16 +663,16 @@ export function registerIdentityToolset(server) {
         byChain: z.object({
           base: z.number(),
           solana: z.number(),
-        }),
-      }),
+        }).meta({ additionalProperties: false }),
+      }).meta({ additionalProperties: false }),
       reputation: z.object({
         totalAgentsWithReputation: z.number(),
         totalFeedbackSubmitted: z.number(),
-        byChain: z.record(z.object({
+        byChain: z.record(z.string(), z.object({
           count: z.number(),
           avgScore: z.number().nullable(),
-        })).optional(),
-      }),
+        }).meta({ additionalProperties: false })).optional(),
+      }).meta({ additionalProperties: false }),
     }
   }, async (_args, extra) => {
     try {

@@ -73,27 +73,33 @@ export const OPENDEXTER_ROLLOUT_WIDGET_URIS = Object.freeze({
     'ui://dexter/x402-fetch-result-fd07778d',
     'ui://dexter/x402-fetch-result-ef385542',
     'ui://dexter/x402-fetch-result-2873cba3',
+    'ui://dexter/x402-fetch-result-1bcade6f',
   ]),
   pricing: Object.freeze([
     'ui://dexter/x402-pricing-6dbbb691',
     'ui://dexter/x402-pricing-3465a350',
     'ui://dexter/x402-pricing-13216f3e',
+    'ui://dexter/x402-pricing-de71a421',
   ]),
   wallet: Object.freeze([
     'ui://dexter/dexter-wallet-f5d0510a',
     'ui://dexter/dexter-wallet-f0b010a7',
     'ui://dexter/dexter-wallet-ed4ae6f7',
+    'ui://dexter/dexter-wallet-37f40c3f',
   ]),
   portfolio: Object.freeze([
     'ui://dexter/portfolio-ff57062a',
     'ui://dexter/portfolio-56eba5ab',
+    'ui://dexter/portfolio-3a7cfa1a',
   ]),
   governedAction: Object.freeze([
     'ui://dexter/governed-action-b2a36e59',
     'ui://dexter/governed-action-2815c33a',
+    'ui://dexter/governed-action-9d04df89',
   ]),
   governedHistory: Object.freeze([
     'ui://dexter/governed-history-aab29411',
     'ui://dexter/governed-history-ac4c3bb9',
+    'ui://dexter/governed-history-5b4a2767',
   ]),
 });

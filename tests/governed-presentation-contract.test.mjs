@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
-import { zodToJsonSchema } from 'zod-to-json-schema';
+import { toJsonSchemaCompat } from '@modelcontextprotocol/sdk/server/zod-json-schema-compat.js';
 import {
   buildGovernedAssetToolResult, buildGovernedAssetFailure,
   normalizeGovernedAssetResult, GOVERNED_ASSET_TOOL_OUTPUT_SCHEMAS,
@@ -23,7 +23,7 @@ for (const operation of ['prepare', 'execute', 'status', 'reconcile', 'history']
     assert.equal(GOVERNED_ASSET_TOOL_OUTPUT_SCHEMAS[operation].safeParse(body).success, true);
     assert.equal(GOVERNED_ASSET_TOOL_OUTPUT_SCHEMAS[operation].safeParse(result.structuredContent).success, false);
     assert.equal(GOVERNED_PRESENTED_OUTPUT_SCHEMAS[operation].safeParse(result.structuredContent).success, true);
-    const schema = zodToJsonSchema(GOVERNED_PRESENTED_OUTPUT_SCHEMAS[operation], { $refStrategy: 'none' });
+    const schema = toJsonSchemaCompat(GOVERNED_PRESENTED_OUTPUT_SCHEMAS[operation], { pipeStrategy: 'output' });
     assert.equal(schema.anyOf.length, 2);
     for (const branch of schema.anyOf) {
       assert.ok(branch.required.includes('presentation'));

@@ -1,3 +1,4 @@
+import { integer, urlString } from '../lib/zod-contract-primitives.mjs';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -78,11 +79,11 @@ export function registerWebResearchTools(server) {
     description: 'Search the web using Tavily (or compatible) and return organic results.',
     inputSchema: {
       query: z.string(),
-      topN: z.number().int().optional(),
+      topN: integer().optional(),
       timeRange: z.string().optional(), // e.g., 'd', 'w', 'm'
     },
     outputSchema: {
-      items: z.array(z.object({ title: z.string(), url: z.string(), snippet: z.string().nullable(), source: z.string().optional() }))
+      items: z.array(z.object({ title: z.string(), url: z.string(), snippet: z.string().nullable(), source: z.string().optional() }).meta({ additionalProperties: false }))
     }
   }, async ({ query, topN, timeRange }) => {
     try {
@@ -115,7 +116,7 @@ export function registerWebResearchTools(server) {
   server.registerTool('fetch_url', {
     title: 'Fetch URL',
     description: 'Fetch a web page and extract readable text with Readability.',
-    inputSchema: { url: z.string().url(), mode: z.enum(['readability','raw']).optional() },
+    inputSchema: { url: urlString(), mode: z.enum(['readability','raw']).optional() },
     outputSchema: { url: z.string(), title: z.string().nullable(), text: z.string().nullable(), html: z.string().nullable().optional(), links: z.array(z.string()).optional(), meta: z.any().optional() }
   }, async ({ url, mode }) => {
     try {
@@ -144,7 +145,7 @@ export function registerWebResearchTools(server) {
   server.registerTool('fetch_url_rendered', {
     title: 'Fetch URL (Rendered)',
     description: 'Use a headless browser to render the page, then extract readable text.',
-    inputSchema: { url: z.string().url(), wait_ms: z.number().int().optional(), scroll_steps: z.number().int().optional(), scroll_delay_ms: z.number().int().optional() },
+    inputSchema: { url: urlString(), wait_ms: integer().optional(), scroll_steps: integer().optional(), scroll_delay_ms: integer().optional() },
     outputSchema: { url: z.string(), title: z.string().nullable(), text: z.string().nullable(), html: z.string().nullable().optional(), links: z.array(z.string()).optional(), meta: z.any().optional() }
   }, async ({ url, wait_ms, scroll_steps, scroll_delay_ms }) => {
     try {
@@ -189,7 +190,7 @@ export function registerWebResearchTools(server) {
   server.registerTool('smart_fetch', {
     title: 'Smart Fetch',
     description: 'Fetch a URL; if static text is too short, retry with headless-rendered fetch.',
-    inputSchema: { url: z.string().url(), min_len: z.number().int().optional(), rendered_wait_ms: z.number().int().optional(), rendered_scroll_steps: z.number().int().optional(), rendered_scroll_delay_ms: z.number().int().optional() },
+    inputSchema: { url: urlString(), min_len: integer().optional(), rendered_wait_ms: integer().optional(), rendered_scroll_steps: integer().optional(), rendered_scroll_delay_ms: integer().optional() },
     outputSchema: { url: z.string(), title: z.string().nullable(), text: z.string().nullable(), fallback_used: z.boolean().optional() }
   }, async ({ url, min_len, rendered_wait_ms, rendered_scroll_steps, rendered_scroll_delay_ms }) => {
     const threshold = Math.max(0, Number(min_len)||200);
@@ -248,8 +249,8 @@ export function registerWebResearchTools(server) {
   server.registerTool('crawl_site', {
     title: 'Crawl Site',
     description: 'Crawl a website from a root URL using Readability extraction.',
-    inputSchema: { root_url: z.string().url(), max_pages: z.number().int().optional(), same_origin: z.boolean().optional(), depth: z.number().int().optional(), delay_ms: z.number().int().optional() },
-    outputSchema: { items: z.array(z.object({ url: z.string(), title: z.string().nullable(), text: z.string().nullable(), links: z.array(z.string()) })) }
+    inputSchema: { root_url: urlString(), max_pages: integer().optional(), same_origin: z.boolean().optional(), depth: integer().optional(), delay_ms: integer().optional() },
+    outputSchema: { items: z.array(z.object({ url: z.string(), title: z.string().nullable(), text: z.string().nullable(), links: z.array(z.string()) }).meta({ additionalProperties: false })) }
   }, async ({ root_url, max_pages, same_origin, depth, delay_ms }) => {
     try {
       const fetch = (await import('node-fetch')).default;
@@ -296,8 +297,8 @@ export function registerWebResearchTools(server) {
   server.registerTool('crawl_urls', {
     title: 'Crawl URLs',
     description: 'Fetch and extract a list of URLs using Readability.',
-    inputSchema: { urls: z.array(z.string().url()), concurrency: z.number().int().optional(), delay_ms: z.number().int().optional() },
-    outputSchema: { items: z.array(z.object({ url: z.string(), title: z.string().nullable(), text: z.string().nullable(), links: z.array(z.string()) })) }
+    inputSchema: { urls: z.array(urlString()), concurrency: integer().optional(), delay_ms: integer().optional() },
+    outputSchema: { items: z.array(z.object({ url: z.string(), title: z.string().nullable(), text: z.string().nullable(), links: z.array(z.string()) }).meta({ additionalProperties: false })) }
   }, async ({ urls, concurrency, delay_ms }) => {
     try {
       const fetch = (await import('node-fetch')).default;
@@ -339,7 +340,7 @@ export function registerWebResearchTools(server) {
     title: 'Write Note',
     description: 'Save a research note with optional source URI and tags.',
     inputSchema: { text: z.string(), source_uri: z.string().optional(), tags: z.array(z.string()).optional() },
-    outputSchema: { id: z.string(), createdAt: z.number().int() }
+    outputSchema: { id: z.string(), createdAt: integer() }
   }, async ({ text, source_uri, tags }) => {
     try {
       const id = `${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
@@ -353,8 +354,8 @@ export function registerWebResearchTools(server) {
   server.registerTool('list_notes', {
     title: 'List Notes',
     description: 'List saved research notes, optionally filtered by substring.',
-    inputSchema: { query: z.string().optional(), limit: z.number().int().optional() },
-    outputSchema: { items: z.array(z.object({ id: z.string(), text: z.string(), source_uri: z.string().nullable(), tags: z.array(z.string()), created_at: z.number().int() })) }
+    inputSchema: { query: z.string().optional(), limit: integer().optional() },
+    outputSchema: { items: z.array(z.object({ id: z.string(), text: z.string(), source_uri: z.string().nullable(), tags: z.array(z.string()), created_at: integer() }).meta({ additionalProperties: false })) }
   }, async ({ query, limit }) => {
     try {
       const files = (fs.readdirSync(RESEARCH_NOTES_DIR) || []).filter(f=>f.endsWith('.json'))
@@ -404,7 +405,7 @@ export function registerWebResearchTools(server) {
       include_notes: z.array(z.string()).optional(),
       extra_context: z.string().optional(),
     },
-    outputSchema: { file: z.string(), mtime: z.number().int(), uri: z.string() }
+    outputSchema: { file: z.string(), mtime: integer(), uri: z.string() }
   }, async ({ title, outline, include_notes, extra_context }) => {
     try {
       const safeTitle = String(title||'untitled').replace(/[^A-Za-z0-9._ -]/g,'').slice(0,120);
@@ -439,7 +440,7 @@ export function registerWebResearchTools(server) {
     title: 'Ingest OpenAI Webhook',
     description: 'Create a research note from an OpenAI webhook event payload.',
     inputSchema: { event: z.any(), tags: z.array(z.string()).optional() },
-    outputSchema: { id: z.string(), createdAt: z.number().int() }
+    outputSchema: { id: z.string(), createdAt: integer() }
   }, async ({ event, tags }) => {
     try {
       const id = `${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
@@ -455,8 +456,8 @@ export function registerWebResearchTools(server) {
   server.registerTool('wait_for_report_by_mint', {
     title: 'Wait For Report By Mint',
     description: 'Poll recent analyses until a report for a mint appears or timeout.',
-    inputSchema: { mint: z.string(), timeout_sec: z.number().int().optional(), poll_ms: z.number().int().optional() },
-    outputSchema: { file: z.string().nullable(), uri: z.string().nullable(), mtime: z.number().int().nullable() }
+    inputSchema: { mint: z.string(), timeout_sec: integer().optional(), poll_ms: integer().optional() },
+    outputSchema: { file: z.string().nullable(), uri: z.string().nullable(), mtime: integer().nullable() }
   }, async ({ mint, timeout_sec, poll_ms }) => {
     const deadline = Date.now() + (Math.max(5, Math.min(900, Number(timeout_sec)||300)) * 1000);
     const sleep = (ms)=> new Promise(r=>setTimeout(r, ms));
@@ -477,7 +478,7 @@ export function registerWebResearchTools(server) {
   server.registerTool('list_jobs', {
     title: 'List Jobs',
     description: 'List active runs (agent/socials) with latest report info if applicable.',
-    outputSchema: { items: z.array(z.object({ pid: z.number().int(), kind: z.string(), mint: z.string().nullable(), startedAt: z.number().int(), latest_file: z.string().nullable(), latest_mtime: z.number().int().nullable() })) }
+    outputSchema: { items: z.array(z.object({ pid: integer(), kind: z.string(), mint: z.string().nullable(), startedAt: integer(), latest_file: z.string().nullable(), latest_mtime: integer().nullable() }).meta({ additionalProperties: false })) }
   }, async () => {
     const items = Array.from(activeRuns.entries()).map(([pid, v]) => {
       const m = v.mint || null;
@@ -493,7 +494,7 @@ export function registerWebResearchTools(server) {
     title: 'Get Analysis Status',
     description: 'Return running status and latest report for a mint.',
     inputSchema: { mint: z.string() },
-    outputSchema: { running: z.boolean(), pid: z.number().int().nullable(), latest_file: z.string().nullable(), latest_mtime: z.number().int().nullable() }
+    outputSchema: { running: z.boolean(), pid: integer().nullable(), latest_file: z.string().nullable(), latest_mtime: integer().nullable() }
   }, async ({ mint }) => {
     let running = false; let pid = null;
     for (const [p, v] of activeRuns.entries()) { if ((v.mint||'') === mint) { running = true; pid = p; break; } }

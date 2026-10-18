@@ -1,3 +1,4 @@
+import { dereferenceSchema } from './fixtures/json-schema-references.mjs';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
@@ -70,8 +71,10 @@ function outputUnknownKeys(schema) {
       const keys = current._def.options.map(outputUnknownKeys);
       return keys.every((key) => key === keys[0]) ? keys[0] : undefined;
     }
-    if (current._def?.unknownKeys !== undefined) {
-      return current._def.unknownKeys;
+    if (current.type === 'object') {
+      const catchall = current.def.catchall;
+      return catchall?.type === 'never' ? 'strict'
+        : catchall?.type === 'unknown' ? 'passthrough' : 'strip';
     }
     current = current._def?.schema ?? current._def?.innerType ?? null;
   }
@@ -1273,7 +1276,8 @@ test('real SDK tools/list exposes executable schemas, OAuth, annotations, and me
   )?.result?.tools;
   assert.ok(wireTools, 'expected projected tools/list on the transport');
   assert.deepEqual(tools.map((tool) => tool.name), EXPECTED_TOOLS);
-  for (const listed of tools) {
+  for (const rawTool of tools) {
+    const listed = { ...rawTool, outputSchema: dereferenceSchema(rawTool.outputSchema) };
     const toolContract = OPEN_TOOL_CONTRACTS[listed.name];
     assert.equal(listed.title, toolContract.title);
     assert.equal(listed.outputSchema.type, 'object');

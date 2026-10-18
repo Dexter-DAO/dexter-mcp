@@ -114,7 +114,7 @@ const shoutInputSchema = z.object({
     .max(32, 'alias_too_long')
     .describe('Optional display name (2-32 characters).')
     .optional(),
-});
+}).meta({ additionalProperties: false });
 
 const shoutFeedSchema = z.object({
   limit: z
@@ -124,7 +124,7 @@ const shoutFeedSchema = z.object({
     .max(50, 'limit_too_large')
     .describe('Maximum number of shouts to fetch (1-50).')
     .optional(),
-});
+}).meta({ additionalProperties: false });
 
 function extractRoles(value) {
   if (!value) return [];

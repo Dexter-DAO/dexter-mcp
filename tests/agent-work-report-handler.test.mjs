@@ -1,3 +1,4 @@
+import { dereferenceSchema } from './fixtures/json-schema-references.mjs';
 import assert from 'node:assert/strict';
 import { createHash, createHmac } from 'node:crypto';
 import { readFileSync } from 'node:fs';
@@ -170,7 +171,7 @@ test('actual registration advertises strict report inputs and all three output b
   assert.equal(listed.inputSchema.anyOf[0].properties.expectedRevision.default, 0);
   assert.equal(listed.outputSchema.type, 'object');
   assert.equal(listed.outputSchema.anyOf.length, 3);
-  assert.deepEqual(listed.outputSchema.anyOf.map((branch) => branch.properties.namespace.const), [
+  assert.deepEqual(dereferenceSchema(listed.outputSchema).anyOf.map((branch) => branch.properties.namespace.const), [
     'dexter-agent-work-report-ack/v1',
     'dexter-agent-work-report-error/v1',
     'opendexter-agent-work-report-local-error/v1',

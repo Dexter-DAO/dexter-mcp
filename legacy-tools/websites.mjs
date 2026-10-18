@@ -1,10 +1,11 @@
+import { urlString } from '../lib/zod-contract-primitives.mjs';
 import { z } from 'zod';
 
 export function registerWebsitesTools(server) {
   server.registerTool('extract_website_content', {
     title: 'Extract Website Content',
     description: 'Headless extract for a single URL',
-    inputSchema: { url: z.string().url() },
+    inputSchema: { url: urlString() },
     outputSchema: { success: z.boolean().optional() }
   }, async ({ url }) => {
     try {
@@ -17,7 +18,7 @@ export function registerWebsitesTools(server) {
   server.registerTool('extract_websites_for_token', {
     title: 'Extract Websites For Token',
     description: 'Batch extract for a list of URLs',
-    inputSchema: { urls: z.array(z.string().url()).min(1) },
+    inputSchema: { urls: z.array(urlString()).min(1) },
     outputSchema: { results: z.any().optional() }
   }, async ({ urls }) => {
     try {
@@ -31,7 +32,7 @@ export function registerWebsitesTools(server) {
   server.registerTool('discover_official_links', {
     title: 'Discover Official Links',
     description: 'Extract official socials from websites and merge with DB',
-    inputSchema: { mint_address: z.string().min(32), urls: z.array(z.string().url()).optional() },
+    inputSchema: { mint_address: z.string().min(32), urls: z.array(urlString()).optional() },
     outputSchema: { links: z.array(z.any()), websites_checked: z.array(z.string()) }
   }, async ({ mint_address, urls }) => {
     try {

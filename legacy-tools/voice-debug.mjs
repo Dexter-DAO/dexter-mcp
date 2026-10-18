@@ -1,3 +1,4 @@
+import { integer } from '../lib/zod-contract-primitives.mjs';
 import http from 'node:http';
 import { z } from 'zod';
 
@@ -6,8 +7,8 @@ export function registerVoiceDebugTools(server) {
   server.registerTool('voice_debug_get', {
     title: 'Voice Debug: Get Logs',
     description: 'Fetch latest Realtime Voice debug lines from the Live UI server',
-    inputSchema: { limit: z.number().int().optional(), session: z.string().optional() },
-    outputSchema: { ok: z.boolean(), size: z.number().int().optional(), items: z.any().optional(), error: z.string().optional() }
+    inputSchema: { limit: integer().optional(), session: z.string().optional() },
+    outputSchema: { ok: z.boolean(), size: integer().optional(), items: z.any().optional(), error: z.string().optional() }
   }, async ({ limit, session }) => {
     const UI_PORT = Number(process.env.TOKEN_AI_UI_PORT || 3013);
     const lim = Math.max(1, Math.min(1000, Number(limit)||100));
@@ -26,7 +27,7 @@ export function registerVoiceDebugTools(server) {
     title: 'Voice Debug: Clear Logs',
     description: 'Clear Realtime Voice debug buffer on Live UI server',
     inputSchema: { session: z.string().optional() },
-    outputSchema: { ok: z.boolean(), size: z.number().int().optional(), error: z.string().optional() }
+    outputSchema: { ok: z.boolean(), size: integer().optional(), error: z.string().optional() }
   }, async ({ session }) => {
     const UI_PORT = Number(process.env.TOKEN_AI_UI_PORT || 3013);
     const path = `/realtime/debug-log` + (session ? `?session=${encodeURIComponent(session)}` : '');
@@ -44,7 +45,7 @@ export function registerVoiceDebugTools(server) {
     title: 'Voice Debug: Save Logs',
     description: 'Persist Realtime Voice debug logs to server (JSON file)',
     inputSchema: { session: z.string().optional(), note: z.string().optional() },
-    outputSchema: { ok: z.boolean(), file: z.string().optional(), saved: z.number().int().optional(), error: z.string().optional() }
+    outputSchema: { ok: z.boolean(), file: z.string().optional(), saved: integer().optional(), error: z.string().optional() }
   }, async ({ session, note }) => {
     const UI_PORT = Number(process.env.TOKEN_AI_UI_PORT || 3013);
     const payload = await new Promise((resolve) => {
@@ -62,7 +63,7 @@ export function registerVoiceDebugTools(server) {
     title: 'Voice Debug: Health Summary',
     description: 'Return Realtime Voice health summary from Live UI server',
     inputSchema: { session: z.string().optional() },
-    outputSchema: { ok: z.boolean(), total: z.number().int().optional(), sessions: z.any().optional(), error: z.string().optional() }
+    outputSchema: { ok: z.boolean(), total: integer().optional(), sessions: z.any().optional(), error: z.string().optional() }
   }, async ({ session }) => {
     const UI_PORT = Number(process.env.TOKEN_AI_UI_PORT || 3013);
     const path = '/realtime/health' + (session ? `?session=${encodeURIComponent(session)}` : '');

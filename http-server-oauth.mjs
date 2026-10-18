@@ -1349,7 +1349,8 @@ function logStartupBanner({ localUrl, apiBaseUrl, oauthEnabled, issuer, clientId
   console.log(divider);
 }
 
-const server = http.createServer(async (req, res) => {
+// Allow clients time to compile tool schemas before reusing the connection.
+const server = http.createServer({ keepAliveTimeout: 60_000 }, async (req, res) => {
   try {
     writeCors(res);
     if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
