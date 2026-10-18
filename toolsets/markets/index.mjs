@@ -1,3 +1,4 @@
+import { integer } from '../../lib/zod-contract-primitives.mjs';
 import { z } from 'zod';
 
 import { fetchOhlcvRange } from '../../integrations/birdeye.mjs';
@@ -16,10 +17,10 @@ const INPUT_SCHEMA = z.object({
   chain: z.string().min(1).describe('Chain identifier accepted by Birdeye (default solana).').optional(),
   interval: z.string().min(1).describe('Birdeye interval string (e.g. 1m, 5m, 1H). Overrides interval_minutes.').optional(),
   interval_minutes: z.number().int().positive().max(60).describe('Legacy interval in minutes (mapped to Birdeye interval string when interval is not provided).').optional(),
-  time_from: z.number().int().nonnegative().describe('Epoch seconds for start of window. Defaults based on interval.').optional(),
-  time_to: z.number().int().nonnegative().describe('Epoch seconds for end of window. Defaults to current time.').optional(),
+  time_from: integer().nonnegative().describe('Epoch seconds for start of window. Defaults based on interval.').optional(),
+  time_to: integer().nonnegative().describe('Epoch seconds for end of window. Defaults to current time.').optional(),
   currency: z.enum(['usd', 'native']).describe('Currency for Birdeye OHLCV values. Defaults to usd.').optional(),
-});
+}).meta({ additionalProperties: false });
 
 // Max candles to include in text response to avoid context explosion
 const MAX_CANDLES_IN_TEXT = 100;
@@ -109,16 +110,16 @@ export function registerMarketsToolset(server) {
         chain: z.string().optional(),
         mint_address: z.string().nullable(),
         pair_address: z.string(),
-        time_from: z.number().int(),
-        time_to: z.number().int(),
+        time_from: integer(),
+        time_to: integer(),
         interval: z.string().optional(),
-        interval_seconds: z.number().int().optional(),
-        interval_minutes: z.number().int().nullable().optional(),
+        interval_seconds: integer().optional(),
+        interval_minutes: integer().nullable().optional(),
         currency: z.string().nullable().optional(),
         note: z.string().optional(),
         ohlcv: z.array(
           z.object({
-            t: z.number().int(),
+            t: integer(),
             o: z.number().nullable(),
             h: z.number().nullable(),
             l: z.number().nullable(),
@@ -128,7 +129,7 @@ export function registerMarketsToolset(server) {
             v_base: z.number().nullable().optional(),
             v_quote: z.number().nullable().optional(),
             currency: z.string().nullable().optional(),
-          }),
+          }).meta({ additionalProperties: false }),
         ),
       },
     },

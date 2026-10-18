@@ -141,8 +141,8 @@
     },
     {
       "name": "zod",
-      "version": "3.25.76",
-      "rootSpecifier": "3.25.76"
+      "version": "4.6.7",
+      "rootSpecifier": "4.6.7"
     }
   ],
   "isolatedTooling": [

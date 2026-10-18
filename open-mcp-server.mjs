@@ -1,3 +1,4 @@
+import { urlString } from './lib/zod-contract-primitives.mjs';
 // Sentry instrumentation (must be before all other imports)
 import './instrument.open-mcp.mjs';
 import { GOVERNED_TRADE_TOOL_NAME, GOVERNED_TRADE_INPUT_SCHEMA } from './lib/governed-trade-contract.mjs';
@@ -2695,7 +2696,7 @@ export function createOpenMcpServer({
     title: 'Check Access',
     description: 'Classify the exact request through the canonical x402 check path. Paid requests return the canonical quote or intent. Free requests return the provider check result. Sign-In-With-X is reported as unavailable until OpenDexter has an eligible connected signer. This tool does not create a temporary wallet or sign a proof. A non-GET request may change provider state and is checked only once.',
     inputSchema: {
-      url: z.string().url().describe('The exact HTTPS resource URL to check'),
+      url: urlString().describe('The exact HTTPS resource URL to check'),
       method: z.enum(['GET', 'POST', 'PUT', 'DELETE']).default('GET').describe('HTTP method to check'),
       body: z.string().optional().describe('Exact raw JSON request-body string for POST, PUT, or DELETE.'),
     },
@@ -3338,7 +3339,8 @@ function writeCors(res) {
   res.setHeader('Access-Control-Expose-Headers', 'mcp-session-id, WWW-Authenticate');
 }
 
-const httpServer = http.createServer(async (req, res) => {
+// Allow clients time to compile tool schemas before reusing the connection.
+const httpServer = http.createServer({ keepAliveTimeout: 60_000 }, async (req, res) => {
   writeCors(res);
 
   if (req.method === 'OPTIONS') {

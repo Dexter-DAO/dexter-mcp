@@ -1,3 +1,4 @@
+import { uuidString, urlString } from '../../lib/zod-contract-primitives.mjs';
 import { z } from 'zod';
 import { createWidgetMeta } from '../widgetMeta.mjs';
 
@@ -126,8 +127,8 @@ export function registerBundlesToolset(server) {
         curator: z.object({
           userId: z.string(),
           name: z.string().nullable(),
-        }),
-      })),
+        }).meta({ additionalProperties: false }),
+      }).meta({ additionalProperties: false })),
       total: z.number(),
       categories: z.array(z.string()),
     },
@@ -229,8 +230,8 @@ export function registerBundlesToolset(server) {
           identity: z.object({
             agentId: z.string(),
             chain: z.string(),
-          }).nullable(),
-        }),
+          }).meta({ additionalProperties: false }).nullable(),
+        }).meta({ additionalProperties: false }),
         tools: z.array(z.object({
           id: z.string(),
           resourceUrl: z.string(),
@@ -242,14 +243,14 @@ export function registerBundlesToolset(server) {
           seller: z.object({
             wallet: z.string().nullable(),
             name: z.string().nullable(),
-          }),
+          }).meta({ additionalProperties: false }),
           qualityScore: z.number().nullable(),
           curatorNotes: z.string().nullable(),
           sortOrder: z.number(),
           totalUses: z.number(),
-        })),
+        }).meta({ additionalProperties: false })),
         toolCount: z.number(),
-      }).nullable(),
+      }).meta({ additionalProperties: false }).nullable(),
       error: z.string().optional(),
     },
   }, async (args, extra) => {
@@ -337,14 +338,14 @@ export function registerBundlesToolset(server) {
         curator: z.object({
           userId: z.string(),
           name: z.string().nullable(),
-        }),
-      })),
+        }).meta({ additionalProperties: false }),
+      }).meta({ additionalProperties: false })),
       stats: z.object({
         totalBundles: z.number(),
         totalPurchases: z.number(),
         totalVolumeUsdc: z.number(),
         totalRevenueUsdc: z.number(),
-      }),
+      }).meta({ additionalProperties: false }),
       error: z.string().optional(),
     },
   }, async (args, extra) => {
@@ -423,7 +424,7 @@ export function registerBundlesToolset(server) {
       bundle: z.object({
         id: z.string(),
         slug: z.string(),
-      }).optional(),
+      }).meta({ additionalProperties: false }).optional(),
       error: z.string().optional(),
     },
   }, async (args, extra) => {
@@ -505,7 +506,7 @@ export function registerBundlesToolset(server) {
       tags: ['bundles', 'curator', 'edit'],
     },
     inputSchema: {
-      bundleId: z.string().uuid().describe('Bundle ID to update'),
+      bundleId: uuidString().describe('Bundle ID to update'),
       name: z.string().min(3).max(255).optional().describe('New name'),
       description: z.string().max(10000).optional().describe('New description'),
       shortDescription: z.string().max(255).optional().describe('New tagline'),
@@ -596,7 +597,7 @@ export function registerBundlesToolset(server) {
       tags: ['bundles', 'curator', 'publish'],
     },
     inputSchema: {
-      bundleId: z.string().uuid().describe('Bundle ID to publish'),
+      bundleId: uuidString().describe('Bundle ID to publish'),
     },
     outputSchema: {
       ok: z.boolean(),
@@ -667,8 +668,8 @@ export function registerBundlesToolset(server) {
       tags: ['bundles', 'curator', 'items'],
     },
     inputSchema: {
-      bundleId: z.string().uuid().describe('Bundle ID'),
-      resourceUrl: z.string().url().describe('Tool resource URL from the marketplace'),
+      bundleId: uuidString().describe('Bundle ID'),
+      resourceUrl: urlString().describe('Tool resource URL from the marketplace'),
       curatorNotes: z.string().max(500).optional().describe('Your notes about this tool for buyers'),
     },
     outputSchema: {
@@ -682,10 +683,10 @@ export function registerBundlesToolset(server) {
         seller: z.object({
           wallet: z.string().nullable(),
           name: z.string().nullable(),
-        }),
+        }).meta({ additionalProperties: false }),
         qualityScore: z.number().nullable(),
         sortOrder: z.number(),
-      }).optional(),
+      }).meta({ additionalProperties: false }).optional(),
       error: z.string().optional(),
     },
   }, async (args, extra) => {
@@ -760,8 +761,8 @@ export function registerBundlesToolset(server) {
       tags: ['bundles', 'curator', 'items'],
     },
     inputSchema: {
-      bundleId: z.string().uuid().describe('Bundle ID'),
-      itemId: z.string().uuid().describe('Item ID to remove'),
+      bundleId: uuidString().describe('Bundle ID'),
+      itemId: uuidString().describe('Item ID to remove'),
     },
     outputSchema: {
       ok: z.boolean(),
@@ -849,8 +850,8 @@ export function registerBundlesToolset(server) {
           resourceUrl: z.string(),
           displayName: z.string().nullable(),
           usesConsumed: z.number(),
-        })),
-      }).nullable(),
+        }).meta({ additionalProperties: false })),
+      }).meta({ additionalProperties: false }).nullable(),
       error: z.string().optional(),
     },
   }, async (args, extra) => {
@@ -928,7 +929,7 @@ export function registerBundlesToolset(server) {
           id: z.string(),
           slug: z.string(),
           name: z.string(),
-        }),
+        }).meta({ additionalProperties: false }),
         paymentTxHash: z.string().nullable(),
         paymentAmountUsdc: z.number(),
         status: z.string(),
@@ -937,8 +938,8 @@ export function registerBundlesToolset(server) {
           usesRemaining: z.number(),
           usesTotal: z.number(),
           status: z.string(),
-        }).nullable(),
-      })),
+        }).meta({ additionalProperties: false }).nullable(),
+      }).meta({ additionalProperties: false })),
       error: z.string().optional(),
     },
   }, async (args, extra) => {

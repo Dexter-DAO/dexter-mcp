@@ -1,3 +1,4 @@
+import { integer } from '../lib/zod-contract-primitives.mjs';
 import { z } from 'zod';
 
 async function getPrisma(){
@@ -43,12 +44,12 @@ export function registerPredictionTools(server) {
     description: 'Read stored tweets and snapshots for a mint from the DB',
     inputSchema: {
       mint_address: z.string().min(32),
-      limit: z.number().int().optional(),
+      limit: integer().optional(),
       include_replies: z.boolean().optional(),
       include_retweets: z.boolean().optional(),
       include_deleted: z.boolean().optional(),
       include_snapshots: z.boolean().optional(),
-      snapshots_limit: z.number().int().optional(),
+      snapshots_limit: integer().optional(),
       since_time: z.string().optional(),
       since_days: z.number().optional(),
       author: z.string().optional(),
@@ -132,7 +133,7 @@ export function registerPredictionTools(server) {
     inputSchema: {
       token_address: z.string().optional(),
       author_handle: z.string().optional(),
-      limit: z.number().int().optional(),
+      limit: integer().optional(),
       min_accuracy: z.number().optional(),
       prediction_type: z.string().optional(),
       order_by: z.enum(['created_at_desc','created_at_asc','accuracy_desc','accuracy_asc']).optional()
@@ -181,7 +182,7 @@ export function registerPredictionTools(server) {
     description: 'Score a tweet prediction for one token (pump/dump/target)',
     inputSchema: {
       tweet_id: z.string().min(1),
-      minutes_after: z.number().int().optional(),
+      minutes_after: integer().optional(),
       prediction_type: z.enum(['auto_detect','pump','dump','target_price']).optional(),
       mint_address: z.string().optional(),
       claims: z.array(z.any()).optional(),
@@ -297,13 +298,13 @@ export function registerPredictionTools(server) {
     description: 'Score a relative prediction between two or more tokens',
     inputSchema: {
       tweet_id: z.string().min(1),
-      window_minutes: z.number().int().optional(),
+      window_minutes: integer().optional(),
       claim: z.any().optional(),
       targets: z.array(z.string()).optional(),
       target_kind: z.enum(['mint','symbol']).optional(),
       chain_id: z.string().optional(),
-      primary_index: z.number().int().optional(),
-      against_index: z.number().int().optional(),
+      primary_index: integer().optional(),
+      against_index: integer().optional(),
       threshold_pct: z.number().optional()
     },
     outputSchema: { ok: z.boolean().optional(), error: z.string().optional() }

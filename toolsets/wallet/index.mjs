@@ -1,3 +1,4 @@
+import { integer } from '../../lib/zod-contract-primitives.mjs';
 import { z } from 'zod';
 import { createWidgetMeta } from '../widgetMeta.mjs';
 
@@ -311,14 +312,14 @@ export function registerWalletToolset(server) {
       ...WALLET_LIST_WIDGET_META,
     },
     outputSchema: {
-      user: z.object({ id: z.string().optional().nullable() }).nullable(),
+      user: z.object({ id: z.string().optional().nullable() }).meta({ additionalProperties: false }).nullable(),
       wallets: z.array(z.object({
         address: z.string(),
         public_key: z.string(),
         label: z.string().nullable(),
         is_default: z.boolean(),
         status: z.string().nullable().optional(),
-      }))
+      }).meta({ additionalProperties: false }))
     }
   }, async (_args, extra) => {
     const context = await fetchWalletContext(extra);
@@ -403,15 +404,15 @@ export function registerWalletToolset(server) {
       bearer_source: z.string().nullable().optional(),
       has_token: z.boolean().optional(),
       override_session: z.string().nullable().optional(),
-      wallets_cached: z.number().int().optional(),
+      wallets_cached: integer().optional(),
       detail: z.string().nullable().optional(),
       diagnostics: z.object({
         bearer_source: z.string().nullable(),
         has_token: z.boolean(),
         override_session: z.string().nullable(),
-        wallets_cached: z.number().int(),
+        wallets_cached: integer(),
         detail: z.string().nullable(),
-      }).optional(),
+      }).meta({ additionalProperties: false }).optional(),
     }
   }, async (args = {}, extra) => {
     const includeDiagnostics = args?.include_diagnostics !== false;

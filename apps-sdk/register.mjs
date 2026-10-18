@@ -672,6 +672,7 @@ export function registerAppsSdkResources(server, options = {}) {
     {
       name: 'dexter_x402_wallet_compatibility',
       templateUri: X402_WIDGET_URIS.wallet,
+      rolloutTemplateUris: ['ui://dexter/x402-wallet-24c12461'],
       file: 'x402-wallet.html',
       title: 'Dexter Wallet',
       description: 'Dexter Wallet retained at the prior resource URI for cached hosts.',
@@ -765,6 +766,7 @@ export function registerAppsSdkResources(server, options = {}) {
     {
       name: 'dexter_stock_trade',
       templateUri: GOVERNED_ASSET_WIDGET_URIS.stockTrade,
+      rolloutTemplateUris: ['ui://dexter/stock-trade-f7619896'],
       file: 'stock-trade.html',
       title: 'OpenDexter stock trade',
       description: 'Read-only ChatGPT Apps receipt for a governed Solana tokenized-stock preview, execution, status check, or reconciliation result.',

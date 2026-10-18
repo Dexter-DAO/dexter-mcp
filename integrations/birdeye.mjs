@@ -1,3 +1,4 @@
+import { integer } from '../lib/zod-contract-primitives.mjs';
 import { z } from 'zod';
 
 const BASE58_SOLANA_ADDRESS = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
@@ -10,8 +11,8 @@ const OhlcvRequestSchema = z.object({
   chain: z.string().min(1).optional(),
   interval: z.string().min(1).optional(),
   intervalMinutes: z.number().int().positive().max(60).optional(),
-  timeFrom: z.number().int().nonnegative().optional(),
-  timeTo: z.number().int().nonnegative().optional(),
+  timeFrom: integer().nonnegative().optional(),
+  timeTo: integer().nonnegative().optional(),
   currency: z.enum(['usd', 'native']).optional(),
 }).superRefine((value, ctx) => {
   if (!value.mintAddress && !value.pairAddress) {

@@ -262,7 +262,7 @@ export function registerStudioToolset(server) {
     },
     async (input, extra) => {
       const context = await ensureSuperAdmin(extra);
-      const parsed = z.object(createSchema).parse(input || {});
+      const parsed = z.object(createSchema).meta({ additionalProperties: false }).parse(input || {});
       
       console.log(`[studio] studio_create called by ${context.userId}: "${parsed.task.slice(0, 50)}..."`);
       
@@ -303,7 +303,7 @@ export function registerStudioToolset(server) {
     },
     async (input, extra) => {
       await ensureSuperAdmin(extra);
-      const parsed = z.object(statusSchema).parse(input || {});
+      const parsed = z.object(statusSchema).meta({ additionalProperties: false }).parse(input || {});
       
       const job = await getJob(parsed.job_id);
       
@@ -375,7 +375,7 @@ export function registerStudioToolset(server) {
     },
     async (input, extra) => {
       await ensureSuperAdmin(extra);
-      const parsed = z.object(cancelSchema).parse(input || {});
+      const parsed = z.object(cancelSchema).meta({ additionalProperties: false }).parse(input || {});
       
       const cancelled = await cancelJob(parsed.job_id);
       
@@ -413,7 +413,7 @@ export function registerStudioToolset(server) {
     },
     async (input, extra) => {
       await ensureSuperAdmin(extra);
-      const parsed = z.object(statusSchema).parse(input || {});
+      const parsed = z.object(statusSchema).meta({ additionalProperties: false }).parse(input || {});
       
       const job = await getJob(parsed.job_id);
       
@@ -513,7 +513,7 @@ export function registerStudioToolset(server) {
     },
     async (input, extra) => {
       const context = await ensureSuperAdmin(extra);
-      const parsed = z.object(breakingNewsSchema).parse(input || {});
+      const parsed = z.object(breakingNewsSchema).meta({ additionalProperties: false }).parse(input || {});
       
       console.log(`[studio] Breaking news requested: "${parsed.headline.slice(0, 50)}..." type=${parsed.type}`);
       
@@ -592,7 +592,7 @@ export function registerStudioToolset(server) {
     },
     async (input, extra) => {
       await ensureSuperAdmin(extra);
-      const parsed = z.object(newsStatusSchema).parse(input || {});
+      const parsed = z.object(newsStatusSchema).meta({ additionalProperties: false }).parse(input || {});
       
       try {
         const status = await checkJobStatus(parsed.job_id);

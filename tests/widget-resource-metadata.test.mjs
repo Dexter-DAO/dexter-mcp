@@ -78,6 +78,57 @@ const ROLLOUT_RESOURCES = ROLLOUT_RESOURCE_GROUPS.flatMap(({ uris, ...resource }
 
 const ROLLOUT_URIS = ROLLOUT_RESOURCES.map(({ uri }) => uri);
 
+test('Zod 4 rollout keeps all eight published production widget URIs readable', async (t) => {
+  const originalEnvironment = {
+    TOKEN_AI_ENABLE_APPS_SDK: process.env.TOKEN_AI_ENABLE_APPS_SDK,
+    TOKEN_AI_APPS_SDK_ASSET_BASE: process.env.TOKEN_AI_APPS_SDK_ASSET_BASE,
+    TOKEN_AI_MCP_PUBLIC_URL: process.env.TOKEN_AI_MCP_PUBLIC_URL,
+  };
+  process.env.TOKEN_AI_ENABLE_APPS_SDK = '1';
+  process.env.TOKEN_AI_APPS_SDK_ASSET_BASE = 'https://widgets.example.test/assets';
+  process.env.TOKEN_AI_MCP_PUBLIC_URL = 'https://mcp.example.test/mcp';
+  t.after(() => {
+    for (const [key, value] of Object.entries(originalEnvironment)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+  const server = new McpServer({ name: 'published-widget-test', version: '1.0.0' });
+  registerAppsSdkResources(server);
+  const client = new Client({ name: 'cached-widget-client', version: '1.0.0' });
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+  await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+  const listedUris = new Set((await client.listResources()).resources.map(({ uri }) => uri));
+  // These are published production addresses, not hashes recomputed from Git HTML.
+  for (const [uri, currentUri] of [
+    ['ui://dexter/x402-fetch-result-1bcade6f', X402_WIDGET_URIS.fetch],
+    ['ui://dexter/x402-pricing-de71a421', X402_WIDGET_URIS.pricing],
+    ['ui://dexter/dexter-wallet-37f40c3f', DEXTER_WALLET_WIDGET_URIS.wallet],
+    ['ui://dexter/portfolio-3a7cfa1a', PORTFOLIO_WIDGET_URIS.overview],
+    ['ui://dexter/governed-action-9d04df89', GOVERNED_ASSET_WIDGET_URIS.action],
+    ['ui://dexter/governed-history-5b4a2767', GOVERNED_ASSET_WIDGET_URIS.history],
+    ['ui://dexter/x402-wallet-24c12461', X402_WIDGET_URIS.wallet],
+    ['ui://dexter/stock-trade-f7619896', GOVERNED_ASSET_WIDGET_URIS.stockTrade],
+  ]) {
+    await t.test(uri, async () => {
+      const result = await client.readResource({ uri });
+      assert.ok(listedUris.has(uri));
+      const current = await client.readResource({ uri: currentUri });
+      assert.equal(result.contents.length, 1);
+      assert.equal(result.contents[0].mimeType, 'text/html;profile=mcp-app');
+      assert.deepEqual(result.contents[0], {
+        ...current.contents[0],
+        uri,
+        text: current.contents[0].text.replaceAll(currentUri, uri),
+      });
+    });
+  }
+});
+
 test('activity rollout retains the immediately preceding production resource addresses', () => {
   assert.ok(OPENDEXTER_ROLLOUT_WIDGET_URIS.wallet.includes('ui://dexter/dexter-wallet-ed4ae6f7'));
   assert.ok(OPENDEXTER_ROLLOUT_WIDGET_URIS.fetch.includes('ui://dexter/x402-fetch-result-2873cba3'));
@@ -445,7 +496,10 @@ test('stock-trade resource is registered as a truthful read-only receipt', async
     allowedTemplateUris: [GOVERNED_ASSET_WIDGET_URIS.stockTrade],
   });
 
-  assert.equal(registrations.length, 1);
+  assert.deepEqual(registrations.map(({ uri }) => uri), [
+    GOVERNED_ASSET_WIDGET_URIS.stockTrade,
+    'ui://dexter/stock-trade-f7619896',
+  ]);
   const [stockTrade] = registrations;
   assert.equal(stockTrade.name, 'dexter_stock_trade');
   assert.equal(stockTrade.uri, GOVERNED_ASSET_WIDGET_URIS.stockTrade);

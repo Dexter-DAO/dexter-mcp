@@ -1,3 +1,4 @@
+import { integer } from '../lib/zod-contract-primitives.mjs';
 import { z } from 'zod';
 
 export function registerFoundationTools(server) {
@@ -18,7 +19,7 @@ export function registerFoundationTools(server) {
   server.registerTool('ensure_token_enriched', {
     title: 'Ensure Token Enriched',
     description: 'Run enrichment pipeline for a token',
-    inputSchema: { mint_address: z.string().min(32), timeout_sec: z.number().int().optional(), poll: z.boolean().optional() },
+    inputSchema: { mint_address: z.string().min(32), timeout_sec: integer().optional(), poll: z.boolean().optional() },
     outputSchema: { ok: z.boolean().optional() }
   }, async ({ mint_address, timeout_sec, poll }) => {
     try {

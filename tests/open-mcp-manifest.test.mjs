@@ -86,7 +86,7 @@ test('manifest, server identity, and package use one release version', async () 
     packageJson.dependencies['@modelcontextprotocol/sdk'],
     '1.30.0',
   );
-  assert.equal(packageJson.dependencies.zod, '3.25.76');
+  assert.equal(packageJson.dependencies.zod, '4.6.7');
   assert.equal(
     packageJson.scripts['build:apps-sdk:local'],
     'vite build --config apps-sdk/vite.config.ts',

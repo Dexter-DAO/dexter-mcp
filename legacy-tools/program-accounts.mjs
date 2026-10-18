@@ -1,3 +1,4 @@
+import { integer } from '../lib/zod-contract-primitives.mjs';
 import { z } from 'zod';
 
 // RPC helper functions
@@ -34,8 +35,8 @@ export function registerProgramAccountsTools(server) {
     outputSchema: {
       accounts: z.array(z.any()),
       paginationKey: z.string().nullable().optional(),
-      totalResults: z.number().int().optional(),
-      used: z.object({ program_id: z.string(), limit: z.number().int(), encoding: z.string(), hadFilters: z.boolean() })
+      totalResults: integer().optional(),
+      used: z.object({ program_id: z.string(), limit: integer(), encoding: z.string(), hadFilters: z.boolean() }).meta({ additionalProperties: false })
     }
   }, async ({ program_id, limit, pagination_key, encoding, filters }) => {
     try {
@@ -63,7 +64,7 @@ export function registerProgramAccountsTools(server) {
     description: 'Fetch only accounts modified since a given slot using Helius getProgramAccountsV2 changedSinceSlot.',
     inputSchema: {
       program_id: z.string().min(32).describe('Program ID (Pubkey)'),
-      changed_since_slot: z.number().int().min(0).describe('Only accounts changed since this slot'),
+      changed_since_slot: integer().min(0).describe('Only accounts changed since this slot'),
       limit: z.number().int().min(1).max(10000).optional().describe('Accounts per page (1-10000; default 1000)'),
       pagination_key: z.string().optional().describe('Cursor from previous page (paginationKey)'),
       encoding: z.enum(['base64','jsonParsed']).optional().describe('Account data encoding (default base64)'),
@@ -72,8 +73,8 @@ export function registerProgramAccountsTools(server) {
     outputSchema: {
       accounts: z.array(z.any()),
       paginationKey: z.string().nullable().optional(),
-      totalResults: z.number().int().optional(),
-      used: z.object({ program_id: z.string(), changed_since_slot: z.number().int(), limit: z.number().int(), encoding: z.string(), hadFilters: z.boolean() })
+      totalResults: integer().optional(),
+      used: z.object({ program_id: z.string(), changed_since_slot: integer(), limit: integer(), encoding: z.string(), hadFilters: z.boolean() }).meta({ additionalProperties: false })
     }
   }, async ({ program_id, changed_since_slot, limit, pagination_key, encoding, filters }) => {
     try {

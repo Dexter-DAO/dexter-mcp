@@ -1,3 +1,4 @@
+import { integer, urlString } from '../lib/zod-contract-primitives.mjs';
 import { z } from 'zod';
 
 export function registerSocialsDataTools(server) {
@@ -5,7 +6,7 @@ export function registerSocialsDataTools(server) {
   server.registerTool('get_twitter_profile', {
     title: 'Get Twitter Profile',
     description: 'Scrape a Twitter/X profile summary',
-    inputSchema: { twitter_url: z.string().url() },
+    inputSchema: { twitter_url: urlString() },
     outputSchema: { handle: z.string().optional() }
   }, async ({ twitter_url }) => {
     try {
@@ -18,7 +19,7 @@ export function registerSocialsDataTools(server) {
   server.registerTool('get_twitter_recent_tweets', {
     title: 'Get Twitter Recent Tweets',
     description: 'Scrape recent tweets for a profile',
-    inputSchema: { twitter_url: z.string().url(), limit: z.number().int().optional(), include_replies: z.boolean().optional() },
+    inputSchema: { twitter_url: urlString(), limit: integer().optional(), include_replies: z.boolean().optional() },
     outputSchema: { tweets: z.any().optional() }
   }, async ({ twitter_url, limit, include_replies }) => {
     try {
@@ -31,7 +32,7 @@ export function registerSocialsDataTools(server) {
   server.registerTool('get_twitter_community_meta', {
     title: 'Get Twitter Community Meta',
     description: 'Scrape metadata for a Twitter Community',
-    inputSchema: { twitter_url: z.string().url() },
+    inputSchema: { twitter_url: urlString() },
     outputSchema: { communityName: z.string().optional() }
   }, async ({ twitter_url }) => {
     try {
@@ -44,7 +45,7 @@ export function registerSocialsDataTools(server) {
   server.registerTool('get_twitter_community_posts', {
     title: 'Get Twitter Community Posts',
     description: 'Scrape recent posts for a Twitter Community',
-    inputSchema: { twitter_url: z.string().url(), limit: z.number().int().optional() },
+    inputSchema: { twitter_url: urlString(), limit: integer().optional() },
     outputSchema: { posts: z.any().optional() }
   }, async ({ twitter_url, limit }) => {
     try {
@@ -57,7 +58,7 @@ export function registerSocialsDataTools(server) {
   server.registerTool('get_twitter_community_members', {
     title: 'Get Twitter Community Members',
     description: 'Scrape members for a Twitter Community (requires login)',
-    inputSchema: { twitter_url: z.string().url(), limit: z.number().int().optional() },
+    inputSchema: { twitter_url: urlString(), limit: integer().optional() },
     outputSchema: { admins: z.any().optional() }
   }, async ({ twitter_url, limit }) => {
     try {

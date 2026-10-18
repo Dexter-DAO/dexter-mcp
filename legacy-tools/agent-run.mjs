@@ -1,3 +1,4 @@
+import { integer } from '../lib/zod-contract-primitives.mjs';
 import { z } from 'zod';
 import { RUN_LIMIT, LOGS_PER_RUN_LIMIT, activeRuns, childProcs, spawnAnalyzer } from '../../../token-ai/core/run-manager.js';
 
@@ -33,8 +34,8 @@ export function registerAgentRunTools(server) {
       reasoning_level: z.enum(['low','medium','high']).optional().describe('Override global reasoning effort')
     },
     outputSchema: {
-      pid: z.number().int(),
-      startedAt: z.number().int(),
+      pid: integer(),
+      startedAt: integer(),
     }
   }, async ({ mint, flags, reasoning_level }) => {
     for (const [pid, v] of activeRuns.entries()) {
@@ -59,11 +60,11 @@ export function registerAgentRunTools(server) {
     inputSchema: {
       mint: z.string().min(32).describe('Token mint address'),
       steps: z.string().optional().describe('Comma list: market,website,telegram,x'),
-      x_concurrency: z.number().int().optional().describe('X provider concurrency (1-2 advised)')
+      x_concurrency: integer().optional().describe('X provider concurrency (1-2 advised)')
     },
     outputSchema: {
-      pid: z.number().int(),
-      startedAt: z.number().int(),
+      pid: integer(),
+      startedAt: integer(),
     }
   }, async ({ mint, steps, x_concurrency }) => {
     if (activeRuns.size >= RUN_LIMIT) {
@@ -81,8 +82,8 @@ export function registerAgentRunTools(server) {
   if (ENABLE_RUN_TOOLS) server.registerTool('run_socials_step', {
     title: 'Run Socials (Step)',
     description: 'Run a single socials step: market, website, telegram, or twitter (x).',
-    inputSchema: { mint: z.string().min(32), step: z.enum(['market','website','telegram','x','twitter']), x_concurrency: z.number().int().optional() },
-    outputSchema: { pid: z.number().int(), startedAt: z.number().int(), step: z.string() }
+    inputSchema: { mint: z.string().min(32), step: z.enum(['market','website','telegram','x','twitter']), x_concurrency: integer().optional() },
+    outputSchema: { pid: integer(), startedAt: integer(), step: z.string() }
   }, async ({ mint, step, x_concurrency }) => {
     if (activeRuns.size >= RUN_LIMIT) return { content:[{ type:'text', text:`concurrency_limit (${RUN_LIMIT})` }], isError:true };
     const s = step === 'twitter' ? 'x' : step;
@@ -100,8 +101,8 @@ export function registerAgentRunTools(server) {
     server.registerTool(`run_socials_${NAME}`, {
       title: `Run Socials (${NAME})`,
       description: `Run socials orchestrator ${NAME} step only`,
-      inputSchema: { mint: z.string().min(32), x_concurrency: z.number().int().optional() },
-      outputSchema: { pid: z.number().int(), startedAt: z.number().int(), step: z.string() }
+      inputSchema: { mint: z.string().min(32), x_concurrency: integer().optional() },
+      outputSchema: { pid: integer(), startedAt: integer(), step: z.string() }
     }, async ({ mint, x_concurrency }) => {
       if (activeRuns.size >= RUN_LIMIT) return { content:[{ type:'text', text:`concurrency_limit (${RUN_LIMIT})` }], isError:true };
       const args = [String(mint), `--steps=${NAME}`];
@@ -122,7 +123,7 @@ export function registerAgentRunTools(server) {
       extra_flags: z.array(z.string()).optional().describe('Additional CLI flags to append'),
       reasoning_level: z.enum(['low','medium','high']).optional().describe('Override global reasoning effort')
     },
-    outputSchema: { pid: z.number().int(), startedAt: z.number().int() }
+    outputSchema: { pid: integer(), startedAt: integer() }
   }, async ({ mint, extra_flags, reasoning_level }) => {
     if (activeRuns.size >= RUN_LIMIT) {
       return { content: [{ type:'text', text: `concurrency_limit (${RUN_LIMIT})` }], isError: true };
@@ -141,11 +142,11 @@ export function registerAgentRunTools(server) {
     description: 'List active analyzer processes',
     outputSchema: {
       active: z.array(z.object({
-        pid: z.number().int(),
+        pid: integer(),
         mint: z.string().nullable(),
         kind: z.string(),
-        startedAt: z.number().int(),
-      }))
+        startedAt: integer(),
+      }).meta({ additionalProperties: false }))
     }
   }, async () => {
     const active = Array.from(activeRuns.entries()).map(([pid, v]) => ({ pid, mint: v.mint || null, kind: v.kind, startedAt: v.startedAt }));
@@ -156,13 +157,13 @@ export function registerAgentRunTools(server) {
     title: 'Get Run Logs',
     description: 'Fetch recent logs for a running process',
     inputSchema: {
-      pid: z.number().int(),
-      limit: z.number().int().optional(),
+      pid: integer(),
+      limit: integer().optional(),
     },
     outputSchema: {
-      pid: z.number().int(),
+      pid: integer(),
       mint: z.string().nullable(),
-      logs: z.array(z.object({ stream: z.string(), line: z.string(), at: z.number().int() })),
+      logs: z.array(z.object({ stream: z.string(), line: z.string(), at: integer() }).meta({ additionalProperties: false })),
     }
   }, async ({ pid, limit }) => {
     const rec = activeRuns.get(Number(pid));
@@ -175,7 +176,7 @@ export function registerAgentRunTools(server) {
   if (ENABLE_RUN_TOOLS) server.registerTool('kill_run', {
     title: 'Kill Run',
     description: 'Terminate a running analyzer process by PID',
-    inputSchema: { pid: z.number().int() },
+    inputSchema: { pid: integer() },
     outputSchema: { ok: z.boolean() }
   }, async ({ pid }) => {
     const child = childProcs.get(Number(pid));

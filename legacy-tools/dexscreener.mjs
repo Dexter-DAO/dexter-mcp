@@ -1,3 +1,4 @@
+import { integer } from '../lib/zod-contract-primitives.mjs';
 import { z } from 'zod';
 import axios from 'axios';
 
@@ -9,12 +10,12 @@ export function registerDexscreenerTools(server) {
     inputSchema: {
       query: z.string().min(1),
       chain_id: z.string().optional(),
-      limit: z.coerce.number().int().optional()
+      limit: z.coerce.number().multipleOf(1).meta({ type: 'integer', multipleOf: undefined }).optional()
     },
     outputSchema: {
       query: z.string(),
       chain_id: z.string().nullable(),
-      count: z.number().int(),
+      count: integer(),
       results: z.array(z.any())
     }
   }, async ({ query, chain_id, limit }) => {
@@ -160,11 +161,11 @@ export function registerDexscreenerTools(server) {
     description: 'Fetch top token boosts',
     inputSchema: {
       chain_id: z.string().optional(),
-      limit: z.coerce.number().int().optional()
+      limit: z.coerce.number().multipleOf(1).meta({ type: 'integer', multipleOf: undefined }).optional()
     },
     outputSchema: {
       chain_id: z.string(),
-      limit: z.number().int(),
+      limit: integer(),
       raw: z.any()
     }
   }, async ({ chain_id, limit }) => {

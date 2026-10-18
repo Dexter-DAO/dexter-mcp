@@ -1,3 +1,4 @@
+import { integer } from '../lib/zod-contract-primitives.mjs';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -126,7 +127,7 @@ export function registerReportAnalysisTools(server) {
   server.registerTool('list_recent_analyses', {
     title: 'List Recent Analyses',
     description: 'Summarize recent analysis JSON files.',
-    inputSchema: { limit: z.number().int().optional(), mintedOnly: z.boolean().optional() },
+    inputSchema: { limit: integer().optional(), mintedOnly: z.boolean().optional() },
     outputSchema: {
       items: z.array(z.object({
         mint: z.string().nullable(),
@@ -143,7 +144,7 @@ export function registerReportAnalysisTools(server) {
         liquidity: z.number().nullable().optional(),
         volume24h: z.number().nullable().optional(),
         price: z.number().nullable().optional(),
-      }))
+      }).meta({ additionalProperties: false }))
     }
   }, async ({ limit, mintedOnly }) => {
     let items = listRecentAnalyses(Number(limit)||12);
@@ -155,7 +156,7 @@ export function registerReportAnalysisTools(server) {
   server.registerTool('list_resource_uris', {
     title: 'List Resource URIs',
     description: 'Return recent report resource URIs (report://).',
-    inputSchema: { limit: z.number().int().optional() },
+    inputSchema: { limit: integer().optional() },
     outputSchema: { uris: z.array(z.string()) }
   }, async ({ limit }) => {
     const items = listRecentAnalyses(Number(limit)||24);
@@ -307,7 +308,7 @@ export function registerReportAnalysisTools(server) {
   server.registerTool('list_reports_page', {
     title: 'List Reports (Paged)',
     description: 'Paginated report URIs (opaque cursor)',
-    inputSchema: { limit: z.number().int().optional(), cursor: z.string().optional(), mintedOnly: z.boolean().optional() },
+    inputSchema: { limit: integer().optional(), cursor: z.string().optional(), mintedOnly: z.boolean().optional() },
     outputSchema: { uris: z.array(z.string()), nextCursor: z.string().optional() }
   }, async ({ limit, cursor, mintedOnly }) => {
     const lim = Math.max(1, Math.min(100, Number(limit)||24));
@@ -355,7 +356,7 @@ export function registerReportAnalysisTools(server) {
   server.registerTool('list_reports_for_mint', {
     title: 'List Reports For Mint',
     description: 'List report files for a given mint (most recent first)',
-    inputSchema: { mint: z.string(), limit: z.number().int().optional(), cursor: z.string().optional() },
+    inputSchema: { mint: z.string(), limit: integer().optional(), cursor: z.string().optional() },
     outputSchema: { files: z.array(z.string()), uris: z.array(z.string()), nextCursor: z.string().optional() }
   }, async ({ mint, limit, cursor }) => {
     const lim = Math.max(1, Math.min(100, Number(limit)||24));
@@ -423,8 +424,8 @@ export function registerReportAnalysisTools(server) {
   server.registerTool('search_reports', {
     title: 'Search Reports',
     description: 'Substring search over recent report JSON files',
-    inputSchema: { query: z.string(), limit: z.number().int().optional() },
-    outputSchema: { results: z.array(z.object({ file: z.string(), uri: z.string(), match_index: z.number().nullable() })) }
+    inputSchema: { query: z.string(), limit: integer().optional() },
+    outputSchema: { results: z.array(z.object({ file: z.string(), uri: z.string(), match_index: z.number().nullable() }).meta({ additionalProperties: false })) }
   }, async ({ query, limit }) => {
     const lim = Math.max(1, Math.min(50, Number(limit)||10));
     const files = (fs.readdirSync(REPORTS_DIR) || [])
@@ -450,7 +451,7 @@ export function registerReportAnalysisTools(server) {
     title: 'Search',
     description: 'Return relevant reports matching the query (ChatGPT schema).',
     inputSchema: { query: z.string() },
-    outputSchema: { results: z.array(z.object({ id: z.string(), title: z.string(), url: z.string() })) }
+    outputSchema: { results: z.array(z.object({ id: z.string(), title: z.string(), url: z.string() }).meta({ additionalProperties: false })) }
   }, async ({ query }) => {
     const q = String(query||'').toLowerCase();
     const files = (fs.readdirSync(REPORTS_DIR) || [])

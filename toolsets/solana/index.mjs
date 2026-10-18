@@ -1,3 +1,4 @@
+import { integer } from '../../lib/zod-contract-primitives.mjs';
 import { z } from 'zod';
 
 import { fetchWithX402Json } from '../../clients/x402Client.mjs';
@@ -245,7 +246,7 @@ export function registerSolanaToolset(server) {
     inputSchema: {
       wallet_address: z.string().optional(),
       min_ui: z.number().optional(),
-      limit: z.number().int().optional(),
+      limit: integer().optional(),
     },
   }, async ({ wallet_address, min_ui, limit }, extra) => {
     let targetWallet = wallet_address ? String(wallet_address).trim() : '';
@@ -296,7 +297,7 @@ export function registerSolanaToolset(server) {
       .describe('Set to true to skip confirmation prompt for transfers over $50. Required for large transfers.'),
   };
 
-  const sendInputSchema = z.object(sendInputShape).superRefine((value, ctx) => {
+  const sendInputSchema = z.object(sendInputShape).meta({ additionalProperties: false }).superRefine((value, ctx) => {
     if (!value.recipient_value || !value.recipient_value.trim()) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'recipient_value is required' });
     }
@@ -419,10 +420,10 @@ Examples:
     output_mint: z.string().min(1),
     amount_ui: z.union([z.string(), z.number()]).nullable().optional(),
     wallet_address: z.string().min(1).optional(),
-    slippage_bps: z.number().int().optional(),
+    slippage_bps: integer().optional(),
     mode: z.enum(['ExactIn', 'ExactOut']),
     desired_output_ui: z.union([z.string(), z.number()]).nullable().optional(),
-  });
+  }).meta({ additionalProperties: false });
 
   const swapInputSchema = swapInputShape.superRefine((value, ctx) => {
     if (value.mode === 'ExactIn' && (value.amount_ui == null || value.amount_ui === '')) {

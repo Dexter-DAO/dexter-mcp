@@ -15,7 +15,7 @@ import {
   useAdaptiveSendFollowUp,
 } from '../sdk';
 import { captureWidgetException } from '../sdk/init-sentry';
-import { useIntrinsicHeight } from '../components/x402';
+import { useIntrinsicHeight } from '../components/x402/useIntrinsicHeight';
 import {
   normalizeX402CheckResult,
   normalizeX402PaymentRoutes,
