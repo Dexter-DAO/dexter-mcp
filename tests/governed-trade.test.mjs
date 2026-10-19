@@ -6,7 +6,7 @@ import {
   callGovernedTradeBackend, GOVERNED_TRADE_CLIENT_DEADLINE_MS,
   verifyGovernedBackendRequestAuth,
 } from '../lib/governed-asset-client.mjs';
-import { GOVERNED_TRADE_INPUT_SCHEMA } from '../lib/governed-trade-contract.mjs';
+import { GOVERNED_TRADE_DESCRIPTION, GOVERNED_TRADE_INPUT_SCHEMA } from '../lib/governed-trade-contract.mjs';
 import { GOVERNED_TRADE_PATH } from '../lib/governed-asset-backend-profile.mjs';
 
 const secret = 'test-only-trade-secret-at-least-32-bytes';
@@ -148,6 +148,13 @@ test('route accepts all eleven exact Buy/Sell variants and canonicalizes human d
         shareQuantity: '0.250', maximumSpendAtomic: '18446744073709551615' }).shareQuantity, '0.25');
     }
   }
+});
+
+test('a stock buy names the company and a held stock sells by its portfolio asset id', () => {
+  assert.match(GOVERNED_TRADE_DESCRIPTION, /To buy a stock, use companyQuery/);
+  assert.match(GOVERNED_TRADE_DESCRIPTION, /To sell a stock the user holds, use its assetId from dexter_wallet_portfolio/);
+  assert.ok(GOVERNED_TRADE_INPUT_SCHEMA.safeParse({ operationId: input.operationId, action: 'sell',
+    assetId: 'backpack-spcx', valueUsd: '1' }).success);
 });
 
 test('invalid identifiers, authority overrides, ambiguous terms, and amounts fail before fetch', async () => {
