@@ -113,8 +113,9 @@ test('served guidance requires native OAuth and bounded nonretryable spending', 
   );
   assert.match(WORKFLOW, /vaultPda[\s\S]*not a deposit\s+fallback/);
   assert.match(WORKFLOW, /canonical `assetId`/);
-  assert.match(WORKFLOW, /natural-language[\s\S]*stock Buy or Sell[\s\S]*`companyQuery`/);
-  assert.match(WORKFLOW, /Never replace a stock `companyQuery`[\s\S]*`assetId`, symbol, or mint/);
+  assert.match(WORKFLOW, /held stock's\s+`assetId` keeps the exact version the user holds/);
+  assert.match(WORKFLOW, /To buy a stock, pass the\s+user's exact human company name as `companyQuery`/);
+  assert.match(WORKFLOW, /Never replace a\s+stock `companyQuery` with a remembered `assetId`, symbol, or mint/);
   assert.match(WORKFLOW, /approvedActionTargets/);
   assert.match(WORKFLOW, /never add to holdings, balances, quantities,[\s\S]*or value/);
   assert.match(WORKFLOW, /Buy[\s\S]*USDC budget[\s\S]*6\s+decimals/);
@@ -233,7 +234,8 @@ test('generated runtime instructions preserve current wallet and authority truth
   assert.match(runtime, /hosted wallet is Solana-based/);
   assert.match(runtime, /only dexter_wallet\.receiveAddress is a deposit address/);
   assert.match(runtime, /non-null canonical assetId/);
-  assert.match(runtime, /natural-language stock Buy\/Sell[\s\S]*companyQuery instead of assetId/);
+  assert.match(runtime, /To buy a stock, use companyQuery instead of assetId/);
+  assert.match(runtime, /To sell a stock the user holds, use its assetId from the portfolio, which keeps the exact version they hold/);
   assert.match(runtime, /Never derive or remember a static stock assetId/);
   assert.match(runtime, /approved action target is discovery context, not a holding/);
   assert.match(runtime, /persists and evaluates one exact governed action but does not sign or submit/);

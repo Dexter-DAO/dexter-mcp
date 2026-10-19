@@ -2275,10 +2275,11 @@ async function governedAssetAction(operation, args, extra) {
       operation,
       input: args,
       mcpSessionId: sessionId,
+      // A Buy or Sell may name a stock by company or by a held product's asset
+      // id; only the API knows which, so every one gets the stock deadline.
       ...(operation === 'execute'
         || (operation === 'prepare'
-        && (args?.action === 'buy' || args?.action === 'sell')
-        && typeof args?.companyQuery === 'string')
+        && (args?.action === 'buy' || args?.action === 'sell'))
         ? { timeoutMs: 30_000 }
         : {}),
     });

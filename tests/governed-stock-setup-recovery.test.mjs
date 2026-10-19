@@ -36,6 +36,53 @@ for (const [label, change] of [
   const tool = buildGovernedAssetToolResult(normalize(body));
   assert.equal(tool.structuredContent.recovery, undefined);
 });
+// A held stock named by its portfolio asset id (call 1325) echoes no company.
+function assetIdCase(source, assetId = 'backpack-spcx') {
+  const { companyQuery: _companyQuery, ...input } = source.input;
+  const body = structuredClone(source.body);
+  delete body.business.requestedCompanyQuery;
+  body.business.assetId = assetId;
+  return { input: { ...input, assetId }, body };
+}
+test('an asset-id stock setup keeps the same exact unsent recovery as a company-name setup', () => {
+  const named = buildGovernedAssetToolResult(normalize()).structuredContent;
+  const { input, body } = assetIdCase(fixture);
+  const tool = applyOpenToolResultPolicy('dexter_prepare_asset_action', buildGovernedAssetToolResult(normalize(body, input)));
+  assert.equal(GOVERNED_PRESENTED_OUTPUT_SCHEMAS.prepare.safeParse(tool.structuredContent).success, true);
+  assert.deepEqual(tool.structuredContent.recovery, { ...named.recovery, arguments: input });
+  assert.equal(tool.structuredContent.recovery.retryAfterMs, 5000);
+  assert.deepEqual(tool.structuredContent.presentation, named.presentation);
+});
+test('the call 1325 sale by asset id and dollar value retains its exact request', () => {
+  const input = { operationId: 'sell-spacex-1usd-20261019', action: 'sell', assetId: 'backpack-spcx', valueUsd: '1' };
+  const body = structuredClone(fixture.body);
+  delete body.business.requestedCompanyQuery;
+  Object.assign(body, { requestId: input.operationId, retryable: true });
+  Object.assign(body.business, { action: 'sell', assetId: input.assetId, amountAtomic: null });
+  const tool = buildGovernedAssetToolResult(normalize(body, input));
+  assert.deepEqual(tool.structuredContent.recovery.arguments, input);
+  assert.equal(tool.structuredContent.presentation.nextActions[0].action, 'retry_same_preparation');
+});
+for (const [label, change] of [
+  ['a different asset', ({ body }) => { body.business.assetId = 'backpack-nvda'; }],
+  ['an echoed company', ({ body }) => { body.business.requestedCompanyQuery = 'SpaceX'; }],
+  ['a Send', ({ input, body }) => {
+    delete input.maxSlippageBps; delete input.maxPriceImpactBps;
+    input.action = 'send'; input.destinationOwner = '11111111111111111111111111111111';
+    body.business.action = 'send'; body.business.destinationOwner = input.destinationOwner;
+  }],
+]) test(`an asset-id stock setup gains no retry wait for ${label}`, () => {
+  const value = assetIdCase(fixture); change(value);
+  assert.equal(buildGovernedAssetToolResult(normalize(value.body, value.input)).structuredContent.recovery, undefined);
+});
+test('an asset-id first-contact uncertainty gets the same continuation as a company-name one', () => {
+  const named = buildGovernedAssetToolResult(normalize(firstContactFailure.body, firstContactFailure.input)).structuredContent;
+  const { input, body } = assetIdCase(firstContactFailure);
+  const tool = buildGovernedAssetToolResult(normalize(body, input));
+  assert.deepEqual(tool.structuredContent.presentation, named.presentation);
+  assert.match(tool.structuredContent.presentation.nextActions[0].reason, /checks for a saved receipt first/);
+  assert.equal(tool.structuredContent.recovery, undefined);
+});
 test('an Execute response cannot gain stock setup retry even with the pending code', () => {
   const tool = buildGovernedAssetToolResult(normalize(fixture.body, { operationId: fixture.input.operationId, intentId: '11111111-1111-4111-8111-111111111111' }, 'execute'));
   assert.equal(tool.structuredContent.recovery, undefined);

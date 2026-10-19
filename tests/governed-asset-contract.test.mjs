@@ -388,9 +388,10 @@ test('operation identity never substitutes for authority or owner approval', () 
   const execute = GOVERNED_ASSET_TOOL_CONTRACTS.dexter_execute_asset_action.description;
   const reconcile = GOVERNED_ASSET_TOOL_CONTRACTS.dexter_reconcile_asset_action.description;
   assert.match(prepare, /Idempotency-Key/);
-  assert.match(prepare, /natural-language stock Buy or Sell, pass companyQuery/);
-  assert.match(prepare, /never pass a remembered stock assetId, mint, or symbol/);
-  assert.match(prepare, /assetId variants remain for a non-stock/);
+  assert.match(prepare, /To buy a stock, pass companyQuery/);
+  assert.match(prepare, /To sell a stock the user holds, pass its assetId from dexter_wallet_portfolio, which keeps the exact version they hold/);
+  assert.match(prepare, /Never pass a remembered stock assetId, mint, or symbol/);
+  assert.match(prepare, /assetId variants also serve a non-stock/);
   assert.match(prepare, /approved holding or approvedActionTarget/);
   assert.match(prepare, /reusable bounded mandate/);
   assert.match(prepare, /outside model-callable tools/);
