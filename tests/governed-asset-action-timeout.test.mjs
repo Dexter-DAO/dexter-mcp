@@ -24,11 +24,15 @@ function handler(callGovernedAssetBackend) {
 }
 
 test('stock Buy and Sell Prepare allow the bounded backend verification deadline', async () => {
-  for (const action of ['buy', 'sell']) {
+  // A held stock may be named by its portfolio asset id, which only the API can classify.
+  for (const [action, selector] of [
+    ['buy', { companyQuery: 'NVIDIA' }], ['sell', { companyQuery: 'NVIDIA' }],
+    ['buy', { assetId: 'backpack-spcx' }], ['sell', { assetId: 'backpack-spcx' }],
+  ]) {
     const args = {
       operationId: '019f981c-9215-7141-84f2-d89ffe9cbece',
       action,
-      companyQuery: 'NVIDIA',
+      ...selector,
       amountAtomic: '1000000',
     };
     let calls = 0;
@@ -46,10 +50,8 @@ test('stock Buy and Sell Prepare allow the bounded backend verification deadline
   }
 });
 
-test('non-stock Prepare, Send, and recovery reads retain the client default', async () => {
+test('Send Prepare and recovery reads retain the client default', async () => {
   for (const [operation, args] of [
-    ['prepare', { action: 'buy', assetId: 'approved-holding' }],
-    ['prepare', { action: 'sell', assetId: 'approved-holding' }],
     ['prepare', { action: 'send', assetId: 'usdc' }],
     ['status', { intentId: 'existing-intent' }],
     ['reconcile', { intentId: 'existing-intent' }],
