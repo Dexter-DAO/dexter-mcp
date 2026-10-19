@@ -243,17 +243,16 @@ the task still permits. The user need not restart an ordinary read.
 
 ## Governed Send, Buy, and Sell
 
-1. For Send and non-stock Buy or Sell, use `dexter_wallet_portfolio` to identify the
+1. For Send, non-stock Buy or Sell, and a sale of a held stock, use
+   `dexter_wallet_portfolio` to identify the
    exact supported asset from an approved holding or `approvedActionTarget`
    and confirm the requested action is currently displayed as available. Pass
    only its non-null canonical `assetId`; never substitute a symbol or send a
-   mint, token program, network, or decimals as authority. For a natural-language
-   stock Buy or Sell, pass the user's exact human company name as
-   `companyQuery` instead. Dexter's catalog resolves and freezes the current
-   approved Solana product. Never replace a stock `companyQuery` with a
-   remembered or portfolio-derived `assetId`, symbol, or mint. Portfolio
-   remains useful inventory context for a stock Sell, but it does not select
-   the catalog route.
+   mint, token program, network, or decimals as authority. A held stock's
+   `assetId` keeps the exact version the user holds. To buy a stock, pass the
+   user's exact human company name as `companyQuery` instead. Dexter's catalog
+   resolves and freezes the current approved Solana product. Never replace a
+   stock `companyQuery` with a remembered `assetId`, symbol, or mint.
 2. Call `dexter_prepare_asset_action` with one stable `operationId` and the
    exact action fields. A Buy has exactly one amount mode:
    - Dollar-budget wording such as "buy $100 of Tesla" uses
@@ -274,14 +273,14 @@ the task still permits. The user need not restart an ordinary read.
    "no more than," or otherwise forbids receiving extra shares, explain that
    this route guarantees a minimum and may overfill; ask whether an at-least
    target is acceptable instead of silently weakening the request.
-   For Sell, "sell $1 of NVIDIA" uses `companyQuery: "NVIDIA"` and
+   For Sell, "sell $1 of NVIDIA" uses the held NVIDIA `assetId` and
    `valueUsd: "1"`. This is the USD market value to sell at preparation.
    Keep it as a human decimal; Dexter sizes the token input from the latest
    reported USD price and checks the selected value against the current sale quote. The executable quote supplies expected and minimum USDC
    proceeds. Net USDC proceeds are approximate until the receipt.
    Non-stock Sell accepts `valueUsd` with the canonical `assetId`.
-   For token-input Stock Sell, pass `companyQuery` plus `amountAtomic` using
-   the server-certified decimals. Use exactly one
+   For token-input Stock Sell, pass the held stock's `assetId` plus
+   `amountAtomic` using the server-certified decimals. Use exactly one
    of `valueUsd` and `amountAtomic`; Sell does not accept `shareQuantity`.
    For non-stock Sell and Send with raw token input, pass `assetId` plus
    `amountAtomic`. Send has no memo. Tool presence and input acceptance are not
