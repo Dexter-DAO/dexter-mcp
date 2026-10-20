@@ -22,7 +22,7 @@ const savedPurchase = JSON.parse(await readFile(new URL('./fixtures/native-purch
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const registration = (name, next) => source.slice(source.indexOf(`  registerOpenTool(server, '${name}'`), source.indexOf(next, source.indexOf(`  registerOpenTool(server, '${name}'`)));
 const purchaseRegistrations = registration('x402_fetch', "  registerOpenTool(server, 'x402_mcp_tools'");
-const portfolioRegistration = registration('dexter_wallet_portfolio', '  registerOpenTool(server, AGENT_WORK_REPORT_TOOL_NAME');
+const portfolioRegistration = registration('dexter_wallet_portfolio', '  registerOpenTool(server, ASSET_SEARCH_TOOL');
 const portfolioProducer = source.slice(source.indexOf('function buildPortfolioReadError('), source.indexOf('async function governedAssetAction('));
 
 async function purchaseHandler(tool, result, args) {

@@ -1218,15 +1218,13 @@ test('real SDK clients receive governed refusal, auth, and local failures as tex
       expectedBody,
       `${name}: the validated error body must remain available to its renderer`,
     );
-    const visibleBody = JSON.parse(result.content[0].text);
-    assert.equal(visibleBody.namespace, expectedBody.namespace, name);
-    assert.equal(
-      visibleBody.code ?? visibleBody.reason,
-      expectedBody.code ?? expectedBody.reason,
-      name,
-    );
+    const visibleText = result.content[0].text;
+    assert.doesNotMatch(visibleText, /^\s*\{/);
+    assert.ok(visibleText.includes(expectedBody.code ?? expectedBody.reason), name);
+    assert.ok(visibleText.includes(expectedBody.explanation ?? expectedBody.message), name);
     if (name === 'dexter_execute_asset_action') {
-      assert.equal(visibleBody.operationId, 'open_abcdefghijklmnop');
+      assert.ok(visibleText.includes('open_abcdefghijklmnop'));
+      assert.ok(visibleText.includes('reconcile_same_intent_only'));
     }
   }
 });

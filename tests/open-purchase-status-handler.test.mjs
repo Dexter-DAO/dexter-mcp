@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
 import test from 'node:test';
 import { z } from 'zod';
-import { buildHostedCheckModelResult, buildHostedCheckStatusModelResult } from '../lib/open-check-result.mjs';
+import { buildHostedCheckModelResult, buildHostedCheckStatusModelResult, buildHostedCheckToolResult } from '../lib/open-check-result.mjs';
 import { callOpenX402IntentApi, sanitizeOpenX402IntentResult, isOpenX402AuthorityRequired, projectOpenX402AuthorizationRequired, OPEN_X402_INTENT_ID_RE } from '../lib/open-x402-intent-api.mjs';
 import { OPEN_TOOL_CONTRACTS } from '../lib/open-tool-contracts.mjs';
 import { purchaseResultText } from '../lib/customer-result-presentation.mjs';
@@ -135,7 +135,7 @@ async function invokeCheck(backend) {
   let calls = 0;
   const context = {
     server: {}, CHECK_META: {}, OPEN_X402_CHECK_DESCRIPTION: 'Check', openX402CheckSchema: {},
-    buildHostedCheckModelResult, randomUUID: () => 'saved-check',
+    buildHostedCheckModelResult, buildHostedCheckToolResult, randomUUID: () => 'saved-check',
     API_BASE_FALLBACK: 'https://unused.example',
     resolveIntentSession: async () => ({ sessionId: 'same-session', authenticated: true, lookupFailed: false }),
     callOpenX402IntentApi: async () => { calls++; if (backend instanceof Error) throw backend; return backend; },

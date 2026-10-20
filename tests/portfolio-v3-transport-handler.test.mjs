@@ -188,7 +188,7 @@ test('actual handler preserves each v3 literal through result policy; neighborin
   assert.equal(revoked.counts().stateReads, 1);
 });
 
-test('actual SDK contract accepts v3 and retains v1/v2; structuredContent alone holds complete model facts', async t => {
+test('actual SDK contract accepts v3 and retains v1/v2; content also carries portfolio facts', async t => {
   const wire = literals.native_summary;
   const handler = actualHandler(wire);
   const server = new McpServer({ name: 'portfolio-v3-offline', version: '1.0.0' });
@@ -208,6 +208,9 @@ test('actual SDK contract accepts v3 and retains v1/v2; structuredContent alone 
   assert.notEqual(result.isError, true);
   assert.deepEqual(result.structuredContent, portfolioReady(wire.portfolio));
   assert.deepEqual(result._meta.portfolioCard, wire.card);
+  assert.match(result.content[0].text, /Portfolio total: \$100/);
+  assert.match(result.content[0].text, /Solana \(SOL; cash\): 1; value \$100/);
+  assert.ok(result.content[0].text.includes(wire.portfolio.observedAt));
   assert.equal(result.structuredContent.portfolio.source.tradingAvailability.state, 'not_evaluated');
   assert.equal(Object.hasOwn(result.structuredContent.portfolio, 'sourceSummary'), false);
   assert.ok(Buffer.byteLength(JSON.stringify(result.structuredContent), 'utf8') <= 2048);
