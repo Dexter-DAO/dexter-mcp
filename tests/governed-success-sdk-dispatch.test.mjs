@@ -26,15 +26,26 @@ import { canonicalHash } from '../lib/governed-canonical-identity.mjs';
 import { dynamicStockV2Fixture } from './fixtures/governed-stock-v2.fixtures.mjs';
 import { presentGovernedAgentResult } from '../lib/governed-agent-presentation.mjs';
 
+function assertPresentationText(result, presentation) {
+  const text = result.content[0].text;
+  assert.doesNotMatch(text, /^\s*\{/);
+  for (const row of presentation.items ?? [presentation]) {
+    for (const fact of [row.summary, row.status, row.code, row.operationId, row.intentId]) {
+      if (fact) assert.ok(text.includes(fact), `Missing ${fact} in result text`);
+    }
+  }
+}
+
 function assertPresentedDetail(result, expected) {
   const { presentation, ...detail } = result.structuredContent;
   assert.deepEqual(detail, expected);
-  assert.deepEqual(presentation, JSON.parse(result.content[0].text));
+  assertPresentationText(result, presentation);
   assert.deepEqual(presentation, JSON.parse(JSON.stringify(presentGovernedAgentResult(expected))));
 }
 
 function assertPresentedError(result, expected) {
-  const presentation = JSON.parse(result.content[0].text);
+  const presentation = result.structuredContent.presentation;
+  assertPresentationText(result, presentation);
   assert.equal(result.isError, true);
   assert.deepEqual(result.structuredContent, { presentation });
   assert.deepEqual(presentation, JSON.parse(JSON.stringify(presentGovernedAgentResult(expected))));
@@ -272,7 +283,7 @@ for (const [name, url] of [
     assert.equal(calls, 1);
     assert.equal(result.isError, true);
     assertPresentedError(result, body);
-    const publicBody = JSON.parse(result.content[0].text);
+    const publicBody = result.structuredContent.presentation;
     assert.equal(publicBody.code, body.code);
     assert.equal(publicBody.operationId, OPERATION_ID);
     assert.equal(publicBody.status, 'refused');
@@ -306,7 +317,7 @@ for (const [name, url] of [
     assert.equal(calls, 1);
     assert.equal(result.isError, true);
     assertPresentedError(result, result._meta['dexter/governedWidgetResult']);
-    const publicBody = JSON.parse(result.content[0].text);
+    const publicBody = result.structuredContent.presentation;
     assert.equal(publicBody.code, 'governed_backend_response_invalid');
     assert.equal(Object.hasOwn(publicBody, 'permissionRequest'), false);
   });
