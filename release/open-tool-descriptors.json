@@ -10171,6 +10171,112 @@
                 "properties": {
                   "state": {
                     "type": "string",
+                    "const": "recognized"
+                  },
+                  "source": {
+                    "type": "string",
+                    "const": "stock_registry"
+                  },
+                  "registryState": {
+                    "type": "string",
+                    "enum": [
+                      "approved",
+                      "retired"
+                    ]
+                  },
+                  "observedAt": {
+                    "$ref": "#/definitions/__schema76"
+                  },
+                  "material": {
+                    "type": "object",
+                    "properties": {
+                      "network": {
+                        "type": "string",
+                        "const": "solana-mainnet"
+                      },
+                      "assetId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      },
+                      "assetClass": {
+                        "type": "string",
+                        "const": "stock"
+                      },
+                      "symbol": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
+                      },
+                      "name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      },
+                      "issuer": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "providerName": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "legalIssuerName": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "mint": {
+                        "$ref": "#/definitions/__schema75"
+                      },
+                      "tokenProgram": {
+                        "type": "string",
+                        "enum": [
+                          "spl-token",
+                          "token-2022"
+                        ]
+                      },
+                      "decimals": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 255
+                      }
+                    },
+                    "required": [
+                      "network",
+                      "assetId",
+                      "assetClass",
+                      "symbol",
+                      "name",
+                      "issuer",
+                      "providerName",
+                      "legalIssuerName",
+                      "mint",
+                      "tokenProgram",
+                      "decimals"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "state",
+                  "source",
+                  "registryState",
+                  "observedAt",
+                  "material"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "state": {
+                    "type": "string",
                     "const": "unreviewed"
                   },
                   "source": {
@@ -10201,6 +10307,7 @@
                       "source_unavailable",
                       "read_inconsistent",
                       "token_identity_mismatch",
+                      "metadata_missing",
                       "release_missing",
                       "lineage_invalid",
                       "conflicting_material",
@@ -10450,7 +10557,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/portfolio-c45d475a",
+          "resourceUri": "ui://dexter/portfolio-0ed8ab8e",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash"
@@ -10467,8 +10574,8 @@
             "app"
           ]
         },
-        "ui/resourceUri": "ui://dexter/portfolio-c45d475a",
-        "openai/outputTemplate": "ui://dexter/portfolio-c45d475a",
+        "ui/resourceUri": "ui://dexter/portfolio-0ed8ab8e",
+        "openai/outputTemplate": "ui://dexter/portfolio-0ed8ab8e",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,

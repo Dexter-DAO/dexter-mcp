@@ -16,6 +16,7 @@ import { buildVaultAuthenticationRequired, isVaultAuthenticationRequired,
 import { selectedReadFixture } from './fixtures/portfolio-selected-read-fixtures.mjs';
 
 const literals = JSON.parse(readFileSync(new URL('./fixtures/portfolio-selected-v3-api.json', import.meta.url), 'utf8')).valid;
+literals.stock_registry_detail = JSON.parse(readFileSync(new URL('./fixtures/portfolio-stock-registry-v3-api.json', import.meta.url), 'utf8'));
 const clone = value => JSON.parse(JSON.stringify(value));
 const source = readFileSync(new URL('../open-mcp-server.mjs', import.meta.url), 'utf8');
 const start = source.indexOf("  registerOpenTool(server, 'dexter_wallet_portfolio'");

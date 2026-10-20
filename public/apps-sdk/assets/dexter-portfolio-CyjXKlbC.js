@@ -198,6 +198,19 @@ const portfolioReleasedIdentityProvenanceV3Schema = object({
   onchainId: uuid,
   onchainDigest: hex
 }).strict();
+const heldStockIdentityV3Schema = object({
+  network: literal("solana-mainnet"),
+  assetId: string().min(1).max(128),
+  assetClass: literal("stock"),
+  symbol: string().trim().min(1).max(64),
+  name: string().trim().min(1).max(256),
+  issuer: string().nullable(),
+  providerName: string().nullable(),
+  legalIssuerName: string().nullable(),
+  mint: address,
+  tokenProgram: _enum(["spl-token", "token-2022"]),
+  decimals: number().int().min(0).max(255)
+}).strict();
 const portfolioHoldingIdentityV3Schema = union([
   object({ state: literal("native"), source: literal("solana") }).strict(),
   object({
@@ -214,11 +227,19 @@ const portfolioHoldingIdentityV3Schema = union([
     material: portfolioRegistryMaterialV3Schema,
     provenance: portfolioReleasedIdentityProvenanceV3Schema
   }).strict().refine((v) => v.material.assetClass === "stock"),
+  object({
+    state: literal("recognized"),
+    source: literal("stock_registry"),
+    registryState: _enum(["approved", "retired"]),
+    observedAt: observed,
+    material: heldStockIdentityV3Schema
+  }).strict(),
   object({ state: literal("unreviewed"), source: literal("none") }).strict(),
   object({ state: literal("unavailable"), source: literal("none"), reason: _enum([
     "source_unavailable",
     "read_inconsistent",
     "token_identity_mismatch",
+    "metadata_missing",
     "release_missing",
     "lineage_invalid",
     "conflicting_material",
@@ -1845,6 +1866,7 @@ function holdingIdentityReason(identity2) {
     read_inconsistent: "The identity records could not be read consistently.",
     token_identity_mismatch: "The token does not match its identity record.",
     release_missing: "The identity release is unavailable.",
+    metadata_missing: "The stock name and symbol are unavailable.",
     lineage_invalid: "The identity release history could not be verified.",
     conflicting_material: "The identity records disagree.",
     registry_digest_mismatch: "The registry identity could not be verified."
@@ -1865,7 +1887,11 @@ function SelectedHoldingDetail({ holding, read, onExpand }) {
     /* @__PURE__ */ jsxRuntimeExports.jsx("h1", { id: "dxp-selected-title", tabIndex: -1, children: holding.name ?? holdingLabel(holding) }),
     /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "dxp-selected-detail-value", children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx(SelectedMoney, { value: holding.valueUsd }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: holding.amountModel === "unknown" ? "Amount unavailable" : `${formatPortfolioQuantity(holding.displayAmount)}${holding.symbol ? ` ${holding.symbol}` : ""} held` }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { children: [
+        sentenceCase(holding.assetClass),
+        ". ",
+        holding.amountModel === "unknown" ? "Amount unavailable" : `${formatPortfolioQuantity(holding.displayAmount)}${holding.symbol ? ` ${holding.symbol}` : ""} held`
+      ] }),
       /* @__PURE__ */ jsxRuntimeExports.jsx(SelectedChange, { value: holding.change24hPercent })
     ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsxs("section", { className: "dxp-selected-market", "aria-label": "Market data", children: [
@@ -1908,9 +1934,9 @@ function SelectedHoldingDetail({ holding, read, onExpand }) {
           /* @__PURE__ */ jsxRuntimeExports.jsx(Fact, { label: "Asset identity", children: holdingIdentityLabel(holding.identity) }),
           holding.identity.state === "unavailable" ? /* @__PURE__ */ jsxRuntimeExports.jsx(Fact, { label: "Identity availability", children: holdingIdentityReason(holding.identity) }) : null,
           holding.identity.state === "recognized" ? /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx(Fact, { label: "Identity source", children: holding.identity.source === "static_registry" ? "Dexter asset definitions" : "Released asset catalog" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(Fact, { label: "Identity source", children: holding.identity.source === "static_registry" ? "Dexter asset definitions" : "Dexter stock registry" }),
             /* @__PURE__ */ jsxRuntimeExports.jsx(Fact, { label: "Registry status", children: holding.identity.registryState === "not_observed" ? "Not observed" : sentenceCase(holding.identity.registryState) }),
-            holding.identity.source === "released_catalog" ? /* @__PURE__ */ jsxRuntimeExports.jsx(Fact, { label: "Identity observed at", children: readDate(holding.identity.observedAt) }) : null
+            holding.identity.source !== "static_registry" ? /* @__PURE__ */ jsxRuntimeExports.jsx(Fact, { label: "Identity observed at", children: readDate(holding.identity.observedAt) }) : null
           ] }) : null
         ] }) : /* @__PURE__ */ jsxRuntimeExports.jsx(Fact, { label: "Asset review", children: sentenceCase(holding.approvalStatus) }),
         /* @__PURE__ */ jsxRuntimeExports.jsx(Fact, { label: "Amount display", children: holding.amountModel === "scaled-ui-amount" ? "Scaled token amount" : holding.amountModel === "raw-decimals" ? "Token decimals" : "Unavailable" }),
@@ -1929,14 +1955,7 @@ function SelectedHoldingDetail({ holding, read, onExpand }) {
         /* @__PURE__ */ jsxRuntimeExports.jsx(Fact, { label: "Metadata observed at", children: holding.metadataObservedAt === null ? null : readDate(holding.metadataObservedAt) }),
         registry ? /* @__PURE__ */ jsxRuntimeExports.jsx(Fact, { label: "Registry identity source", children: "identity" in holding ? "Dexter asset registry" : "Dexter approved asset registry" }) : null,
         /* @__PURE__ */ jsxRuntimeExports.jsx(Fact, { label: "Portfolio observed at", children: readDate(read.observedAt) })
-      ] }),
-      "identity" in holding && holding.identity.state === "recognized" ? /* @__PURE__ */ jsxRuntimeExports.jsxs("details", { className: "dxp-selected-disclosure", onToggle: openDisclosure, children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("summary", { children: "Identity verification details" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("dl", { className: "dxp-selected-facts dxp-selected-facts--diagnostics", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx(Fact, { label: "Registry identity digest", children: /* @__PURE__ */ jsxRuntimeExports.jsx("code", { children: holding.identity.material.registryIdentityDigest }) }),
-          holding.identity.source === "released_catalog" ? Object.entries(holding.identity.provenance).map(([key, value]) => /* @__PURE__ */ jsxRuntimeExports.jsx(Fact, { label: sentenceCase(key.replace(/([A-Z])/g, " $1")), children: /* @__PURE__ */ jsxRuntimeExports.jsx("code", { children: value }) }, key)) : null
-        ] })
-      ] }) : null
+      ] })
     ] }),
     "identity" in holding ? /* @__PURE__ */ jsxRuntimeExports.jsxs("section", { className: "dxp-selected-actions", "aria-label": "Trading availability", children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { children: "Trading availability" }),
@@ -2159,11 +2178,12 @@ function SelectedPortfolio({ model, condensed, maxHeight, isFullscreen, onExpand
               selection.query
             ] }) : null
           ] }),
-          isHoldings ? /* @__PURE__ */ jsxRuntimeExports.jsx("ul", { className: "dxp-selected-list", children: screen.collection.holdings.map(({ holding }) => {
+          isHoldings ? /* @__PURE__ */ jsxRuntimeExports.jsx("ul", { className: "dxp-selected-list", children: screen.collection.holdings.map(({ holding, rich }) => {
             const row = /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
               /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "dxp-selected-identity", children: [
                 /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: holdingLabel(holding) }),
                 holding.name && holding.name !== holding.symbol ? /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: holding.name }) : null,
+                rich ? /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: sentenceCase(rich.assetClass) }) : null,
                 holding.identityStatus === "retired" ? /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Registry entry retired" }) : holding.identityStatus === "unreviewed" ? /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Identity unreviewed" }) : holding.identityStatus === "unavailable" ? /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Identity unavailable" }) : null
               ] }),
               /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "dxp-selected-values", children: [

@@ -1,0 +1,153 @@
+{
+  "ok": true,
+  "portfolio": {
+    "contractVersion": "opendexter.portfolio.v3",
+    "network": "solana-mainnet",
+    "walletAddress": "11111111111111111111111111111111",
+    "observedAt": "2026-09-24T00:00:00.000Z",
+    "contextSlot": 1,
+    "snapshotId": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "expiresAt": "2026-09-24T00:05:00.000Z",
+    "source": {
+      "kind": "holdings",
+      "holdingCount": 1,
+      "pricedHoldings": 1,
+      "unpricedHoldings": 0,
+      "holdingsComplete": true,
+      "omittedHoldings": 0,
+      "pricedValueUsd": "100",
+      "portfolioValueUsd": "100",
+      "enrichment": {
+        "metadata": "complete",
+        "pricing": "complete",
+        "tokenExtensions": "complete"
+      },
+      "identityCoverage": {
+        "recognized": 1,
+        "unreviewed": 0,
+        "unavailable": 0
+      },
+      "tradingAvailability": {
+        "state": "not_evaluated"
+      }
+    },
+    "selection": {
+      "view": "detail",
+      "query": null,
+      "mint": "SPCXxcqXj6e5dJDVNovHN8744zkbhM2bYudU45BimGb",
+      "tokenAccount": null,
+      "limit": 32,
+      "offset": 0,
+      "matchedCount": 1,
+      "returnedCount": 1,
+      "omittedCount": 0,
+      "nextCursor": null,
+      "match": "matched"
+    },
+    "holdings": [
+      {
+        "assetId": "backpack-spcx",
+        "mint": "SPCXxcqXj6e5dJDVNovHN8744zkbhM2bYudU45BimGb",
+        "tokenAccount": "11111111111111111111111111111111",
+        "tokenProgram": "token-2022",
+        "assetClass": "stock",
+        "symbol": "SPCX",
+        "name": "SpaceX",
+        "amountRaw": "1000000",
+        "decimals": 6,
+        "displayAmount": "1",
+        "amountModel": "raw-decimals",
+        "displayMultiplier": null,
+        "accountState": "initialized",
+        "valueUsd": "100",
+        "priceUsd": "100",
+        "priceObservedAt": "2026-09-24T00:00:00.000Z",
+        "change24hPercent": null,
+        "priceSource": "jupiter-price-v3",
+        "priceBlockId": 1,
+        "metadataObservedAt": null,
+        "marketContext": null,
+        "registryIdentity": {
+          "source": "dexter-registry",
+          "providerName": null,
+          "legalIssuerName": null
+        },
+        "identity": {
+          "state": "recognized",
+          "source": "stock_registry",
+          "registryState": "approved",
+          "observedAt": "2026-09-24T00:00:00.000Z",
+          "material": {
+            "network": "solana-mainnet",
+            "assetId": "backpack-spcx",
+            "assetClass": "stock",
+            "symbol": "SPCX",
+            "name": "SpaceX",
+            "issuer": null,
+            "mint": "SPCXxcqXj6e5dJDVNovHN8744zkbhM2bYudU45BimGb",
+            "tokenProgram": "token-2022",
+            "decimals": 6,
+            "providerName": null,
+            "legalIssuerName": null
+          }
+        }
+      }
+    ],
+    "targets": []
+  },
+  "card": {
+    "contractVersion": "opendexter.portfolio-card.v3",
+    "snapshotId": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "sourceKind": "holdings",
+    "holdings": [
+      {
+        "assetId": "backpack-spcx",
+        "mint": "SPCXxcqXj6e5dJDVNovHN8744zkbhM2bYudU45BimGb",
+        "tokenAccount": "11111111111111111111111111111111",
+        "tokenProgram": "token-2022",
+        "assetClass": "stock",
+        "symbol": "SPCX",
+        "name": "SpaceX",
+        "amountRaw": "1000000",
+        "decimals": 6,
+        "displayAmount": "1",
+        "amountModel": "raw-decimals",
+        "displayMultiplier": null,
+        "accountState": "initialized",
+        "valueUsd": "100",
+        "priceUsd": "100",
+        "priceObservedAt": "2026-09-24T00:00:00.000Z",
+        "change24hPercent": null,
+        "priceSource": "jupiter-price-v3",
+        "priceBlockId": 1,
+        "metadataObservedAt": null,
+        "marketContext": null,
+        "registryIdentity": {
+          "source": "dexter-registry",
+          "providerName": null,
+          "legalIssuerName": null
+        },
+        "identity": {
+          "state": "recognized",
+          "source": "stock_registry",
+          "registryState": "approved",
+          "observedAt": "2026-09-24T00:00:00.000Z",
+          "material": {
+            "network": "solana-mainnet",
+            "assetId": "backpack-spcx",
+            "assetClass": "stock",
+            "symbol": "SPCX",
+            "name": "SpaceX",
+            "issuer": null,
+            "mint": "SPCXxcqXj6e5dJDVNovHN8744zkbhM2bYudU45BimGb",
+            "tokenProgram": "token-2022",
+            "decimals": 6,
+            "providerName": null,
+            "legalIssuerName": null
+          }
+        }
+      }
+    ],
+    "approvedActionTargets": []
+  }
+}

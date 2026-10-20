@@ -765,6 +765,7 @@ function holdingIdentityReason(identity: Extract<PortfolioHoldingIdentity, { sta
   const reasons: Record<typeof identity.reason, string> = {
     source_unavailable: 'The identity source is unavailable.', read_inconsistent: 'The identity records could not be read consistently.',
     token_identity_mismatch: 'The token does not match its identity record.', release_missing: 'The identity release is unavailable.',
+    metadata_missing: 'The stock name and symbol are unavailable.',
     lineage_invalid: 'The identity release history could not be verified.', conflicting_material: 'The identity records disagree.',
     registry_digest_mismatch: 'The registry identity could not be verified.',
   };
@@ -789,7 +790,7 @@ function SelectedHoldingDetail({ holding, read, onExpand }: {
       <h1 id="dxp-selected-title" tabIndex={-1}>{holding.name ?? holdingLabel(holding)}</h1>
       <div className="dxp-selected-detail-value">
         <SelectedMoney value={holding.valueUsd} />
-        <p>{holding.amountModel === 'unknown' ? 'Amount unavailable' : `${formatPortfolioQuantity(holding.displayAmount)}${holding.symbol ? ` ${holding.symbol}` : ''} held`}</p>
+        <p>{sentenceCase(holding.assetClass)}. {holding.amountModel === 'unknown' ? 'Amount unavailable' : `${formatPortfolioQuantity(holding.displayAmount)}${holding.symbol ? ` ${holding.symbol}` : ''} held`}</p>
         <SelectedChange value={holding.change24hPercent} />
       </div>
       <section className="dxp-selected-market" aria-label="Market data">
@@ -834,9 +835,9 @@ function SelectedHoldingDetail({ holding, read, onExpand }: {
             <Fact label="Asset identity">{holdingIdentityLabel(holding.identity)}</Fact>
             {holding.identity.state === 'unavailable' ? <Fact label="Identity availability">{holdingIdentityReason(holding.identity)}</Fact> : null}
             {holding.identity.state === 'recognized' ? <>
-              <Fact label="Identity source">{holding.identity.source === 'static_registry' ? 'Dexter asset definitions' : 'Released asset catalog'}</Fact>
+              <Fact label="Identity source">{holding.identity.source === 'static_registry' ? 'Dexter asset definitions' : 'Dexter stock registry'}</Fact>
               <Fact label="Registry status">{holding.identity.registryState === 'not_observed' ? 'Not observed' : sentenceCase(holding.identity.registryState)}</Fact>
-              {holding.identity.source === 'released_catalog' ? <Fact label="Identity observed at">{readDate(holding.identity.observedAt)}</Fact> : null}
+              {holding.identity.source !== 'static_registry' ? <Fact label="Identity observed at">{readDate(holding.identity.observedAt)}</Fact> : null}
             </> : null}
           </> : <Fact label="Asset review">{sentenceCase(holding.approvalStatus)}</Fact>}
           <Fact label="Amount display">{holding.amountModel === 'scaled-ui-amount' ? 'Scaled token amount' : holding.amountModel === 'raw-decimals' ? 'Token decimals' : 'Unavailable'}</Fact>
@@ -856,17 +857,6 @@ function SelectedHoldingDetail({ holding, read, onExpand }: {
           {registry ? <Fact label="Registry identity source">{'identity' in holding ? 'Dexter asset registry' : 'Dexter approved asset registry'}</Fact> : null}
           <Fact label="Portfolio observed at">{readDate(read.observedAt)}</Fact>
         </dl>
-        {'identity' in holding && holding.identity.state === 'recognized' ? (
-          <details className="dxp-selected-disclosure" onToggle={openDisclosure}>
-            <summary>Identity verification details</summary>
-            <dl className="dxp-selected-facts dxp-selected-facts--diagnostics">
-              <Fact label="Registry identity digest"><code>{holding.identity.material.registryIdentityDigest}</code></Fact>
-              {holding.identity.source === 'released_catalog' ? Object.entries(holding.identity.provenance).map(([key, value]) => (
-                <Fact key={key} label={sentenceCase(key.replace(/([A-Z])/g, ' $1'))}><code>{value}</code></Fact>
-              )) : null}
-            </dl>
-          </details>
-        ) : null}
       </details>
       {'identity' in holding ? <section className="dxp-selected-actions" aria-label="Trading availability">
         <h2>Trading availability</h2><p>Trading availability has not been checked. Explore assets to check available actions.</p>
@@ -1088,9 +1078,10 @@ function SelectedPortfolio({ model, condensed, maxHeight, isFullscreen, onExpand
           </section>
           {isHoldings ? (
             <ul className="dxp-selected-list">
-              {screen.collection.holdings.map(({ holding }) => {
+              {screen.collection.holdings.map(({ holding, rich }) => {
                 const row = <>
                   <span className="dxp-selected-identity"><strong>{holdingLabel(holding)}</strong>{holding.name && holding.name !== holding.symbol ? <span>{holding.name}</span> : null}
+                    {rich ? <span>{sentenceCase(rich.assetClass)}</span> : null}
                     {holding.identityStatus === 'retired' ? <span>Registry entry retired</span>
                       : holding.identityStatus === 'unreviewed' ? <span>Identity unreviewed</span>
                         : holding.identityStatus === 'unavailable' ? <span>Identity unavailable</span> : null}
