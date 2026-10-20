@@ -24,14 +24,22 @@ export interface PortfolioReleasedIdentityProvenanceV3 {
   issuerId: string; issuerDigest: string;
   onchainId: string; onchainDigest: string;
 }
+export interface HeldStockIdentityV3 extends Omit<PortfolioRegistryMaterialV3,
+  'namespace' | 'registryIdentityDigest' | 'assetClass' | 'providerName' | 'legalIssuerName'> {
+  assetClass: 'stock';
+  providerName: string | null;
+  legalIssuerName: string | null;
+}
 export type PortfolioHoldingIdentityV3 =
   | { state: 'native'; source: 'solana' }
   | { state: 'recognized'; source: 'static_registry'; registryState: 'not_observed'; material: PortfolioRegistryMaterialV3 }
   | { state: 'recognized'; source: 'released_catalog'; registryState: 'approved' | 'retired'; observedAt: string;
     material: PortfolioRegistryMaterialV3; provenance: PortfolioReleasedIdentityProvenanceV3 }
+  | { state: 'recognized'; source: 'stock_registry'; registryState: 'approved' | 'retired'; observedAt: string;
+    material: HeldStockIdentityV3 }
   | { state: 'unreviewed'; source: 'none' }
   | { state: 'unavailable'; source: 'none'; reason: 'source_unavailable' | 'read_inconsistent'
-    | 'token_identity_mismatch' | 'release_missing' | 'lineage_invalid' | 'conflicting_material' | 'registry_digest_mismatch' };
+    | 'token_identity_mismatch' | 'metadata_missing' | 'release_missing' | 'lineage_invalid' | 'conflicting_material' | 'registry_digest_mismatch' };
 export type PortfolioIdentityStatusV3 = 'native' | 'recognized' | 'retired' | 'unreviewed' | 'unavailable';
 export interface RichPortfolioHoldingV3 {
   assetId: string | null;
@@ -65,9 +73,10 @@ export interface CompactPortfolioHoldingV3 {
   amountModel: 'raw-decimals' | 'scaled-ui-amount' | 'unknown';
   valueUsd: string | null; change24hPercent: string | null; identityStatus: PortfolioIdentityStatusV3;
 }
-type Schema<T> = z.ZodType<T, z.ZodTypeDef, unknown>;
+type Schema<T> = z.ZodType<T>;
 export const portfolioRegistryMaterialV3Schema: Schema<PortfolioRegistryMaterialV3>;
 export const portfolioReleasedIdentityProvenanceV3Schema: Schema<PortfolioReleasedIdentityProvenanceV3>;
+export const heldStockIdentityV3Schema: Schema<HeldStockIdentityV3>;
 export const portfolioHoldingIdentityV3Schema: Schema<PortfolioHoldingIdentityV3>;
 export const portfolioIdentityStatusV3Schema: Schema<PortfolioIdentityStatusV3>;
 export const compactPortfolioHoldingV3Schema: Schema<CompactPortfolioHoldingV3>;

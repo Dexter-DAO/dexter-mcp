@@ -23,6 +23,42 @@ const digestMaterial = (material) => {
 };
 const rich = () => clone('identity_unavailable_priced_detail').card.holdings[0];
 const refused = (value) => assert.equal(schemas.response.safeParse(value).success, false);
+const stockRegistry = JSON.parse(readFileSync(new URL('./fixtures/portfolio-stock-registry-v3-api.json', import.meta.url)));
+
+test('both stock identity generations preserve holdings without any trading targets', () => {
+  for (const original of [clone('retired_priced_detail'), stockRegistry]) {
+    for (const registryState of ['approved', 'retired']) {
+      const wire = structuredClone(original);
+      for (const holding of [wire.portfolio.holdings[0], wire.card.holdings[0]]) holding.identity.registryState = registryState;
+      assert.deepEqual(schemas.response.parse(wire), wire);
+      assert.equal(wire.card.holdings[0].assetClass, 'stock');
+      assert.deepEqual(wire.card.approvedActionTargets, []);
+      assert.equal(wire.portfolio.source.tradingAvailability.state, 'not_evaluated');
+    }
+  }
+});
+
+test('stock registry identities validate token facts and labels without release material', () => {
+  for (const mutate of [
+    h => { h.identity.material.mint = '11111111111111111111111111111111'; },
+    h => { h.identity.material.tokenProgram = 'spl-token'; },
+    h => { h.identity.material.decimals = 9; },
+    h => { h.identity.material.assetClass = 'token'; },
+    h => { h.symbol = 'OTHER'; }, h => { h.name = 'Other stock'; },
+    h => { h.identity.material.network = 'solana-devnet'; },
+    h => { h.identity.observedAt = 'yesterday'; },
+    h => { delete h.identity.material.providerName; },
+    h => { h.identity.provenance = {}; },
+    h => { h.identity.material.registryIdentityDigest = '0'.repeat(64); },
+  ]) {
+    const holding = structuredClone(stockRegistry.card.holdings[0]);
+    mutate(holding);
+    assert.equal(schemas.holding.safeParse(holding).success, false);
+  }
+  const wire = clone('identity_unavailable_priced_detail');
+  for (const holding of [wire.portfolio.holdings[0], wire.card.holdings[0]]) holding.identity.reason = 'metadata_missing';
+  assert.deepEqual(schemas.response.parse(wire), wire);
+});
 
 test('the six API literal observations retain their frozen bytes', () => {
   assert.equal(hash(fixtureBytes), '88018dfabaabc9d14e52a0d1e04fe8d25dbfb2dc02a2a88a06fca66244d96438');

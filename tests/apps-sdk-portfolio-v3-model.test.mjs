@@ -9,6 +9,7 @@ import { selectedReadFixture, targetReadFixture } from './fixtures/portfolio-sel
 
 // Frozen, authored API wire literals; these do not describe a live account.
 const literal = JSON.parse(readFileSync(new URL('./fixtures/portfolio-selected-v3-api.json', import.meta.url), 'utf8'));
+literal.valid.stock_registry_detail = JSON.parse(readFileSync(new URL('./fixtures/portfolio-stock-registry-v3-api.json', import.meta.url), 'utf8'));
 const fixture = (name) => structuredClone(literal.valid[name]);
 const envelope = ({ portfolio, card }) => ({
   structuredContent: { portfolio_status: 'ready', mode: 'portfolio_ready', user_bound: true, portfolio },
@@ -20,6 +21,18 @@ const selected = (value) => {
   assert.equal(parsed.state, 'selected');
   return parsed;
 };
+
+test('stock labels and class survive both identities and absent trading targets', () => {
+  for (const name of ['retired_priced_detail', 'stock_registry_detail']) {
+    const wire = fixture(name);
+    const parsed = selected(wire);
+    assert.equal(parsed.read.richHoldings[0].assetClass, 'stock');
+    assert.equal(parsed.read.richHoldings[0].name, 'SpaceX');
+    assert.equal(parsed.read.richHoldings[0].symbol, 'SPCX');
+    assert.deepEqual(parsed.read.targets, []);
+    assert.equal(parsed.read.source.tradingAvailability.state, 'not_evaluated');
+  }
+});
 
 for (const name of Object.keys(literal.valid)) {
   test(`widget accepts exact v3 literal ${name} with its card`, () => {

@@ -1,6 +1,6 @@
 import { u as useToolOutput, a as useToolResponseMetadata, b as useAdaptiveTheme, d as useAdaptiveDisplayMode, f as useAdaptiveHostCapabilities, e as useAdaptiveHostContext, g as useAdaptiveRequestDisplayMode, i as useAdaptiveOpenExternal, r as reactExports, j as jsxRuntimeExports } from "./adapter--q2j4xTS.js";
 /* empty css             */
-import { s as selectGovernedWidgetResult, n as normalizeGovernedHistory, W as WidgetShell, G as GovernedActionDetail, a as WidgetError, b as WidgetEmpty } from "./GovernedActionView-RGwnD7jZ.js";
+import { s as selectGovernedWidgetResult, n as normalizeGovernedHistory, W as WidgetShell, G as GovernedActionDetail, a as WidgetError, b as WidgetEmpty } from "./GovernedActionView-D1qWHw3j.js";
 import { c as clientExports } from "./client-DNLwMlQg.js";
 import { u as useIntrinsicHeight } from "./useIntrinsicHeight-Dv3mveW-.js";
 import "./use-openai-global-BVDorJ16.js";

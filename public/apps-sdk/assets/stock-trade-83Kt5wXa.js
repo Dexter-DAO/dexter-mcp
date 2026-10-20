@@ -1,6 +1,6 @@
 import { j as jsxRuntimeExports } from "./adapter--q2j4xTS.js";
 /* empty css             */
-import { c as GovernedActionView } from "./GovernedActionView-RGwnD7jZ.js";
+import { c as GovernedActionView } from "./GovernedActionView-D1qWHw3j.js";
 import { c as clientExports } from "./client-DNLwMlQg.js";
 const root = document.getElementById("governed-action-root") ?? document.getElementById("stock-trade-root");
 if (root) {
