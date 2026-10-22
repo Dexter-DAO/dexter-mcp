@@ -926,3 +926,24 @@ describe('Actor conversation continuation', () => {
     expect(data.categories.every((value) => value.length === 80)).toBe(true);
   });
 });
+
+
+it('request-details labels retain unavailable discovery rows without a check follow-up', () => {
+  for (const label of ['Unavailable', 'Request details unavailable'] as const) {
+    const payload = overviewPayload();
+    const row = payload.providers[0].capabilityGroups[0].resources[0];
+    row.requestInput = null;
+    row.action = { kind: 'endpoint_unavailable', label, state: 'unavailable',
+      reason: 'input_contract_unavailable', resourceId: row.resourceId, resourceUrl: row.resourceUrl };
+    expect(isIndexterDiscoveryPayload(payload)).toBe(true);
+    expect(buildResourceCheckFollowUp(payload.providers[0], row)).toBeNull();
+    if (label === 'Request details unavailable') {
+      for (const reason of ['safety_unavailable', 'execution_unavailable'] as const) {
+        const invalid = structuredClone(payload);
+        const action = invalid.providers[0].capabilityGroups[0].resources[0].action;
+        if (action.kind === 'endpoint_unavailable') action.reason = reason;
+        expect(isIndexterDiscoveryPayload(invalid)).toBe(false);
+      }
+    }
+  }
+});
