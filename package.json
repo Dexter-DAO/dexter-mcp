@@ -43,7 +43,7 @@
   },
   "dependencies": {
     "@dexterai/mcp-instructions": "2.4.2-rc.1",
-    "@dexterai/vault": "0.43.4",
+    "@dexterai/vault": "0.43.9",
     "@dexterai/x402": "6.0.3",
     "@dexterai/x402-core": "1.5.2",
     "@dexterai/x402-mcp-tools": "0.9.2",
@@ -77,5 +77,8 @@
     "@vitejs/plugin-react": "^5.1.0",
     "typescript": "^5.9.3",
     "vite": "^7.1.12"
+  },
+  "overrides": {
+    "@dexterai/vault": "$@dexterai/vault"
   }
 }
