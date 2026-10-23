@@ -366,7 +366,7 @@ test('hosted source declares one exact internal dependency train', async () => {
       '@dexterai/x402-core@1.5.2',
       '@dexterai/mcp-instructions@2.4.2-rc.1',
       '@dexterai/x402-mcp-tools@0.9.2',
-      '@dexterai/vault@0.43.4',
+      '@dexterai/vault@0.43.9',
     ],
   );
   assert.deepEqual(
@@ -427,29 +427,29 @@ test('hosted source declares one exact internal dependency train', async () => {
   }
   assert.deepEqual(manifest.repositories['vault-sdk'], {
     remote: 'https://github.com/Dexter-DAO/dexter-vault-sdk.git',
-    provenanceCommit: '169f034670a48e2fc9fe99feb75fb29820d775cc',
+    provenanceCommit: '119b349440c605becbaeb3a75ea8769f8213d2ec',
   });
   assert.deepEqual(
     manifest.sourcePackages.find(({ name }) => name === '@dexterai/vault'),
     {
       name: '@dexterai/vault',
-      version: '0.43.4',
-      rootSpecifier: '0.43.4',
+      version: '0.43.9',
+      rootSpecifier: '0.43.9',
       source: 'vault-sdk',
       path: '.',
       entrypoint: 'dist/index.js',
-      treeHash: 'c46036ff432eac4bd4880d4e415eb1546c7126b0',
+      treeHash: '64fd905eda47d98895a2e9163fcb0c2c91496e93',
       packedArtifact: {
         buildScript: 'build',
         packLifecycleScripts: {
           prepack: 'npm run build && npm run typecheck',
         },
-        integrity: 'sha512-71pTR1dbinhJ83+M+VlDCg7ie8CVJddfl9Xnv+zBXLArH8DnCswsNHwNOpfgjqZuW8Pi1v5yFKC2Rvj4QF/qCQ==',
-        shasum: '6e7c41e1e936ac431ddb1e287b2a85b12a6cf1cf',
-        size: 662755,
-        unpackedSize: 3307479,
-        entryCount: 93,
-        tgzSha256: 'e7aa72743579d78fcce2d113c7fd04a45aa7f65edfd2e7e900fa88685461cac2',
+        integrity: 'sha512-QDy1OsOYspT8MiBYslyfAJiaa/vBDEQ68BfvvYbwQWh6hUdW1aiKSVuyqFrSGE/B/iBg8dF33Z9Nk+nFvEKpOw==',
+        shasum: 'def712656121bd337dac2d8e87cad1e3b7c93184',
+        size: 831532,
+        unpackedSize: 4135762,
+        entryCount: 104,
+        tgzSha256: 'f03365b5b03131085d87f2a018f81d4e5a2aa9f739544c97f1f83d016273688f',
       },
       install: { source: 'registry', release: 'registry' },
     },
