@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { CanonicalWalletPayload } from '../x402/walletPayload';
+import { walletCashUsdFromAtomic } from '../x402/walletPayload';
 import { Lockup } from './Lockup';
 import { SpendHeadline } from './SpendHeadline';
 import { CompositionBar } from './CompositionBar';
@@ -7,11 +8,12 @@ import { DepositSheet } from './DepositSheet';
 import { ActivitySheet } from './ActivitySheet';
 import { CreditSheet } from './CreditSheet';
 import { AssetsSheet } from './AssetsSheet';
-import { relativeTime } from './format';
+import { fmtExactUsd, relativeTime } from './format';
 import { activityCashDirection, activitySubtitle, activityTitle, formatActivityAmount, formatActivityValue, normalizeActivityPage } from './activityModel';
 import { ActivityIcon, AssetsIcon, Chevron, CreditMark, DepositIcon, WorldMark } from './icons';
 // Widget-frame-only refresh rail (auth = _meta.dexterWalletToken).
 const WALLET_RAIL = 'https://open.dexter.cash/widget/wallet';
+const SOLANA_REFRESH_MAX_ATOMIC = 18_446_744_073_709_551_615n;
 // Poll cadence + cap: enough to catch a deposit landing while the user
 // watches, bounded so an abandoned tab never polls forever.
 const REFRESH_EVERY_MS = 10_000;
@@ -55,7 +57,8 @@ export function WalletHome({
   // that requested it. Hosts can reuse this React tree for later tool calls.
   const [liveCash, setLiveCash] = useState<{
     refreshKey: string;
-    usd: number;
+    usd: number | null;
+    unavailable: boolean;
   } | null>(null);
   const startedAt = useRef<number>(Date.now());
   const desiredDisplayMode = useRef<'inline' | 'fullscreen'>(
@@ -79,15 +82,17 @@ export function WalletHome({
   const refreshKey = walletToken
     ? JSON.stringify([walletToken, address, payloadCash])
     : null;
-  const own = refreshKey && liveCash?.refreshKey === refreshKey
-    ? liveCash.usd
-    : payloadCash;
+  const cashRead = refreshKey && liveCash?.refreshKey === refreshKey ? liveCash : null;
+  const own = cashRead ? cashRead.unavailable ? null : cashRead.usd : payloadCash;
+  const lastReportedCash = cashRead?.unavailable ? cashRead.usd : null;
   const credit = money ? money.creditAvailableUsd : 0;
   const atWork = money ? money.atWorkUsd : 0;
   // Account capacity = cash + reported open credit. The server still decides
   // exact-intent credit eligibility for each endpoint.
   const payloadCapacity = money ? money.accountCapacityUsd : payload.balances.usdc;
-  const accountCapacity = payloadCapacity + (own - payloadCash);
+  const accountCapacity = own === null ? null
+    : payloadCapacity !== null && payloadCash !== null ? payloadCapacity + (own - payloadCash)
+      : own + credit;
   const capacityLabel = credit > 0 ? 'Cash + reported credit' : 'Available cash';
   const activity = payload.activityPage?.items ?? [];
   const latest = activity[0];
@@ -157,6 +162,11 @@ export function WalletHome({
     setLiveCash(null);
     if (!walletToken) return;
     let stopped = false;
+    const unavailable = () => {
+      if (stopped || !refreshKey) return;
+      setLiveCash((previous) => ({ refreshKey,
+        usd: previous?.refreshKey === refreshKey ? previous.usd : payloadCash, unavailable: true }));
+    };
     const tick = async () => {
       if (stopped || document.visibilityState !== 'visible') return;
       if (Date.now() - startedAt.current > REFRESH_MAX_MS) return;
@@ -167,13 +177,11 @@ export function WalletHome({
           body: JSON.stringify({ token: walletToken }),
         });
         const body = await res.json();
-        if (!stopped && res.ok && body?.ok && typeof body.usdcAtomic === 'string') {
-          const usd = Number(body.usdcAtomic) / 1e6;
-          if (Number.isFinite(usd) && refreshKey) {
-            setLiveCash({ refreshKey, usd });
-          }
-        }
-      } catch { /* A transient failure is retried on the next tick. */ }
+        const usd = res.ok && body?.ok === true
+          ? walletCashUsdFromAtomic(body.usdcAtomic, SOLANA_REFRESH_MAX_ATOMIC) : null;
+        if (!stopped && usd !== null && refreshKey) setLiveCash({ refreshKey, usd, unavailable: false });
+        else unavailable();
+      } catch { unavailable(); }
     };
     void tick();
     const id = setInterval(tick, REFRESH_EVERY_MS);
@@ -267,15 +275,33 @@ export function WalletHome({
         </span>
       </div>
 
-      <SpendHeadline value={accountCapacity} label={capacityLabel} />
-      <CompositionBar
-        own={own}
-        credit={credit}
-        atWork={atWork}
-        earnPct={money?.earnRatePct ?? null}
-        onOpen={money?.hasCreditLine ? () => { void openSheet('credit', 'composition'); } : undefined}
-        triggerRef={(element) => { homeControls.current.composition = element; }}
-      />
+      {accountCapacity === null || own === null ? (
+        <>
+          <div className="dxw-hero" role="status">
+            <h1 className="dxw-spend-label">Cash balance</h1>
+            <p>Balance unavailable</p>
+            {lastReportedCash !== null ? <p>Last reported cash: {fmtExactUsd(lastReportedCash)}</p> : null}
+          </div>
+          {credit > 0 || atWork > 0 ? (
+            <div className="dxw-legend">
+              {credit > 0 ? <div className="dxw-row">Reported credit <span className="dxw-amt">{fmtExactUsd(credit)}</span></div> : null}
+              {atWork > 0 ? <div className="dxw-row">At work <span className="dxw-amt">{fmtExactUsd(atWork)}</span></div> : null}
+            </div>
+          ) : null}
+        </>
+      ) : (
+        <>
+          <SpendHeadline value={accountCapacity} label={capacityLabel} />
+          <CompositionBar
+            own={own}
+            credit={credit}
+            atWork={atWork}
+            earnPct={money?.earnRatePct ?? null}
+            onOpen={money?.hasCreditLine ? () => { void openSheet('credit', 'composition'); } : undefined}
+            triggerRef={(element) => { homeControls.current.composition = element; }}
+          />
+        </>
+      )}
       <div className="dxw-actions">
         <button
           className="dxw-action"
