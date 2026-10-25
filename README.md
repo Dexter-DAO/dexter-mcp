@@ -323,19 +323,20 @@ shows selected details from widget metadata. Historical v1 results, including
 `approvedActionTargets`, remain supported. See
 [portfolio read contract](docs/contracts/PORTFOLIO-SELECTED-READ-V2.md).
 
-**How the npm package differs.** `@dexterai/opendexter` is an independently
-versioned local stdio package for Codex, Claude Code, and other agents. It uses
-a user-controlled local signer instead of the hosted connector's OAuth and
-session binding. This hosted source contract does not assert that a published
-npm version has adopted the hosted tool boundary. Its package,
-install guidance, and seller-side `opendexter audition <url>` command live in
-[Dexter-DAO/opendexter-ide](https://github.com/Dexter-DAO/opendexter-ide).
+**How the npm package connects.** `@dexterai/opendexter` is independently
+versioned. Published version `1.25.2` runs a local stdio proxy for Codex,
+Claude Code, and other clients, forwarding account-bound tools to the hosted
+OpenDexter runtime with an OAuth bearer obtained through `opendexter connect`.
+Payments use the connected Dexter Wallet's server-verified grant. Connecting
+the CLI alone does not establish spending authority. Package installation,
+connection guidance, and the seller-side `opendexter audition <url>` command
+live in [Dexter-DAO/opendexter-ide](https://github.com/Dexter-DAO/opendexter-ide).
 
 | | OpenDexter MCP | `@dexterai/opendexter` |
 |---|---|---|
-| Transport | Hosted HTTP MCP | Local stdio MCP |
-| Authorization | OAuth required before discovery and use | Local process and signer |
-| Wallet identity | Durable passkey wallet bound to the authenticated MCP session | User-controlled local signer |
+| Transport | Hosted HTTP MCP | Local stdio proxy to hosted HTTP MCP |
+| Authorization | OAuth required before discovery and use | OAuth bearer for account-bound tools; hosted grant for payments |
+| Wallet identity | Durable passkey wallet bound to the authenticated MCP session | Connected Dexter Wallet bound to the authenticated session |
 | Executable roster | Sixteen tools on one authorized connection | Independently versioned; verify the installed package |
 | Seller onboarding | Not exposed as a hosted tool | `opendexter audition <url>` |
 | Best for | ChatGPT, Claude, hosted agents | Codex, Claude Code, CLI agents |
