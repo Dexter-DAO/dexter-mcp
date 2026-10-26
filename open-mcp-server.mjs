@@ -1,6 +1,7 @@
 import { urlString } from './lib/zod-contract-primitives.mjs';
 // Sentry instrumentation (must be before all other imports)
 import './instrument.open-mcp.mjs';
+import { TAB_CONSENT_INPUT, createTabConsentHandler } from './lib/open-tab-consent.mjs';
 import { GOVERNED_TRADE_TOOL_NAME, GOVERNED_TRADE_INPUT_SCHEMA } from './lib/governed-trade-contract.mjs';
 import { ASSET_SEARCH_TOOL, ASSET_SEARCH_INPUT_SCHEMA } from './lib/asset-search-contract.mjs';
 import { assetSearchTool } from './lib/asset-search-client.mjs';
@@ -2639,6 +2640,10 @@ export function createOpenMcpServer({
       };
     }
   });
+
+  registerOpenTool(server, 'x402_prepare_tab', {
+    inputSchema: TAB_CONSENT_INPUT,
+  }, createTabConsentHandler({ resolveSession: resolveIntentSession }));
 
   registerOpenTool(server, 'x402_mcp_tools', {
     title: 'MCP Tool Discovery',

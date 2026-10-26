@@ -144,11 +144,24 @@ const API_GOVERNED_CONTRACT_PATHS = Object.freeze([
   'src/routes/governedOwnerSendExecution.ts',
   'src/routes/x402PayAnon.ts',
   'src/routes/x402IntentServiceAuth.ts',
+  'src/routes/x402Push.ts',
+  'src/routes/mandatesPublic.ts',
+  'src/passport',
+  'src/ownerActions/passkey.ts',
+  'packages/identity-proof',
+  'prisma/schema.prisma',
+  'prisma/migrations/20261026202500_bind_one_action_native_tab_sessions/migration.sql',
   'src/services/x402/nativeMcpTarget.ts',
   'src/services/x402/nativeMcpTransport.ts',
   'src/services/x402/swigExactPayment.ts',
   'src/services/x402/opaquePurchaseCheckPersistence.ts',
   'src/services/x402/opaquePurchaseCoordinator.ts',
+  'src/services/x402/opaqueNativeTabAdapter.ts',
+  'src/services/x402/opaqueNativeTabConsentPreparation.ts',
+  'src/services/x402/nativeTabHostedTerms.ts',
+  'src/services/x402/gatewayOwnerApprovalPersistence.ts',
+  'src/services/x402/gatewayX402AgentCapacity.ts',
+  'src/services/nativeTabSettlementProof.ts',
   'src/services/x402/nativeExactCoordinator.ts',
   'src/services/x402/nativeExactFacilitator.ts',
   'src/services/x402/nativeExactLifecycle.ts',
@@ -156,6 +169,14 @@ const API_GOVERNED_CONTRACT_PATHS = Object.freeze([
   'src/services/x402/nativeExactWire.ts',
   'src/services/purchasingGateway/adapters.ts',
   'src/services/purchasingGateway/defaultNativeExactGateway.ts',
+  'src/services/purchasingGateway/defaultNativeTabGateway.ts',
+  'src/services/purchasingGateway/opaqueNativeTabGateway.ts',
+  'src/services/purchasingGateway/hostedNativeTab.ts',
+  'src/services/purchasingGateway/nativeTab.ts',
+  'src/services/purchasingGateway/nativeTabConsentPreparation.ts',
+  'src/services/purchasingGateway/nativeTabFeeTerms.ts',
+  'src/services/purchasingGateway/gatewayX402ExactAuthority.ts',
+  'src/services/purchasingGateway/canonical.ts',
   'src/services/purchasingGateway/domain.ts',
   'src/services/purchasingGateway/gatewayCreditFacilitatorCosign.ts',
   'src/services/purchasingGateway/identity.ts',
@@ -197,9 +218,11 @@ const EXPECTED_SOURCE_CONTRACTS = Object.freeze({
   // and returns them unchanged through Check replay and Status.
   // The reviewed session repair proves finalized contacted renewals and
   // reconciles their saved attempts independently of new-renewal eligibility.
+  // The reviewed connected-agent Tab case adds non-spending preparation,
+  // immutable intent/fee bounds, and owner-approved case evidence.
   // Later releases must preserve these API_GOVERNED_CONTRACT_PATHS bytes.
-  integratedGovernedCommit: '4f3ffd67ea9366d23e13a1857781a5ca988faa36',
-  integratedGovernedTree: 'f23cbf41e0970d175b0aa6e47ab7a5f2cf1c159b',
+  integratedGovernedCommit: '7053b84e208bc2fe13999b7557a6192656bca818',
+  integratedGovernedTree: 'fed4b51a8c9df50762e58da3a7a82dc06beb9383',
   apiFixtureSha256:
     'ad06690a3914e0ef0f359c4164eb62f78ca54abe6697a52672d739df63c2c352',
   apiCanonicalBodyDigest:

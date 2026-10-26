@@ -31,6 +31,7 @@ import {
 } from '../lib/session-portfolio.mjs';
 
 const EXPECTED_TOOLS = [
+  'x402_prepare_tab',
   'dexter_trade',
   'dexter_find_assets',
   'indexter_discover',
@@ -89,6 +90,7 @@ test('contract is exactly the canonical hosted roster', () => {
     assert.equal(
       outputUnknownKeys(toolContract.outputSchema),
       [
+        'x402_prepare_tab',
         'indexter_discover',
         'indexter_search',
         'x402_mcp_tools',
@@ -1283,6 +1285,7 @@ test('real SDK tools/list exposes executable schemas, OAuth, annotations, and me
     for (const outputBranch of outputBranches) assert.equal(
       outputBranch.additionalProperties,
       [
+        'x402_prepare_tab',
         'indexter_discover',
         'indexter_search',
         'x402_mcp_tools',
