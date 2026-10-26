@@ -284,7 +284,8 @@ test('text-only purchase recovery preserves the same handle and never presents p
     payment: { ...saved.storedPayment, state: 'pending', confirmed: false, commitment: null } });
   const result = await registered('x402_fetch', envelope(pending));
   assert.match(result.content[0].text, /Payment, state: pending/);
-  assert.match(result.content[0].text, /0.01 USDC; requested payment/);
+  assert.match(result.content[0].text, /Requested amount: 0.01 USDC/);
+  assert.doesNotMatch(result.content[0].text, /Paid:|Charge:/);
   assert.match(result.content[0].text, /x402_status/);
   assert.ok(result.content[0].text.includes(saved.savedResponse.intentId));
   assert.ok(result.content[0].text.includes('dexter-native-customer-20260917d'));
