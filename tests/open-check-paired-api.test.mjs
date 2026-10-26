@@ -83,9 +83,13 @@ test('registered MCP tools retain actual API and PostgreSQL refusal outcomes acr
   };
   let authority = { status: 'unavailable', reason: 'swig_role_rpc_context_unavailable', retryable: true };
   let authorityReads = 0;
+  let quoteAuthorityReads = 0;
   let sellerMode = 'free';
   let sellerCalls = 0;
   const blockedAdapter = new Proxy({}, { get: (_target, name) => () => deny(`economic adapter ${String(name)}`) });
+  const unsupportedLocalOption = new Proxy(blockedAdapter, { get: (target, name) => name === 'inspect'
+    ? async () => { throw new Error('No matching cash or credit option in the local quote fixture'); }
+    : target[name] });
   const coordinator = createOpaquePurchaseRouteCoordinator({
     db, checkStore: createOpaquePurchaseCheckStore(db),
     controls: () => ({ routesEnabled: true, acceptNewPurchases: true,
@@ -97,14 +101,23 @@ test('registered MCP tools retain actual API and PostgreSQL refusal outcomes acr
       assert.equal(new URL(url).hostname, 'paired-seller.invalid');
       sellerCalls++;
       if (sellerMode === 'lost') throw new Error('Injected lost local seller reply');
+      if (sellerMode === 'paid') {
+        const terms = { x402Version: 2, resource: { url, description: 'Local paid weather quote', mimeType: 'application/json' },
+          accepts: [{ scheme: 'exact', network: 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp',
+            asset: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', amount: '2000',
+            payTo: 'GmaDrppjnZBxjBVgxiZJWFY7tXJVHTYUBVoBtmofpNNw', maxTimeoutSeconds: 60,
+            extra: { feePayer: 'D6Zht1111111111111111111111111111111111' } }] };
+        return new Response(null, { status: 402,
+          headers: { 'payment-required': Buffer.from(JSON.stringify(terms)).toString('base64') } });
+      }
       return new Response(JSON.stringify({ forecast: 'Local fixture: clear skies' }), {
         status: 200, headers: { 'content-type': 'application/json' },
       });
     },
     deliveryStore: blockedAdapter, directExact: blockedAdapter, nativeTab: blockedAdapter,
-    gatewayCash: blockedAdapter, gatewayCredit: blockedAdapter,
+    gatewayCash: unsupportedLocalOption, gatewayCredit: unsupportedLocalOption,
     readOwnedCashAvailableAtomic: async () => deny('cash or RPC read'),
-    resolveAuthorityEpoch: async () => deny('authority epoch or RPC read'),
+    resolveAuthorityEpoch: async () => { quoteAuthorityReads++; return { authorityEpochDigest: digest }; },
     registerOwnerApprovalRequest: async () => deny('owner approval write'),
   });
   const checks = new Map();
@@ -131,11 +144,25 @@ test('registered MCP tools retain actual API and PostgreSQL refusal outcomes acr
     return Response.json(result.body, { status: result.status });
   };
   server = createOpenMcpServer({ includeResources: false });
+  const textObservations = [];
   const invoke = async (tool, args) => {
     const envelope = await server._registeredTools[tool].handler(args, { sessionId });
     const parsed = OPEN_TOOL_CONTRACTS[tool].outputSchema.safeParse(envelope.structuredContent);
     assert.equal(parsed.success, true, JSON.stringify(parsed.error?.issues));
-    return envelope.structuredContent;
+    const result = envelope.structuredContent;
+    const text = envelope.content.filter(block => block.type === 'text').map(block => block.text).join('\n');
+    assert.doesNotMatch(text, /^\s*[\[{]/, 'Registered tool text must be readable without parsing JSON');
+    assert.ok(text.includes(result.checkRequestId), 'Text must preserve the saved check handle');
+    if (result.message) assert.ok(text.includes(result.message), 'Text must preserve the current explanation');
+    const guidance = result.executionGuidance;
+    if (guidance?.nextAction) {
+      assert.ok(text.includes(`execution guidance, next action: ${guidance.nextAction}`));
+      assert.ok(text.includes(guidance.message));
+      assert.doesNotMatch(text, /Read x402_status with the same saved handle before attempting another purchase/);
+      if (guidance.nextAction === 'stop') assert.doesNotMatch(text, /execution guidance, tool:|recovery, tool:|Read x402_status/);
+    }
+    textObservations.push({ tool, checkRequestId: result.checkRequestId, text });
+    return result;
   };
   const observations = [];
   for (const tool of ['x402_check', 'x402_access']) {
@@ -170,12 +197,48 @@ test('registered MCP tools retain actual API and PostgreSQL refusal outcomes acr
       freshResult: fresh.data, savedDispatchStartedAt: row.dispatch_started_at,
       initialRefusal: failed, recoveredRefusal: recovered, freshCheck: fresh });
   }
+  authority = { status: 'unavailable', reason: 'swig_role_rpc_context_unavailable', retryable: true };
+  sellerMode = 'paid';
+  const paidUrl = 'https://paired-seller.invalid/paid-weather';
+  const paidOutage = await invoke('x402_check', { url: paidUrl });
+  assert.equal(paidOutage.executionGuidance.nextAction, 'new_check');
+  const sellerCallsBeforePaidRecovery = sellerCalls;
+  authority = { status: 'active' };
+  const paidQuote = await invoke(paidOutage.executionGuidance.tool, { url: paidUrl });
+  const paidFailure = paidQuote.ok === true ? null : (await query(
+    'SELECT state, last_error FROM public.gateway_purchase_check_claims WHERE request_id = $1',
+    paidQuote.checkRequestId,
+  ))[0];
+  assert.equal(paidQuote.ok, true, JSON.stringify({ paidQuote, paidFailure }));
+  assert.equal(paidQuote.requiresPayment, true);
+  assert.equal(paidQuote.executionGuidance.supportedPath, 'fetch_by_intent');
+  assert.equal(paidQuote.executionGuidance.intentRequired, true);
+  assert.equal(paidQuote.executionGuidance.requiredCeilingField, 'maxAmountAtomic');
+  assert.deepEqual(paidQuote.executionGuidance.fetchArguments, ['intentId', 'maxAmountAtomic']);
+  assert.equal(paidQuote.paymentOptions[0].amountAtomic, '2000');
+  assert.equal(paidQuote.paymentOptions[0].priceFormatted, '0.002 USDC');
+  const purchaseTool = server._registeredTools.x402_fetch;
+  assert.equal(purchaseTool.inputSchema.safeParse({ intentId: paidQuote.intentId }).success, false);
+  assert.equal(purchaseTool.inputSchema.safeParse({ intentId: paidQuote.intentId, maxAmountAtomic: '2000' }).success, true);
+  assert.match(purchaseTool.description, /current task and active permission cover its cost and consequence/);
+  assert.equal(sellerCalls, sellerCallsBeforePaidRecovery + 1);
+  const paidRow = (await query('SELECT state, gateway_intent_id, approved_ceiling_atomic FROM public.gateway_purchase_checks WHERE id = $1', paidQuote.intentId))[0];
+  assert.equal(paidRow.state, 'checked');
+  assert.equal(paidRow.gateway_intent_id, null);
+  assert.equal(paidRow.approved_ceiling_atomic, null);
+  const paidQuoteStatus = await invoke('x402_status', { checkRequestId: paidQuote.checkRequestId });
+  assert.equal(paidQuoteStatus.intentId, paidQuote.intentId);
+  assert.deepEqual(paidQuoteStatus.paymentOptions, paidQuote.paymentOptions);
+  assert.equal(paidQuoteStatus.executionGuidance.requiredCeilingField, 'maxAmountAtomic');
+  assert.equal(sellerCalls, sellerCallsBeforePaidRecovery + 1);
   authority = { status: 'unavailable', reason: 'agent_session_role_snapshot_evidence_mismatch', retryable: false };
   const denied = await invoke('x402_check', { url: 'https://paired-seller.invalid/denied' });
   assert.equal(denied.retryable, false);
+  assert.equal(denied.replacementAllowed, false);
   assert.equal(denied.executionGuidance.reprobeAllowed, false);
   assert.equal(denied.executionGuidance.supportedPath, 'local_authority_unavailable');
   assert.doesNotMatch(denied.message, /blockchain data/);
+  assert.match(denied.executionGuidance.message, /review by Dexter support/);
   const deniedStatus = await invoke('x402_status', { checkRequestId: denied.checkRequestId });
   assert.equal(deniedStatus.retryable, false);
   assert.equal(Object.hasOwn(deniedStatus, 'recovery'), false);
@@ -200,5 +263,8 @@ test('registered MCP tools retain actual API and PostgreSQL refusal outcomes acr
   t.diagnostic(JSON.stringify({ observations, permanentDenial: deniedStatus.executionGuidance,
     uncertain: uncertainStatus.executionGuidance, missing: missing.executionGuidance,
     fullResults: { permanentDenial: deniedStatus, uncertain: uncertainStatus, missing },
-    authorityReads, localSellerCalls: sellerCalls, statusReads, forbiddenCalls: forbidden.length }));
+    paidAfterRecovery: { outage: paidOutage, quote: paidQuote, status: paidQuoteStatus, persistedState: paidRow,
+      purchaseToolDescription: purchaseTool.description, purchaseAttempted: false },
+    textObservations,
+    authorityReads, quoteAuthorityReads, localSellerCalls: sellerCalls, statusReads, forbiddenCalls: forbidden.length }));
 });

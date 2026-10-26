@@ -37,7 +37,7 @@ test('a retryable error alone never permits a new provider request', () => {
     { providerDispatched: true },
     { paymentDispatched: undefined },
     { paymentDispatched: true },
-    { replacementAllowed: false },
+    { replacementAllowed: undefined },
     { status: 'check_unknown' },
     { status: 'check_ambiguous' },
     { error: 'purchase_check_outcome_unknown' },
@@ -74,14 +74,19 @@ test('a retryable error alone never permits a new provider request', () => {
   assert.equal(Object.hasOwn(contradictoryPending, 'recovery'), false);
 });
 
-test('a saved grant refusal remains distinct from a blockchain service failure', () => {
+test('a saved permanent authority refusal remains distinct from a blockchain service failure', () => {
   const result = buildHostedCheckStatusModelResult({ checkRequestId: 'grant-refusal',
     checkResult: { ...upstreamRefusal, checkRequestId: 'grant-refusal',
-      error: 'agent_role_evidence_inconsistent', reason: 'agent_session_role_snapshot_evidence_mismatch', retryable: false },
+      error: 'agent_role_evidence_inconsistent', reason: 'agent_session_role_snapshot_evidence_mismatch', retryable: false, replacementAllowed: false },
   });
   assert.equal(result.executionGuidance.supportedPath, 'local_authority_unavailable');
   assert.equal(result.retryable, false);
-  assert.equal(result.replacementAllowed, true);
+  assert.equal(result.replacementAllowed, false);
+  assert.equal(result.providerDispatched, false);
+  assert.equal(result.paymentDispatched, false);
+  assert.match(result.message, /No payment was made/);
+  assert.match(result.executionGuidance.message, /review by Dexter support/);
+  assert.doesNotMatch(result.executionGuidance.message, /reconnect|replace|passkey/i);
   assert.equal(result.executionGuidance.reprobeAllowed, false);
   assert.doesNotMatch(result.message, /blockchain|data service/);
   assert.equal(Object.hasOwn(result, 'recovery'), false);
@@ -91,6 +96,7 @@ test('a saved grant refusal remains distinct from a blockchain service failure',
   });
   assert.equal(contradictory.executionGuidance.reprobeAllowed, false);
   assert.equal(contradictory.retryable, false);
+  assert.equal(contradictory.replacementAllowed, false);
   assert.match(contradictory.message, /approved spending grant/);
   const nonretryableService = buildHostedCheckStatusModelResult({ checkRequestId: 'service-refusal',
     checkResult: { ...upstreamRefusal, checkRequestId: 'service-refusal', retryable: false },
@@ -98,6 +104,14 @@ test('a saved grant refusal remains distinct from a blockchain service failure',
   assert.equal(nonretryableService.executionGuidance.nextAction, 'stop');
   assert.match(nonretryableService.executionGuidance.message, /blockchain data service/);
   assert.doesNotMatch(nonretryableService.executionGuidance.message, /authorization/);
+  assert.equal(nonretryableService.replacementAllowed, false);
+  const stopped = buildHostedCheckStatusModelResult({ checkRequestId: 'service-refusal',
+    checkResult: { ...upstreamRefusal, checkRequestId: 'service-refusal', replacementAllowed: false },
+  });
+  assert.equal(stopped.providerDispatched, false);
+  assert.equal(stopped.paymentDispatched, false);
+  assert.equal(stopped.retryable, false);
+  assert.equal(stopped.executionGuidance.nextAction, 'stop');
 });
 
 test('customer Check and Access refusals can be recovered by Status without another provider request', async (t) => {
