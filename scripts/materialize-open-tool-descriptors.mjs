@@ -197,9 +197,11 @@ const EXPECTED_SOURCE_CONTRACTS = Object.freeze({
   // and returns them unchanged through Check replay and Status.
   // The reviewed session repair proves finalized contacted renewals and
   // reconciles their saved attempts independently of new-renewal eligibility.
+  // The reviewed quote repair preserves query scope and finite protocol JSON,
+  // and saves terminal payment-resource failures with truthful dispatch evidence.
   // Later releases must preserve these API_GOVERNED_CONTRACT_PATHS bytes.
-  integratedGovernedCommit: '4f3ffd67ea9366d23e13a1857781a5ca988faa36',
-  integratedGovernedTree: 'f23cbf41e0970d175b0aa6e47ab7a5f2cf1c159b',
+  integratedGovernedCommit: '719d5f524a5c11ac5ebfa7416d1c8dd7c8232fb0',
+  integratedGovernedTree: '875f6b23a7f5f588e4cd5148a29d934da2bcc62e',
   apiFixtureSha256:
     'ad06690a3914e0ef0f359c4164eb62f78ca54abe6697a52672d739df63c2c352',
   apiCanonicalBodyDigest:
