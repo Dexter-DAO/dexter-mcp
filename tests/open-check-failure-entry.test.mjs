@@ -16,6 +16,160 @@ const refusal = {
   httpStatus: 503,
 };
 
+const upstreamRefusal = {
+  ok: false,
+  status: 'check_refused',
+  error: 'purchase_service_unavailable',
+  reason: 'blockchain_data_unavailable',
+  providerDispatched: false,
+  paymentDispatched: false,
+  replacementAllowed: true,
+  retryable: true,
+  httpStatus: 503,
+};
+
+test('a retryable error alone never permits a new provider request', () => {
+  const checkRequestId = 'saved-refusal';
+  for (const mutation of [
+    { checkRequestId: undefined },
+    { checkRequestId: 'other-check' },
+    { providerDispatched: undefined },
+    { providerDispatched: true },
+    { paymentDispatched: undefined },
+    { paymentDispatched: true },
+    { replacementAllowed: false },
+    { status: 'check_unknown' },
+    { status: 'check_ambiguous' },
+    { error: 'purchase_check_outcome_unknown' },
+    { error: 'purchase_check_ambiguous' },
+    { error: 'purchase_check_not_found' },
+  ]) {
+    const result = buildHostedCheckModelResult({ checkRequestId,
+      url: 'https://seller.example/weather',
+      checkResult: { ...upstreamRefusal, checkRequestId, ...mutation },
+    });
+    assert.equal(result.executionGuidance.reprobeAllowed, false);
+    assert.equal(result.replacementAllowed, false);
+    assert.equal(result.intentId, null);
+    assert.equal(result.executionGuidance.readyForFetch, false);
+    assert.notEqual(result.providerDispatched, false);
+    assert.notEqual(result.paymentDispatched, false);
+    assert.equal(OPEN_TOOL_CONTRACTS.x402_check.outputSchema.safeParse(result).success, true);
+  }
+  const unresolved = buildHostedCheckStatusModelResult({ checkRequestId,
+    checkResult: { ...upstreamRefusal, checkRequestId, status: 'check_ambiguous', retryable: false },
+  });
+  assert.equal(Object.hasOwn(unresolved, 'recovery'), false);
+  assert.equal(unresolved.executionGuidance.nextAction, 'stop');
+  assert.equal(Object.hasOwn(unresolved.executionGuidance, 'tool'), false);
+  assert.equal(unresolved.executionGuidance.supportedPath, 'check_pending');
+  const missing = buildHostedCheckModelResult({ checkRequestId,
+    checkResult: { ...upstreamRefusal, checkRequestId, error: 'purchase_check_not_found' },
+  });
+  assert.equal(Object.hasOwn(missing, 'recovery'), false);
+  const contradictoryPending = buildHostedCheckStatusModelResult({ checkRequestId,
+    checkResult: { status: 'check_in_progress', error: 'purchase_check_outcome_unknown' },
+  });
+  assert.equal(contradictoryPending.executionGuidance.nextAction, 'stop');
+  assert.equal(Object.hasOwn(contradictoryPending, 'recovery'), false);
+});
+
+test('a saved grant refusal remains distinct from a blockchain service failure', () => {
+  const result = buildHostedCheckStatusModelResult({ checkRequestId: 'grant-refusal',
+    checkResult: { ...upstreamRefusal, checkRequestId: 'grant-refusal',
+      error: 'agent_role_evidence_inconsistent', reason: 'agent_session_role_snapshot_evidence_mismatch', retryable: false },
+  });
+  assert.equal(result.executionGuidance.supportedPath, 'local_authority_unavailable');
+  assert.equal(result.retryable, false);
+  assert.equal(result.replacementAllowed, true);
+  assert.equal(result.executionGuidance.reprobeAllowed, false);
+  assert.doesNotMatch(result.message, /blockchain|data service/);
+  assert.equal(Object.hasOwn(result, 'recovery'), false);
+  assert.equal(result.executionGuidance.nextAction, 'stop');
+  const contradictory = buildHostedCheckStatusModelResult({ checkRequestId: 'grant-refusal',
+    checkResult: { ...upstreamRefusal, checkRequestId: 'grant-refusal', error: 'agent_grant_required' },
+  });
+  assert.equal(contradictory.executionGuidance.reprobeAllowed, false);
+  assert.equal(contradictory.retryable, false);
+  assert.match(contradictory.message, /approved spending grant/);
+  const nonretryableService = buildHostedCheckStatusModelResult({ checkRequestId: 'service-refusal',
+    checkResult: { ...upstreamRefusal, checkRequestId: 'service-refusal', retryable: false },
+  });
+  assert.equal(nonretryableService.executionGuidance.nextAction, 'stop');
+  assert.match(nonretryableService.executionGuidance.message, /blockchain data service/);
+  assert.doesNotMatch(nonretryableService.executionGuidance.message, /authorization/);
+});
+
+test('customer Check and Access refusals can be recovered by Status without another provider request', async (t) => {
+  const previousFetch = globalThis.fetch;
+  const previousSecret = process.env.NATIVE_EXACT_MCP_SERVICE_HMAC_SECRET;
+  process.env.NATIVE_EXACT_MCP_SERVICE_HMAC_SECRET = 'a'.repeat(32);
+  const savedChecks = new Map();
+  const checks = [];
+  const statusReads = [];
+  const response = (data, status = 200) => new Response(JSON.stringify(data), {
+    status, headers: { 'content-type': 'application/json' },
+  });
+  globalThis.fetch = async (input, init) => {
+    const url = new URL(input);
+    if (url.pathname.startsWith('/api/passkey-anon/mcp-binding/')) return response({ ok: true, user_handle: 'fixture-user' });
+    if (url.pathname === '/api/x402/resource') return response({ ok: true, found: false });
+    const request = JSON.parse(init.body);
+    if (url.pathname.endsWith('/check')) {
+      checks.push(request);
+      const saved = { ...upstreamRefusal, checkRequestId: request.requestId };
+      savedChecks.set(request.requestId, saved);
+      return response(saved, 503);
+    }
+    if (url.pathname.endsWith('/check/status')) {
+      statusReads.push(request);
+      const saved = savedChecks.get(request.requestId);
+      return saved ? response(saved, 503) : response({ ok: false, status: 'check_unknown', error: 'purchase_check_not_found', retryable: false }, 404);
+    }
+    throw new Error(`Unexpected request: ${url.pathname}`);
+  };
+  const server = createOpenMcpServer({ includeResources: false });
+  t.after(async () => {
+    await server.close();
+    globalThis.fetch = previousFetch;
+    if (previousSecret === undefined) delete process.env.NATIVE_EXACT_MCP_SERVICE_HMAC_SECRET;
+    else process.env.NATIVE_EXACT_MCP_SERVICE_HMAC_SECRET = previousSecret;
+  });
+  for (const tool of ['x402_check', 'x402_access']) {
+    const extra = { sessionId: `saved-refusal-${tool}` };
+    const first = await server._registeredTools[tool].handler({ url: 'https://seller.example/weather?location=Brooklyn' }, extra);
+    const check = first.structuredContent;
+    assert.equal(first.isError, true);
+    assert.equal(check.executionGuidance.supportedPath, 'upstream_unavailable');
+    assert.equal(check.retryable, true);
+    assert.equal(check.executionGuidance.reprobeAllowed, true);
+    assert.equal(check.providerDispatched, false);
+    assert.equal(check.paymentDispatched, false);
+    assert.equal(check.intentId, null);
+    assert.match(check.message, /blockchain data service is unavailable/);
+    assert.match(check.message, /before contacting the seller/);
+    assert.doesNotMatch(check.message, /wallet permissions/);
+    assert.equal(Object.hasOwn(check, 'recovery'), false);
+    assert.equal(check.executionGuidance.nextAction, 'new_check');
+    assert.equal(check.executionGuidance.tool, 'x402_check');
+    assert.match(check.executionGuidance.message, /on a later attempt/);
+    assert.match(check.executionGuidance.message, /Do not repeat checks in a loop/);
+    const before = checks.length;
+    const recovered = await server._registeredTools.x402_status.handler({ checkRequestId: check.checkRequestId }, extra);
+    assert.equal(checks.length, before);
+    assert.equal(recovered.isError, true);
+    assert.equal(recovered.structuredContent.checkRequestId, check.checkRequestId);
+    assert.equal(recovered.structuredContent.status, 'check_refused');
+    assert.equal(recovered.structuredContent.message, check.message);
+    assert.deepEqual(recovered.structuredContent.executionGuidance, check.executionGuidance);
+    assert.equal(Object.hasOwn(recovered.structuredContent, 'recovery'), false);
+    assert.equal(OPEN_TOOL_CONTRACTS[tool].outputSchema.safeParse(check).success, true);
+    assert.equal(OPEN_TOOL_CONTRACTS.x402_status.outputSchema.safeParse(recovered.structuredContent).success, true);
+  }
+  assert.equal(checks.length, 2);
+  assert.equal(statusReads.length, 2);
+});
+
 test('local authority, known seller failure and unknown failure retain distinct meanings', () => {
   const cases = [
     [refusal, 'local_authority_unavailable'],
@@ -51,14 +205,15 @@ test('local authority, known seller failure and unknown failure retain distinct 
   }
 });
 
-test('unresolved saved check retains its exact recovery despite a local-looking error', () => {
+test('observed unresolved check stops automatic retries despite a local-looking error', () => {
   const result = buildHostedCheckStatusModelResult({ checkRequestId: 'saved-check-2',
     checkResult: { ...refusal, status: 'check_unknown', retryable: false },
   });
   assert.equal(result.executionGuidance.supportedPath, 'check_pending');
   assert.equal(result.executionGuidance.reprobeAllowed, false);
-  assert.deepEqual(result.recovery.arguments, { checkRequestId: 'saved-check-2' });
-  assert.equal(result.recovery.tool, 'x402_status');
+  assert.equal(Object.hasOwn(result, 'recovery'), false);
+  assert.equal(result.executionGuidance.nextAction, 'stop');
+  assert.equal(Object.hasOwn(result.executionGuidance, 'tool'), false);
   assert.equal(result.error, refusal.error);
 });
 
@@ -146,7 +301,7 @@ test('actual hosted Check and Access handlers preserve the current refusal witho
         assert.equal(result.structuredContent.error, failure.error);
         assert.equal(result.structuredContent.reason, failure.reason);
         assert.equal(result.structuredContent.status, failure.status);
-        assert.equal(result.structuredContent.retryable, failure.retryable);
+        assert.equal(result.structuredContent.retryable, path === 'local_authority_unavailable' ? false : failure.retryable);
         assert.deepEqual(result.structuredContent.checkedRequest, { ...args, requestBound: true });
         assert.equal(Object.hasOwn(result.structuredContent, 'siwx'), false);
         assert.equal(result.structuredContent.intentId, null);
@@ -173,9 +328,15 @@ test('actual hosted Check and Access handlers preserve the current refusal witho
         assert.equal(saved.structuredContent.error, failure.error);
         assert.equal(saved.structuredContent.reason, failure.reason);
         assert.equal(saved.structuredContent.status, failure.status);
-        assert.equal(saved.structuredContent.retryable, failure.retryable);
-        assert.deepEqual(saved.structuredContent.executionGuidance, result.structuredContent.executionGuidance);
-        assert.deepEqual(saved.structuredContent.recovery, result.structuredContent.recovery);
+        assert.equal(saved.structuredContent.retryable, path === 'local_authority_unavailable' ? false : failure.retryable);
+        if (['check_unknown', 'check_ambiguous'].includes(failure.status)) {
+          assert.equal(saved.structuredContent.executionGuidance.nextAction, 'stop');
+          assert.equal(Object.hasOwn(saved.structuredContent.executionGuidance, 'tool'), false);
+          assert.equal(Object.hasOwn(saved.structuredContent, 'recovery'), false);
+        } else {
+          assert.deepEqual(saved.structuredContent.executionGuidance, result.structuredContent.executionGuidance);
+          assert.deepEqual(saved.structuredContent.recovery, result.structuredContent.recovery);
+        }
         assert.equal(saved.structuredContent.intentId, null);
         assert.equal(Object.hasOwn(saved.structuredContent, 'siwx'), false);
         assert.equal(OPEN_TOOL_CONTRACTS.x402_status.outputSchema.safeParse(saved.structuredContent).success, true);
