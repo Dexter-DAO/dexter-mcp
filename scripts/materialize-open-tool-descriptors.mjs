@@ -222,9 +222,10 @@ const EXPECTED_SOURCE_CONTRACTS = Object.freeze({
   // and saves terminal payment-resource failures with truthful dispatch evidence.
   // The reviewed connected-agent Tab case adds non-spending preparation,
   // immutable intent/fee bounds, and owner-approved case evidence.
+  // Its seller offers share enough validity for the first owner approval.
   // Later releases must preserve these API_GOVERNED_CONTRACT_PATHS bytes.
-  integratedGovernedCommit: '7053b84e208bc2fe13999b7557a6192656bca818',
-  integratedGovernedTree: 'fed4b51a8c9df50762e58da3a7a82dc06beb9383',
+  integratedGovernedCommit: '9fad8ad40c8ea42d41b64e359687865003a4ac29',
+  integratedGovernedTree: '0e6327197c651026ad7daf04437d764a6ee68a67',
   apiFixtureSha256:
     'ad06690a3914e0ef0f359c4164eb62f78ca54abe6697a52672d739df63c2c352',
   apiCanonicalBodyDigest:
