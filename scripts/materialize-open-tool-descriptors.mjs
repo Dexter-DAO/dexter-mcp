@@ -108,6 +108,8 @@ const API_GOVERNED_CONTRACT_PATHS = Object.freeze([
   'src/portfolio/spotExecution/raydium.ts',
   'src/portfolio/spotExecution/selection.ts',
   'src/services/crosspayOrchestrator.ts',
+  'src/services/crosspayChargeEvidence.ts',
+  'src/services/crosspayPreflightDiagnostics.ts',
   'src/services/vaultProgramTransitionHold.ts',
   'src/services/vaultProgramTransitionTransaction.ts',
   'src/economicWallet/agentWorkReportV1.ts',
@@ -148,6 +150,13 @@ const API_GOVERNED_CONTRACT_PATHS = Object.freeze([
   'src/routes/mandatesPublic.ts',
   'src/passport',
   'src/ownerActions/passkey.ts',
+  'src/ownerActions/actions.ts',
+  'src/ownerActions/constants.ts',
+  'src/ownerActions/plan.ts',
+  'src/ownerActions/prepare.ts',
+  'src/ownerActions/rent.ts',
+  'src/ownerActions/setup.ts',
+  'src/ownerActions/status.ts',
   'packages/identity-proof',
   'prisma/schema.prisma',
   'prisma/migrations/20261026202500_bind_one_action_native_tab_sessions/migration.sql',
@@ -156,6 +165,7 @@ const API_GOVERNED_CONTRACT_PATHS = Object.freeze([
   'src/services/x402/swigExactPayment.ts',
   'src/services/x402/opaquePurchaseCheckPersistence.ts',
   'src/services/x402/opaquePurchaseCoordinator.ts',
+  'src/services/x402/opaqueGatewayCashAdapter.ts',
   'src/services/x402/opaqueNativeTabAdapter.ts',
   'src/services/x402/opaqueNativeTabConsentPreparation.ts',
   'src/services/x402/nativeTabHostedTerms.ts',
@@ -168,6 +178,8 @@ const API_GOVERNED_CONTRACT_PATHS = Object.freeze([
   'src/services/x402/nativeExactPersistence.ts',
   'src/services/x402/nativeExactWire.ts',
   'src/services/purchasingGateway/adapters.ts',
+  'src/services/purchasingGateway/execution.ts',
+  'src/services/purchasingGateway/executionPersistence.ts',
   'src/services/purchasingGateway/defaultNativeExactGateway.ts',
   'src/services/purchasingGateway/defaultNativeTabGateway.ts',
   'src/services/purchasingGateway/opaqueNativeTabGateway.ts',
@@ -223,9 +235,11 @@ const EXPECTED_SOURCE_CONTRACTS = Object.freeze({
   // The reviewed connected-agent Tab case adds non-spending preparation,
   // immutable intent/fee bounds, and owner-approved case evidence.
   // Its seller offers share enough validity for the first owner approval.
+  // The reviewed cash outcome preserves refusal reasons and money evidence.
+  // Owner setup retains the native wallet reserve required for later spends.
   // Later releases must preserve these API_GOVERNED_CONTRACT_PATHS bytes.
-  integratedGovernedCommit: '9fad8ad40c8ea42d41b64e359687865003a4ac29',
-  integratedGovernedTree: '0e6327197c651026ad7daf04437d764a6ee68a67',
+  integratedGovernedCommit: 'a4b32dd7641c55ba3e0b5bc7c7d7530fa60c9b56',
+  integratedGovernedTree: '846ba24843dee3edcd93e7a5a0d0b6281e6970d6',
   apiFixtureSha256:
     'ad06690a3914e0ef0f359c4164eb62f78ca54abe6697a52672d739df63c2c352',
   apiCanonicalBodyDigest:

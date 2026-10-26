@@ -1,0 +1,540 @@
+{
+  "input": "synthetic saved Gateway records; actual API ledger mapper, status and public projection functions",
+  "fixtures": [
+    {
+      "name": "saved weather preflight",
+      "fetch": {
+        "status": 409,
+        "body": {
+          "ok": false,
+          "intentId": "10000000-0000-4000-8000-000000000001",
+          "status": "refused",
+          "message": "The wallet rejected the payment during simulation. The payment was not sent and no funds moved. Contact Dexter support with this intent ID before another attempt.",
+          "nextAction": "contact_support",
+          "reservationState": "released",
+          "error": "payment_refused",
+          "detail": "The wallet rejected the payment during simulation. The payment was not sent and no funds moved. Contact Dexter support with this intent ID before another attempt.",
+          "reason": "charge_preflight_failed",
+          "replacementAllowed": false,
+          "retryable": false,
+          "retryWithSameIntentOnly": false,
+          "delivery": {
+            "state": "not_dispatched"
+          },
+          "payment": {
+            "state": "not_sent",
+            "confirmed": false,
+            "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+            "network": "eip155:8453",
+            "currency": "USDC",
+            "sourceAsset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "sourceNetwork": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+            "fundsMoved": false,
+            "decimals": 6,
+            "amountAtomic": "25"
+          },
+          "reconciliation": {
+            "required": false,
+            "performed": false
+          }
+        }
+      },
+      "status": {
+        "status": 409,
+        "body": {
+          "ok": false,
+          "intentId": "10000000-0000-4000-8000-000000000001",
+          "status": "refused",
+          "message": "The wallet rejected the payment during simulation. The payment was not sent and no funds moved. Contact Dexter support with this intent ID before another attempt.",
+          "nextAction": "contact_support",
+          "reservationState": "released",
+          "error": "payment_refused",
+          "detail": "The wallet rejected the payment during simulation. The payment was not sent and no funds moved. Contact Dexter support with this intent ID before another attempt.",
+          "reason": "charge_preflight_failed",
+          "replacementAllowed": false,
+          "retryable": false,
+          "retryWithSameIntentOnly": false,
+          "delivery": {
+            "state": "not_dispatched"
+          },
+          "payment": {
+            "state": "not_sent",
+            "confirmed": false,
+            "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+            "network": "eip155:8453",
+            "currency": "USDC",
+            "sourceAsset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "sourceNetwork": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+            "fundsMoved": false,
+            "decimals": 6,
+            "amountAtomic": "25"
+          },
+          "reconciliation": {
+            "required": false,
+            "performed": false
+          }
+        }
+      }
+    },
+    {
+      "name": "new structured preflight",
+      "fetch": {
+        "status": 409,
+        "body": {
+          "ok": false,
+          "intentId": "10000000-0000-4000-8000-000000000001",
+          "status": "refused",
+          "message": "The wallet rejected the payment during simulation (program error 3011). The payment was not sent and no funds moved. Contact Dexter support with this intent ID before another attempt.",
+          "nextAction": "contact_support",
+          "diagnostics": {
+            "instructionIndex": 3,
+            "customProgramError": 3011,
+            "programId": "swigypWHEksbC64pWKwah1WTeh9JXwx8H1rJHLdbQMB"
+          },
+          "reservationState": "released",
+          "error": "payment_refused",
+          "detail": "The wallet rejected the payment during simulation (program error 3011). The payment was not sent and no funds moved. Contact Dexter support with this intent ID before another attempt.",
+          "reason": "charge_preflight_failed",
+          "replacementAllowed": false,
+          "retryable": false,
+          "retryWithSameIntentOnly": false,
+          "delivery": {
+            "state": "not_dispatched"
+          },
+          "payment": {
+            "state": "not_sent",
+            "confirmed": false,
+            "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+            "network": "eip155:8453",
+            "currency": "USDC",
+            "sourceAsset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "sourceNetwork": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+            "fundsMoved": false,
+            "decimals": 6,
+            "amountAtomic": "25"
+          },
+          "reconciliation": {
+            "required": false,
+            "performed": false
+          }
+        }
+      },
+      "status": {
+        "status": 409,
+        "body": {
+          "ok": false,
+          "intentId": "10000000-0000-4000-8000-000000000001",
+          "status": "refused",
+          "message": "The wallet rejected the payment during simulation (program error 3011). The payment was not sent and no funds moved. Contact Dexter support with this intent ID before another attempt.",
+          "nextAction": "contact_support",
+          "diagnostics": {
+            "instructionIndex": 3,
+            "customProgramError": 3011,
+            "programId": "swigypWHEksbC64pWKwah1WTeh9JXwx8H1rJHLdbQMB"
+          },
+          "reservationState": "released",
+          "error": "payment_refused",
+          "detail": "The wallet rejected the payment during simulation (program error 3011). The payment was not sent and no funds moved. Contact Dexter support with this intent ID before another attempt.",
+          "reason": "charge_preflight_failed",
+          "replacementAllowed": false,
+          "retryable": false,
+          "retryWithSameIntentOnly": false,
+          "delivery": {
+            "state": "not_dispatched"
+          },
+          "payment": {
+            "state": "not_sent",
+            "confirmed": false,
+            "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+            "network": "eip155:8453",
+            "currency": "USDC",
+            "sourceAsset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "sourceNetwork": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+            "fundsMoved": false,
+            "decimals": 6,
+            "amountAtomic": "25"
+          },
+          "reconciliation": {
+            "required": false,
+            "performed": false
+          }
+        }
+      }
+    },
+    {
+      "name": "refunded purchase",
+      "fetch": {
+        "status": 409,
+        "body": {
+          "ok": false,
+          "intentId": "10000000-0000-4000-8000-000000000001",
+          "status": "refused",
+          "message": "The purchase failed after your wallet was charged. The purchase amount was refunded. Contact Dexter support with this intent ID to review the failed purchase.",
+          "nextAction": "contact_support",
+          "reservationState": "released",
+          "error": "payment_refused",
+          "detail": "The purchase failed after your wallet was charged. The purchase amount was refunded. Contact Dexter support with this intent ID to review the failed purchase.",
+          "reason": "payment_refunded",
+          "replacementAllowed": false,
+          "retryable": false,
+          "retryWithSameIntentOnly": false,
+          "delivery": {
+            "state": "not_dispatched"
+          },
+          "payment": {
+            "state": "refunded",
+            "confirmed": false,
+            "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+            "network": "eip155:8453",
+            "currency": "USDC",
+            "sourceAsset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "sourceNetwork": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+            "fundsMoved": true,
+            "decimals": 6,
+            "amountAtomic": "25"
+          },
+          "reconciliation": {
+            "required": false,
+            "performed": false
+          }
+        }
+      },
+      "status": {
+        "status": 409,
+        "body": {
+          "ok": false,
+          "intentId": "10000000-0000-4000-8000-000000000001",
+          "status": "refused",
+          "message": "The purchase failed after your wallet was charged. The purchase amount was refunded. Contact Dexter support with this intent ID to review the failed purchase.",
+          "nextAction": "contact_support",
+          "reservationState": "released",
+          "error": "payment_refused",
+          "detail": "The purchase failed after your wallet was charged. The purchase amount was refunded. Contact Dexter support with this intent ID to review the failed purchase.",
+          "reason": "payment_refunded",
+          "replacementAllowed": false,
+          "retryable": false,
+          "retryWithSameIntentOnly": false,
+          "delivery": {
+            "state": "not_dispatched"
+          },
+          "payment": {
+            "state": "refunded",
+            "confirmed": false,
+            "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+            "network": "eip155:8453",
+            "currency": "USDC",
+            "sourceAsset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "sourceNetwork": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+            "fundsMoved": true,
+            "decimals": 6,
+            "amountAtomic": "25"
+          },
+          "reconciliation": {
+            "required": false,
+            "performed": false
+          }
+        }
+      }
+    },
+    {
+      "name": "failed on-chain transaction",
+      "fetch": {
+        "status": 409,
+        "body": {
+          "ok": false,
+          "intentId": "10000000-0000-4000-8000-000000000001",
+          "status": "refused",
+          "message": "The source transaction failed. The purchase amount was not transferred; a network fee may have been charged. Contact Dexter support with this intent ID.",
+          "nextAction": "contact_support",
+          "reservationState": "released",
+          "error": "payment_refused",
+          "detail": "The source transaction failed. The purchase amount was not transferred; a network fee may have been charged. Contact Dexter support with this intent ID.",
+          "reason": "charge_transaction_failed",
+          "replacementAllowed": false,
+          "retryable": false,
+          "retryWithSameIntentOnly": false,
+          "delivery": {
+            "state": "not_dispatched"
+          },
+          "payment": {
+            "state": "failed_final",
+            "confirmed": false,
+            "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+            "network": "eip155:8453",
+            "currency": "USDC",
+            "sourceAsset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "sourceNetwork": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+            "fundsMoved": null,
+            "decimals": 6,
+            "amountAtomic": "25"
+          },
+          "reconciliation": {
+            "required": false,
+            "performed": false
+          }
+        }
+      },
+      "status": {
+        "status": 409,
+        "body": {
+          "ok": false,
+          "intentId": "10000000-0000-4000-8000-000000000001",
+          "status": "refused",
+          "message": "The source transaction failed. The purchase amount was not transferred; a network fee may have been charged. Contact Dexter support with this intent ID.",
+          "nextAction": "contact_support",
+          "reservationState": "released",
+          "error": "payment_refused",
+          "detail": "The source transaction failed. The purchase amount was not transferred; a network fee may have been charged. Contact Dexter support with this intent ID.",
+          "reason": "charge_transaction_failed",
+          "replacementAllowed": false,
+          "retryable": false,
+          "retryWithSameIntentOnly": false,
+          "delivery": {
+            "state": "not_dispatched"
+          },
+          "payment": {
+            "state": "failed_final",
+            "confirmed": false,
+            "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+            "network": "eip155:8453",
+            "currency": "USDC",
+            "sourceAsset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "sourceNetwork": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+            "fundsMoved": null,
+            "decimals": 6,
+            "amountAtomic": "25"
+          },
+          "reconciliation": {
+            "required": false,
+            "performed": false
+          }
+        }
+      }
+    },
+    {
+      "name": "expired unlanded transaction",
+      "fetch": {
+        "status": 409,
+        "body": {
+          "ok": false,
+          "intentId": "10000000-0000-4000-8000-000000000001",
+          "status": "refused",
+          "message": "The payment transaction expired without landing. No funds moved. Contact Dexter support with this intent ID before another attempt.",
+          "nextAction": "contact_support",
+          "reservationState": "released",
+          "error": "payment_refused",
+          "detail": "The payment transaction expired without landing. No funds moved. Contact Dexter support with this intent ID before another attempt.",
+          "reason": "charge_expired_unlanded",
+          "replacementAllowed": false,
+          "retryable": false,
+          "retryWithSameIntentOnly": false,
+          "delivery": {
+            "state": "not_dispatched"
+          },
+          "payment": {
+            "state": "failed_final",
+            "confirmed": false,
+            "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+            "network": "eip155:8453",
+            "currency": "USDC",
+            "sourceAsset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "sourceNetwork": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+            "fundsMoved": false,
+            "decimals": 6,
+            "amountAtomic": "25"
+          },
+          "reconciliation": {
+            "required": false,
+            "performed": false
+          }
+        }
+      },
+      "status": {
+        "status": 409,
+        "body": {
+          "ok": false,
+          "intentId": "10000000-0000-4000-8000-000000000001",
+          "status": "refused",
+          "message": "The payment transaction expired without landing. No funds moved. Contact Dexter support with this intent ID before another attempt.",
+          "nextAction": "contact_support",
+          "reservationState": "released",
+          "error": "payment_refused",
+          "detail": "The payment transaction expired without landing. No funds moved. Contact Dexter support with this intent ID before another attempt.",
+          "reason": "charge_expired_unlanded",
+          "replacementAllowed": false,
+          "retryable": false,
+          "retryWithSameIntentOnly": false,
+          "delivery": {
+            "state": "not_dispatched"
+          },
+          "payment": {
+            "state": "failed_final",
+            "confirmed": false,
+            "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+            "network": "eip155:8453",
+            "currency": "USDC",
+            "sourceAsset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "sourceNetwork": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+            "fundsMoved": false,
+            "decimals": 6,
+            "amountAtomic": "25"
+          },
+          "reconciliation": {
+            "required": false,
+            "performed": false
+          }
+        }
+      }
+    },
+    {
+      "name": "missing failure evidence",
+      "fetch": {
+        "status": 409,
+        "body": {
+          "ok": false,
+          "intentId": "10000000-0000-4000-8000-000000000001",
+          "status": "refused",
+          "message": "The payment attempt ended with a failure, but its money outcome could not be established from the saved evidence. Contact Dexter support with this intent ID before another attempt.",
+          "nextAction": "contact_support",
+          "reservationState": "released",
+          "error": "payment_refused",
+          "detail": "The payment attempt ended with a failure, but its money outcome could not be established from the saved evidence. Contact Dexter support with this intent ID before another attempt.",
+          "reason": "payment_failure_unclassified",
+          "replacementAllowed": false,
+          "retryable": false,
+          "retryWithSameIntentOnly": false,
+          "delivery": {
+            "state": "not_dispatched"
+          },
+          "payment": {
+            "state": "unknown",
+            "confirmed": false,
+            "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+            "network": "eip155:8453",
+            "currency": "USDC",
+            "sourceAsset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "sourceNetwork": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+            "fundsMoved": null,
+            "decimals": 6,
+            "amountAtomic": "25"
+          },
+          "reconciliation": {
+            "required": false,
+            "performed": false
+          }
+        }
+      },
+      "status": {
+        "status": 409,
+        "body": {
+          "ok": false,
+          "intentId": "10000000-0000-4000-8000-000000000001",
+          "status": "refused",
+          "message": "The payment attempt ended with a failure, but its money outcome could not be established from the saved evidence. Contact Dexter support with this intent ID before another attempt.",
+          "nextAction": "contact_support",
+          "reservationState": "released",
+          "error": "payment_refused",
+          "detail": "The payment attempt ended with a failure, but its money outcome could not be established from the saved evidence. Contact Dexter support with this intent ID before another attempt.",
+          "reason": "payment_failure_unclassified",
+          "replacementAllowed": false,
+          "retryable": false,
+          "retryWithSameIntentOnly": false,
+          "delivery": {
+            "state": "not_dispatched"
+          },
+          "payment": {
+            "state": "unknown",
+            "confirmed": false,
+            "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+            "network": "eip155:8453",
+            "currency": "USDC",
+            "sourceAsset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "sourceNetwork": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+            "fundsMoved": null,
+            "decimals": 6,
+            "amountAtomic": "25"
+          },
+          "reconciliation": {
+            "required": false,
+            "performed": false
+          }
+        }
+      }
+    },
+    {
+      "name": "contradictory charge evidence",
+      "fetch": {
+        "status": 409,
+        "body": {
+          "ok": false,
+          "intentId": "10000000-0000-4000-8000-000000000001",
+          "status": "refused",
+          "message": "The payment attempt ended with a failure, but its money outcome could not be established from the saved evidence. Contact Dexter support with this intent ID before another attempt.",
+          "nextAction": "contact_support",
+          "reservationState": "released",
+          "error": "payment_refused",
+          "detail": "The payment attempt ended with a failure, but its money outcome could not be established from the saved evidence. Contact Dexter support with this intent ID before another attempt.",
+          "reason": "payment_failure_unclassified",
+          "replacementAllowed": false,
+          "retryable": false,
+          "retryWithSameIntentOnly": false,
+          "delivery": {
+            "state": "not_dispatched"
+          },
+          "payment": {
+            "state": "unknown",
+            "confirmed": false,
+            "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+            "network": "eip155:8453",
+            "currency": "USDC",
+            "sourceAsset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "sourceNetwork": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+            "fundsMoved": null,
+            "decimals": 6,
+            "amountAtomic": "25"
+          },
+          "reconciliation": {
+            "required": false,
+            "performed": false
+          }
+        }
+      },
+      "status": {
+        "status": 409,
+        "body": {
+          "ok": false,
+          "intentId": "10000000-0000-4000-8000-000000000001",
+          "status": "refused",
+          "message": "The payment attempt ended with a failure, but its money outcome could not be established from the saved evidence. Contact Dexter support with this intent ID before another attempt.",
+          "nextAction": "contact_support",
+          "reservationState": "released",
+          "error": "payment_refused",
+          "detail": "The payment attempt ended with a failure, but its money outcome could not be established from the saved evidence. Contact Dexter support with this intent ID before another attempt.",
+          "reason": "payment_failure_unclassified",
+          "replacementAllowed": false,
+          "retryable": false,
+          "retryWithSameIntentOnly": false,
+          "delivery": {
+            "state": "not_dispatched"
+          },
+          "payment": {
+            "state": "unknown",
+            "confirmed": false,
+            "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+            "network": "eip155:8453",
+            "currency": "USDC",
+            "sourceAsset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "sourceNetwork": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+            "fundsMoved": null,
+            "decimals": 6,
+            "amountAtomic": "25"
+          },
+          "reconciliation": {
+            "required": false,
+            "performed": false
+          }
+        }
+      }
+    }
+  ]
+}
