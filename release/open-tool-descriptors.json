@@ -16,15 +16,15 @@
     },
     "integratedApiRelease": {
       "repository": "https://github.com/Dexter-DAO/dexter-api",
-      "commit": "06ddd9ab12e21908c6739bc95f30b58f44490a2e",
-      "tree": "5dcc1a4c1ee2159a2e5e15c09b7aa49f9a02131d",
-      "governedContractCommit": "06ddd9ab12e21908c6739bc95f30b58f44490a2e",
-      "governedContractTree": "5dcc1a4c1ee2159a2e5e15c09b7aa49f9a02131d"
+      "commit": "b8a31f3d785c024ed695b8eda1781b86f589cb94",
+      "tree": "b78aeaa6757c5c642faff02f786756fe89cdd14a",
+      "governedContractCommit": "b8a31f3d785c024ed695b8eda1781b86f589cb94",
+      "governedContractTree": "b78aeaa6757c5c642faff02f786756fe89cdd14a"
     },
     "portfolioProjection": {
       "repository": "https://github.com/Dexter-DAO/dexter-api",
-      "commit": "06ddd9ab12e21908c6739bc95f30b58f44490a2e",
-      "tree": "5dcc1a4c1ee2159a2e5e15c09b7aa49f9a02131d",
+      "commit": "b8a31f3d785c024ed695b8eda1781b86f589cb94",
+      "tree": "b78aeaa6757c5c642faff02f786756fe89cdd14a",
       "sourcePaths": [
         "src/portfolio/approvedActionTargets.ts",
         "src/routes/passkeyMcpBinding.ts",
@@ -39,8 +39,8 @@
     },
     "facilitator": {
       "repository": "https://github.com/Dexter-DAO/dexter-facilitator",
-      "commit": "40f3b5550ae263003be345f0751e3c6d65eb2029",
-      "tree": "ec353e55dc34a873704be1dd3bf94eb15118d838",
+      "commit": "a56892bb6d9e00aa24468e3bbe061706cf981b1b",
+      "tree": "dc23edba4aa5b3c73e43e1660f4c8977ef5bbac4",
       "bindingFixture": {
         "consumerPath": "tests/fixtures/governed-agent-trade-api-facilitator-binding-vault-0434.json",
         "apiPath": "tests/fixtures/governed-agent-trade-api-facilitator-binding-v1.json",
@@ -4801,6 +4801,12 @@
             ],
             "additionalProperties": false
           },
+          "providerDispatched": {
+            "type": "boolean"
+          },
+          "paymentDispatched": {
+            "type": "boolean"
+          },
           "status": {
             "type": "string"
           },
@@ -4989,10 +4995,12 @@
                   "provider_response",
                   "provider_error",
                   "local_authority_unavailable",
+                  "upstream_unavailable",
                   "unknown_error",
                   "unsupported_auth",
                   "siwx_unavailable",
-                  "check_pending"
+                  "check_pending",
+                  "check_not_found"
                 ]
               },
               "readyForFetch": {
@@ -5026,8 +5034,25 @@
                 "const": true
               },
               "reprobeAllowed": {
-                "type": "boolean",
-                "const": false
+                "type": "boolean"
+              },
+              "nextAction": {
+                "type": "string",
+                "enum": [
+                  "new_check",
+                  "read_status",
+                  "stop"
+                ]
+              },
+              "tool": {
+                "type": "string",
+                "enum": [
+                  "x402_check",
+                  "x402_status"
+                ]
+              },
+              "message": {
+                "type": "string"
               }
             },
             "required": [
@@ -5925,6 +5950,12 @@
             ],
             "additionalProperties": false
           },
+          "providerDispatched": {
+            "type": "boolean"
+          },
+          "paymentDispatched": {
+            "type": "boolean"
+          },
           "status": {
             "type": [
               "string",
@@ -6116,10 +6147,12 @@
                   "provider_response",
                   "provider_error",
                   "local_authority_unavailable",
+                  "upstream_unavailable",
                   "unknown_error",
                   "unsupported_auth",
                   "siwx_unavailable",
-                  "check_pending"
+                  "check_pending",
+                  "check_not_found"
                 ]
               },
               "readyForFetch": {
@@ -6153,8 +6186,25 @@
                 "const": true
               },
               "reprobeAllowed": {
-                "type": "boolean",
-                "const": false
+                "type": "boolean"
+              },
+              "nextAction": {
+                "type": "string",
+                "enum": [
+                  "new_check",
+                  "read_status",
+                  "stop"
+                ]
+              },
+              "tool": {
+                "type": "string",
+                "enum": [
+                  "x402_check",
+                  "x402_status"
+                ]
+              },
+              "message": {
+                "type": "string"
               }
             },
             "required": [
@@ -6735,6 +6785,12 @@
             ],
             "additionalProperties": false
           },
+          "providerDispatched": {
+            "type": "boolean"
+          },
+          "paymentDispatched": {
+            "type": "boolean"
+          },
           "ok": {
             "type": "boolean"
           },
@@ -6836,9 +6892,11 @@
                   "provider_error",
                   "unsupported_auth",
                   "local_authority_unavailable",
+                  "upstream_unavailable",
                   "unknown_error",
                   "siwx_unavailable",
-                  "check_pending"
+                  "check_pending",
+                  "check_not_found"
                 ]
               },
               "readyForFetch": {
@@ -6872,8 +6930,25 @@
                 "const": true
               },
               "reprobeAllowed": {
-                "type": "boolean",
-                "const": false
+                "type": "boolean"
+              },
+              "nextAction": {
+                "type": "string",
+                "enum": [
+                  "new_check",
+                  "read_status",
+                  "stop"
+                ]
+              },
+              "tool": {
+                "type": "string",
+                "enum": [
+                  "x402_check",
+                  "x402_status"
+                ]
+              },
+              "message": {
+                "type": "string"
               }
             },
             "required": [
