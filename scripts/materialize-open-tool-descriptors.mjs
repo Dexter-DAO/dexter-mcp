@@ -195,9 +195,11 @@ const EXPECTED_SOURCE_CONTRACTS = Object.freeze({
   // evidence. Its source and compiled runtime were independently reviewed.
   // The reviewed purchase-check repair saves truthful pre-dispatch refusals
   // and returns them unchanged through Check replay and Status.
+  // The reviewed session repair proves finalized contacted renewals and
+  // reconciles their saved attempts independently of new-renewal eligibility.
   // Later releases must preserve these API_GOVERNED_CONTRACT_PATHS bytes.
-  integratedGovernedCommit: 'b8a31f3d785c024ed695b8eda1781b86f589cb94',
-  integratedGovernedTree: 'b78aeaa6757c5c642faff02f786756fe89cdd14a',
+  integratedGovernedCommit: '4f3ffd67ea9366d23e13a1857781a5ca988faa36',
+  integratedGovernedTree: 'f23cbf41e0970d175b0aa6e47ab7a5f2cf1c159b',
   apiFixtureSha256:
     'ad06690a3914e0ef0f359c4164eb62f78ca54abe6697a52672d739df63c2c352',
   apiCanonicalBodyDigest:
