@@ -106,7 +106,9 @@ test('ambiguous dispatch and temporary status failure retain exact recovery hand
   const failed = await purchaseHandler('x402_status', new Error('fixture transport failure'), { checkRequestId: 'original-check' });
   assert.equal(failed.summary.checkRequestId, 'original-check');
   assert.equal(failed.summary.error, 'purchase_check_status_unavailable');
-  assert.deepEqual(failed.summary.recovery.arguments, { checkRequestId: 'original-check' });
+  assert.equal(Object.hasOwn(failed.summary, 'recovery'), false);
+  assert.equal(failed.summary.executionGuidance.nextAction, 'stop');
+  assert.equal(Object.hasOwn(failed.summary.executionGuidance, 'tool'), false);
   assert.equal(failed.summary.executionGuidance.reprobeAllowed, false);
   assert.equal(failed.summary.replacementAllowed, false);
   assert.equal(failed.reads, 1);

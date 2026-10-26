@@ -48,7 +48,13 @@ test('actual MCP status envelope retains failed check HTTP and binding state', a
   assert.equal(missing.envelope.structuredContent.httpStatus, 404);
   assert.equal(missing.envelope.structuredContent.error, 'purchase_check_not_found');
   assert.equal(missing.envelope.structuredContent.intentId, null);
-  assert.equal(missing.envelope.structuredContent.recovery.arguments.checkRequestId, 'saved-check');
+  assert.equal(missing.envelope.structuredContent.checkRequestId, 'saved-check');
+  assert.equal(missing.envelope.structuredContent.status, 'check_not_found');
+  assert.equal(missing.envelope.structuredContent.executionGuidance.supportedPath, 'check_not_found');
+  assert.equal(missing.envelope.structuredContent.executionGuidance.reprobeAllowed, false);
+  assert.equal(missing.envelope.structuredContent.replacementAllowed, false);
+  assert.equal(Object.hasOwn(missing.envelope.structuredContent, 'recovery'), false);
+  assert.equal(missing.calls.length, 1);
   const binding = await invoke({ session: { authenticated: false, lookupFailed: true, sessionId: 'original-session' } });
   assert.equal(binding.envelope.isError, true);
   assert.equal(binding.envelope.structuredContent.httpStatus, 503);
@@ -85,7 +91,7 @@ test('actual MCP status envelope recovers free output and in-progress timing', a
   assert.equal(pending.envelope.structuredContent.executionGuidance.readyForFetch, false);
 });
 
-test('old API missing check-status route and transport failure preserve read-only recovery through the actual API parser and MCP handler', async () => {
+test('unavailable check-status route stops automatic retries through the actual API parser and MCP handler', async () => {
   const scenarios = [
     () => new Response('<html><body>Cannot POST /v2/pay/anon/x402/check/status</body></html>', { status: 404, headers: { 'content-type': 'text/html' } }),
     () => new Response('{}', { status: 404, headers: { 'content-type': 'application/json' } }),
@@ -105,11 +111,14 @@ test('old API missing check-status route and transport failure preserve read-onl
     assert.equal(result.intentId, null);
     assert.equal(result.executionGuidance.readyForFetch, false);
     assert.equal(result.executionGuidance.reprobeAllowed, false);
-    assert.equal(result.recovery.tool, 'x402_status');
-    assert.deepEqual(result.recovery.arguments, { checkRequestId: 'saved-check' });
+    assert.equal(Object.hasOwn(result, 'recovery'), false);
+    assert.equal(result.executionGuidance.nextAction, 'stop');
+    assert.match(result.executionGuidance.message, /Tell the user/);
+    assert.match(result.executionGuidance.message, /Stop automatic retries/);
     assert.match(result.message, /cannot read this saved check/);
     const text = JSON.parse(envelope.content[0].text);
-    assert.equal(text.recovery.arguments.checkRequestId, 'saved-check');
+    assert.equal(text.checkRequestId, 'saved-check');
+    assert.equal(Object.hasOwn(text, 'recovery'), false);
     assert.equal(text.executionGuidance.reprobeAllowed, false);
     assert.equal(calls.length, 1);
     assert.deepEqual(requests, [{ path: '/v2/pay/anon/x402/check/status', body: { mcp_session_id: 'original-session', requestId: 'saved-check' } }]);
@@ -118,10 +127,10 @@ test('old API missing check-status route and transport failure preserve read-onl
 
 test('a stored provider 404 with the matching check identity remains the recorded provider result', async () => {
   const { envelope } = await invoke({ fetchImpl: async () => new Response(JSON.stringify({
-    ok: false, checkRequestId: 'saved-check', error: 'not_found', message: 'The provider did not find the requested resource.',
+    ok: false, checkRequestId: 'saved-check', error: 'provider_request_failed', reason: 'provider_returned_error', message: 'The provider did not find the requested resource.',
   }), { status: 404, headers: { 'content-type': 'application/json' } }) });
   assert.equal(envelope.isError, true);
-  assert.equal(envelope.structuredContent.error, 'not_found');
+  assert.equal(envelope.structuredContent.error, 'provider_request_failed');
   assert.equal(envelope.structuredContent.message, 'The provider did not find the requested resource.');
   assert.equal(envelope.structuredContent.executionGuidance.supportedPath, 'provider_error');
 });

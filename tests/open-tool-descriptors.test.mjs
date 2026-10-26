@@ -36,6 +36,15 @@ import {
 
 const execFileAsync = promisify(execFile);
 
+function resolveLocalRef(schema, node) {
+  while (node?.$ref) {
+    assert.match(node.$ref, /^#\/definitions\/[^/]+$/);
+    node = schema.definitions[node.$ref.slice('#/definitions/'.length)];
+    assert.ok(node, 'Local schema reference must resolve');
+  }
+  return node;
+}
+
 const CONNECTED = [
   'dexter_trade',
   'dexter_find_assets',
@@ -243,10 +252,14 @@ test('--emit-json emits exactly one descriptor document and exits', () => {
     Object.keys(discoverySummary.properties.endpointCatalog.properties).sort(),
     ['endpointCount', 'featuredProviderCount', 'providerCount'],
   );
-  const discoveryEndpoint = indexterDiscovery.outputSchema.properties.providers
-    .items.properties.capabilityGroups.items.properties.resources.items;
-  assert.equal(discoveryEndpoint.properties.kind.const, 'endpoint');
-  assert.deepEqual(discoveryEndpoint.properties.method.enum, [
+  const discoverySchema = indexterDiscovery.outputSchema;
+  const provider = resolveLocalRef(discoverySchema, discoverySchema.properties.providers.items);
+  const groups = resolveLocalRef(discoverySchema, provider.properties.capabilityGroups);
+  const group = resolveLocalRef(discoverySchema, groups.items);
+  const resources = resolveLocalRef(discoverySchema, group.properties.resources);
+  const discoveryEndpoint = resolveLocalRef(discoverySchema, resources.items);
+  assert.equal(resolveLocalRef(discoverySchema, discoveryEndpoint.properties.kind).const, 'endpoint');
+  assert.deepEqual(resolveLocalRef(discoverySchema, discoveryEndpoint.properties.method).enum, [
     'GET',
     'POST',
     'PUT',
@@ -509,8 +522,8 @@ test('source materializer emits one deterministic full hosted descriptor', async
     repository: 'https://github.com/Dexter-DAO/dexter-api',
     commit: acceptedProduction.api.sourceCommit,
     tree: acceptedProduction.api.sourceTree,
-    governedContractCommit: '06ddd9ab12e21908c6739bc95f30b58f44490a2e',
-    governedContractTree: '5dcc1a4c1ee2159a2e5e15c09b7aa49f9a02131d',
+    governedContractCommit: 'b8a31f3d785c024ed695b8eda1781b86f589cb94',
+    governedContractTree: 'b78aeaa6757c5c642faff02f786756fe89cdd14a',
   });
   assert.deepEqual(descriptor.sourceContracts.portfolioProjection, {
     repository: 'https://github.com/Dexter-DAO/dexter-api',
@@ -658,21 +671,24 @@ test('source materializer emits one deterministic full hosted descriptor', async
   );
   const variants = portfolio.outputSchema.properties.portfolio.anyOf;
   const legacy = variants.find((variant) =>
-    variant.properties?.contractVersion?.const === 'opendexter.portfolio.v1');
+    resolveLocalRef(portfolio.outputSchema, variant.properties?.contractVersion)?.const === 'opendexter.portfolio.v1');
   assert.ok(legacy);
   assert.ok(variants.some((variant) =>
-    variant.properties?.contractVersion?.const === 'opendexter.portfolio.v3'));
-  const targets = legacy.properties.approvedActionTargets;
+    resolveLocalRef(portfolio.outputSchema, variant.properties?.contractVersion)?.const === 'opendexter.portfolio.v3'));
+  const targets = resolveLocalRef(portfolio.outputSchema, legacy.properties.approvedActionTargets);
+  const target = resolveLocalRef(portfolio.outputSchema, targets.items);
+  const actions = resolveLocalRef(portfolio.outputSchema, target.properties.actions);
+  const action = resolveLocalRef(portfolio.outputSchema, actions.items);
   assert.equal(targets.type, 'array');
   assert.equal(Object.hasOwn(targets, 'maxItems'), false);
   assert.equal(portfolio._meta['openai/widgetAccessible'], true);
   assert.deepEqual(portfolio._meta.ui.visibility, ['model', 'app']);
   assert.deepEqual(
-    targets.items.properties.actions.items.properties.action.enum,
+    resolveLocalRef(portfolio.outputSchema, action.properties.action).enum,
     ['buy', 'sell', 'send'],
   );
   assert.equal(
-    targets.items.properties.assetId.pattern,
+    resolveLocalRef(portfolio.outputSchema, target.properties.assetId).pattern,
     '^[a-z0-9][a-z0-9._:-]{0,127}$',
   );
 });

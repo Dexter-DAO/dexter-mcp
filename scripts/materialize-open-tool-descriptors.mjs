@@ -193,9 +193,11 @@ const EXPECTED_SOURCE_CONTRACTS = Object.freeze({
   // The accepted Phone first-use release adds exact unsent setup continuation,
   // shared Buy authority preparation, current catalog selection and multiplier
   // evidence. Its source and compiled runtime were independently reviewed.
+  // The reviewed purchase-check repair saves truthful pre-dispatch refusals
+  // and returns them unchanged through Check replay and Status.
   // Later releases must preserve these API_GOVERNED_CONTRACT_PATHS bytes.
-  integratedGovernedCommit: '06ddd9ab12e21908c6739bc95f30b58f44490a2e',
-  integratedGovernedTree: '5dcc1a4c1ee2159a2e5e15c09b7aa49f9a02131d',
+  integratedGovernedCommit: 'b8a31f3d785c024ed695b8eda1781b86f589cb94',
+  integratedGovernedTree: 'b78aeaa6757c5c642faff02f786756fe89cdd14a',
   apiFixtureSha256:
     'ad06690a3914e0ef0f359c4164eb62f78ca54abe6697a52672d739df63c2c352',
   apiCanonicalBodyDigest:

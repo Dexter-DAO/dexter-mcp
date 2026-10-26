@@ -156,6 +156,26 @@ test('Indexter size accounting includes readable text', async () => {
   assert.ok(Buffer.byteLength(JSON.stringify(result)) <= INDEXTER_TOOL_RESULT_MAX_JSON_BYTES);
 });
 
+test('content-only purchase failures preserve their explicit next action without a second Status instruction', async () => {
+  const refusal = { ok: false, status: 'check_refused', checkRequestId: 'text-refusal',
+    providerDispatched: false, paymentDispatched: false, replacementAllowed: true, retryable: true,
+    error: 'purchase_service_unavailable', reason: 'blockchain_data_unavailable' };
+  for (const checkResult of [refusal,
+    { ...refusal, error: 'agent_role_evidence_inconsistent', reason: 'agent_session_role_snapshot_evidence_mismatch', replacementAllowed: false, retryable: false },
+    { ok: false, status: 'check_ambiguous', error: 'purchase_check_outcome_unknown' },
+    { ok: false, error: 'purchase_check_not_found' },
+  ]) {
+    const model = buildHostedCheckModelResult({ checkResult, checkRequestId: 'text-refusal', recoveredCheck: true });
+    const result = await registered('x402_status', buildHostedCheckToolResult(model));
+    const text = result.content[0].text;
+    assert.ok(text.includes(model.executionGuidance.message));
+    assert.doesNotMatch(text, /Read x402_status with the same saved handle before attempting another purchase/);
+    if (model.executionGuidance.nextAction === 'stop') assert.doesNotMatch(text, /Read x402_status/);
+  }
+  const unknownPurchase = await registered('x402_fetch', { ...envelope({ ok: false, error: 'purchase_unavailable', intentId: 'saved-purchase' }), isError: true });
+  assert.match(unknownPurchase.content[0].text, /Read x402_status with the same saved handle/);
+});
+
 test('actual MCP SDK serializes every tool result for a content-only host', async t => {
   const server = new McpServer({ name: 'text-only-test', version: '1.0.0' });
   installOpenToolContracts(server);
