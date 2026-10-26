@@ -218,6 +218,8 @@ const EXPECTED_SOURCE_CONTRACTS = Object.freeze({
   // and returns them unchanged through Check replay and Status.
   // The reviewed session repair proves finalized contacted renewals and
   // reconciles their saved attempts independently of new-renewal eligibility.
+  // The reviewed quote repair preserves query scope and finite protocol JSON,
+  // and saves terminal payment-resource failures with truthful dispatch evidence.
   // The reviewed connected-agent Tab case adds non-spending preparation,
   // immutable intent/fee bounds, and owner-approved case evidence.
   // Later releases must preserve these API_GOVERNED_CONTRACT_PATHS bytes.

@@ -76,8 +76,12 @@ test('reviewed SDK source policy preserves history and derives current producer 
   });
   assert.deepEqual(policy, before);
   assert.deepEqual(derived.api, before.api);
-  assert.equal(derived.integratedApiRelease.governedContractCommit, API_COMMIT);
-  assert.equal(derived.integratedApiRelease.governedContractTree, API_TREE);
+  assert.equal(derived.integratedApiRelease.commit, API_COMMIT);
+  assert.equal(derived.integratedApiRelease.tree, API_TREE);
+  assert.equal(derived.integratedApiRelease.governedContractCommit,
+    before.integratedApiRelease.governedContractCommit);
+  assert.equal(derived.integratedApiRelease.governedContractTree,
+    before.integratedApiRelease.governedContractTree);
   assert.equal(derived.facilitator.bindingFixture.consumerPath, CURRENT_PATH);
   assert.equal(derived.facilitator.bindingFixture.sha256,
     '54b23f1650bf0b65861f4c7dbe9594cd1a4ea752915819792d7ae8d14d362848');
