@@ -16,15 +16,15 @@
     },
     "integratedApiRelease": {
       "repository": "https://github.com/Dexter-DAO/dexter-api",
-      "commit": "9fad8ad40c8ea42d41b64e359687865003a4ac29",
-      "tree": "0e6327197c651026ad7daf04437d764a6ee68a67",
-      "governedContractCommit": "9fad8ad40c8ea42d41b64e359687865003a4ac29",
-      "governedContractTree": "0e6327197c651026ad7daf04437d764a6ee68a67"
+      "commit": "a4b32dd7641c55ba3e0b5bc7c7d7530fa60c9b56",
+      "tree": "846ba24843dee3edcd93e7a5a0d0b6281e6970d6",
+      "governedContractCommit": "a4b32dd7641c55ba3e0b5bc7c7d7530fa60c9b56",
+      "governedContractTree": "846ba24843dee3edcd93e7a5a0d0b6281e6970d6"
     },
     "portfolioProjection": {
       "repository": "https://github.com/Dexter-DAO/dexter-api",
-      "commit": "9fad8ad40c8ea42d41b64e359687865003a4ac29",
-      "tree": "0e6327197c651026ad7daf04437d764a6ee68a67",
+      "commit": "a4b32dd7641c55ba3e0b5bc7c7d7530fa60c9b56",
+      "tree": "846ba24843dee3edcd93e7a5a0d0b6281e6970d6",
       "sourcePaths": [
         "src/portfolio/approvedActionTargets.ts",
         "src/routes/passkeyMcpBinding.ts",
@@ -4816,6 +4816,7 @@
                   "failed",
                   "not_started",
                   "pending",
+                  "refunded",
                   "unknown"
                 ]
               },
@@ -4906,6 +4907,7 @@
                   "deliver_result",
                   "complete_authorization",
                   "report_provider_error",
+                  "report_failure",
                   "inspect_same_intent",
                   "review_expired_check",
                   "unavailable"
@@ -5563,6 +5565,7 @@
                   "failed",
                   "not_started",
                   "pending",
+                  "refunded",
                   "unknown"
                 ]
               },
@@ -5653,6 +5656,7 @@
                   "deliver_result",
                   "complete_authorization",
                   "report_provider_error",
+                  "report_failure",
                   "inspect_same_intent",
                   "review_expired_check",
                   "unavailable"
@@ -5788,6 +5792,13 @@
           },
           "detail": {
             "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "nextAction": {
+            "type": "string",
+            "const": "contact_support"
           },
           "retryable": {
             "type": "boolean"
@@ -5965,6 +5976,7 @@
                   "failed",
                   "not_started",
                   "pending",
+                  "refunded",
                   "unknown"
                 ]
               },
@@ -6055,6 +6067,7 @@
                   "deliver_result",
                   "complete_authorization",
                   "report_provider_error",
+                  "report_failure",
                   "inspect_same_intent",
                   "review_expired_check",
                   "unavailable"
@@ -6538,6 +6551,10 @@
           "detail": {
             "type": "string"
           },
+          "nextAction": {
+            "type": "string",
+            "const": "contact_support"
+          },
           "retryWithSameIntentOnly": {
             "type": "boolean"
           },
@@ -6800,6 +6817,7 @@
                   "failed",
                   "not_started",
                   "pending",
+                  "refunded",
                   "unknown"
                 ]
               },
@@ -6890,6 +6908,7 @@
                   "deliver_result",
                   "complete_authorization",
                   "report_provider_error",
+                  "report_failure",
                   "inspect_same_intent",
                   "review_expired_check",
                   "unavailable"
