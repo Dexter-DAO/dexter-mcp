@@ -164,6 +164,13 @@ test('content-only purchase failures preserve their explicit next action without
     { ...refusal, error: 'agent_role_evidence_inconsistent', reason: 'agent_session_role_snapshot_evidence_mismatch', replacementAllowed: false, retryable: false },
     { ok: false, status: 'check_ambiguous', error: 'purchase_check_outcome_unknown' },
     { ok: false, error: 'purchase_check_not_found' },
+    { ok: false, error: 'new_check_required', reason: 'payment_resource_mismatch', retryable: false },
+    { ok: false, error: 'invalid_payment_resource', reason: 'payment_resource_mismatch', retryable: false,
+      checkRequestId: 'text-refusal', providerDispatched: true, paymentDispatched: false,
+      message: 'The seller returned payment terms for a different request. No payment was made.' },
+    { ok: false, error: 'unclassified_failure', retryable: false },
+    { ok: false, error: 'provider_request_failed', reason: 'provider_returned_error', retryable: false },
+    { ok: false, authMode: 'siwx', authRequired: true },
   ]) {
     const model = buildHostedCheckModelResult({ checkResult, checkRequestId: 'text-refusal', recoveredCheck: true });
     const result = await registered('x402_status', buildHostedCheckToolResult(model));
@@ -174,6 +181,30 @@ test('content-only purchase failures preserve their explicit next action without
   }
   const unknownPurchase = await registered('x402_fetch', { ...envelope({ ok: false, error: 'purchase_unavailable', intentId: 'saved-purchase' }), isError: true });
   assert.match(unknownPurchase.content[0].text, /Read x402_status with the same saved handle/);
+});
+
+test('content-only quote failures retain no-payment evidence only for the matching completed check', async () => {
+  const canonical = { ok: false, error: 'invalid_payment_resource', reason: 'payment_resource_mismatch',
+    retryable: false, checkRequestId: 'text-quote', providerDispatched: true, paymentDispatched: false,
+    message: 'The seller returned payment terms for a different request. No payment was made.' };
+  for (const mutation of [{}, { checkRequestId: undefined }, { checkRequestId: 'other-check' },
+    { status: 'check_unknown' }, { status: 'check_ambiguous' }]) {
+    const model = buildHostedCheckModelResult({ checkResult: { ...canonical, ...mutation }, checkRequestId: 'text-quote', recoveredCheck: true });
+    const result = await registered('x402_status', buildHostedCheckToolResult(model));
+    const text = result.content[0].text;
+    assert.equal(model.executionGuidance.nextAction, 'stop');
+    assert.equal(Object.hasOwn(model.executionGuidance, 'tool'), false);
+    assert.equal(Object.hasOwn(model, 'recovery'), false);
+    assert.doesNotMatch(text, /Read x402_status/);
+    if (Object.keys(mutation).length === 0) {
+      assert.match(text, /No payment was made/);
+      assert.equal(model.paymentDispatched, false);
+    } else {
+      assert.doesNotMatch(text, /No payment was made|before contacting the seller|seller was not contacted/i);
+      assert.equal(Object.hasOwn(model, 'paymentDispatched'), false);
+      assert.equal(Object.hasOwn(model, 'providerDispatched'), false);
+    }
+  }
 });
 
 test('actual MCP SDK serializes every tool result for a content-only host', async t => {

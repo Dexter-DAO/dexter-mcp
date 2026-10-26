@@ -328,6 +328,9 @@ test('provider failures stay failures instead of being presented as free access'
     readyForFetch: false,
     intentRequired: false,
     dispatchAtMostOnce: true,
+    reprobeAllowed: false,
+    nextAction: 'stop',
+    message: 'Tell the user that the provider request failed. Include this check ID and reason. Stop automatic retries.',
   });
   assert.equal(
     OPEN_TOOL_CONTRACTS.x402_check.outputSchema.safeParse(structuredContent)
@@ -366,6 +369,8 @@ test('SIWX checks finish in one probe without pretending a payment intent exists
     intentRequired: false,
     dispatchAtMostOnce: true,
     reprobeAllowed: false,
+    nextAction: 'stop',
+    message: 'Tell the user that this provider requires a wallet sign-in OpenDexter cannot complete. Stop automatic retries.',
   });
   assert.equal(
     OPEN_TOOL_CONTRACTS.x402_check.outputSchema.safeParse(structuredContent)

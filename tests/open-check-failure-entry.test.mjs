@@ -28,6 +28,161 @@ const upstreamRefusal = {
   httpStatus: 503,
 };
 
+const invalidQuote = {
+  ok: false,
+  error: 'invalid_payment_resource',
+  reason: 'payment_resource_mismatch',
+  message: 'The seller returned payment terms for a different request. No payment was made.',
+  retryable: false,
+  providerDispatched: true,
+  paymentDispatched: false,
+};
+const legacyInvalidQuote = {
+  ok: false,
+  error: 'new_check_required',
+  reason: 'payment_resource_mismatch',
+  retryable: false,
+};
+
+test('invalid quote dispatch evidence must match the saved check and remain uncontradicted', () => {
+  const checkRequestId = 'saved-invalid-quote';
+  const canonical = { ...invalidQuote, checkRequestId };
+  for (const mutation of [
+    { checkRequestId: undefined },
+    { checkRequestId: 'different-check' },
+    { providerDispatched: undefined },
+    { providerDispatched: false },
+    { paymentDispatched: undefined },
+    { paymentDispatched: true },
+    { retryable: true },
+    { status: 'check_unknown' },
+    { status: 'check_ambiguous' },
+  ]) {
+    const checkResult = { ...canonical, ...mutation };
+    for (const recoveredCheck of [false, true]) {
+      const result = buildHostedCheckModelResult({ checkRequestId, checkResult, recoveredCheck,
+        url: 'https://seller.example/weather?location=Brooklyn' });
+      assert.equal(Object.hasOwn(result, 'providerDispatched'), false);
+      assert.equal(Object.hasOwn(result, 'paymentDispatched'), false);
+      assert.doesNotMatch(result.message ?? '', /No payment was made|before contacting the seller|seller was not contacted/i);
+      assert.equal(result.intentId, null);
+      assert.equal(result.executionGuidance.readyForFetch, false);
+      assert.equal(result.executionGuidance.reprobeAllowed, false);
+      if (mutation.status && !recoveredCheck) {
+        assert.equal(result.error, invalidQuote.error);
+        assert.equal(result.executionGuidance.nextAction, 'read_status');
+        assert.equal(result.executionGuidance.tool, 'x402_status');
+      } else {
+        assert.equal(result.executionGuidance.nextAction, 'stop');
+        assert.equal(Object.hasOwn(result.executionGuidance, 'tool'), false);
+        assert.equal(Object.hasOwn(result, 'recovery'), false);
+      }
+      const parsed = OPEN_TOOL_CONTRACTS[recoveredCheck ? 'x402_status' : 'x402_check'].outputSchema.safeParse(result);
+      assert.equal(parsed.success, true, JSON.stringify(parsed.error?.issues));
+    }
+  }
+  for (const checkResult of [
+    { ...legacyInvalidQuote, reason: 'different_failure' },
+    { ...invalidQuote, reason: 'different_failure' },
+  ]) {
+    const result = buildHostedCheckModelResult({ checkRequestId, checkResult });
+    assert.equal(result.error, checkResult.error);
+    assert.equal(result.executionGuidance.supportedPath, 'unknown_error');
+  }
+});
+
+test('registered Check and Access report saved quote failures without a Status retry loop', async (t) => {
+  const previousFetch = globalThis.fetch;
+  const previousSecret = process.env.NATIVE_EXACT_MCP_SERVICE_HMAC_SECRET;
+  process.env.NATIVE_EXACT_MCP_SERVICE_HMAC_SECRET = 'a'.repeat(32);
+  const checks = [];
+  const statusReads = [];
+  const savedChecks = new Map();
+  let current = { body: legacyInvalidQuote, httpStatus: 409, bound: false };
+  const response = (data, status = 200) => new Response(JSON.stringify(data), {
+    status, headers: { 'content-type': 'application/json' },
+  });
+  globalThis.fetch = async (input, init) => {
+    const url = new URL(input);
+    if (url.pathname.startsWith('/api/passkey-anon/mcp-binding/')) return response({ ok: true, user_handle: 'fixture-user' });
+    if (url.pathname === '/api/x402/resource') return response({ ok: true, found: false });
+    const request = JSON.parse(init.body);
+    if (url.pathname.endsWith('/check')) {
+      checks.push(request);
+      const saved = { body: { ...current.body,
+        ...(current.bound ? { checkRequestId: request.requestId } : {}) }, httpStatus: current.httpStatus };
+      savedChecks.set(request.requestId, saved);
+      return response(saved.body, saved.httpStatus);
+    }
+    if (url.pathname.endsWith('/check/status')) {
+      statusReads.push(request);
+      const saved = savedChecks.get(request.requestId);
+      assert.ok(saved, 'Status must read the original saved check');
+      return response(saved.body, saved.httpStatus);
+    }
+    throw new Error(`Unexpected fixture request: ${url.pathname}`);
+  };
+  const server = createOpenMcpServer({ includeResources: false });
+  t.after(async () => {
+    await server.close();
+    globalThis.fetch = previousFetch;
+    if (previousSecret === undefined) delete process.env.NATIVE_EXACT_MCP_SERVICE_HMAC_SECRET;
+    else process.env.NATIVE_EXACT_MCP_SERVICE_HMAC_SECRET = previousSecret;
+  });
+  for (const variant of [
+    { body: legacyInvalidQuote, httpStatus: 409, bound: false },
+    { body: invalidQuote, httpStatus: 502, bound: true },
+  ]) {
+    for (const tool of ['x402_check', 'x402_access']) {
+      current = variant;
+      const extra = { sessionId: `quote-failure-${variant.httpStatus}-${tool}` };
+      const before = checks.length;
+      const first = await server._registeredTools[tool].handler({ url: 'https://seller.example/weather?location=Brooklyn' }, extra);
+      assert.equal(checks.length, before + 1);
+      const checkRequestId = checks.at(-1).requestId;
+      const saved = await server._registeredTools.x402_status.handler({ checkRequestId }, extra);
+      assert.equal(checks.length, before + 1, 'Status must never repeat the Check');
+      assert.equal(statusReads.at(-1).requestId, checkRequestId);
+      assert.equal(saved.structuredContent.httpStatus, variant.httpStatus);
+      for (const [name, result] of [[tool, first], ['x402_status', saved]]) {
+        const model = result.structuredContent;
+        const text = result.content.filter(block => block.type === 'text').map(block => block.text).join('\n');
+        assert.equal(result.isError, true);
+        assert.equal(model.error, 'invalid_payment_resource');
+        assert.equal(model.reason, 'payment_resource_mismatch');
+        assert.equal(model.checkRequestId, checkRequestId);
+        assert.equal(model.retryable, false);
+        assert.equal(model.intentId, null);
+        assert.equal(model.executionGuidance.supportedPath, 'provider_error');
+        assert.equal(model.executionGuidance.readyForFetch, false);
+        assert.equal(model.executionGuidance.reprobeAllowed, false);
+        assert.equal(model.executionGuidance.nextAction, 'stop');
+        assert.equal(Object.hasOwn(model.executionGuidance, 'tool'), false);
+        assert.equal(Object.hasOwn(model, 'recovery'), false);
+        assert.ok(text.includes(model.executionGuidance.message));
+        assert.ok(text.includes(checkRequestId));
+        assert.doesNotMatch(text, /Read x402_status|new_check_required|new check required/);
+        assert.doesNotMatch(text, /^\s*[\[{]/);
+        if (variant.bound) {
+          assert.equal(model.providerDispatched, true);
+          assert.equal(model.paymentDispatched, false);
+          assert.match(text, /No payment was made/);
+          assert.match(text, /seller/i);
+        } else {
+          assert.equal(Object.hasOwn(model, 'providerDispatched'), false);
+          assert.equal(Object.hasOwn(model, 'paymentDispatched'), false);
+          assert.doesNotMatch(text, /No payment was made|before contacting the seller|seller was not contacted/i);
+        }
+        assert.equal(OPEN_TOOL_CONTRACTS[name].outputSchema.safeParse(model).success, true);
+      }
+      assert.equal(first.structuredContent.message, saved.structuredContent.message);
+      assert.deepEqual(first.structuredContent.executionGuidance, saved.structuredContent.executionGuidance);
+    }
+  }
+  assert.equal(checks.length, 4);
+  assert.equal(statusReads.length, 4);
+});
+
 test('a retryable error alone never permits a new provider request', () => {
   const checkRequestId = 'saved-refusal';
   for (const mutation of [
@@ -206,7 +361,7 @@ test('local authority, known seller failure and unknown failure retain distinct 
     assert.equal(result.intentId, null);
     assert.equal(result.executionGuidance.readyForFetch, false);
     assert.equal(Object.hasOwn(result.executionGuidance, 'fetchArguments'), false);
-    if (path !== 'provider_error') assert.equal(result.executionGuidance.reprobeAllowed, false);
+    assert.equal(result.executionGuidance.reprobeAllowed, false);
     assert.equal(OPEN_TOOL_CONTRACTS.x402_check.outputSchema.safeParse(result).success, true);
     assert.equal(OPEN_TOOL_CONTRACTS.x402_access.outputSchema.safeParse(result).success, true);
     const saved = buildHostedCheckStatusModelResult({ checkResult,
@@ -307,7 +462,7 @@ test('actual hosted Check and Access handlers preserve the current refusal witho
         assert.equal(calls.at(-1).body, args.body);
         assert.equal(result.structuredContent.executionGuidance.supportedPath, path);
         assert.equal(result.structuredContent.executionGuidance.readyForFetch, false);
-        if (path !== 'provider_error') assert.equal(result.structuredContent.executionGuidance.reprobeAllowed, false);
+        assert.equal(result.structuredContent.executionGuidance.reprobeAllowed, false);
         assert.equal(result.structuredContent.executionGuidance.intentRequired, false);
         assert.equal(result.structuredContent.executionGuidance.dispatchAtMostOnce, true);
         assert.equal(Object.hasOwn(result.structuredContent.executionGuidance, 'fetchArguments'), false);
@@ -343,7 +498,7 @@ test('actual hosted Check and Access handlers preserve the current refusal witho
         assert.equal(saved.structuredContent.reason, failure.reason);
         assert.equal(saved.structuredContent.status, failure.status);
         assert.equal(saved.structuredContent.retryable, path === 'local_authority_unavailable' ? false : failure.retryable);
-        if (['check_unknown', 'check_ambiguous'].includes(failure.status)) {
+        if (path === 'unknown_error' || ['check_unknown', 'check_ambiguous'].includes(failure.status)) {
           assert.equal(saved.structuredContent.executionGuidance.nextAction, 'stop');
           assert.equal(Object.hasOwn(saved.structuredContent.executionGuidance, 'tool'), false);
           assert.equal(Object.hasOwn(saved.structuredContent, 'recovery'), false);
