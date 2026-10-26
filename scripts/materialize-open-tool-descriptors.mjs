@@ -237,9 +237,11 @@ const EXPECTED_SOURCE_CONTRACTS = Object.freeze({
   // Its seller offers share enough validity for the first owner approval.
   // The reviewed cash outcome preserves refusal reasons and money evidence.
   // Owner setup retains the native wallet reserve required for later spends.
+  // Successful purchases expose the verified saved seller result and bound
+  // payment evidence consistently through Fetch, Status and replay.
   // Later releases must preserve these API_GOVERNED_CONTRACT_PATHS bytes.
-  integratedGovernedCommit: 'a4b32dd7641c55ba3e0b5bc7c7d7530fa60c9b56',
-  integratedGovernedTree: '846ba24843dee3edcd93e7a5a0d0b6281e6970d6',
+  integratedGovernedCommit: '9b8c8a8d3e02a7d3e8cf7f8760df0a9c2dc77ace',
+  integratedGovernedTree: '29623a71fd4b051808bb6618161812d825ba80af',
   apiFixtureSha256:
     'ad06690a3914e0ef0f359c4164eb62f78ca54abe6697a52672d739df63c2c352',
   apiCanonicalBodyDigest:
