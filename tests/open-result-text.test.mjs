@@ -20,6 +20,7 @@ import { walletOutput, completePortfolio, partialUnpricedPortfolio } from './fix
 import { dynamicStockV2Fixture } from './fixtures/governed-stock-v2.fixtures.mjs';
 import { receiptFixture } from './fixtures/governed-receipt-outcome.fixtures.mjs';
 import { buildRendererGallerySurfaces } from './fixtures/opendexter-renderer-gallery-fixtures.mjs';
+import { createTabConsentHandler } from '../lib/open-tab-consent.mjs';
 
 const fixture = name => JSON.parse(readFileSync(new URL(`./fixtures/${name}.json`, import.meta.url), 'utf8'));
 const v3 = fixture('portfolio-selected-v3-api').valid;
@@ -41,6 +42,21 @@ const portfolioEnvelope = wire => ({ ...envelope(portfolioReady(wire.portfolio))
 const governed = body => buildGovernedAssetToolResult({ body, isError: false });
 const search = buildIndexterToolResult({ route: 'overview', payload: discovery, resolvedQuery: 'Explore services', routingReason: 'overview_requested' });
 const asset = stockRegistry.portfolio.holdings[0];
+const tabId = '11111111-1111-4111-8111-111111111111';
+const tabInput = { intentId: tabId, maxAmountAtomic: '25', expiresAtUnix: 1800000000 };
+const tabReviewUrl = `https://dexter.cash/mandate?case=${tabId}&review=1`;
+const tabResult = await createTabConsentHandler({
+  resolveSession: async () => ({ authenticated: true, sessionId: 'private-tab-text-session' }),
+  callApi: async () => ({ data: { ok: true, intentId: tabId, status: 'pending_consent', paymentDispatched: false,
+    preparation: { caseId: tabId, sessionId: tabId, gatewayIntentId: tabId, ownerReviewUrl: tabReviewUrl,
+      sessionPublicKey: '11111111111111111111111111111111', sessionPublicKeyHex: '00'.repeat(32),
+      vaultPda: '11111111111111111111111111111111', seller: '11111111111111111111111111111111',
+      network: 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp', asset: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+      proposedTerms: { maxAmountAtomic: '25', maxRevolvingCapacityAtomic: '25', expiresAtUnix: tabInput.expiresAtUnix },
+      proposedTermsDigest: 'a'.repeat(64), consentRequestId: tabId, consentRequestDigest: 'b'.repeat(64),
+      consentUrl: 'https://dexter.cash/tabs/new?req=e30', agentId: tabId, grantId: tabId,
+      grantRevision: 1, grantRevisionDigest: 'c'.repeat(64) } } }),
+})(tabInput);
 const assets = { namespace: 'dexter-asset-search/v1', query: 'SpaceX', kind: 'stocks', observedAt: stockRegistry.portfolio.observedAt,
   stocks: { status: 'ok', items: [{ mint: asset.mint, underlyingId: '11111111-1111-4111-8111-111111111111',
     variantId: '22222222-2222-4222-8222-222222222222', provider: 'Backpack Securities', symbol: asset.symbol, name: asset.name,
@@ -55,6 +71,7 @@ Object.assign(wallet.credit, { readStatus: 'available', readStatusSource: 'legac
 wallet.paymentReadiness = { status: 'cash_available', cashAvailable: true, creditReadStatus: 'available',
   creditCapacityReported: true, exactIntentCheckRequired: true, note: 'Check the exact intent before purchase.' };
 const cases = {
+  x402_prepare_tab: [tabResult, ['0.000025 USDC', String(tabInput.expiresAtUnix), tabReviewUrl, tabId, 'Payment requires a separate action']],
   indexter_discover: [envelope(discovery), ['Massive', 'Market snapshots']],
   indexter_search: [search, ['Massive']],
   x402_mcp_tools: [envelope({ ok: true, serverUrl: 'https://seller.example/mcp', protocolVersion: NATIVE_MCP_PROTOCOL_VERSION,
@@ -217,7 +234,8 @@ test('actual MCP SDK serializes every tool result for a content-only host', asyn
   t.after(async () => { await client.close(); await server.close(); });
   await server.connect(st); await client.connect(ct);
   for (const [name, [original, facts]] of Object.entries(cases)) {
-    const result = await client.callTool({ name, arguments: name === 'dexter_find_assets' ? { query: 'SpaceX' } : {} });
+    const result = await client.callTool({ name, arguments: name === 'dexter_find_assets' ? { query: 'SpaceX' }
+      : name === 'x402_prepare_tab' ? tabInput : {} });
     assert.notEqual(result.isError, true, `${name}: ${result.content[0]?.text}`);
     for (const fact of facts) assert.ok(result.content[0].text.includes(fact), `${name} missing ${fact}`);
     assert.deepEqual(result.structuredContent, applyOpenToolResultPolicy(name, original).structuredContent);
@@ -227,7 +245,7 @@ test('actual MCP SDK serializes every tool result for a content-only host', asyn
 
 // These handlers can return a session-authentication challenge. Catalog and
 // asset discovery authenticate at transport entry and have no such result branch.
-for (const tool of ['dexter_wallet', 'dexter_wallet_portfolio', 'dexter_report_work',
+for (const tool of ['x402_prepare_tab', 'dexter_wallet', 'dexter_wallet_portfolio', 'dexter_report_work',
   'dexter_prepare_asset_action', 'dexter_execute_asset_action', 'dexter_asset_action_status',
   'dexter_reconcile_asset_action', 'dexter_wallet_history', 'x402_fetch', 'x402_status']) {
   test(`${tool}: connection refusal stays readable and preserves host authorization metadata`, async () => {
@@ -240,6 +258,16 @@ for (const tool of ['dexter_wallet', 'dexter_wallet_portfolio', 'dexter_report_w
     assert.deepEqual(result._meta['mcp/www_authenticate'], raw._meta['mcp/www_authenticate']);
   });
 }
+
+test('Tab preparation keeps owner approval links and does not suggest purchase-status retries', async () => {
+  const consentUrl = `https://dexter.cash/wallet/approvals/x402/${tabId}`;
+  const handler = createTabConsentHandler({ resolveSession: async () => ({ authenticated: true, sessionId: 'private-tab-text-session' }),
+    callApi: async () => ({ data: { ok: false, error: 'approval_required',
+      approval: { namespace: 'dexter-gateway-owner-consent-link/v1', consentUrl } } }) });
+  const result = await registered('x402_prepare_tab', await handler(tabInput));
+  assert.ok(result.content[0].text.includes(consentUrl));
+  assert.doesNotMatch(result.content[0].text, /Read x402_status|private-tab-text-session/);
+});
 
 test('bounded history retains each displayed date, fill, and outcome, then names the omitted row count', async () => {
   const body = structuredClone(receipts.history);

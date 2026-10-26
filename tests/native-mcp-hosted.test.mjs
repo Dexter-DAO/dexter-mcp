@@ -193,7 +193,7 @@ test('native purchase contracts and Activity V4 survive one finalized hosted reg
   t.after(async () => { await client.close(); await server.close(); });
   await server.connect(serverTransport); await client.connect(clientTransport);
   const listed = (await client.listTools()).tools;
-  assert.equal(listed.length, 16);
+  assert.equal(listed.length, 17);
   for (const name of ['dexter_find_assets', 'dexter_report_work']) {
     assert.equal(listed.filter(tool => tool.name === name).length, 1);
   }

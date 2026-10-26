@@ -46,6 +46,7 @@ function resolveLocalRef(schema, node) {
 }
 
 const CONNECTED = [
+  'x402_prepare_tab',
   'dexter_trade',
   'dexter_find_assets',
   'indexter_discover',
@@ -522,8 +523,8 @@ test('source materializer emits one deterministic full hosted descriptor', async
     repository: 'https://github.com/Dexter-DAO/dexter-api',
     commit: acceptedProduction.api.sourceCommit,
     tree: acceptedProduction.api.sourceTree,
-    governedContractCommit: '719d5f524a5c11ac5ebfa7416d1c8dd7c8232fb0',
-    governedContractTree: '875f6b23a7f5f588e4cd5148a29d934da2bcc62e',
+    governedContractCommit: '9fad8ad40c8ea42d41b64e359687865003a4ac29',
+    governedContractTree: '0e6327197c651026ad7daf04437d764a6ee68a67',
   });
   assert.deepEqual(descriptor.sourceContracts.portfolioProjection, {
     repository: 'https://github.com/Dexter-DAO/dexter-api',
