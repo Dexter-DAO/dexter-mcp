@@ -108,6 +108,9 @@ const API_GOVERNED_CONTRACT_PATHS = Object.freeze([
   'src/portfolio/spotExecution/raydium.ts',
   'src/portfolio/spotExecution/selection.ts',
   'src/services/crosspayOrchestrator.ts',
+  'src/services/crosspayHealth.ts',
+  'src/services/crosspayOpenWork.ts',
+  'src/services/crosspayReconciler.ts',
   'src/services/crosspayChargeEvidence.ts',
   'src/services/crosspayPreflightDiagnostics.ts',
   'src/services/vaultProgramTransitionHold.ts',
@@ -147,6 +150,9 @@ const API_GOVERNED_CONTRACT_PATHS = Object.freeze([
   'src/routes/x402PayAnon.ts',
   'src/routes/x402IntentServiceAuth.ts',
   'src/routes/x402Push.ts',
+  'src/routes/demoBookOrder.ts',
+  'src/routes/demoBookPaymentBinding.ts',
+  'src/routes/x402DemoBooks.ts',
   'src/routes/mandatesPublic.ts',
   'src/passport',
   'src/ownerActions/passkey.ts',
@@ -240,8 +246,8 @@ const EXPECTED_SOURCE_CONTRACTS = Object.freeze({
   // Successful purchases expose the verified saved seller result and bound
   // payment evidence consistently through Fetch, Status and replay.
   // Later releases must preserve these API_GOVERNED_CONTRACT_PATHS bytes.
-  integratedGovernedCommit: '9b8c8a8d3e02a7d3e8cf7f8760df0a9c2dc77ace',
-  integratedGovernedTree: '29623a71fd4b051808bb6618161812d825ba80af',
+  integratedGovernedCommit: '9e30654101d7474cd1d759f4b50cbc87a85074d2',
+  integratedGovernedTree: 'e16067d02d4776355e5ee3bf58b4ea6ef9b0d93d',
   apiFixtureSha256:
     'ad06690a3914e0ef0f359c4164eb62f78ca54abe6697a52672d739df63c2c352',
   apiCanonicalBodyDigest:
