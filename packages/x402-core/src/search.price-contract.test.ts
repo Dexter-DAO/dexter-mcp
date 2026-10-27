@@ -44,6 +44,46 @@ function capabilityPayload(
   };
 }
 
+test('capability search does not start after caller cancellation', async (t) => {
+  const previousFetch = globalThis.fetch;
+  t.after(() => { globalThis.fetch = previousFetch; });
+  let calls = 0;
+  globalThis.fetch = async () => { calls += 1; return Response.json(capabilityPayload({})); };
+  const caller = new AbortController();
+  caller.abort(new Error('caller cancelled'));
+  await assert.rejects(capabilitySearch({ query: 'weather', signal: caller.signal }), /caller cancelled/);
+  assert.equal(calls, 0);
+});
+
+for (const phase of ['headers', 'body']) {
+  test(`capability search carries caller cancellation through ${phase}`, async (t) => {
+    const previousFetch = globalThis.fetch;
+    t.after(() => { globalThis.fetch = previousFetch; });
+    const caller = new AbortController();
+    const captured: { signal?: AbortSignal | null } = {};
+    globalThis.fetch = async (_input, options) => {
+      captured.signal = options?.signal;
+      assert.ok(captured.signal);
+      if (phase === 'headers') {
+        return new Promise<Response>((_resolve, reject) => {
+          captured.signal!.addEventListener('abort', () => reject(captured.signal!.reason), { once: true });
+        });
+      }
+      return new Response(new ReadableStream({
+        start(controller) {
+          captured.signal!.addEventListener('abort', () => controller.error(captured.signal!.reason), { once: true });
+        },
+      }));
+    };
+    const result = capabilitySearch({ query: 'weather', signal: caller.signal });
+    const rejected = assert.rejects(result, /caller cancelled/);
+    await Promise.resolve();
+    caller.abort(new Error('caller cancelled'));
+    await rejected;
+    assert.equal(captured.signal?.aborted, true);
+  });
+}
+
 test('capability search sends and preserves confirmed typed search controls', async (t) => {
   const previousFetch = globalThis.fetch;
   t.after(() => {

@@ -31,18 +31,18 @@ const GOLDEN_PROMPTS = Object.freeze([
   ['I need shipping rates', 'task', null],
 ]);
 
-test('one model-visible Indexter entry covers every deterministic route', () => {
+test('model-visible discovery and search cover every deterministic route', () => {
   const visibleIndexterTools = Object.entries(OPEN_TOOL_CONTRACTS)
     .filter(([name, contract]) => (
       name.startsWith('indexter_') && contract.visibility.includes('model')
     ))
     .map(([name]) => name);
 
-  assert.deepEqual(visibleIndexterTools, ['indexter_search']);
+  assert.deepEqual(visibleIndexterTools, ['indexter_discover', 'indexter_search']);
   assert.deepEqual(OPEN_TOOL_CONTRACTS.indexter_search.visibility, ['model']);
-  assert.deepEqual(OPEN_TOOL_CONTRACTS.indexter_discover.visibility, ['app']);
+  assert.deepEqual(OPEN_TOOL_CONTRACTS.indexter_discover.visibility, ['model', 'app']);
   assert.equal(OPEN_TOOL_CONTRACTS.indexter_discover.widgetAccessible, true);
-  assert.equal(OPEN_TOOL_NAMES.length, 14);
+  assert.equal(OPEN_TOOL_NAMES.length, 18);
 
   for (const [prompt, route, provider] of GOLDEN_PROMPTS) {
     assert.deepEqual(routeIndexterRequest(prompt), { route, provider }, prompt);
@@ -53,13 +53,13 @@ test('server instructions require one natural-language call without model fanout
   const instructions = buildOpenServerInstructions();
   const search = OPEN_TOOL_CONTRACTS.indexter_search.description;
 
-  assert.match(instructions, /Use indexter_search for every Indexter request/);
-  assert.match(instructions, /Call it once with a standalone query that includes relevant conversation context/);
-  assert.match(instructions, /other broad prompts, and ambiguity route to overview without a clarifying question/);
+  assert.match(instructions, /Use indexter_search for concrete tasks and context-resolved service requests/);
+  assert.match(instructions, /call once with a standalone query that includes relevant conversation context/);
+  assert.match(instructions, /explicit featured or popular provider browsing open the curated overview/);
   assert.match(instructions, /named-provider questions route to provider/);
   assert.match(instructions, /concrete requests route to task/);
-  assert.match(instructions, /Never fan out into category searches, invent synonyms, or call indexter_discover/);
-  assert.match(search, /Broad prompts open an overview/);
+  assert.match(instructions, /Never fan out into category searches or invent synonyms/);
+  assert.match(search, /Broad and featured-provider requests open an overview/);
   assert.match(search, /originalQuery/);
   assert.match(instructions, /capped at twelve results/);
   assert.match(search, /Actor listings remain catalog-only/);
@@ -83,10 +83,11 @@ test('routing preserves the wallet and execution boundaries', () => {
   assert.match(instructions, /Any path field, managed query field, GET body field,[\s\S]*must stop before x402_check/);
 });
 
-test('app-only continuation keeps endpoint and Actor cursors separate and opaque', () => {
+test('model and app continuation keep endpoint and Actor cursors separate and opaque', () => {
   const discovery = OPEN_TOOL_CONTRACTS.indexter_discover.description;
 
-  assert.match(discovery, /endpoint and Actor cursors exactly/);
-  assert.match(discovery, /App-only Indexter browser/);
+  assert.match(discovery, /Copy page.nextCursor into cursor/);
+  assert.match(discovery, /Actor cursor into actorCursor separately/);
+  assert.doesNotMatch(discovery, /App-only/);
   assert.doesNotMatch(discovery, /numeric (?:page )?offset/i);
 });

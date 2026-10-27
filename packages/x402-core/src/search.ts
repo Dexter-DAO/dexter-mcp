@@ -173,6 +173,7 @@ export async function capabilitySearch(
     sortBy,
     debug,
     endpoint = DEFAULT_ENDPOINT,
+    signal,
   } = options;
 
   assertUsdcPriceConstraint('maxPriceUsdc', maxPriceUsdc);
@@ -211,9 +212,12 @@ export async function capabilitySearch(
 
   const url = `${endpoint}?${params.toString()}`;
 
+  signal?.throwIfAborted();
   const response = await fetch(url, {
     headers: { Accept: 'application/json' },
-    signal: AbortSignal.timeout(DEFAULT_TIMEOUT),
+    signal: signal
+      ? AbortSignal.any([signal, AbortSignal.timeout(DEFAULT_TIMEOUT)])
+      : AbortSignal.timeout(DEFAULT_TIMEOUT),
   });
 
   if (!response.ok) {

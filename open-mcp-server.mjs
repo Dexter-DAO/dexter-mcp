@@ -164,8 +164,11 @@ import {
   buildOpenMcpManifest,
 } from './lib/open-mcp-manifest.mjs';
 import { buildOpenServerInstructions } from './lib/open-server-instructions.mjs';
+import { IndexterDeadlineError, withIndexterDeadline } from './lib/indexter-deadline.mjs';
 import {
   getIndexterProviderCandidate,
+  getIndexterPublishedNameCandidate,
+  matchesIndexterPublishedName,
   INDEXTER_MAX_QUERY_CODE_UNITS,
   classifyIndexterRequest,
   hasIndexterTaskConstraints,
@@ -528,7 +531,7 @@ async function indexterDiscover({
   cursor,
   actorPageSize,
   actorCursor,
-}) {
+}, { timeoutMs = 20_000, speculativeName = false, signal } = {}) {
   const requestedProvider = typeof provider === 'string'
     ? provider.trim()
     : '';
@@ -563,23 +566,26 @@ async function indexterDiscover({
   let response;
   let payload;
   try {
-    response = await fetchInternalApi(
-      `${INDEXTER_DISCOVERY_PATH}?${searchParams.toString()}`,
-      {
-        // The x402 edge has emitted a malformed gzip representation for this
-        // JSON route: headers arrive, but Node cannot finish decoding the body.
-        // Discovery needs deterministic bounded reads, so request the original
-        // bytes instead of negotiating compression.
-        headers: {
-          accept: 'application/json',
-          'accept-encoding': 'identity',
+    payload = await withIndexterDeadline(async (readSignal) => {
+      response = await fetchInternalApi(
+        `${INDEXTER_DISCOVERY_PATH}?${searchParams.toString()}`,
+        {
+          // The x402 edge has emitted a malformed gzip representation for this
+          // JSON route: headers arrive, but Node cannot finish decoding the body.
+          // Discovery needs deterministic bounded reads, so request the original
+          // bytes instead of negotiating compression.
+          headers: {
+            accept: 'application/json',
+            'accept-encoding': 'identity',
+          },
+          signal: readSignal,
         },
-        signal: AbortSignal.timeout(20_000),
-      },
-      { origin: API_BASE_FALLBACK },
-    );
-    payload = await readBoundedIndexterDiscoveryJson(response);
+        { origin: API_BASE_FALLBACK },
+      );
+      return readBoundedIndexterDiscoveryJson(response);
+    }, { timeoutMs, signal });
   } catch (error) {
+    if (signal?.aborted) throw error;
     const rejectedPayload = error instanceof IndexterDiscoveryPayloadError;
     logIndexterDebug('indexter_discover', 'failed', {
       mode,
@@ -591,7 +597,9 @@ async function indexterDiscover({
       mode,
       requestedProvider: requestedProvider || null,
       pageLimit: requestedProvider ? (capabilityPageSize ?? 16) : (limit ?? 8),
-      error: rejectedPayload
+      error: speculativeName && error instanceof IndexterDeadlineError
+        ? 'provider_lookup_timeout'
+        : rejectedPayload
         ? 'indexter_discovery_invalid'
         : 'indexter_discovery_unavailable',
       message: rejectedPayload
@@ -603,6 +611,7 @@ async function indexterDiscover({
   if (!response.ok || payload?.ok !== true || payload?.mode !== mode) {
     const providerNotFound = response.status === 404
       && payload?.error === 'provider_not_found';
+    const providerAmbiguous = response.status === 409 && payload?.error === 'provider_ambiguous';
     const invalidCursor = response.status === 400
       && payload?.error === 'invalid_discovery_cursor';
     const invalidActorCursor = (response.status === 400 || response.status === 409)
@@ -619,6 +628,8 @@ async function indexterDiscover({
       pageLimit: requestedProvider ? (capabilityPageSize ?? 16) : (limit ?? 8),
       error: providerNotFound
         ? 'provider_not_found'
+        : providerAmbiguous
+          ? 'provider_ambiguous'
         : invalidCursor
           ? 'invalid_discovery_cursor'
           : invalidActorCursor
@@ -626,6 +637,8 @@ async function indexterDiscover({
         : 'indexter_discovery_unavailable',
       message: providerNotFound
         ? `Indexter could not find a provider matching "${requestedProvider}".`
+        : providerAmbiguous
+          ? 'More than one provider uses this name. Use a provider key or host to choose one.'
         : invalidCursor
           ? 'This Indexter page is no longer current. Open the provider again.'
           : invalidActorCursor
@@ -754,7 +767,7 @@ async function x402Search({
   minPriceUsdc,
   paidOnly,
   sortBy,
-}) {
+}, { signal } = {}) {
   const rawQuery = typeof query === 'string' ? query.trim() : '';
   logX402SearchDebug('start', {
     queryRef: logRef(rawQuery),
@@ -792,6 +805,7 @@ async function x402Search({
     paidOnly,
     sortBy,
     endpoint,
+    signal,
   });
 
   // Hard payability filter — applied AFTER ranking so relevance is untouched;
@@ -2505,79 +2519,109 @@ export function createOpenMcpServer({
     }),
     annotations: { readOnlyHint: true },
     _meta: SEARCH_META,
-  }, async (args) => {
-    if (args.contractResourceId !== undefined) {
-      let payload;
-      let error;
-      try {
-        const query = new URLSearchParams({ resourceId: args.contractResourceId, method: args.contractMethod });
-        const response = await fetchInternalApi(`/api/x402gle/indexter/input-contract?${query}`, {
-          headers: { accept: 'application/json', 'accept-encoding': 'identity' },
-          signal: AbortSignal.timeout(20_000),
-        }, { origin: API_BASE_FALLBACK });
-        payload = await readBoundedIndexterDiscoveryJson(response);
-        if (!response.ok || payload?.ok !== true) error = payload?.error ?? 'input_contract_unavailable';
-      } catch (cause) {
-        error = cause instanceof IndexterDiscoveryPayloadError ? 'input_contract_invalid' : 'input_contract_unavailable';
-      }
-      return buildIndexterInputContractResult({
-        resourceId: args.contractResourceId, method: args.contractMethod,
-        payload, error, baseMeta: SEARCH_META,
-      });
-    }
+  }, async (args, extra) => {
     const taskConstraints = hasIndexterTaskConstraints(args);
     let decision = classifyIndexterRequest(args.query, { originalQuery: args.originalQuery, taskConstraints });
     let taskSearchAttempted = false;
     try {
-      let providerData;
-      const candidate = decision.route !== 'provider'
-        ? getIndexterProviderCandidate(args.query, { originalQuery: args.originalQuery, taskConstraints })
-        : null;
-      if (candidate) {
-        decision = { ...decision, routingReason: 'provider_requested' };
-        const resolved = await indexterDiscover({
-          provider: candidate,
-          capabilityPageSize: 12,
-          actorPageSize: 8,
+      return await withIndexterDeadline(async (signal) => {
+        if (args.contractResourceId !== undefined) {
+          let payload;
+          let error;
+          try {
+            const query = new URLSearchParams({ resourceId: args.contractResourceId, method: args.contractMethod });
+            const response = await fetchInternalApi(`/api/x402gle/indexter/input-contract?${query}`, {
+              headers: { accept: 'application/json', 'accept-encoding': 'identity' },
+              signal,
+            }, { origin: API_BASE_FALLBACK });
+            payload = await readBoundedIndexterDiscoveryJson(response);
+            if (!response.ok || payload?.ok !== true) error = payload?.error ?? 'input_contract_unavailable';
+          } catch (cause) {
+            error = cause instanceof IndexterDiscoveryPayloadError ? 'input_contract_invalid' : 'input_contract_unavailable';
+          }
+          return buildIndexterInputContractResult({
+            resourceId: args.contractResourceId, method: args.contractMethod,
+            payload, error, baseMeta: SEARCH_META,
+          });
+        }
+        let providerData;
+        const candidate = decision.route !== 'provider'
+          ? getIndexterProviderCandidate(args.query, { originalQuery: args.originalQuery, taskConstraints })
+          : null;
+        const publishedName = decision.route !== 'provider' && !candidate
+          ? getIndexterPublishedNameCandidate(args.query, { originalQuery: args.originalQuery, taskConstraints })
+          : null;
+        if (candidate) {
+          decision = { ...decision, routingReason: 'provider_requested' };
+          const resolved = await indexterDiscover({
+            provider: candidate,
+            capabilityPageSize: 12,
+            actorPageSize: 8,
+          }, { signal });
+          // Only an explicit catalog miss falls back to the original task.
+          // Reuse successful provider data; never disguise an outage as a miss.
+          if (resolved.error !== 'provider_not_found') {
+            decision = { route: 'provider', provider: candidate, routingReason: 'provider_requested' };
+            providerData = resolved;
+          } else {
+            decision = { ...decision, routingReason: 'provider_not_found' };
+          }
+        } else if (publishedName) {
+          // This optional literal lookup must leave time for the original task.
+          const resolved = await indexterDiscover({
+            provider: publishedName, capabilityPageSize: 12, actorPageSize: 8,
+          }, { timeoutMs: 4_000, speculativeName: true, signal });
+          if (matchesIndexterPublishedName(publishedName, resolved)
+            || (resolved.error && !['provider_not_found', 'provider_lookup_timeout'].includes(resolved.error))) {
+            decision = { route: 'provider', provider: publishedName, routingReason: 'provider_requested' };
+            providerData = resolved;
+          } else {
+            logIndexterDebug('indexter_search', 'literal-name-unresolved', {
+              providerRef: logRef(publishedName),
+              reason: resolved.error ?? 'published_name_mismatch',
+              fallbackRoute: decision.route,
+            });
+          }
+        }
+        let data = providerData;
+        if (data == null) {
+          if (decision.route === 'task') {
+            taskSearchAttempted = true;
+            data = await x402Search({
+              ...args,
+              limit: Math.min(args.limit ?? INDEXTER_RESULT_LIMIT, INDEXTER_RESULT_LIMIT),
+            }, { signal });
+          } else {
+            data = await indexterDiscover({
+              provider: decision.provider ?? undefined,
+              limit: decision.route === 'overview' ? 4 : undefined,
+              cursor: decision.route === 'overview' ? args.overviewCursor : undefined,
+              capabilityPageSize: decision.route === 'provider' ? 12 : undefined,
+              actorPageSize: decision.route === 'provider' ? 8 : undefined,
+            }, { signal });
+          }
+        }
+        return buildIndexterToolResult({
+          route: decision.route,
+          provider: decision.provider,
+          originalQuery: args.originalQuery,
+          resolvedQuery: args.query,
+          routingReason: decision.routingReason,
+          taskSearchAttempted,
+          payload: data,
+          baseMeta: SEARCH_META,
         });
-        // Only an explicit catalog miss falls back to the original task.
-        // Reuse successful provider data; never disguise an outage as a miss.
-        if (resolved.error !== 'provider_not_found') {
-          decision = { route: 'provider', provider: candidate, routingReason: 'provider_requested' };
-          providerData = resolved;
-        } else {
-          decision = { ...decision, routingReason: 'provider_not_found' };
-        }
-      }
-      let data = providerData;
-      if (data == null) {
-        if (decision.route === 'task') {
-          taskSearchAttempted = true;
-          data = await x402Search({
-            ...args,
-            limit: Math.min(args.limit ?? INDEXTER_RESULT_LIMIT, INDEXTER_RESULT_LIMIT),
-          });
-        } else {
-          data = await indexterDiscover({
-            provider: decision.provider ?? undefined,
-            limit: decision.route === 'overview' ? 4 : undefined,
-            cursor: decision.route === 'overview' ? args.overviewCursor : undefined,
-            capabilityPageSize: decision.route === 'provider' ? 12 : undefined,
-            actorPageSize: decision.route === 'provider' ? 8 : undefined,
-          });
-        }
-      }
-      return buildIndexterToolResult({
-        route: decision.route,
-        provider: decision.provider,
-        originalQuery: args.originalQuery,
-        resolvedQuery: args.query,
-        routingReason: decision.routingReason,
-        taskSearchAttempted,
-        payload: data,
-        baseMeta: SEARCH_META,
+      }, {
+        signal: extra?.signal,
+        deadlineUnixMs: extra?._meta?.['dexter/operationDeadlineUnixMs'],
       });
     } catch (err) {
+      if (args.contractResourceId !== undefined) {
+        return buildIndexterInputContractResult({
+          resourceId: args.contractResourceId, method: args.contractMethod,
+          error: 'input_contract_unavailable', baseMeta: SEARCH_META,
+        });
+      }
       console.warn(`[indexter_search] search failed (${safeErrorLabel(err)})`);
       const data = decision.route === 'task'
         ? buildSearchErrorResponse(err?.message || String(err))
