@@ -44,6 +44,65 @@ const legacyInvalidQuote = {
   retryable: false,
 };
 
+test('an HTTP error with an unrecognized body cannot become an authentication classification', () => {
+  for (const body of [{}, { retryable: true }, { error: { code: 'upstream_failure' }, retryable: true },
+    { ok: true, authMode: 'paid', paymentRequired: true, intentId: 'unexpected-intent' }]) {
+    const result = buildHostedCheckModelResult({
+      checkRequestId: 'saved-http-error', checkResult: { ...body, httpStatus: 502 },
+      url: 'https://seller.example/paid',
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.retryable, false);
+    assert.equal(result.intentId, null);
+    assert.equal(result.error, 'purchase_check_outcome_unknown');
+    assert.equal(result.statusCode, 502);
+    assert.equal(result.executionGuidance.readyForFetch, false);
+    assert.equal(result.executionGuidance.reprobeAllowed, false);
+    assert.equal(result.executionGuidance.supportedPath, 'check_pending');
+    assert.equal(result.executionGuidance.nextAction, 'read_status');
+    assert.equal(result.recovery.checkRequestId, 'saved-http-error');
+    assert.equal(buildHostedCheckToolResult(result).isError, true);
+  }
+});
+
+test('registered Check retains an HTTP failure and permits only reading its saved handle', async (t) => {
+  const previousFetch = globalThis.fetch;
+  const previousSecret = process.env.NATIVE_EXACT_MCP_SERVICE_HMAC_SECRET;
+  process.env.NATIVE_EXACT_MCP_SERVICE_HMAC_SECRET = 'b'.repeat(32);
+  const requests = [];
+  const response = (body, status = 200) => new Response(JSON.stringify(body), {
+    status, headers: { 'content-type': 'application/json' },
+  });
+  globalThis.fetch = async (input, init) => {
+    const url = new URL(input);
+    if (url.pathname.startsWith('/api/passkey-anon/mcp-binding/')) return response({ ok: true, user_handle: 'fixture-user' });
+    if (url.pathname === '/api/x402/resource') return response({ ok: true, found: false });
+    assert.equal(url.pathname, '/v2/pay/anon/x402/check');
+    requests.push(JSON.parse(init.body));
+    return response({ type: 'about:blank', title: 'Bad Gateway', status: 502, retryable: true }, 502);
+  };
+  const server = createOpenMcpServer({ includeResources: false });
+  t.after(async () => {
+    await server.close();
+    globalThis.fetch = previousFetch;
+    if (previousSecret === undefined) delete process.env.NATIVE_EXACT_MCP_SERVICE_HMAC_SECRET;
+    else process.env.NATIVE_EXACT_MCP_SERVICE_HMAC_SECRET = previousSecret;
+  });
+  const result = await server._registeredTools.x402_check.handler(
+    { url: 'https://seller.example/paid' }, { sessionId: 'http-failure-fixture' });
+  assert.equal(requests.length, 1);
+  assert.equal(result.isError, true);
+  assert.equal(result.structuredContent.checkRequestId, requests[0].requestId);
+  assert.equal(result.structuredContent.statusCode, 502);
+  assert.equal(result.structuredContent.retryable, false);
+  assert.equal(result.structuredContent.executionGuidance.nextAction, 'read_status');
+  const text = result.content.map(block => block.text ?? '').join('\n');
+  assert.match(text, /status code: 502/);
+  assert.match(text, /purchase_check_outcome_unknown/);
+  assert.match(text, /retryable: false/);
+  assert.doesNotMatch(text, /unsupported_auth/);
+});
+
 test('invalid quote dispatch evidence must match the saved check and remain uncontradicted', () => {
   const checkRequestId = 'saved-invalid-quote';
   const canonical = { ...invalidQuote, checkRequestId };
