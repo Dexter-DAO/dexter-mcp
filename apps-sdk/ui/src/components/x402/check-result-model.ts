@@ -36,6 +36,7 @@ export type X402PaymentRoute = Readonly<PaymentOption & {
    * network can offer multiple assets, schemes, recipients, and prices.
    */
   routeKey: string;
+  smartWalletSupport?: boolean | 'unknown';
 }>;
 
 type X402CheckedRequestBase = Readonly<{
@@ -200,6 +201,8 @@ function routeKey(route: Omit<X402PaymentRoute, 'routeKey'>): string {
     route.payTo,
     route.amountAtomic ?? route.price,
     route.facilitator ?? null,
+    route.expiresAt ?? null,
+    route.smartWalletSupport ?? null,
   ]);
 }
 
@@ -218,6 +221,9 @@ export function normalizeX402PaymentRoutes(value: unknown): X402PaymentRoute[] {
 
     const price = nullableFiniteNumber(candidate.price);
     if (price === null || price < 0) continue;
+    const smartWalletSupport: X402PaymentRoute['smartWalletSupport'] =
+      typeof candidate.smartWalletSupport === 'boolean' ? candidate.smartWalletSupport
+        : candidate.smartWalletSupport === 'unknown' ? 'unknown' : undefined;
 
     const route = {
       price,
@@ -231,6 +237,7 @@ export function normalizeX402PaymentRoutes(value: unknown): X402PaymentRoute[] {
       decimals: nullableInteger(candidate.decimals),
       facilitator: nullableString(candidate.facilitator),
       expiresAt: nullableString(candidate.expiresAt),
+      ...(smartWalletSupport === undefined ? {} : { smartWalletSupport }),
     } satisfies PaymentOption;
     const key = routeKey(route);
 

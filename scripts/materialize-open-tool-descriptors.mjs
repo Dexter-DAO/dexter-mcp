@@ -171,6 +171,7 @@ const API_GOVERNED_CONTRACT_PATHS = Object.freeze([
   'src/services/x402/swigExactPayment.ts',
   'src/services/x402/opaquePurchaseCheckPersistence.ts',
   'src/services/x402/opaquePurchaseCoordinator.ts',
+  'src/services/x402/opaqueQuotedOffers.ts',
   'src/services/x402/opaqueGatewayCashAdapter.ts',
   'src/services/x402/opaqueNativeTabAdapter.ts',
   'src/services/x402/opaqueNativeTabConsentPreparation.ts',
