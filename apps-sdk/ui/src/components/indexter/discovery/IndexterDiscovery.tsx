@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Ref } from 'react';
+import { indexterCurrentFailureMessage } from '../../../../../../lib/indexter-endpoint-availability.mjs';
 import {
   useAdaptiveCallToolFn,
   useAdaptiveDisplayMode,
@@ -19,6 +20,7 @@ import {
   buildActorDiscussionFollowUp,
   buildProviderFollowUp,
   buildResourceCheckFollowUp,
+  buildInputContractFollowUp,
   discoverySummaryLabel,
   formatDiscoveryPrice,
   isIndexterDiscoveryPayload,
@@ -261,14 +263,16 @@ function ResourceRow({
   showMerchant?: boolean;
 }) {
   const actionAvailable = resource.action.kind !== 'endpoint_unavailable';
-  const canCheck = resource.access.checkable
-    && actionAvailable
+  const failureMessage = resource.action.kind === 'endpoint_unavailable'
+    ? indexterCurrentFailureMessage(resource.action.reason) : null;
+  const hasDeferredInputs = resource.inputContract?.status === 'details_required';
+  const canCheck = (hasDeferredInputs || (resource.access.checkable && actionAvailable))
     && canContinue
     && typeof resource.resourceId === 'string'
     && resource.resourceId.length > 0;
   const requiresRequestReview = resource.action.kind === 'review_endpoint';
-  const actionLabel = resource.action.label;
-  const actionAriaLabel = resource.action.kind === 'endpoint_unavailable'
+  const actionLabel = hasDeferredInputs ? 'View inputs' : resource.action.label;
+  const actionAriaLabel = hasDeferredInputs ? `Read catalog inputs for ${resource.displayName}` : resource.action.kind === 'endpoint_unavailable'
     ? `${resource.displayName} from ${provider.displayName} is unavailable to check`
     : requiresRequestReview
       ? `Review exact request before checking current terms for ${resource.displayName} from ${provider.displayName}`
@@ -291,6 +295,7 @@ function ResourceRow({
           <span>{formatDiscoveryPrice(resource)}</span>
         </div>
         {resource.description ? <p>{resource.description}</p> : null}
+        {failureMessage ? <p className="dx-discovery-resource__availability" role="status">{failureMessage}</p> : null}
         {resource.evidence.state !== 'no_current_confirmation' ? (
           <div className="dx-discovery-resource__meta">
             <EvidenceLabel evidence={resource.evidence} />
@@ -308,8 +313,9 @@ function ResourceRow({
         aria-busy={checking}
         aria-label={actionAriaLabel}
         title={
-          !resource.access.checkable || !actionAvailable
-            ? 'This service cannot be checked safely from its current catalog record'
+          hasDeferredInputs ? 'Read the complete catalog input contract'
+          : !resource.access.checkable || !actionAvailable
+            ? failureMessage ?? 'This service cannot be checked safely from its current catalog record'
             : requiresRequestReview
               ? 'Review the exact request and possible effect in chat before checking terms'
               : undefined
@@ -766,8 +772,10 @@ export function IndexterDiscovery({
   ) => {
     if (!sendFollowUp || checkingResource || resourceMessageInFlight.current) return;
     setInlineError(null);
-    if (resource.action.kind === 'endpoint_unavailable') {
-      setInlineError('This offering cannot be checked safely from its current catalog record.');
+    const contractPrompt = buildInputContractFollowUp(resource);
+    if (resource.action.kind === 'endpoint_unavailable' && !contractPrompt) {
+      setInlineError(indexterCurrentFailureMessage(resource.action.reason)
+        ?? 'This offering cannot be checked safely from its current catalog record.');
       return;
     }
     if (!resource.resourceId) {
@@ -783,7 +791,7 @@ export function IndexterDiscovery({
       selectedProviderKey: provider.providerKey,
     }).catch(() => {});
     try {
-      const prompt = buildResourceCheckFollowUp(provider, resource);
+      const prompt = contractPrompt ?? buildResourceCheckFollowUp(provider, resource);
       if (!prompt) {
         setInlineError('This offering has no usable resource identity, so Dexter cannot check it.');
         return;
@@ -791,7 +799,7 @@ export function IndexterDiscovery({
       await sendFollowUp(prompt);
     } catch {
       if (activeRequest !== followUpRequestId.current) return;
-      setInlineError("Couldn't open the terms check in chat. Try again.");
+      setInlineError("Couldn't open this request in chat. Try again.");
     } finally {
       if (activeRequest === followUpRequestId.current) {
         resourceMessageInFlight.current = null;

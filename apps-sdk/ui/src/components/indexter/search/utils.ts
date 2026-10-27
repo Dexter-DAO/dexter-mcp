@@ -40,7 +40,10 @@ export function merchantLabel(resource: SearchResource): string {
 
 export function merchantCaption(resource: SearchResource): string | null {
   const merchant = merchantLabel(resource);
-  return merchant.toLowerCase() === resource.name.trim().toLowerCase() ? null : merchant;
+  const caption = merchant.toLowerCase() === resource.name.trim().toLowerCase() ? null : merchant;
+  return resource.editorial?.providerFeatured === true
+    ? [caption, 'Featured provider'].filter(Boolean).join(' · ')
+    : caption;
 }
 
 export function resourceImageSources(resource: SearchResource): string[] {

@@ -44,6 +44,7 @@ export type SearchResourceExecution = {
   userExecution: 'allowed' | 'unsupported';
   confirmationRequired: boolean;
   availability: 'available' | 'catalog_only' | 'unsupported';
+  unavailableReason?: 'not_found' | 'auth_gated' | 'merchant_down';
   requiresExplicitInput: boolean;
   quoteMayCreateProviderReservation: boolean;
 };
@@ -70,7 +71,7 @@ export type SearchResource = {
   url: string | null;
   access: {
     kind: 'direct_url' | 'managed_resolvable';
-    checkable: true;
+    checkable: boolean;
     requiresFreshCheck: true;
   };
   method: string;
@@ -89,7 +90,7 @@ export type SearchResource = {
     kind: 'endpoint_unavailable';
     label: 'Unavailable';
     state: 'unavailable';
-    reason: 'input_contract_unavailable';
+    reason: 'input_contract_unavailable' | 'not_found' | 'auth_gated' | 'merchant_down';
     resourceId: string;
     resourceUrl: string | null;
   };
@@ -109,6 +110,10 @@ export type SearchResource = {
   totalVolumeUsdc?: number | null;
   iconUrl?: string | null;
   merchant?: SearchMerchant | null;
+  editorial?: {
+    providerFeatured: boolean;
+    providerOrder: number | null;
+  };
   seller: string | null;
   sellerMeta: SearchSeller;
   sellerReputation?: number | null;

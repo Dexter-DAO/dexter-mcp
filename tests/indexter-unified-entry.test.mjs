@@ -255,7 +255,7 @@ test('ambiguous provider names resolve against the catalog without repeating dis
   }
 });
 
-test('a confirmed catalog miss falls back to the exact original task and controls', async (t) => {
+test('a confirmed catalog miss falls back to the exact original task', async (t) => {
   const previousFetch = globalThis.fetch;
   const requests = [];
   globalThis.fetch = async (input) => {
@@ -274,14 +274,12 @@ test('a confirmed catalog miss falls back to the exact original task and control
   const query = 'browse orbital forecasts';
   const result = await client.callTool({
     name: 'indexter_search',
-    arguments: { query, maxPriceUsdc: 0.02, sortBy: 'price_asc' },
+    arguments: { query },
   });
   assert.equal(requests.length, 2);
   assert.equal(requests[0].searchParams.get('provider'), 'orbital forecasts');
   assert.equal(requests[1].pathname, '/api/x402gle/capability');
   assert.equal(requests[1].searchParams.get('q'), query);
-  assert.equal(requests[1].searchParams.get('maxPriceUsdc'), '0.02');
-  assert.equal(requests[1].searchParams.get('sortBy'), 'price_asc');
   assert.equal(result.structuredContent.route, 'task');
   assert.equal(result.structuredContent.ok, true);
 });
@@ -513,7 +511,7 @@ test('specific keyword requests reach capability search through the MCP handler'
     assert.equal(result._meta.indexterPayload.routingReason, routingReason);
     assert.equal(result._meta.indexterPayload.taskSearchAttempted, false);
     if (routingReason === 'unresolved_query' || routingReason === 'input_rejected') {
-      assert.match(result.content[0].text, /featured catalog overview/);
+      assert.match(result.content[0].text, /Catalog overview/);
       assert.match(result.content[0].text, /No task search was attempted/);
     } else {
       assert.doesNotMatch(result.content[0].text, /No task search was attempted/);

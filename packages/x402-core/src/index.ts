@@ -29,6 +29,7 @@ export type {
 
   // Consumer-facing shapes
   FormattedResource,
+  IndexterProviderEditorial,
   CapabilitySearchOptions,
   CapabilitySearchResult,
   CapabilitySearchSortBy,

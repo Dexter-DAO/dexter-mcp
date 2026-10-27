@@ -1,0 +1,1352 @@
+{
+  "source": {
+    "worktree": "/home/branchmanager/worktrees/dex319-api-featured-discovery-20261027",
+    "base": "9e30654101d7474cd1d759f4b50cbc87a85074d2",
+    "files": {
+      "src/services/indexter/inputContract.ts": "7792528e6e1e005c194ed3de3687a144b4e07f098232309300508d4ccd4c22e3",
+      "src/services/indexter/discovery.ts": "b6d756e005ffdd875a3a02df03cada7128cd5463ceb07137e4d7278d7706cc32",
+      "src/routes/indexterDiscovery.ts": "a7c81b1577bb89650d4a24b8a67004758b54c4c560604c4c6582a973226f10da"
+    },
+    "note": "Ordinary schemas are captured public Massive/Glassnode catalog contracts; oversized schema is synthetic. No seller or payment call."
+  },
+  "inlineResponse": {
+    "ok": true,
+    "mode": "overview",
+    "generatedAt": "2026-10-27T02:24:22.108Z",
+    "summary": {
+      "endpointCatalog": {
+        "featuredProviderCount": 2,
+        "providerCount": 2,
+        "endpointCount": 2
+      },
+      "returnedProviderCount": 2
+    },
+    "providers": [
+      {
+        "kind": "provider",
+        "providerKey": "agent.massive.com",
+        "providerSlug": "agent.massive.com",
+        "technicalHost": "agent.massive.com",
+        "displayName": "News Reference API",
+        "logoUrl": null,
+        "id": "agent.massive.com",
+        "description": "Fetches news reference data from the endpoint.",
+        "docsUrl": null,
+        "editorial": {
+          "featured": true,
+          "order": 0,
+          "evidenceResourceId": "29bcefca-0d33-4ff4-bb17-5499c10e570d"
+        },
+        "catalog": {
+          "resourceCount": 1,
+          "actorCounts": {
+            "returned": 0,
+            "indexed": 0,
+            "total": 0
+          },
+          "offeringCounts": {
+            "returned": 1,
+            "indexed": 1,
+            "total": 1
+          },
+          "capabilityGroupCount": 1,
+          "countsComplete": true
+        },
+        "evidence": {
+          "totalResourceCount": 1,
+          "evaluatedResourceCount": 1,
+          "deliveredRecentlyCount": 0,
+          "termsCheckedCount": 0,
+          "noCurrentConfirmationCount": 1,
+          "latestObservedAt": null,
+          "coverageComplete": true
+        },
+        "capabilityGroups": [
+          {
+            "id": "agent.massive.com:reference",
+            "label": "Reference data",
+            "resourceCount": 1,
+            "returnedResourceCount": 1,
+            "resources": [
+              {
+                "kind": "endpoint",
+                "id": "29bcefca-0d33-4ff4-bb17-5499c10e570d",
+                "resourceId": "29bcefca-0d33-4ff4-bb17-5499c10e570d",
+                "resourceUrl": "https://agent.massive.com/v2/reference/news",
+                "displayName": "News Reference API",
+                "description": "Fetches news reference data from the endpoint.",
+                "category": "market data",
+                "method": "GET",
+                "iconUrl": null,
+                "docsUrl": null,
+                "price": {
+                  "usdc": null,
+                  "label": null,
+                  "network": null
+                },
+                "evidence": {
+                  "state": "no_current_confirmation",
+                  "label": "No current confirmation",
+                  "observedAt": null
+                },
+                "access": {
+                  "kind": "direct_url",
+                  "checkable": true,
+                  "requiresFreshCheck": true
+                },
+                "execution": {
+                  "sideEffectful": false,
+                  "effect": null,
+                  "automatedVerification": "enabled",
+                  "userExecution": "allowed",
+                  "confirmationRequired": false,
+                  "availability": "available",
+                  "requiresExplicitInput": false,
+                  "quoteMayCreateProviderReservation": false
+                },
+                "inputSchema": {
+                  "type": "object",
+                  "properties": {
+                    "sort": {
+                      "enum": [
+                        "published_utc"
+                      ],
+                      "type": "string",
+                      "default": "published_utc",
+                      "description": "Sort field used for ordering."
+                    },
+                    "limit": {
+                      "type": "integer",
+                      "default": 10,
+                      "maximum": 1000,
+                      "minimum": 1,
+                      "description": "Limit the number of results returned, default is 10 and max is 1000."
+                    },
+                    "order": {
+                      "enum": [
+                        "asc",
+                        "desc"
+                      ],
+                      "type": "string",
+                      "default": "desc",
+                      "description": "Order results based on the `sort` field."
+                    },
+                    "ticker": {
+                      "type": "string",
+                      "description": "Specify a case-sensitive ticker symbol. For example, AAPL represents Apple Inc."
+                    },
+                    "ticker.gt": {
+                      "type": "string",
+                      "description": "Search by ticker."
+                    },
+                    "ticker.lt": {
+                      "type": "string",
+                      "description": "Search by ticker."
+                    },
+                    "ticker.gte": {
+                      "type": "string",
+                      "description": "Search by ticker."
+                    },
+                    "ticker.lte": {
+                      "type": "string",
+                      "description": "Search by ticker."
+                    },
+                    "published_utc": {
+                      "type": "string",
+                      "description": "Return results published on, before, or after this date."
+                    },
+                    "published_utc.gt": {
+                      "type": "string",
+                      "description": "Search by published_utc."
+                    },
+                    "published_utc.lt": {
+                      "type": "string",
+                      "description": "Search by published_utc."
+                    },
+                    "published_utc.gte": {
+                      "type": "string",
+                      "description": "Search by published_utc."
+                    },
+                    "published_utc.lte": {
+                      "type": "string",
+                      "description": "Search by published_utc."
+                    }
+                  }
+                },
+                "pathParams": null,
+                "schemaSource": "bazaar",
+                "inputContract": {
+                  "status": "inline",
+                  "complete": true
+                }
+              }
+            ]
+          }
+        ],
+        "actorCatalog": null
+      },
+      {
+        "kind": "provider",
+        "providerKey": "x402.glassnode.com",
+        "providerSlug": "x402.glassnode.com",
+        "technicalHost": "x402.glassnode.com",
+        "displayName": "Adjusted SOPR Indicator",
+        "logoUrl": null,
+        "id": "x402.glassnode.com",
+        "description": "Returns the adjusted SOPR metric for on-chain market profit and loss analysis.",
+        "docsUrl": null,
+        "editorial": {
+          "featured": true,
+          "order": 1,
+          "evidenceResourceId": "be7abadd-e29b-44c1-936b-9c9a1aa94458"
+        },
+        "catalog": {
+          "resourceCount": 1,
+          "actorCounts": {
+            "returned": 0,
+            "indexed": 0,
+            "total": 0
+          },
+          "offeringCounts": {
+            "returned": 1,
+            "indexed": 1,
+            "total": 1
+          },
+          "capabilityGroupCount": 1,
+          "countsComplete": true
+        },
+        "evidence": {
+          "totalResourceCount": 1,
+          "evaluatedResourceCount": 1,
+          "deliveredRecentlyCount": 0,
+          "termsCheckedCount": 0,
+          "noCurrentConfirmationCount": 1,
+          "latestObservedAt": null,
+          "coverageComplete": true
+        },
+        "capabilityGroups": [
+          {
+            "id": "x402.glassnode.com:indicators",
+            "label": "Indicators",
+            "resourceCount": 1,
+            "returnedResourceCount": 1,
+            "resources": [
+              {
+                "kind": "endpoint",
+                "id": "be7abadd-e29b-44c1-936b-9c9a1aa94458",
+                "resourceId": "be7abadd-e29b-44c1-936b-9c9a1aa94458",
+                "resourceUrl": "https://x402.glassnode.com/v1/metrics/indicators/sopr_adjusted",
+                "displayName": "Adjusted SOPR Indicator",
+                "description": "Returns the adjusted SOPR metric for on-chain market profit and loss analysis.",
+                "category": "market data",
+                "method": "GET",
+                "iconUrl": null,
+                "docsUrl": null,
+                "price": {
+                  "usdc": null,
+                  "label": null,
+                  "network": null
+                },
+                "evidence": {
+                  "state": "no_current_confirmation",
+                  "label": "No current confirmation",
+                  "observedAt": null
+                },
+                "access": {
+                  "kind": "direct_url",
+                  "checkable": true,
+                  "requiresFreshCheck": true
+                },
+                "execution": {
+                  "sideEffectful": false,
+                  "effect": null,
+                  "automatedVerification": "enabled",
+                  "userExecution": "allowed",
+                  "confirmationRequired": false,
+                  "availability": "available",
+                  "requiresExplicitInput": false,
+                  "quoteMayCreateProviderReservation": false
+                },
+                "inputSchema": {
+                  "type": "object",
+                  "required": [
+                    "a"
+                  ],
+                  "properties": {
+                    "a": {
+                      "enum": [
+                        "BTC"
+                      ],
+                      "type": "string",
+                      "description": "Asset symbol, e.g. BTC, ETH"
+                    },
+                    "c": {
+                      "enum": [
+                        "native"
+                      ],
+                      "type": "string",
+                      "description": "Currency for denominated values, e.g. usd, native"
+                    },
+                    "f": {
+                      "enum": [
+                        "csv",
+                        "json"
+                      ],
+                      "type": "string",
+                      "description": "Response format: json or csv"
+                    },
+                    "i": {
+                      "enum": [
+                        "24h"
+                      ],
+                      "type": "string",
+                      "description": "Time interval / resolution, e.g. 24h, 1w, 1month"
+                    }
+                  }
+                },
+                "pathParams": null,
+                "schemaSource": "bazaar",
+                "inputContract": {
+                  "status": "inline",
+                  "complete": true
+                }
+              }
+            ]
+          }
+        ],
+        "actorCatalog": null
+      }
+    ],
+    "featuredOfferings": [
+      {
+        "kind": "endpoint",
+        "id": "29bcefca-0d33-4ff4-bb17-5499c10e570d",
+        "resourceId": "29bcefca-0d33-4ff4-bb17-5499c10e570d",
+        "resourceUrl": "https://agent.massive.com/v2/reference/news",
+        "displayName": "News Reference API",
+        "description": "Fetches news reference data from the endpoint.",
+        "category": "market data",
+        "method": "GET",
+        "iconUrl": null,
+        "docsUrl": null,
+        "price": {
+          "usdc": null,
+          "label": null,
+          "network": null
+        },
+        "evidence": {
+          "state": "no_current_confirmation",
+          "label": "No current confirmation",
+          "observedAt": null
+        },
+        "access": {
+          "kind": "direct_url",
+          "checkable": true,
+          "requiresFreshCheck": true
+        },
+        "execution": {
+          "sideEffectful": false,
+          "effect": null,
+          "automatedVerification": "enabled",
+          "userExecution": "allowed",
+          "confirmationRequired": false,
+          "availability": "available",
+          "requiresExplicitInput": false,
+          "quoteMayCreateProviderReservation": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "sort": {
+              "enum": [
+                "published_utc"
+              ],
+              "type": "string",
+              "default": "published_utc",
+              "description": "Sort field used for ordering."
+            },
+            "limit": {
+              "type": "integer",
+              "default": 10,
+              "maximum": 1000,
+              "minimum": 1,
+              "description": "Limit the number of results returned, default is 10 and max is 1000."
+            },
+            "order": {
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "type": "string",
+              "default": "desc",
+              "description": "Order results based on the `sort` field."
+            },
+            "ticker": {
+              "type": "string",
+              "description": "Specify a case-sensitive ticker symbol. For example, AAPL represents Apple Inc."
+            },
+            "ticker.gt": {
+              "type": "string",
+              "description": "Search by ticker."
+            },
+            "ticker.lt": {
+              "type": "string",
+              "description": "Search by ticker."
+            },
+            "ticker.gte": {
+              "type": "string",
+              "description": "Search by ticker."
+            },
+            "ticker.lte": {
+              "type": "string",
+              "description": "Search by ticker."
+            },
+            "published_utc": {
+              "type": "string",
+              "description": "Return results published on, before, or after this date."
+            },
+            "published_utc.gt": {
+              "type": "string",
+              "description": "Search by published_utc."
+            },
+            "published_utc.lt": {
+              "type": "string",
+              "description": "Search by published_utc."
+            },
+            "published_utc.gte": {
+              "type": "string",
+              "description": "Search by published_utc."
+            },
+            "published_utc.lte": {
+              "type": "string",
+              "description": "Search by published_utc."
+            }
+          }
+        },
+        "pathParams": null,
+        "schemaSource": "bazaar",
+        "inputContract": {
+          "status": "inline",
+          "complete": true
+        },
+        "provider": {
+          "kind": "provider",
+          "providerKey": "agent.massive.com",
+          "providerSlug": "agent.massive.com",
+          "technicalHost": "agent.massive.com",
+          "displayName": "News Reference API",
+          "logoUrl": null
+        }
+      },
+      {
+        "kind": "endpoint",
+        "id": "be7abadd-e29b-44c1-936b-9c9a1aa94458",
+        "resourceId": "be7abadd-e29b-44c1-936b-9c9a1aa94458",
+        "resourceUrl": "https://x402.glassnode.com/v1/metrics/indicators/sopr_adjusted",
+        "displayName": "Adjusted SOPR Indicator",
+        "description": "Returns the adjusted SOPR metric for on-chain market profit and loss analysis.",
+        "category": "market data",
+        "method": "GET",
+        "iconUrl": null,
+        "docsUrl": null,
+        "price": {
+          "usdc": null,
+          "label": null,
+          "network": null
+        },
+        "evidence": {
+          "state": "no_current_confirmation",
+          "label": "No current confirmation",
+          "observedAt": null
+        },
+        "access": {
+          "kind": "direct_url",
+          "checkable": true,
+          "requiresFreshCheck": true
+        },
+        "execution": {
+          "sideEffectful": false,
+          "effect": null,
+          "automatedVerification": "enabled",
+          "userExecution": "allowed",
+          "confirmationRequired": false,
+          "availability": "available",
+          "requiresExplicitInput": false,
+          "quoteMayCreateProviderReservation": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "required": [
+            "a"
+          ],
+          "properties": {
+            "a": {
+              "enum": [
+                "BTC"
+              ],
+              "type": "string",
+              "description": "Asset symbol, e.g. BTC, ETH"
+            },
+            "c": {
+              "enum": [
+                "native"
+              ],
+              "type": "string",
+              "description": "Currency for denominated values, e.g. usd, native"
+            },
+            "f": {
+              "enum": [
+                "csv",
+                "json"
+              ],
+              "type": "string",
+              "description": "Response format: json or csv"
+            },
+            "i": {
+              "enum": [
+                "24h"
+              ],
+              "type": "string",
+              "description": "Time interval / resolution, e.g. 24h, 1w, 1month"
+            }
+          }
+        },
+        "pathParams": null,
+        "schemaSource": "bazaar",
+        "inputContract": {
+          "status": "inline",
+          "complete": true
+        },
+        "provider": {
+          "kind": "provider",
+          "providerKey": "x402.glassnode.com",
+          "providerSlug": "x402.glassnode.com",
+          "technicalHost": "x402.glassnode.com",
+          "displayName": "Adjusted SOPR Indicator",
+          "logoUrl": null
+        }
+      }
+    ],
+    "page": {
+      "version": 2,
+      "namespace": "indexter.endpoint.providers.v1",
+      "scope": "providers",
+      "order": "featured_provider_curation_v1",
+      "limit": 2,
+      "returned": 2,
+      "hasMore": false,
+      "nextCursor": null
+    }
+  },
+  "detailResponse": {
+    "ok": true,
+    "generatedAt": "2026-10-27T02:24:22.123Z",
+    "kind": "endpoint",
+    "id": "29bcefca-0d33-4ff4-bb17-5499c10e570d",
+    "resourceId": "29bcefca-0d33-4ff4-bb17-5499c10e570d",
+    "resourceUrl": "https://agent.massive.com/v2/reference/news",
+    "displayName": "News Reference API",
+    "description": "Fetches news reference data from the endpoint.",
+    "category": "market data",
+    "method": "GET",
+    "iconUrl": null,
+    "docsUrl": null,
+    "price": {
+      "usdc": null,
+      "label": null,
+      "network": null
+    },
+    "evidence": {
+      "state": "no_current_confirmation",
+      "label": "No current confirmation",
+      "observedAt": null
+    },
+    "access": {
+      "kind": "direct_url",
+      "checkable": true,
+      "requiresFreshCheck": true
+    },
+    "execution": {
+      "sideEffectful": false,
+      "effect": null,
+      "automatedVerification": "enabled",
+      "userExecution": "allowed",
+      "confirmationRequired": false,
+      "availability": "available",
+      "requiresExplicitInput": false,
+      "quoteMayCreateProviderReservation": false
+    },
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sort": {
+          "enum": [
+            "published_utc"
+          ],
+          "type": "string",
+          "default": "published_utc",
+          "description": "Sort field used for ordering."
+        },
+        "limit": {
+          "type": "integer",
+          "default": 10,
+          "maximum": 1000,
+          "minimum": 1,
+          "description": "Limit the number of results returned, default is 10 and max is 1000."
+        },
+        "order": {
+          "enum": [
+            "asc",
+            "desc"
+          ],
+          "type": "string",
+          "default": "desc",
+          "description": "Order results based on the `sort` field."
+        },
+        "ticker": {
+          "type": "string",
+          "description": "Specify a case-sensitive ticker symbol. For example, AAPL represents Apple Inc."
+        },
+        "ticker.gt": {
+          "type": "string",
+          "description": "Search by ticker."
+        },
+        "ticker.lt": {
+          "type": "string",
+          "description": "Search by ticker."
+        },
+        "ticker.gte": {
+          "type": "string",
+          "description": "Search by ticker."
+        },
+        "ticker.lte": {
+          "type": "string",
+          "description": "Search by ticker."
+        },
+        "published_utc": {
+          "type": "string",
+          "description": "Return results published on, before, or after this date."
+        },
+        "published_utc.gt": {
+          "type": "string",
+          "description": "Search by published_utc."
+        },
+        "published_utc.lt": {
+          "type": "string",
+          "description": "Search by published_utc."
+        },
+        "published_utc.gte": {
+          "type": "string",
+          "description": "Search by published_utc."
+        },
+        "published_utc.lte": {
+          "type": "string",
+          "description": "Search by published_utc."
+        }
+      }
+    },
+    "pathParams": null,
+    "schemaSource": "bazaar",
+    "inputContract": {
+      "status": "available",
+      "complete": true
+    }
+  },
+  "deferredResponse": {
+    "ok": true,
+    "mode": "overview",
+    "generatedAt": "2026-10-27T02:24:22.123Z",
+    "summary": {
+      "endpointCatalog": {
+        "featuredProviderCount": 2,
+        "providerCount": 2,
+        "endpointCount": 2
+      },
+      "returnedProviderCount": 2
+    },
+    "providers": [
+      {
+        "kind": "provider",
+        "providerKey": "agent.massive.com",
+        "providerSlug": "agent.massive.com",
+        "technicalHost": "agent.massive.com",
+        "displayName": "News Reference API",
+        "logoUrl": null,
+        "id": "agent.massive.com",
+        "description": "Fetches news reference data from the endpoint.",
+        "docsUrl": null,
+        "editorial": {
+          "featured": true,
+          "order": 0,
+          "evidenceResourceId": "29bcefca-0d33-4ff4-bb17-5499c10e570d"
+        },
+        "catalog": {
+          "resourceCount": 1,
+          "actorCounts": {
+            "returned": 0,
+            "indexed": 0,
+            "total": 0
+          },
+          "offeringCounts": {
+            "returned": 1,
+            "indexed": 1,
+            "total": 1
+          },
+          "capabilityGroupCount": 1,
+          "countsComplete": true
+        },
+        "evidence": {
+          "totalResourceCount": 1,
+          "evaluatedResourceCount": 1,
+          "deliveredRecentlyCount": 0,
+          "termsCheckedCount": 0,
+          "noCurrentConfirmationCount": 1,
+          "latestObservedAt": null,
+          "coverageComplete": true
+        },
+        "capabilityGroups": [
+          {
+            "id": "agent.massive.com:reference",
+            "label": "Reference data",
+            "resourceCount": 1,
+            "returnedResourceCount": 1,
+            "resources": [
+              {
+                "kind": "endpoint",
+                "id": "29bcefca-0d33-4ff4-bb17-5499c10e570d",
+                "resourceId": "29bcefca-0d33-4ff4-bb17-5499c10e570d",
+                "resourceUrl": "https://agent.massive.com/v2/reference/news",
+                "displayName": "News Reference API",
+                "description": "Fetches news reference data from the endpoint.",
+                "category": "market data",
+                "method": "GET",
+                "iconUrl": null,
+                "docsUrl": null,
+                "price": {
+                  "usdc": null,
+                  "label": null,
+                  "network": null
+                },
+                "evidence": {
+                  "state": "no_current_confirmation",
+                  "label": "No current confirmation",
+                  "observedAt": null
+                },
+                "access": {
+                  "kind": "direct_url",
+                  "checkable": false,
+                  "requiresFreshCheck": true
+                },
+                "execution": {
+                  "sideEffectful": false,
+                  "effect": null,
+                  "automatedVerification": "enabled",
+                  "userExecution": "allowed",
+                  "confirmationRequired": false,
+                  "availability": "available",
+                  "requiresExplicitInput": false,
+                  "quoteMayCreateProviderReservation": false
+                },
+                "inputSchema": null,
+                "pathParams": null,
+                "schemaSource": "bazaar",
+                "inputContract": {
+                  "status": "details_required",
+                  "complete": false,
+                  "reason": "inline_limit",
+                  "detail": {
+                    "resourceId": "29bcefca-0d33-4ff4-bb17-5499c10e570d",
+                    "method": "GET"
+                  }
+                }
+              }
+            ]
+          }
+        ],
+        "actorCatalog": null
+      },
+      {
+        "kind": "provider",
+        "providerKey": "x402.glassnode.com",
+        "providerSlug": "x402.glassnode.com",
+        "technicalHost": "x402.glassnode.com",
+        "displayName": "Adjusted SOPR Indicator",
+        "logoUrl": null,
+        "id": "x402.glassnode.com",
+        "description": "Returns the adjusted SOPR metric for on-chain market profit and loss analysis.",
+        "docsUrl": null,
+        "editorial": {
+          "featured": true,
+          "order": 1,
+          "evidenceResourceId": "be7abadd-e29b-44c1-936b-9c9a1aa94458"
+        },
+        "catalog": {
+          "resourceCount": 1,
+          "actorCounts": {
+            "returned": 0,
+            "indexed": 0,
+            "total": 0
+          },
+          "offeringCounts": {
+            "returned": 1,
+            "indexed": 1,
+            "total": 1
+          },
+          "capabilityGroupCount": 1,
+          "countsComplete": true
+        },
+        "evidence": {
+          "totalResourceCount": 1,
+          "evaluatedResourceCount": 1,
+          "deliveredRecentlyCount": 0,
+          "termsCheckedCount": 0,
+          "noCurrentConfirmationCount": 1,
+          "latestObservedAt": null,
+          "coverageComplete": true
+        },
+        "capabilityGroups": [
+          {
+            "id": "x402.glassnode.com:indicators",
+            "label": "Indicators",
+            "resourceCount": 1,
+            "returnedResourceCount": 1,
+            "resources": [
+              {
+                "kind": "endpoint",
+                "id": "be7abadd-e29b-44c1-936b-9c9a1aa94458",
+                "resourceId": "be7abadd-e29b-44c1-936b-9c9a1aa94458",
+                "resourceUrl": "https://x402.glassnode.com/v1/metrics/indicators/sopr_adjusted",
+                "displayName": "Adjusted SOPR Indicator",
+                "description": "Returns the adjusted SOPR metric for on-chain market profit and loss analysis.",
+                "category": "market data",
+                "method": "GET",
+                "iconUrl": null,
+                "docsUrl": null,
+                "price": {
+                  "usdc": null,
+                  "label": null,
+                  "network": null
+                },
+                "evidence": {
+                  "state": "no_current_confirmation",
+                  "label": "No current confirmation",
+                  "observedAt": null
+                },
+                "access": {
+                  "kind": "direct_url",
+                  "checkable": true,
+                  "requiresFreshCheck": true
+                },
+                "execution": {
+                  "sideEffectful": false,
+                  "effect": null,
+                  "automatedVerification": "enabled",
+                  "userExecution": "allowed",
+                  "confirmationRequired": false,
+                  "availability": "available",
+                  "requiresExplicitInput": false,
+                  "quoteMayCreateProviderReservation": false
+                },
+                "inputSchema": {
+                  "type": "object",
+                  "required": [
+                    "a"
+                  ],
+                  "properties": {
+                    "a": {
+                      "enum": [
+                        "BTC"
+                      ],
+                      "type": "string",
+                      "description": "Asset symbol, e.g. BTC, ETH"
+                    },
+                    "c": {
+                      "enum": [
+                        "native"
+                      ],
+                      "type": "string",
+                      "description": "Currency for denominated values, e.g. usd, native"
+                    },
+                    "f": {
+                      "enum": [
+                        "csv",
+                        "json"
+                      ],
+                      "type": "string",
+                      "description": "Response format: json or csv"
+                    },
+                    "i": {
+                      "enum": [
+                        "24h"
+                      ],
+                      "type": "string",
+                      "description": "Time interval / resolution, e.g. 24h, 1w, 1month"
+                    }
+                  }
+                },
+                "pathParams": null,
+                "schemaSource": "bazaar",
+                "inputContract": {
+                  "status": "inline",
+                  "complete": true
+                }
+              }
+            ]
+          }
+        ],
+        "actorCatalog": null
+      }
+    ],
+    "featuredOfferings": [
+      {
+        "kind": "endpoint",
+        "id": "29bcefca-0d33-4ff4-bb17-5499c10e570d",
+        "resourceId": "29bcefca-0d33-4ff4-bb17-5499c10e570d",
+        "resourceUrl": "https://agent.massive.com/v2/reference/news",
+        "displayName": "News Reference API",
+        "description": "Fetches news reference data from the endpoint.",
+        "category": "market data",
+        "method": "GET",
+        "iconUrl": null,
+        "docsUrl": null,
+        "price": {
+          "usdc": null,
+          "label": null,
+          "network": null
+        },
+        "evidence": {
+          "state": "no_current_confirmation",
+          "label": "No current confirmation",
+          "observedAt": null
+        },
+        "access": {
+          "kind": "direct_url",
+          "checkable": false,
+          "requiresFreshCheck": true
+        },
+        "execution": {
+          "sideEffectful": false,
+          "effect": null,
+          "automatedVerification": "enabled",
+          "userExecution": "allowed",
+          "confirmationRequired": false,
+          "availability": "available",
+          "requiresExplicitInput": false,
+          "quoteMayCreateProviderReservation": false
+        },
+        "inputSchema": null,
+        "pathParams": null,
+        "schemaSource": "bazaar",
+        "inputContract": {
+          "status": "details_required",
+          "complete": false,
+          "reason": "inline_limit",
+          "detail": {
+            "resourceId": "29bcefca-0d33-4ff4-bb17-5499c10e570d",
+            "method": "GET"
+          }
+        },
+        "provider": {
+          "kind": "provider",
+          "providerKey": "agent.massive.com",
+          "providerSlug": "agent.massive.com",
+          "technicalHost": "agent.massive.com",
+          "displayName": "News Reference API",
+          "logoUrl": null
+        }
+      },
+      {
+        "kind": "endpoint",
+        "id": "be7abadd-e29b-44c1-936b-9c9a1aa94458",
+        "resourceId": "be7abadd-e29b-44c1-936b-9c9a1aa94458",
+        "resourceUrl": "https://x402.glassnode.com/v1/metrics/indicators/sopr_adjusted",
+        "displayName": "Adjusted SOPR Indicator",
+        "description": "Returns the adjusted SOPR metric for on-chain market profit and loss analysis.",
+        "category": "market data",
+        "method": "GET",
+        "iconUrl": null,
+        "docsUrl": null,
+        "price": {
+          "usdc": null,
+          "label": null,
+          "network": null
+        },
+        "evidence": {
+          "state": "no_current_confirmation",
+          "label": "No current confirmation",
+          "observedAt": null
+        },
+        "access": {
+          "kind": "direct_url",
+          "checkable": true,
+          "requiresFreshCheck": true
+        },
+        "execution": {
+          "sideEffectful": false,
+          "effect": null,
+          "automatedVerification": "enabled",
+          "userExecution": "allowed",
+          "confirmationRequired": false,
+          "availability": "available",
+          "requiresExplicitInput": false,
+          "quoteMayCreateProviderReservation": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "required": [
+            "a"
+          ],
+          "properties": {
+            "a": {
+              "enum": [
+                "BTC"
+              ],
+              "type": "string",
+              "description": "Asset symbol, e.g. BTC, ETH"
+            },
+            "c": {
+              "enum": [
+                "native"
+              ],
+              "type": "string",
+              "description": "Currency for denominated values, e.g. usd, native"
+            },
+            "f": {
+              "enum": [
+                "csv",
+                "json"
+              ],
+              "type": "string",
+              "description": "Response format: json or csv"
+            },
+            "i": {
+              "enum": [
+                "24h"
+              ],
+              "type": "string",
+              "description": "Time interval / resolution, e.g. 24h, 1w, 1month"
+            }
+          }
+        },
+        "pathParams": null,
+        "schemaSource": "bazaar",
+        "inputContract": {
+          "status": "inline",
+          "complete": true
+        },
+        "provider": {
+          "kind": "provider",
+          "providerKey": "x402.glassnode.com",
+          "providerSlug": "x402.glassnode.com",
+          "technicalHost": "x402.glassnode.com",
+          "displayName": "Adjusted SOPR Indicator",
+          "logoUrl": null
+        }
+      }
+    ],
+    "page": {
+      "version": 2,
+      "namespace": "indexter.endpoint.providers.v1",
+      "scope": "providers",
+      "order": "featured_provider_curation_v1",
+      "limit": 2,
+      "returned": 2,
+      "hasMore": false,
+      "nextCursor": null
+    }
+  },
+  "oversizedDetailResponse": {
+    "ok": true,
+    "generatedAt": "2026-10-27T02:24:22.128Z",
+    "kind": "endpoint",
+    "id": "29bcefca-0d33-4ff4-bb17-5499c10e570d",
+    "resourceId": "29bcefca-0d33-4ff4-bb17-5499c10e570d",
+    "resourceUrl": "https://agent.massive.com/v2/reference/news",
+    "displayName": "News Reference API",
+    "description": "Fetches news reference data from the endpoint.",
+    "category": "market data",
+    "method": "GET",
+    "iconUrl": null,
+    "docsUrl": null,
+    "price": {
+      "usdc": null,
+      "label": null,
+      "network": null
+    },
+    "evidence": {
+      "state": "no_current_confirmation",
+      "label": "No current confirmation",
+      "observedAt": null
+    },
+    "access": {
+      "kind": "direct_url",
+      "checkable": true,
+      "requiresFreshCheck": true
+    },
+    "execution": {
+      "sideEffectful": false,
+      "effect": null,
+      "automatedVerification": "enabled",
+      "userExecution": "allowed",
+      "confirmationRequired": false,
+      "availability": "available",
+      "requiresExplicitInput": false,
+      "quoteMayCreateProviderReservation": false
+    },
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "field0": {
+          "type": "string",
+          "description": "Published fixture input field number 0"
+        },
+        "field1": {
+          "type": "string",
+          "description": "Published fixture input field number 1"
+        },
+        "field2": {
+          "type": "string",
+          "description": "Published fixture input field number 2"
+        },
+        "field3": {
+          "type": "string",
+          "description": "Published fixture input field number 3"
+        },
+        "field4": {
+          "type": "string",
+          "description": "Published fixture input field number 4"
+        },
+        "field5": {
+          "type": "string",
+          "description": "Published fixture input field number 5"
+        },
+        "field6": {
+          "type": "string",
+          "description": "Published fixture input field number 6"
+        },
+        "field7": {
+          "type": "string",
+          "description": "Published fixture input field number 7"
+        },
+        "field8": {
+          "type": "string",
+          "description": "Published fixture input field number 8"
+        },
+        "field9": {
+          "type": "string",
+          "description": "Published fixture input field number 9"
+        },
+        "field10": {
+          "type": "string",
+          "description": "Published fixture input field number 10"
+        },
+        "field11": {
+          "type": "string",
+          "description": "Published fixture input field number 11"
+        },
+        "field12": {
+          "type": "string",
+          "description": "Published fixture input field number 12"
+        },
+        "field13": {
+          "type": "string",
+          "description": "Published fixture input field number 13"
+        },
+        "field14": {
+          "type": "string",
+          "description": "Published fixture input field number 14"
+        },
+        "field15": {
+          "type": "string",
+          "description": "Published fixture input field number 15"
+        },
+        "field16": {
+          "type": "string",
+          "description": "Published fixture input field number 16"
+        },
+        "field17": {
+          "type": "string",
+          "description": "Published fixture input field number 17"
+        },
+        "field18": {
+          "type": "string",
+          "description": "Published fixture input field number 18"
+        },
+        "field19": {
+          "type": "string",
+          "description": "Published fixture input field number 19"
+        },
+        "field20": {
+          "type": "string",
+          "description": "Published fixture input field number 20"
+        },
+        "field21": {
+          "type": "string",
+          "description": "Published fixture input field number 21"
+        },
+        "field22": {
+          "type": "string",
+          "description": "Published fixture input field number 22"
+        },
+        "field23": {
+          "type": "string",
+          "description": "Published fixture input field number 23"
+        },
+        "field24": {
+          "type": "string",
+          "description": "Published fixture input field number 24"
+        },
+        "field25": {
+          "type": "string",
+          "description": "Published fixture input field number 25"
+        },
+        "field26": {
+          "type": "string",
+          "description": "Published fixture input field number 26"
+        },
+        "field27": {
+          "type": "string",
+          "description": "Published fixture input field number 27"
+        },
+        "field28": {
+          "type": "string",
+          "description": "Published fixture input field number 28"
+        },
+        "field29": {
+          "type": "string",
+          "description": "Published fixture input field number 29"
+        },
+        "field30": {
+          "type": "string",
+          "description": "Published fixture input field number 30"
+        },
+        "field31": {
+          "type": "string",
+          "description": "Published fixture input field number 31"
+        },
+        "field32": {
+          "type": "string",
+          "description": "Published fixture input field number 32"
+        },
+        "field33": {
+          "type": "string",
+          "description": "Published fixture input field number 33"
+        },
+        "field34": {
+          "type": "string",
+          "description": "Published fixture input field number 34"
+        },
+        "field35": {
+          "type": "string",
+          "description": "Published fixture input field number 35"
+        },
+        "field36": {
+          "type": "string",
+          "description": "Published fixture input field number 36"
+        },
+        "field37": {
+          "type": "string",
+          "description": "Published fixture input field number 37"
+        },
+        "field38": {
+          "type": "string",
+          "description": "Published fixture input field number 38"
+        },
+        "field39": {
+          "type": "string",
+          "description": "Published fixture input field number 39"
+        },
+        "field40": {
+          "type": "string",
+          "description": "Published fixture input field number 40"
+        },
+        "field41": {
+          "type": "string",
+          "description": "Published fixture input field number 41"
+        },
+        "field42": {
+          "type": "string",
+          "description": "Published fixture input field number 42"
+        },
+        "field43": {
+          "type": "string",
+          "description": "Published fixture input field number 43"
+        },
+        "field44": {
+          "type": "string",
+          "description": "Published fixture input field number 44"
+        },
+        "field45": {
+          "type": "string",
+          "description": "Published fixture input field number 45"
+        },
+        "field46": {
+          "type": "string",
+          "description": "Published fixture input field number 46"
+        },
+        "field47": {
+          "type": "string",
+          "description": "Published fixture input field number 47"
+        },
+        "field48": {
+          "type": "string",
+          "description": "Published fixture input field number 48"
+        },
+        "field49": {
+          "type": "string",
+          "description": "Published fixture input field number 49"
+        },
+        "field50": {
+          "type": "string",
+          "description": "Published fixture input field number 50"
+        },
+        "field51": {
+          "type": "string",
+          "description": "Published fixture input field number 51"
+        },
+        "field52": {
+          "type": "string",
+          "description": "Published fixture input field number 52"
+        },
+        "field53": {
+          "type": "string",
+          "description": "Published fixture input field number 53"
+        },
+        "field54": {
+          "type": "string",
+          "description": "Published fixture input field number 54"
+        },
+        "field55": {
+          "type": "string",
+          "description": "Published fixture input field number 55"
+        },
+        "field56": {
+          "type": "string",
+          "description": "Published fixture input field number 56"
+        },
+        "field57": {
+          "type": "string",
+          "description": "Published fixture input field number 57"
+        },
+        "field58": {
+          "type": "string",
+          "description": "Published fixture input field number 58"
+        },
+        "field59": {
+          "type": "string",
+          "description": "Published fixture input field number 59"
+        }
+      },
+      "required": [
+        "field59"
+      ],
+      "additionalProperties": false
+    },
+    "pathParams": null,
+    "schemaSource": "bazaar",
+    "inputContract": {
+      "status": "available",
+      "complete": true
+    }
+  }
+}

@@ -1,3 +1,4 @@
+import { indexterCurrentFailureMessage, indexterCurrentFailureReason } from '../../../../../../lib/indexter-endpoint-availability.mjs';
 import {
   SEARCH_CHECK_SUPPORTED_METHODS,
   type SearchRequestInput,
@@ -124,6 +125,10 @@ export function getSearchResourceAction(
 ): SearchResourceAction {
   const execution = resource.execution;
   const requestInput = trustedRequestInput(resource.requestInput);
+  const failureMessage = indexterCurrentFailureMessage(indexterCurrentFailureReason(resource));
+  if (failureMessage) {
+    return { kind: 'catalog_only', label: 'Unavailable', helperText: failureMessage, disabled: true };
+  }
   if (!execution || !requestInput) {
     return {
       kind: 'unsupported',
@@ -270,6 +275,8 @@ function paymentAssetLabel(resource: SearchResource): string {
 }
 
 function safetyWarning(resource: SearchResource): string | null {
+  const failureMessage = indexterCurrentFailureMessage(indexterCurrentFailureReason(resource));
+  if (failureMessage) return failureMessage;
   const flags = resource.safetyFlags?.length
     ? resource.safetyFlags
     : resource.gamingFlags ?? [];
@@ -314,6 +321,9 @@ export function buildDetailsFollowUpPrompt(
   const boundedReference = reference.kind === 'indexter_endpoint_reference_v1'
     ? indexterOpaqueEndpointData(reference)
     : indexterOpaqueResultData(reference);
+
+  const failureMessage = indexterCurrentFailureMessage(indexterCurrentFailureReason(resource));
+  if (failureMessage) return boundedReference + failureMessage + ' Select another available catalog result.';
 
   if (!requestInput) {
     return boundedReference

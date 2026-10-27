@@ -52,7 +52,7 @@ export function SearchInlineDetail({
       <div className="dx-search-inline-detail__identity">
         <SearchIdentityIcon resource={resource} size={40} />
         <div>
-          <p>{merchantLabel(resource)}</p>
+          <p>{merchantLabel(resource)}{resource.editorial?.providerFeatured === true ? ' · Featured provider' : ''}</p>
           <h2>{resource.name}</h2>
         </div>
         <strong>{price}</strong>

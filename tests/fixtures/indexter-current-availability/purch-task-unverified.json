@@ -1,0 +1,188 @@
+{
+  "query": "Purch product search",
+  "intent": {
+    "capabilityText": "Purch product search",
+    "expandedCapabilityText": "Purch product search",
+    "categories": null,
+    "networks": null,
+    "minQualityScore": null,
+    "maxPriceUsdc": null,
+    "minPriceUsdc": null,
+    "requireVerified": false
+  },
+  "appliedConstraints": {
+    "maxPriceUsdc": null,
+    "minPriceUsdc": null,
+    "paidOnly": false
+  },
+  "appliedOrdering": {
+    "sortBy": "relevance"
+  },
+  "strongResults": [
+    {
+      "kind": "endpoint",
+      "resourceId": "e48147e8-d35f-487f-b55f-43caebd0b4c0",
+      "resourceUrl": "https://api.purch.xyz/x402/search",
+      "access": {
+        "kind": "direct_url",
+        "checkable": true,
+        "requiresFreshCheck": true
+      },
+      "merchant": {
+        "providerKey": "api.purch.xyz",
+        "providerSlug": "api.purch.xyz",
+        "displayName": null,
+        "logoUrl": "https://purch.xyz/favicon.ico",
+        "technicalHost": "api.purch.xyz"
+      },
+      "displayName": "Purch Search",
+      "description": "Search the Purch x402 API for paid results on Solana.",
+      "category": "Data",
+      "host": "api.purch.xyz",
+      "method": "GET",
+      "icon": "https://purch.xyz/favicon.ico",
+      "pricing": {
+        "usdc": 0.01,
+        "network": "eip155:8453",
+        "networkLabel": "Base",
+        "asset": "0xUSDC",
+        "mode": "fixed",
+        "quoteRequired": false,
+        "chains": [
+          {
+            "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+            "networkLabel": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+            "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "scheme": "exact",
+            "priceAtomic": "10000",
+            "priceUsdc": 0.01,
+            "priceLabel": "$0.01"
+          }
+        ]
+      },
+      "execution": {
+        "sideEffectful": false,
+        "effect": null,
+        "automatedVerification": "enabled",
+        "userExecution": "allowed",
+        "confirmationRequired": false,
+        "availability": "available",
+        "requiresExplicitInput": false,
+        "quoteMayCreateProviderReservation": false
+      },
+      "verification": {
+        "status": "unverified",
+        "paid": false,
+        "paidQualityTestPassed": false,
+        "trustBasis": "trusted_catalog",
+        "trustLabel": "No current confirmation",
+        "evidenceState": "no_current_confirmation",
+        "evidenceLabel": "No current confirmation",
+        "evidenceAt": null,
+        "qualityScore": 80,
+        "lastVerifiedAt": "2026-10-26T15:20:21.656Z",
+        "responseStatus": null
+      },
+      "usage": {
+        "totalSettlements": 100,
+        "totalVolumeUsdc": 5,
+        "lastSettlementAt": "2026-01-10T00:00:00.000Z"
+      },
+      "safetyFlags": [],
+      "ogImage": null,
+      "docsUrl": "https://docs.purch.xyz/docs/api/search",
+      "openapiSpecUrl": null,
+      "pathParams": null,
+      "inputSchema": {
+        "type": "object",
+        "required": [
+          "q"
+        ],
+        "properties": {
+          "q": {
+            "type": "string",
+            "description": "Search query"
+          },
+          "page": {
+            "type": "integer",
+            "description": "Page number for pagination"
+          },
+          "brand": {
+            "type": "string",
+            "description": "Filter by brand"
+          },
+          "priceMax": {
+            "type": "number",
+            "description": "Maximum price filter"
+          },
+          "priceMin": {
+            "type": "number",
+            "description": "Minimum price filter"
+          }
+        }
+      },
+      "outputSchema": null,
+      "schemaSource": "bazaar",
+      "latency": {
+        "p50Ms": 120,
+        "p95Ms": 400
+      },
+      "uptime": {
+        "pct": 99.5
+      },
+      "similarity": 0.72,
+      "serviceProfile": null,
+      "band": "exact",
+      "verificationRank": 2,
+      "qualityScore": 80,
+      "recencyDays": 0.49621649305555554,
+      "why": "exact match · No current confirmation",
+      "tier": "strong",
+      "editorial": {
+        "providerFeatured": true,
+        "providerOrder": 16
+      }
+    }
+  ],
+  "relatedResults": [],
+  "composedSkills": [
+    {
+      "type": "composed_skill",
+      "qualifiedSlug": "undefined/undefined",
+      "description": "Search the Purch x402 API for paid results on Solana.",
+      "costEstimateUsdc": null,
+      "callCountEstimate": null,
+      "qualityScore": 80,
+      "totalInstalls": null,
+      "totalRuns": null,
+      "previewUrl": "https://x402gle.com/skills/undefined/undefined",
+      "marketplaceJsonUrl": "https://api.dexter.cash/api/public/composed-skills/undefined/undefined/marketplace.json",
+      "installCommand": "/plugin marketplace add https://x402gle.com/marketplace.json"
+    }
+  ],
+  "components": {
+    "composedSkills": {
+      "status": "complete"
+    }
+  },
+  "totalCandidates": 1,
+  "strongCount": 1,
+  "relatedCount": 0,
+  "topSimilarity": 0.72,
+  "noMatchReason": null,
+  "thresholds": {
+    "similarityFloor": 0.2
+  },
+  "rankingMode": "full",
+  "rerank": {
+    "enabled": true,
+    "applied": true
+  },
+  "confidence": {
+    "profileCoverage": 0,
+    "topMatchProfileBacked": false,
+    "triangulatableAlternates": []
+  },
+  "embeddingTokens": 8,
+  "durationMs": 2
+}

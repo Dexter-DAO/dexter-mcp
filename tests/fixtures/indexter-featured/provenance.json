@@ -1,0 +1,31 @@
+{
+  "producer": "API 9e30654101d7474cd1d759f4b50cbc87a85074d2",
+  "scope": "Public discovery read-only responses captured by root; no seller calls or purchases. Next page was received using the first page cursor.",
+  "fixtures": [
+    {
+      "file": "overview-first.json",
+      "source": "/home/branchmanager/dexter-reports/2026-10-26/grokbot-debug-loop/featured-discovery-review/public-overview4-fresh-body.json",
+      "sha256": "49b6bcc6a57cc11dd721d7aaff4f643473c85c3110512dd7e996a285ffe7036a",
+      "generatedAt": "2026-10-27T01:33:23.134Z"
+    },
+    {
+      "file": "overview-next.json",
+      "source": "/home/branchmanager/dexter-reports/2026-10-26/grokbot-debug-loop/featured-discovery-review/public-overview4-fresh-next-body.json",
+      "sha256": "7bb439e953b5df8e1ac215b5384983ed24e47bd2556f44714673d51149f27bae",
+      "generatedAt": "2026-10-27T01:33:25.618Z"
+    },
+    {
+      "file": "massive-provider.json",
+      "source": "/home/branchmanager/dexter-reports/2026-10-26/grokbot-debug-loop/featured-discovery-review/public-massive-provider-body.json",
+      "sha256": "5653e9c4b25113292182f024b393be1601e158c5bdedeb06817effd27ed66157",
+      "generatedAt": "2026-10-27T01:31:09.956Z"
+    },
+    {
+      "file": "task-endpoint.json",
+      "sha256": "b17c6920887d63bc9ddf3d7cec0f20de0d8c6d8d4bddaf0a89cae3f7d69e121a",
+      "sourceCapture": "/home/branchmanager/dexter-reports/2026-10-26/grokbot-debug-loop/featured-discovery-review/task-aapl-before.json",
+      "sourceCaptureSha256": "264b1b91ec332628d725f9c197789147697cd52bfaa00dd30034f7e4add7c894",
+      "extraction": "Complete strongResults[0] from the saved live API response. Tests add synthetic editorial metadata for the agreed future producer contract."
+    }
+  ]
+}

@@ -1,0 +1,101 @@
+{
+  "kind": "endpoint",
+  "resourceId": "38c0eb3c-33c2-419a-8faf-faaf7d6c3c78",
+  "resourceUrl": "https://api.tickersfeed.net/stock/AAPL/news",
+  "access": {
+    "kind": "direct_url",
+    "checkable": true,
+    "requiresFreshCheck": true
+  },
+  "merchant": {
+    "providerKey": "api.tickersfeed.net",
+    "providerSlug": "api.tickersfeed.net",
+    "displayName": null,
+    "logoUrl": null,
+    "technicalHost": "api.tickersfeed.net"
+  },
+  "displayName": "Ticker News Feed",
+  "description": "Gets recent news articles for a stock ticker symbol like AAPL or TSLA.",
+  "category": "Data",
+  "host": "api.tickersfeed.net",
+  "method": "GET",
+  "icon": "https://www.google.com/s2/favicons?domain=api.tickersfeed.net&sz=64",
+  "pricing": {
+    "usdc": 0.005,
+    "network": "base",
+    "networkLabel": "Base",
+    "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "mode": "fixed",
+    "quoteRequired": false,
+    "chains": [
+      {
+        "network": "base",
+        "networkLabel": "Base",
+        "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "scheme": "exact",
+        "priceAtomic": "5000",
+        "priceUsdc": 0.005,
+        "priceLabel": "$0.005"
+      }
+    ]
+  },
+  "execution": {
+    "sideEffectful": false,
+    "effect": null,
+    "automatedVerification": "enabled",
+    "userExecution": "allowed",
+    "confirmationRequired": false,
+    "availability": "available",
+    "requiresExplicitInput": false,
+    "quoteMayCreateProviderReservation": false
+  },
+  "verification": {
+    "status": "pass",
+    "paid": true,
+    "paidQualityTestPassed": true,
+    "trustBasis": "paid_test",
+    "trustLabel": "Terms checked",
+    "evidenceState": "terms_checked",
+    "evidenceLabel": "Terms checked",
+    "evidenceAt": "2026-10-27T00:34:06.582Z",
+    "qualityScore": 84,
+    "lastVerifiedAt": "2026-10-27T00:34:06.582Z",
+    "responseStatus": null
+  },
+  "usage": {
+    "totalSettlements": 0,
+    "totalVolumeUsdc": 0,
+    "lastSettlementAt": null
+  },
+  "safetyFlags": [],
+  "ogImage": null,
+  "docsUrl": null,
+  "openapiSpecUrl": null,
+  "pathParams": null,
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "symbol": {
+        "type": "string",
+        "description": "Stock ticker symbol (e.g. AAPL, TSLA)"
+      }
+    }
+  },
+  "outputSchema": null,
+  "schemaSource": "bazaar",
+  "latency": {
+    "p50Ms": 103,
+    "p95Ms": 47327
+  },
+  "uptime": {
+    "pct": 85.71
+  },
+  "similarity": 0.5057929158210898,
+  "serviceProfile": null,
+  "band": "exact",
+  "verificationRank": 0,
+  "qualityScore": 84,
+  "recencyDays": 0.056319537037037036,
+  "why": "exact match \u00b7 Terms checked",
+  "tier": "strong"
+}
