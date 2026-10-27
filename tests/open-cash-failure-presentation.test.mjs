@@ -82,6 +82,44 @@ test('Fetch and Status expose the same readable refusal through the actual MCP S
   assert.deepEqual(results[0], results[1]);
 });
 
+// Exact message/detail and admission fields from API ec28059c's saved-accounting
+// refusal projection. This exercises the existing consumer allowlist; it is not
+// a live payment or a new public MCP admission contract.
+for (const reason of ['conservation_inconclusive', 'conservation_drifting']) {
+  test(`saved ${reason} refusal keeps its cause through both MCP tools`, async t => {
+    const message = "CrossPay's accounting check could not verify the payment, so Dexter stopped it before sending. No transfer occurred. Contact Dexter support with this intent ID to review the refusal.";
+    const raw = {
+      ...refused,
+      reason: 'charge_not_sent', message, detail: message,
+      admission: { stage: 'pre_build_health', reason },
+    };
+    const client = await connected(t, project(raw));
+    const results = [];
+    for (const tool of ['x402_fetch', 'x402_status']) {
+      const result = await client.callTool({ name: tool, arguments: {} });
+      const data = result.structuredContent;
+      const text = result.content[0].text;
+      assert.equal(result.isError, true);
+      assert.equal(OPEN_TOOL_CONTRACTS[tool].outputSchema.safeParse(data).success, true);
+      assert.equal(data.message, message);
+      assert.equal(data.detail, message);
+      assert.equal(data.reason, 'charge_not_sent');
+      assert.equal(data.payment.state, 'not_sent');
+      assert.equal(data.payment.fundsMoved, false);
+      assert.equal(data.retryable, false);
+      assert.equal(data.replacementAllowed, false);
+      assert.equal(data.continuation.action, 'report_failure');
+      assert.equal(Object.hasOwn(data.continuation, 'tool'), false);
+      assert.equal(Object.hasOwn(data, 'admission'), false);
+      assert.ok(text.startsWith(message));
+      assert.doesNotMatch(text, /unknown asset|payment: pending|state: pending|unresolved|x402_status|Charge:|Paid:/i);
+      assert.equal(result._meta['dexter/toolInvocation'].toolName, tool);
+      results.push({ data, text, isError: result.isError });
+    }
+    assert.deepEqual(results[0], results[1]);
+  });
+}
+
 for (const [state, fundsMoved, expected] of [
   ['refunded', true, 'refunded'],
   ['failed_final', null, 'failed'],

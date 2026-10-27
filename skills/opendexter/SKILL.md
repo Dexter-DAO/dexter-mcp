@@ -26,13 +26,14 @@ Search stocks and tokens outside the wallet with `dexter_find_assets`, using a c
 ## Product tools
 
 OpenDexter requires host-native OAuth before tool discovery or use. One
-successful authorization exposes all sixteen tools (fifteen model-visible and one app-only browser) on the same canonical
+successful authorization exposes the current tool roster on the same canonical
 connection and covers discovery, search, wallet, portfolio, identity-gated
 access, payment, and governed actions.
 
 | Intent | Tool |
 | --- | --- |
-| Explore Indexter, browse a provider, or find a service | `indexter_search` |
+| Find services for a concrete task with its constraints | `indexter_search` |
+| Browse featured providers or one provider catalog | `indexter_discover` |
 | Discover tools and input schemas on a native MCP server | `x402_mcp_tools` |
 | Custody an exact endpoint request and current quote | `x402_check` |
 | Call one approved, API-custodied intent | `x402_fetch` |
@@ -83,7 +84,13 @@ financial outcomes. Update at meaningful changes rather than on a polling loop.
 
 ## Indexter discovery and purchase
 
-1. Call `indexter_search` once with the user's complete natural-language
+1. For featured browsing or a named provider catalog, use `indexter_discover`.
+   Leave `provider` unset for the overview. Copy `page.nextCursor` into `cursor`
+   for another overview or provider endpoint page, keeping provider and page
+   size unchanged. Keep Actor pagination separate in `actorCursor`. Both models
+   and widgets can use this read-only browser.
+
+   Call `indexter_search` once for a concrete task with the user's complete natural-language
    request resolved from conversation context. When resolving a follow-up, put
    the standalone task in `query` and preserve the current wording in
    `originalQuery`. For 'same thing for Boston' after Lisbon weather, search
@@ -96,8 +103,7 @@ financial outcomes. Update at meaningful changes rather than on a polling loop.
    Continue an overview by copying `page.nextCursor` into `overviewCursor`
    while `page.hasMore` is true. Keep the overview query. A new task or
    added task filters starts a search without this cursor. Do not
-   fan out into category searches, invent synonyms, or call the app-only
-   `indexter_discover` tool. Leave the network filter unset
+   fan out into category searches or invent synonyms. Leave the network filter unset
    unless the user explicitly requires a seller on one network; compatible
    server-side settlement may make a seller on another network reachable from
    the Dexter account. Put an explicit API invocation-price ceiling or floor in
@@ -114,7 +120,10 @@ financial outcomes. Update at meaningful changes rather than on a polling loop.
    If `inputContract.status` is `details_required`, call `indexter_search` with
    only `contractResourceId` and `contractMethod` copied from `inputContract.detail`.
    This reads catalog input fields without contacting the seller. Use its exact
-   `requestInput` and action; preserve an unsupported or unavailable result.
+   `requestInput` and action. When `input_format_unsupported` is returned, the
+   simple form cannot represent the inputs: read the complete published schema
+   and construct the request in chat, retaining optional nested definitions.
+   Preserve any separate execution limitation.
    Do not use Check to retrieve a missing schema.
 
 2. Keep discovery claims precise: featured placement is editorial, while
@@ -139,7 +148,8 @@ financial outcomes. Update at meaningful changes rather than on a polling loop.
 
    Bind the check to the exact `action.resourceId` and method. When
    `action.resourceUrl` is non-null, use that public URL as the endpoint base
-   and apply only supported query inputs declared by `requestInput`. Path
+   and apply only supported query inputs declared by `requestInput` or the
+   complete published schema. Path
    inputs, managed query inputs and GET bodies remain unsupported. When
    the URL is null, pass only the stable `action.resourceId` as endpoint
    identity; Dexter resolves the private route server-side. Never invent or

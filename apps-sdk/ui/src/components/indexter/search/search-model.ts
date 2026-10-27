@@ -549,6 +549,31 @@ function hasUnavailableAction(value: Record<string, unknown>, reason: string): b
     && action.resourceUrl === value.url;
 }
 
+function hasPublishedInputReview(value: Record<string, unknown>): boolean {
+  const action = value.action;
+  const contract = value.inputContract;
+  const execution = value.execution;
+  if (value.requestInput !== null || !isRecord(action) || !isRecord(contract) || !isRecord(execution)
+    || action.kind !== 'review_endpoint' || action.label !== 'Review request' || action.state !== 'review_required'
+    || action.resourceId !== value.resourceId || action.resourceUrl !== value.url
+    || contract.status !== 'details_required' || contract.complete !== false || contract.reason !== 'input_format_unsupported'
+    || !isRecord(contract.detail) || contract.detail.resourceId !== value.resourceId || contract.detail.method !== value.method
+    || execution.availability !== 'available' || execution.userExecution !== 'allowed'
+    || !isRecord(action.safety) || !isRecord(action.review)) return false;
+  const mayAffect = value.method !== 'GET' || execution.sideEffectful === true
+    || execution.confirmationRequired === true || execution.quoteMayCreateProviderReservation === true;
+  return action.safety.requiresRequestReview === true && action.safety.publishedInputPresent === true
+    && action.safety.checkMayAffectProvider === mayAffect
+    && action.safety.checkMayCreateProviderReservation === execution.quoteMayCreateProviderReservation
+    && action.safety.requiresExplicitInput === execution.requiresExplicitInput
+    && action.safety.sideEffectful === execution.sideEffectful
+    && action.safety.confirmationRequired === execution.confirmationRequired
+    && action.safety.statedEffect === execution.effect && action.safety.statedEffectSource === 'provider_catalog'
+    && action.review.inputReviewRequired === true && action.review.authorityReviewRequired === mayAffect
+    && action.review.authorizationBasis === 'current_task_and_active_permissions'
+    && action.review.nextAction === (mayAffect ? 'verify_consequence_coverage_then_check' : 'use_known_inputs_and_check');
+}
+
 function isSafeResource(value: unknown, expectedTier?: 'strong' | 'related'): value is SearchResource {
   if (!isRecord(value) || value.kind !== 'endpoint') return false;
   if (typeof value.resourceId !== 'string' || !RESOURCE_ID_RE.test(value.resourceId)) return false;
@@ -557,17 +582,18 @@ function isSafeResource(value: unknown, expectedTier?: 'strong' | 'related'): va
   if (!isNonEmptyText(value.category, 160) || !isSafeMerchant(value.merchant)) return false;
   if (!isSafeExecution(value.execution)) return false;
   const inputUnavailable = value.requestInput === null && hasUnavailableAction(value, 'input_contract_unavailable');
+  const publishedReview = hasPublishedInputReview(value);
   const failureReason = indexterCurrentFailureReason(value);
   const currentFailure = Boolean(failureReason && hasUnavailableAction(value, failureReason));
-  if (Object.hasOwn(value, 'action') && !inputUnavailable && !currentFailure) return false;
+  if (Object.hasOwn(value, 'action') && !inputUnavailable && !currentFailure && !publishedReview) return false;
   if (
     Object.prototype.hasOwnProperty.call(value, 'inputSchema')
     || Object.prototype.hasOwnProperty.call(value, 'pathParams')
-    || (!inputUnavailable && !(currentFailure && value.requestInput === null)
+    || (!inputUnavailable && !publishedReview && !(currentFailure && value.requestInput === null)
       && !isSafeSearchRequestInput(value.requestInput))
   ) return false;
   if (
-    !inputUnavailable && !currentFailure
+    !inputUnavailable && !currentFailure && !publishedReview
     && (value.execution as Record<string, unknown>).requiresExplicitInput === true
     && (value.requestInput as { fields: unknown[] }).fields.length === 0
   ) return false;

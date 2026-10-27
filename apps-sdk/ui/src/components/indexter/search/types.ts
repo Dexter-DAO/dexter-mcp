@@ -86,7 +86,8 @@ export type SearchResource = {
   chains?: SearchChainOption[];
   execution?: SearchResourceExecution;
   requestInput: SearchRequestInput | null;
-  action?: {
+  inputContract?: import('../discovery/discovery-model.ts').IndexterInputContract;
+  action?: Extract<import('../discovery/discovery-model.ts').IndexterEndpointAction, { kind: 'review_endpoint' }> | {
     kind: 'endpoint_unavailable';
     label: 'Unavailable';
     state: 'unavailable';

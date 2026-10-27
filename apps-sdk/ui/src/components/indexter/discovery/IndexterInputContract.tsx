@@ -74,7 +74,10 @@ export function IndexterInputContract({ payload }: { payload: IndexterInputContr
               ? 'Execution safety information is unavailable.'
               : 'This endpoint is unavailable for execution.'}</>}
         </p> : null}
-        {contract?.action.kind === 'review_endpoint' && contract.action.safety.checkMayAffectProvider
+        {!schemaOpen && contract?.inputContract?.reason === 'input_format_unsupported' ? <p>
+          These inputs use a format the simple form cannot display. Read the complete schema below to construct the request in chat.
+        </p> : null}
+        {!schemaOpen && contract?.action.kind === 'review_endpoint' && contract.action.safety.checkMayAffectProvider
           ? <p>Checking this endpoint may affect the provider. Review the request and its consequences before continuing.</p> : null}
         {payload.publishedContract ? <details open={schemaOpen} onToggle={event => setSchemaOpen(event.currentTarget.open)}>
           <summary>Published input contract</summary>

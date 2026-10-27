@@ -56,7 +56,7 @@ function visibleActionLabel(
   if (status === 'checking') return 'Opening…';
   if (status === 'details_sent') return 'Sent to chat';
   if (status === 'error') return 'Try again';
-  return action.kind === 'provide_details' ? 'Add details' : 'Check terms';
+  return action.kind === 'provide_details' ? (action.label === 'View inputs' ? action.label : 'Add details') : 'Check terms';
 }
 
 export function SearchDecisionBrief({

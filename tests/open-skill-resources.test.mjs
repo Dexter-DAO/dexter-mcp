@@ -73,7 +73,7 @@ test('master skill preserves shared product truth without pretending every surfa
 
 test('hosted workflow names Indexter as the discovery product', () => {
   assert.match(WORKFLOW, /discover services with Indexter/i);
-  assert.match(WORKFLOW, /Explore Indexter, browse a provider, or find a service/);
+  assert.match(WORKFLOW, /Browse featured providers or one provider catalog/);
   assert.match(WORKFLOW, /Indexter discovery and purchase/);
   assert.match(WORKFLOW, /Call `indexter_search` once[\s\S]*complete natural-language[\s\S]*request/i);
   assert.match(SERVER, /OpenDexter guide for Indexter discovery/);
@@ -94,7 +94,7 @@ test('served guidance requires native OAuth and bounded nonretryable spending', 
   );
   assert.match(WORKFLOW, /receiveAddress/);
   assert.match(WORKFLOW, /Leave the network filter unset[\s\S]*compatible[\s\S]*server-side settlement/);
-  assert.match(WORKFLOW, /maxPriceUsdc[\s\S]*task route/);
+  assert.match(WORKFLOW, /maxPriceUsdc[\s\S]*task search/);
   assert.match(WORKFLOW, /paidOnly[\s\S]*sortBy: price_asc/);
   assert.match(WORKFLOW, /degraded_ranking[\s\S]*not the same as no result/);
   assert.match(WORKFLOW, /Zero cash alone is not proof that a deposit is required/);
@@ -220,7 +220,7 @@ test('generated runtime instructions preserve current wallet and authority truth
 
   assert.match(runtime, /requires OpenDexter OAuth before initialization or tool discovery/);
   assert.match(runtime, /native OpenDexter Connect action/);
-  assert.match(runtime, /registers sixteen tools[\s\S]*Fifteen are model-visible/);
+  assert.match(runtime, /exposes the current tool roster[\s\S]*both models and widgets/);
   assert.match(runtime, /Connected label[\s\S]*successful authenticated tool discovery or a successful tool call proves wallet authorization/);
   assert.match(runtime, /Connected appears without authorization[\s\S]*plugin or integration settings/);
   assert.match(runtime, /plugin or integration settings[\s\S]*Authorize or Authenticate/);

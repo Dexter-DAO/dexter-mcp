@@ -60,7 +60,7 @@ export function SearchVerdictDrawer({ resource, onClose, onUseService }: Props) 
       : checking
         ? 'Opening…'
         : action.kind === 'provide_details'
-          ? 'Add details'
+          ? (action.label === 'View inputs' ? action.label : 'Add details')
           : 'Check terms';
 
   return (
