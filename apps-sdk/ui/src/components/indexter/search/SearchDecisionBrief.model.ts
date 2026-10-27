@@ -129,6 +129,14 @@ export function getSearchResourceAction(
   if (failureMessage) {
     return { kind: 'catalog_only', label: 'Unavailable', helperText: failureMessage, disabled: true };
   }
+  if (execution?.availability === 'available' && execution.userExecution === 'allowed'
+    && resource.access.checkable && resource.inputContract?.status === 'details_required'
+    && resource.inputContract.reason === 'input_format_unsupported'
+    && resource.inputContract.detail?.resourceId === resource.resourceId
+    && resource.inputContract.detail.method === canonicalMethod(resource)) {
+    return { kind: 'provide_details', label: 'View inputs',
+      helperText: 'Read the complete published schema to construct this request in chat.', disabled: false };
+  }
   if (!execution || !requestInput) {
     return {
       kind: 'unsupported',
@@ -325,6 +333,15 @@ export function buildDetailsFollowUpPrompt(
   const failureMessage = indexterCurrentFailureMessage(indexterCurrentFailureReason(resource));
   if (failureMessage) return boundedReference + failureMessage + ' Select another available catalog result.';
 
+  const detail = resource.inputContract?.status === 'details_required' ? resource.inputContract.detail : null;
+  if (detail && resource.inputContract?.reason === 'input_format_unsupported'
+    && detail.resourceId === resource.resourceId && detail.method === method
+    && resource.execution?.availability === 'available' && resource.execution.userExecution === 'allowed'
+    && resource.access.checkable) {
+    return boundedReference + 'Read the complete catalog input contract with indexter_search using only '
+      + JSON.stringify({ contractResourceId: detail.resourceId, contractMethod: detail.method })
+      + '. This selection opens published input details only. Use the complete schema to form the request in chat; preserve optional nested fields and the existing task and permissions. Do not call x402_check merely to retrieve the schema.';
+  }
   if (!requestInput) {
     return boundedReference
       + 'The server-sanitized request input contract is unavailable. Do not call x402_check, '

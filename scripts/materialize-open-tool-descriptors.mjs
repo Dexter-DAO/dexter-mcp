@@ -248,8 +248,8 @@ const EXPECTED_SOURCE_CONTRACTS = Object.freeze({
   // Explicit Tab consent carries the exact reviewed terms through preparation;
   // approved sessions retain those terms above the ordinary creation default.
   // Later releases must preserve these API_GOVERNED_CONTRACT_PATHS bytes.
-  integratedGovernedCommit: '719987075e7327d1f25fb8cb009f2e69b301b1bc',
-  integratedGovernedTree: '0be85d43e695c09ecc54f8d2bb4e85cc67dbf174',
+  integratedGovernedCommit: '6ff831a546fab7100f3928c7ff7c7ac2e2b06152',
+  integratedGovernedTree: '2fbfbcd77cf446ea85c1f287ed5536e6a2aadd5a',
   apiFixtureSha256:
     'ad06690a3914e0ef0f359c4164eb62f78ca54abe6697a52672d739df63c2c352',
   apiCanonicalBodyDigest:

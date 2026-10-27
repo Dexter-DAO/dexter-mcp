@@ -45,6 +45,7 @@ if (process.env.NODE_ENV !== 'production') {
 }
 import { extractMcpSessionId } from './lib/mcp-session-id.mjs';
 import { readOAuthSeedTimeoutMs } from './lib/open-oauth-seed-budget.mjs';
+import { createOpenRequestCorrelation } from './lib/open-request-correlation.mjs';
 import {
   DEXTER_WALLET_WIDGET_URIS,
   INDEXTER_WIDGET_URIS,
@@ -2343,6 +2344,7 @@ const SERVER_INSTRUCTIONS = buildOpenServerInstructions();
 export function createOpenMcpServer({
   includeResources = true,
   listedToolNames,
+  requestCorrelation,
 } = {}) {
   assertOpenToolAuthPolicyCoverage(ALL_TOOLS);
   const server = new McpServer({
@@ -2351,6 +2353,7 @@ export function createOpenMcpServer({
   }, {
     instructions: SERVER_INSTRUCTIONS,
   });
+  requestCorrelation?.observeServer(server.server);
   installOpenToolContracts(server);
 
   // ─── Self-contained hosted skill-file resources ────────────────────────────
@@ -2379,12 +2382,12 @@ export function createOpenMcpServer({
 
   registerOpenTool(server, 'indexter_discover', {
     title: 'Explore Indexter',
-    description: 'App-only Indexter browser for overview and provider pages. Copy endpoint and Actor cursors exactly when the widget requests another page. This reads no wallet data and makes no payment.',
+    description: 'Browse the featured overview or one provider catalog. Copy overview or endpoint page.nextCursor into cursor; copy Actor cursors into actorCursor separately. Keep provider and page size unchanged on continuation. This reads no wallet data and makes no payment.',
     inputSchema: z.object({
-      provider: z.string().trim().min(1).max(255).optional().describe('Provider name or key retained from the current widget state. Leave unset for the overview.'),
+      provider: z.string().trim().min(1).max(255).optional().describe('Provider name or key from the current catalog or user request. Leave unset for the overview.'),
       limit: z.number().int().min(1).max(25).optional().describe('Overview provider page size. Leave unset in provider mode.'),
       capabilityPageSize: z.number().int().min(1).max(24).optional().describe('Endpoint page size for one provider.'),
-      cursor: z.string().min(1).max(2048).optional().describe('Opaque endpoint cursor copied from the current Indexter payload.'),
+      cursor: z.string().min(1).max(2048).optional().describe('Opaque page.nextCursor from the same overview or provider endpoint page. Preserve provider and page size; never use an Actor cursor here.'),
       actorPageSize: z.number().int().min(1).max(12).optional().describe('Actor page size for one provider.'),
       actorCursor: z.string().min(1).max(2048).optional().describe('Opaque Actor cursor copied from the current Indexter payload.'),
     }).strict().superRefine((value, context) => {
@@ -4090,8 +4093,13 @@ const httpServer = http.createServer({ keepAliveTimeout: 60_000 }, async (req, r
         }
       };
 
-      const mcpServer = createOpenMcpServer();
+      const requestCorrelation = createOpenRequestCorrelation({
+        sessionRef: () => logRef(provisionalSessionId),
+        logEvent: (event) => console.log('[open-mcp] request correlation', JSON.stringify(event)),
+      });
+      const mcpServer = createOpenMcpServer({ requestCorrelation });
       await mcpServer.connect(transport);
+      requestCorrelation.attachTransport(transport);
       await transport.handleRequest(req, res, initialParsedBody);
       return;
     } catch (error) {

@@ -95,7 +95,7 @@ export function SearchInlineDetail({
           onClick={() => onUseService?.(resource)}
         >
           {action.kind === 'provide_details' && actionAvailable
-            ? 'Add details'
+            ? (action.label === 'View inputs' ? action.label : 'Add details')
             : action.kind === 'check_live_terms' && actionAvailable
               ? 'Check terms'
               : actionLabel}

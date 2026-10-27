@@ -56,7 +56,7 @@ export type IndexterRequestInput = {
 export type IndexterInputContract = {
   status: 'inline' | 'available' | 'details_required' | 'unavailable' | 'not_published';
   complete: boolean;
-  reason?: 'inline_limit' | 'page_limit' | 'contract_too_large' | 'unsafe_contract';
+  reason?: 'inline_limit' | 'page_limit' | 'contract_too_large' | 'unsafe_contract' | 'input_format_unsupported';
   detail?: { resourceId: string; method: 'GET' | 'POST' | 'PUT' | 'DELETE' };
 };
 
@@ -842,6 +842,7 @@ function isEndpointAction(
   resourceUrl: string | null,
   method: 'GET' | 'POST' | 'PUT' | 'DELETE',
   requestInput: IndexterRequestInput | null,
+  inputContract?: IndexterInputContract,
 ): value is IndexterEndpointAction {
   if (
     !isRecord(value)
@@ -859,7 +860,12 @@ function isEndpointAction(
       )
       && (requestInput === null || isIndexterCurrentFailureReason(value.reason));
   }
-  if (!isRecord(value.safety) || requestInput === null) return false;
+  const publishedReview = requestInput === null && value.kind === 'review_endpoint'
+    && inputContract?.reason === 'input_format_unsupported'
+    && ((inputContract.status === 'available' && inputContract.complete === true)
+      || (inputContract.status === 'details_required' && inputContract.complete === false
+        && inputContract.detail?.resourceId === resourceId && inputContract.detail?.method === method));
+  if (!isRecord(value.safety) || (requestInput === null && !publishedReview)) return false;
   const safety = value.safety;
   if (!(
     typeof safety.requiresRequestReview === 'boolean'
@@ -878,10 +884,10 @@ function isEndpointAction(
     || safety.checkMayCreateProviderReservation;
   const expectedReview = expectedMayAffect
     || safety.requiresExplicitInput
-    || requestInput.fields.length > 0;
+    || publishedReview || (requestInput?.fields.length ?? 0) > 0;
   if (
     safety.checkMayAffectProvider !== expectedMayAffect
-    || safety.publishedInputPresent !== (requestInput.fields.length > 0)
+    || safety.publishedInputPresent !== (publishedReview || (requestInput?.fields.length ?? 0) > 0)
     || safety.requiresRequestReview !== expectedReview
   ) return false;
   return expectedReview
@@ -991,6 +997,7 @@ function isResource(value: unknown): value is IndexterDiscoveryResource {
       value.resourceUrl,
       value.method,
       requestInput,
+      value.inputContract as IndexterInputContract | undefined,
     );
 }
 
@@ -1000,7 +1007,14 @@ function isInputContractMetadata(value: Record<string, unknown>): boolean {
   if (!isRecord(contract) || !['inline', 'available', 'details_required', 'unavailable', 'not_published'].includes(String(contract.status))
     || contract.complete !== ['inline', 'available', 'not_published'].includes(String(contract.status))
     || !['bazaar', 'openapi', 'profile', 'none'].includes(String(value.schemaSource))
-    || (contract.reason !== undefined && !['inline_limit', 'page_limit', 'contract_too_large', 'unsafe_contract'].includes(String(contract.reason)))) return false;
+    || (contract.reason !== undefined && !['inline_limit', 'page_limit', 'contract_too_large', 'unsafe_contract', 'input_format_unsupported'].includes(String(contract.reason)))) return false;
+  if (contract.reason === 'input_format_unsupported') {
+    if (!isRecord(value.action) || value.action.kind !== 'review_endpoint' || value.requestInput !== null
+      || !isRecord(value.access) || value.access.checkable !== true
+      || !['available', 'details_required'].includes(String(contract.status))) return false;
+    return contract.status === 'available' ? contract.detail === undefined
+      : isRecord(contract.detail) && contract.detail.resourceId === value.resourceId && contract.detail.method === value.method;
+  }
   if (contract.complete === false && (value.requestInput !== null || !isRecord(value.action)
     || value.action.kind !== 'endpoint_unavailable' || !isRecord(value.access) || value.access.checkable !== false)) return false;
   if (contract.status === 'details_required') {

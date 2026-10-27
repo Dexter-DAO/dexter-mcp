@@ -14,7 +14,8 @@ test('widget accepts the exact complete producer result, including unsupported s
   for (const payload of [fixtures.detailResponse, fixtures.oversizedDetailResponse]) {
     const result = completeResult(payload);
     assert.equal(isIndexterInputContractPayload(result), true);
-    assert.equal(result.contract.action.kind, 'endpoint_unavailable');
+    assert.equal(result.contract.action.kind, 'review_endpoint');
+    assert.equal(result.contract.inputContract.reason, 'input_format_unsupported');
     assert.deepEqual(result.publishedContract.inputSchema, payload.inputSchema);
   }
 });

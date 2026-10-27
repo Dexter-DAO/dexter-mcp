@@ -587,7 +587,7 @@ test('endpoint projection exposes only bounded primitive request fields for an a
   );
 });
 
-test('endpoint input projection preserves discovery but disables unsafe or unsupported input contracts', () => {
+test('endpoint input projection separates published nested inputs from unsafe input and transport limits', () => {
   const unsafe = [
     endpoint(27, {
       inputSchema: {
@@ -626,8 +626,10 @@ test('endpoint input projection preserves discovery but disables unsafe or unsup
     });
     assert.equal(result.structuredContent.counts.endpoints, 1);
     assert.equal(result.structuredContent.results[0].requestInput, null);
-    assert.equal(result.structuredContent.results[0].action.kind, 'endpoint_unavailable');
-    assert.equal(result.structuredContent.results[0].action.reason, 'input_contract_unavailable');
+    const nested = source.inputSchema?.properties?.delivery?.type === 'object';
+    assert.equal(result.structuredContent.results[0].action.kind, nested ? 'review_endpoint' : 'endpoint_unavailable');
+    if (nested) assert.equal(result.structuredContent.results[0].inputContract.reason, 'input_format_unsupported');
+    else assert.equal(result.structuredContent.results[0].action.reason, 'input_contract_unavailable');
     assert.equal(result._meta.indexterPayload.data.strongResults[0].requestInput, null);
     assert.equal(OPEN_TOOL_CONTRACTS.indexter_search.outputSchema.safeParse(result.structuredContent).success, true);
   }
@@ -1519,7 +1521,7 @@ test('retains primitive body input and still sanitizes object HTTP envelopes', (
   assert.doesNotMatch(JSON.stringify(rejected), /apiKey/);
 });
 
-test('nested input listing retains useful identity and cannot become an executable model continuation', () => {
+test('nested input listing retains identity and requires complete catalog details before request construction', () => {
   const source = endpoint(75, {
     method: 'POST',
     description: 'Send a message with structured delivery options.',
@@ -1534,9 +1536,9 @@ test('nested input listing retains useful identity and cannot become an executab
   assert.equal(listing.resourceId, source.resourceId);
   assert.equal(listing.summary, source.description);
   assert.equal(listing.requestInput, null);
-  assert.equal(listing.action.kind, 'endpoint_unavailable');
-  assert.equal(listing.action.reason, 'input_contract_unavailable');
-  assert.doesNotMatch(JSON.stringify(result), /"inputSchema"|"destination"|"check_endpoint"|"review_endpoint"/);
+  assert.equal(listing.action.kind, 'review_endpoint');
+  assert.equal(listing.inputContract.reason, 'input_format_unsupported');
+  assert.doesNotMatch(JSON.stringify(result), /"inputSchema"|"destination"|"check_endpoint"/);
   const schema = OPEN_TOOL_CONTRACTS.indexter_search.outputSchema;
   assert.equal(schema.safeParse(result.structuredContent).success, true);
   const inventedInput = structuredClone(result.structuredContent);
@@ -1548,7 +1550,7 @@ test('nested input listing retains useful identity and cannot become an executab
 });
 
 
-test('an ordinary nested body object is unavailable rather than flattened into executable fields', () => {
+test('an ordinary nested body object remains whole through published-schema review', () => {
   for (const marker of [null, 'method']) {
     const inputSchema = {
       type: 'object', required: ['body'], properties: {
@@ -1562,10 +1564,10 @@ test('an ordinary nested body object is unavailable rather than flattened into e
     assert.equal(result.structuredContent.counts.endpoints, 1);
     const listing = result.structuredContent.results[0];
     assert.equal(listing.requestInput, null);
-    assert.equal(listing.action.kind, 'endpoint_unavailable');
-    assert.equal(listing.action.reason, 'input_contract_unavailable');
+    assert.equal(listing.action.kind, 'review_endpoint');
+    assert.equal(listing.inputContract.reason, 'input_format_unsupported');
     assert.equal(result._meta.indexterPayload.data.strongResults[0].requestInput, null);
-    assert.doesNotMatch(JSON.stringify(result), /"name":"text"|"review_endpoint"|"check_endpoint"/);
+    assert.doesNotMatch(JSON.stringify(result), /"name":"text"|"check_endpoint"/);
     assert.equal(OPEN_TOOL_CONTRACTS.indexter_search.outputSchema.safeParse(result.structuredContent).success, true);
   }
 });
@@ -1596,7 +1598,7 @@ test('projects Xona image inputs with bounded optional primitive arrays through 
   }
 });
 
-test('array projection rejects unsupported shapes and credentials without silently dropping optional fields', () => {
+test('array projection defers unsupported forms and keeps credential fields unavailable', () => {
   for (const array of [
     { type: 'array' }, { type: 'array', items: { type: 'object' } },
     { type: 'array', items: { type: 'array', items: { type: 'string' } } },
@@ -1616,7 +1618,8 @@ test('array projection rejects unsupported shapes and credentials without silent
       method: 'POST', inputSchema: { type: 'object', required: ['prompt'], properties: { prompt: { type: 'string' }, referenceImage: array } },
     })], relatedResults: [] } });
     assert.equal(result.structuredContent.results[0].requestInput, null);
-    assert.equal(result.structuredContent.results[0].action.reason, 'input_contract_unavailable');
+    assert.equal(result.structuredContent.results[0].inputContract.reason, 'input_format_unsupported');
+    assert.equal(result.structuredContent.results[0].action.kind, 'review_endpoint');
   }
   for (const name of ['apiKey', 'system_prompt']) {
     const result = projectIndexterDiscoveryEndpointActions({ featuredOfferings: [endpoint(83, { method: 'POST', inputSchema: {

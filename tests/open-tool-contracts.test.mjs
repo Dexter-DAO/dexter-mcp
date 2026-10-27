@@ -142,7 +142,7 @@ test('only Indexter discovery and read-only portfolio browsing are callable from
     const portfolio = name === 'dexter_wallet_portfolio';
     assert.deepEqual(
       OPEN_TOOL_CONTRACTS[name].visibility,
-      discovery ? ['app'] : portfolio ? ['model', 'app'] : ['model'],
+      discovery || portfolio ? ['model', 'app'] : ['model'],
       `${name} native MCP Apps visibility`,
     );
     assert.equal(
@@ -155,7 +155,7 @@ test('only Indexter discovery and read-only portfolio browsing are callable from
     Object.entries(OPEN_TOOL_CONTRACTS)
       .filter(([name, contract]) => name.startsWith('indexter_') && contract.visibility.includes('model'))
       .map(([name]) => name),
-    ['indexter_search'],
+    ['indexter_discover', 'indexter_search'],
   );
 });
 
@@ -200,8 +200,8 @@ test('discovery, search, and wallet contracts expose current truth without route
   const search = OPEN_TOOL_CONTRACTS.indexter_search;
   const wallet = OPEN_TOOL_CONTRACTS.dexter_wallet;
 
-  assert.match(discovery.description, /App-only Indexter browser/);
-  assert.match(discovery.description, /endpoint and Actor cursors/);
+  assert.match(discovery.description, /Browse featured providers/);
+  assert.match(discovery.description, /Actor cursor/);
   assert.match(discovery.description, /never authorizes payment or Actor execution/);
   assert.equal(Object.hasOwn(discovery.registrationOutputSchema.shape, 'providers'), true);
   assert.equal(Object.hasOwn(discovery.registrationOutputSchema.shape, 'mode'), true);

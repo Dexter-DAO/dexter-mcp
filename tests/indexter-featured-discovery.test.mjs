@@ -7,7 +7,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { createOpenMcpServer } from '../open-mcp-server.mjs';
 import { classifyIndexterRequest, getIndexterProviderCandidate } from '../lib/indexter-request-router.mjs';
 import { buildIndexterToolResult } from '../lib/indexter-tool-result.mjs';
-import { OPEN_TOOL_CONTRACTS, OPEN_TOOL_NAMES, applyOpenToolResultPolicy } from '../lib/open-tool-contracts.mjs';
+import { OPEN_TOOL_CONTRACTS, OPEN_TOOL_NAMES, applyOpenToolResultPolicy, buildHostedOpenToolDescriptor } from '../lib/open-tool-contracts.mjs';
 import { withOpenResultText } from '../lib/open-result-text.mjs';
 
 const fixture = (name) => JSON.parse(readFileSync(new URL(`./fixtures/indexter-featured/${name}`, import.meta.url)));
@@ -34,8 +34,36 @@ async function connected(t, respond) {
     await server.close();
     globalThis.fetch = previous;
   });
-  return { client, requests };
+  return { client, server, requests };
 }
+
+test('models receive the same bounded browser registration as apps and can continue the captured overview', async t => {
+  const { client, server, requests } = await connected(t, url => {
+    assert.equal(url.pathname, '/api/x402gle/indexter/discovery');
+    assert.equal(url.searchParams.get('limit'), '4');
+    return Response.json(url.searchParams.has('cursor') ? next : first);
+  });
+  const listed = (await client.listTools()).tools.find(tool => tool.name === 'indexter_discover');
+  assert.deepEqual(listed._meta.ui.visibility, ['model', 'app']);
+  assert.doesNotMatch(listed.description, /app-only/i);
+  assert.match(listed.description, /page.nextCursor into cursor/);
+  const descriptor = buildHostedOpenToolDescriptor(server).tools.find(tool => tool.name === listed.name);
+  // SDK Client strips the top-level OAuth extension; its mirrored metadata is retained.
+  const { securitySchemes, ...sdkDescriptor } = descriptor;
+  assert.deepEqual(listed, sdkDescriptor);
+  assert.deepEqual(listed._meta.securitySchemes, securitySchemes);
+  const a = await client.callTool({ name: 'indexter_discover', arguments: { limit: 4 } });
+  assert.equal(a.isError, false);
+  assert.equal(a.structuredContent.page.nextCursor, first.page.nextCursor);
+  const b = await client.callTool({ name: 'indexter_discover', arguments: { limit: 4, cursor: a.structuredContent.page.nextCursor } });
+  assert.equal(b.isError, false);
+  assert.equal(requests[1].searchParams.get('cursor'), first.page.nextCursor);
+  assert.deepEqual(b.structuredContent.providers.map(p => p.providerKey), next.providers.map(p => p.providerKey));
+  assert.equal(requests.length, 2);
+  const mixed = await client.callTool({ name: 'indexter_discover', arguments: { provider: 'Massive', limit: 4 } });
+  assert.equal(mixed.isError, true);
+  assert.equal(requests.length, 2);
+});
 
 function taskResponse() {
   return {
@@ -268,7 +296,8 @@ test('actual producer inline contracts survive discovery without inventing adapt
   assert.ok(rows.some(row => row.inputContract?.status === 'inline'));
   assert.ok(rows.some(row => row.requestInput !== null));
   for (const row of rows.filter(row => row.requestInput === null)) {
-    assert.equal(row.action.kind, 'endpoint_unavailable');
+    assert.equal(row.action.kind, 'review_endpoint');
+    assert.equal(row.inputContract.reason, 'input_format_unsupported');
   }
 });
 
@@ -299,9 +328,9 @@ test('exact detail read preserves the whole published schema and explicit adapte
   assert.deepEqual(data.publishedContract, {
     inputSchema: contracts.detailResponse.inputSchema, pathParams: contracts.detailResponse.pathParams,
   });
-  assert.equal(data.contract.action.kind, 'endpoint_unavailable');
+  assert.equal(data.contract.action.kind, 'review_endpoint');
   assert.equal(data.contract.requestInput, null);
-  assert.match(result.content[0].text, /cannot be used by the current request tool/);
+  assert.match(result.content[0].text, /simple form cannot represent/);
   assert.match(result.content[0].text, /published_utc.gte/);
   assert.deepEqual(result._meta.indexterPayload.data, data);
 });
@@ -329,7 +358,7 @@ test('large complete producer schemas remain complete catalog data without trunc
   assert.equal(Object.keys(result.structuredContent.publishedContract.inputSchema.properties).length, 60);
   assert.deepEqual(result.structuredContent.publishedContract.inputSchema.required, ['field59']);
   assert.equal(result.structuredContent.contract.requestInput, null);
-  assert.equal(result.structuredContent.contract.action.kind, 'endpoint_unavailable');
+  assert.equal(result.structuredContent.contract.action.kind, 'review_endpoint');
   assert.match(result.content[0].text, /field59/);
 });
 
