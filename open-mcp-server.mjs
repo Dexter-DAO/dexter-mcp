@@ -45,6 +45,7 @@ if (process.env.NODE_ENV !== 'production') {
 }
 import { extractMcpSessionId } from './lib/mcp-session-id.mjs';
 import { readOAuthSeedTimeoutMs } from './lib/open-oauth-seed-budget.mjs';
+import { createOpenRequestCorrelation } from './lib/open-request-correlation.mjs';
 import {
   DEXTER_WALLET_WIDGET_URIS,
   INDEXTER_WIDGET_URIS,
@@ -2343,6 +2344,7 @@ const SERVER_INSTRUCTIONS = buildOpenServerInstructions();
 export function createOpenMcpServer({
   includeResources = true,
   listedToolNames,
+  requestCorrelation,
 } = {}) {
   assertOpenToolAuthPolicyCoverage(ALL_TOOLS);
   const server = new McpServer({
@@ -2351,6 +2353,7 @@ export function createOpenMcpServer({
   }, {
     instructions: SERVER_INSTRUCTIONS,
   });
+  requestCorrelation?.observeServer(server.server);
   installOpenToolContracts(server);
 
   // ─── Self-contained hosted skill-file resources ────────────────────────────
@@ -4090,8 +4093,13 @@ const httpServer = http.createServer({ keepAliveTimeout: 60_000 }, async (req, r
         }
       };
 
-      const mcpServer = createOpenMcpServer();
+      const requestCorrelation = createOpenRequestCorrelation({
+        sessionRef: () => logRef(provisionalSessionId),
+        logEvent: (event) => console.log('[open-mcp] request correlation', JSON.stringify(event)),
+      });
+      const mcpServer = createOpenMcpServer({ requestCorrelation });
       await mcpServer.connect(transport);
+      requestCorrelation.attachTransport(transport);
       await transport.handleRequest(req, res, initialParsedBody);
       return;
     } catch (error) {
