@@ -108,6 +108,10 @@ const API_GOVERNED_CONTRACT_PATHS = Object.freeze([
   'src/portfolio/spotExecution/raydium.ts',
   'src/portfolio/spotExecution/selection.ts',
   'src/services/crosspayOrchestrator.ts',
+  'src/services/crosspayBaseTransferProof.ts',
+  'src/services/crosspayFrontActuationStore.ts',
+  'src/services/crosspayKeeperRecovery.ts',
+  'src/services/crosspaySellerReceipt.ts',
   'src/services/crosspayHealth.ts',
   'src/services/crosspayOpenWork.ts',
   'src/services/crosspayReconciler.ts',
@@ -166,11 +170,13 @@ const API_GOVERNED_CONTRACT_PATHS = Object.freeze([
   'packages/identity-proof',
   'prisma/schema.prisma',
   'prisma/migrations/20261026202500_bind_one_action_native_tab_sessions/migration.sql',
+  'prisma/migrations/20261027061500_recover_crosspay_saved_settlement_receipts/migration.sql',
   'src/services/x402/nativeMcpTarget.ts',
   'src/services/x402/nativeMcpTransport.ts',
   'src/services/x402/swigExactPayment.ts',
   'src/services/x402/opaquePurchaseCheckPersistence.ts',
   'src/services/x402/opaquePurchaseCoordinator.ts',
+  'src/services/x402/opaqueQuotedOffers.ts',
   'src/services/x402/opaqueGatewayCashAdapter.ts',
   'src/services/x402/opaqueNativeTabAdapter.ts',
   'src/services/x402/opaqueNativeTabConsentPreparation.ts',
@@ -247,9 +253,12 @@ const EXPECTED_SOURCE_CONTRACTS = Object.freeze({
   // payment evidence consistently through Fetch, Status and replay.
   // Explicit Tab consent carries the exact reviewed terms through preparation;
   // approved sessions retain those terms above the ordinary creation default.
+  // Reviewed paid-delivery recovery derives settlement from the immutable
+  // seller receipt while retaining chain proof, ownership and accounting guards.
+  // Checked purchase responses preserve all eligible quoted payment offers.
   // Later releases must preserve these API_GOVERNED_CONTRACT_PATHS bytes.
-  integratedGovernedCommit: '6ff831a546fab7100f3928c7ff7c7ac2e2b06152',
-  integratedGovernedTree: '2fbfbcd77cf446ea85c1f287ed5536e6a2aadd5a',
+  integratedGovernedCommit: '84533f0027919d0f223ebd752f669e329103e202',
+  integratedGovernedTree: '60320e86b38ebff431734f4b07342c1fbd57ea0c',
   apiFixtureSha256:
     'ad06690a3914e0ef0f359c4164eb62f78ca54abe6697a52672d739df63c2c352',
   apiCanonicalBodyDigest:

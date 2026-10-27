@@ -119,10 +119,10 @@
 }
 
 .dx-pricing__offer {
-  display: grid;
+  display: flex;
   min-width: 0;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
   gap: var(--dx-space-5);
 }
 
@@ -274,6 +274,18 @@
   column-gap: var(--dx-space-4);
 }
 
+.dx-pricing__route-details {
+  min-width: 0;
+  grid-area: rail;
+}
+
+.dx-pricing__quote-note {
+  margin: 0.25rem 0 0;
+  color: var(--dx-ink-muted);
+  font-size: var(--dx-text-sm);
+  line-height: 1.5;
+}
+
 .dx-pricing__route-rail {
   display: flex;
   min-width: 0;
@@ -288,6 +300,7 @@
   display: inline-flex;
   min-width: 0;
   align-items: center;
+  gap: var(--dx-space-1);
 }
 
 .dx-pricing__route-rail .x4-chain-logo,
@@ -377,16 +390,11 @@
   }
 
   .dx-pricing__offer {
-    align-items: end;
     gap: var(--dx-space-3);
   }
 }
 
 @media (max-width: 340px) {
-  .dx-pricing__offer {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
   .dx-pricing__price {
     font-size: 36px;
   }

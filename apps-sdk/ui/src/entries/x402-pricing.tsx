@@ -428,7 +428,7 @@ function PricingCheck() {
       />
 
       {isPaidState && paymentOptions.length > 0 ? (
-        <PaymentRoutes options={paymentOptions} />
+        <PaymentRoutes options={paymentOptions} quote={toolOutput.quote} />
       ) : null}
 
       {state.classification === 'paid' && checkedRequest && sendFollowUp ? (

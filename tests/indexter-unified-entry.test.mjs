@@ -239,6 +239,9 @@ test('ambiguous provider names resolve against the catalog without repeating dis
   const client = await connectedOpenClient(t);
 
   for (const [query, provider] of [
+    ['Birdeye', 'Birdeye'],
+    ['birdeye', 'birdeye'],
+    ['“Creative Tim”', 'Creative Tim'],
     ['browse apify', 'apify'],
     ['I want to explore apify', 'apify'],
     ['show me openai models', 'openai'],
@@ -252,6 +255,51 @@ test('ambiguous provider names resolve against the catalog without repeating dis
     assert.equal(requests.at(-1).searchParams.get('provider'), provider, query);
     assert.equal(result.structuredContent.route, 'provider', query);
     assert.equal(result.structuredContent.ok, true, query);
+  }
+});
+
+test('bare-provider catalog misses and outages stay distinct while task controls remain intact', async (t) => {
+  const previousFetch = globalThis.fetch;
+  const requests = [];
+  let status = 404;
+  globalThis.fetch = async (input) => {
+    const url = new URL(String(input));
+    requests.push(url);
+    if (url.pathname === '/api/x402gle/capability') {
+      const body = emptyTask();
+      body.query = url.searchParams.get('q');
+      body.appliedConstraints.maxPriceUsdc = 0.02;
+      return Response.json(body);
+    }
+    if (url.searchParams.get('provider')) return Response.json({
+      ok: false, error: status === 404 ? 'provider_not_found' : 'indexter_discovery_unavailable',
+    }, { status });
+    return Response.json(emptyDiscovery('overview'));
+  };
+  t.after(() => { globalThis.fetch = previousFetch; });
+  const client = await connectedOpenClient(t);
+  const missed = await client.callTool({ name: 'indexter_search', arguments: { query: 'UnknownMerchant' } });
+  assert.equal(missed.structuredContent.route, 'overview');
+  assert.equal(missed.structuredContent.routingReason, 'provider_not_found');
+  assert.equal(requests.length, 2);
+  assert.equal(requests[0].searchParams.get('provider'), 'UnknownMerchant');
+  assert.equal(requests[1].searchParams.get('mode'), 'overview');
+
+  status = 503;
+  requests.length = 0;
+  const unavailable = await client.callTool({ name: 'indexter_search', arguments: { query: 'Birdeye' } });
+  assert.equal(unavailable.structuredContent.ok, false);
+  assert.equal(unavailable.structuredContent.route, 'provider');
+  assert.equal(requests.length, 1);
+
+  for (const query of ['Birdeye', 'Birdeye Solana token price data']) {
+    requests.length = 0;
+    const result = await client.callTool({ name: 'indexter_search', arguments: { query, maxPriceUsdc: 0.02, network: 'solana' } });
+    assert.equal(result.structuredContent.route, 'task');
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0].pathname, '/api/x402gle/capability');
+    assert.equal(requests[0].searchParams.get('q'), query);
+    assert.equal(requests[0].searchParams.get('maxPriceUsdc'), '0.02');
   }
 });
 

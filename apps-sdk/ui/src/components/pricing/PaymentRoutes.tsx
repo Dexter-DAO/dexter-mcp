@@ -25,6 +25,7 @@ function routePresentationKey(route: X402PaymentRoute): string {
     route.decimals ?? null,
     route.facilitator?.trim() ?? null,
     route.expiresAt ?? null,
+    route.smartWalletSupport ?? null,
   ]);
 }
 
@@ -71,9 +72,13 @@ function groupPaymentRoutes(
 function PaymentTermRow({
   routes,
   showPrice,
+  quoted = false,
+  selected = false,
 }: {
   routes: readonly X402PaymentRoute[];
   showPrice: boolean;
+  quoted?: boolean;
+  selected?: boolean;
 }) {
   const route = routes[0];
   const chains = [...new Map(routes.map((item) => {
@@ -106,16 +111,24 @@ function PaymentTermRow({
 
   return (
     <li className="dx-pricing__route" aria-label={accessibleParts.filter(Boolean).join('; ') || 'Payment option'}>
+      <div className="dx-pricing__route-details">
       <div className="dx-pricing__route-rail" aria-hidden="true">
         {chains.map((chain) => (
           <span className="dx-pricing__route-chain" key={chain.key}>
             <ChainIcon network={chain.network} size={20} />
-            {chain.slug === 'default' && chain.name ? <span>{chain.name}</span> : null}
+            {(quoted || chain.slug === 'default') && chain.name ? <span>{chain.name}</span> : null}
           </span>
         ))}
         {hasUsdc ? <UsdcIcon size={20} /> : null}
         {assets.map((asset) => <span key={asset}>{asset}</span>)}
         {schemes.map((scheme) => <span key={scheme}>{scheme}</span>)}
+      </div>
+      {quoted && route.smartWalletSupport !== undefined ? (
+        <p className="dx-pricing__quote-note">{route.smartWalletSupport === 'unknown'
+          ? 'Seller smart-wallet support: unknown.'
+          : route.smartWalletSupport ? 'Seller declares smart-wallet support.' : 'Seller declares no smart-wallet support.'}</p>
+      ) : null}
+      {selected ? <p className="dx-pricing__quote-note">Selected</p> : null}
       </div>
       {showPrice ? (
         <span className="dx-pricing__route-price">{route.priceFormatted}</span>
@@ -126,25 +139,33 @@ function PaymentTermRow({
 
 export function PaymentRoutes({
   options,
+  quote,
 }: {
   options: readonly X402PaymentRoute[];
+  quote?: { kind: 'eligible_offers'; selection: 'automatic' | 'credit_requested'; state: 'unselected' | 'selected'; selectedOfferIndex?: number };
 }) {
   if (options.length === 0) return null;
   const grouped = groupPaymentRoutes(options);
+  const quoted = quote?.kind === 'eligible_offers';
   const showPrices = grouped.length > 1;
 
   return (
     <section
       className={`dx-pricing__routes${showPrices ? '' : ' dx-pricing__routes--single'}`}
-      aria-label={showPrices ? 'Payment options' : 'Payment rail'}
+      aria-label={quoted ? 'Quoted offers' : showPrices ? 'Payment options' : 'Payment rail'}
     >
-      {showPrices ? <h2 className="dx-pricing__routes-title">Payment options</h2> : null}
+      {quoted || showPrices ? <h2 className="dx-pricing__routes-title">{quoted ? 'Quoted offers' : 'Payment options'}</h2> : null}
+      {quoted && quote.state !== 'selected' ? <p className="dx-pricing__quote-note">{quote.selection === 'credit_requested'
+          ? 'Quoted for the requested credit purchase. Readiness is checked when the purchase starts.'
+          : 'Dexter chooses the payment route when the purchase starts.'}</p> : null}
       <ul className="dx-pricing__routes-list" aria-label={showPrices ? undefined : 'Payment rail'}>
         {grouped.map((routes) => (
           <PaymentTermRow
             key={routes.map((route) => route.routeKey).join('|')}
             routes={routes}
             showPrice={showPrices}
+            quoted={quoted}
+            selected={quote?.state === 'selected' && routes.includes(options[quote.selectedOfferIndex ?? -1])}
           />
         ))}
       </ul>

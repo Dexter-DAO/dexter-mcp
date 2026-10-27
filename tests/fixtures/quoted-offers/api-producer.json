@@ -1,0 +1,938 @@
+[
+  {
+    "name": "unknown-dual",
+    "fresh": {
+      "ok": true,
+      "intentId": "10000000-0000-4000-8000-000000000001",
+      "paymentRequired": true,
+      "paymentOptions": [
+        {
+          "scheme": "exact",
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "payTo": "GmaDrppjnZBxjBVgxiZJWFY7tXJVHTYUBVoBtmofpNNw",
+          "amountAtomic": "25",
+          "expiresAt": "2030-03-17T17:47:40.000Z",
+          "smartWalletSupport": "unknown"
+        },
+        {
+          "scheme": "exact",
+          "network": "eip155:8453",
+          "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "payTo": "0x1111111111111111111111111111111111111111",
+          "amountAtomic": "25",
+          "expiresAt": "2030-03-17T17:47:40.000Z"
+        }
+      ],
+      "quote": {
+        "kind": "eligible_offers",
+        "selection": "automatic",
+        "state": "unselected"
+      },
+      "amountAtomic": "25",
+      "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+      "payTo": "GmaDrppjnZBxjBVgxiZJWFY7tXJVHTYUBVoBtmofpNNw",
+      "expiresAtUnixMs": 1900000060000
+    },
+    "recovered": {
+      "ok": true,
+      "intentId": "10000000-0000-4000-8000-000000000001",
+      "paymentRequired": true,
+      "paymentOptions": [
+        {
+          "scheme": "exact",
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "payTo": "GmaDrppjnZBxjBVgxiZJWFY7tXJVHTYUBVoBtmofpNNw",
+          "amountAtomic": "25",
+          "expiresAt": "2030-03-17T17:47:40.000Z",
+          "smartWalletSupport": "unknown"
+        },
+        {
+          "scheme": "exact",
+          "network": "eip155:8453",
+          "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "payTo": "0x1111111111111111111111111111111111111111",
+          "amountAtomic": "25",
+          "expiresAt": "2030-03-17T17:47:40.000Z"
+        }
+      ],
+      "quote": {
+        "kind": "eligible_offers",
+        "selection": "automatic",
+        "state": "unselected"
+      },
+      "amountAtomic": "25",
+      "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+      "payTo": "GmaDrppjnZBxjBVgxiZJWFY7tXJVHTYUBVoBtmofpNNw",
+      "expiresAtUnixMs": 1900000060000,
+      "checkRequestId": "request-one"
+    },
+    "selected": {
+      "ok": true,
+      "intentId": "10000000-0000-4000-8000-000000000001",
+      "paymentRequired": true,
+      "paymentOptions": [
+        {
+          "scheme": "exact",
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "payTo": "GmaDrppjnZBxjBVgxiZJWFY7tXJVHTYUBVoBtmofpNNw",
+          "amountAtomic": "25",
+          "expiresAt": "2030-03-17T17:47:40.000Z",
+          "smartWalletSupport": "unknown"
+        },
+        {
+          "scheme": "exact",
+          "network": "eip155:8453",
+          "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "payTo": "0x1111111111111111111111111111111111111111",
+          "amountAtomic": "25",
+          "expiresAt": "2030-03-17T17:47:40.000Z"
+        }
+      ],
+      "quote": {
+        "kind": "eligible_offers",
+        "selection": "automatic",
+        "state": "selected",
+        "selectedOfferIndex": 1
+      },
+      "amountAtomic": "25",
+      "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "network": "eip155:8453",
+      "payTo": "0x1111111111111111111111111111111111111111",
+      "expiresAtUnixMs": 1900000060000
+    },
+    "final": {
+      "ok": true,
+      "intentId": "10000000-0000-4000-8000-000000000001",
+      "status": "confirmed",
+      "delivery": {
+        "state": "response_received",
+        "httpStatus": 200,
+        "result": {
+          "fixture": "unknown-dual"
+        }
+      },
+      "payment": {
+        "state": "confirmed",
+        "confirmed": true,
+        "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "network": "eip155:8453",
+        "sourceAsset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "sourceNetwork": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+        "amountAtomic": "25"
+      }
+    },
+    "status": {
+      "ok": true,
+      "intentId": "10000000-0000-4000-8000-000000000001",
+      "status": "confirmed",
+      "delivery": {
+        "state": "response_received",
+        "httpStatus": 200,
+        "result": {
+          "fixture": "unknown-dual"
+        }
+      },
+      "payment": {
+        "state": "confirmed",
+        "confirmed": true,
+        "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "network": "eip155:8453",
+        "sourceAsset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "sourceNetwork": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+        "amountAtomic": "25"
+      }
+    }
+  },
+  {
+    "name": "supported-dual",
+    "fresh": {
+      "ok": true,
+      "intentId": "10000000-0000-4000-8000-000000000001",
+      "paymentRequired": true,
+      "paymentOptions": [
+        {
+          "scheme": "exact",
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "payTo": "GmaDrppjnZBxjBVgxiZJWFY7tXJVHTYUBVoBtmofpNNw",
+          "amountAtomic": "25",
+          "expiresAt": "2030-03-17T17:47:40.000Z",
+          "smartWalletSupport": true
+        },
+        {
+          "scheme": "exact",
+          "network": "eip155:8453",
+          "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "payTo": "0x1111111111111111111111111111111111111111",
+          "amountAtomic": "25",
+          "expiresAt": "2030-03-17T17:47:40.000Z"
+        }
+      ],
+      "quote": {
+        "kind": "eligible_offers",
+        "selection": "automatic",
+        "state": "unselected"
+      },
+      "amountAtomic": "25",
+      "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+      "payTo": "GmaDrppjnZBxjBVgxiZJWFY7tXJVHTYUBVoBtmofpNNw",
+      "expiresAtUnixMs": 1900000060000
+    },
+    "recovered": {
+      "ok": true,
+      "intentId": "10000000-0000-4000-8000-000000000001",
+      "paymentRequired": true,
+      "paymentOptions": [
+        {
+          "scheme": "exact",
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "payTo": "GmaDrppjnZBxjBVgxiZJWFY7tXJVHTYUBVoBtmofpNNw",
+          "amountAtomic": "25",
+          "expiresAt": "2030-03-17T17:47:40.000Z",
+          "smartWalletSupport": true
+        },
+        {
+          "scheme": "exact",
+          "network": "eip155:8453",
+          "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "payTo": "0x1111111111111111111111111111111111111111",
+          "amountAtomic": "25",
+          "expiresAt": "2030-03-17T17:47:40.000Z"
+        }
+      ],
+      "quote": {
+        "kind": "eligible_offers",
+        "selection": "automatic",
+        "state": "unselected"
+      },
+      "amountAtomic": "25",
+      "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+      "payTo": "GmaDrppjnZBxjBVgxiZJWFY7tXJVHTYUBVoBtmofpNNw",
+      "expiresAtUnixMs": 1900000060000,
+      "checkRequestId": "request-one"
+    },
+    "selected": {
+      "ok": true,
+      "intentId": "10000000-0000-4000-8000-000000000001",
+      "paymentRequired": true,
+      "paymentOptions": [
+        {
+          "scheme": "exact",
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "payTo": "GmaDrppjnZBxjBVgxiZJWFY7tXJVHTYUBVoBtmofpNNw",
+          "amountAtomic": "25",
+          "expiresAt": "2030-03-17T17:47:40.000Z",
+          "smartWalletSupport": true
+        },
+        {
+          "scheme": "exact",
+          "network": "eip155:8453",
+          "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "payTo": "0x1111111111111111111111111111111111111111",
+          "amountAtomic": "25",
+          "expiresAt": "2030-03-17T17:47:40.000Z"
+        }
+      ],
+      "quote": {
+        "kind": "eligible_offers",
+        "selection": "automatic",
+        "state": "selected",
+        "selectedOfferIndex": 0
+      },
+      "amountAtomic": "25",
+      "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+      "payTo": "GmaDrppjnZBxjBVgxiZJWFY7tXJVHTYUBVoBtmofpNNw",
+      "expiresAtUnixMs": 1900000060000
+    },
+    "final": {
+      "ok": true,
+      "intentId": "10000000-0000-4000-8000-000000000001",
+      "status": "direct_exact_complete",
+      "delivery": {
+        "state": "response_received",
+        "httpStatus": 200
+      },
+      "payment": {
+        "state": "confirmed",
+        "confirmed": true,
+        "amountAtomic": "25"
+      }
+    },
+    "status": {
+      "ok": true,
+      "intentId": "10000000-0000-4000-8000-000000000001",
+      "status": "direct_exact_complete"
+    }
+  },
+  {
+    "name": "unsupported-dual",
+    "fresh": {
+      "ok": true,
+      "intentId": "10000000-0000-4000-8000-000000000001",
+      "paymentRequired": true,
+      "paymentOptions": [
+        {
+          "scheme": "exact",
+          "network": "eip155:8453",
+          "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "payTo": "0x1111111111111111111111111111111111111111",
+          "amountAtomic": "25",
+          "expiresAt": "2030-03-17T17:47:40.000Z"
+        }
+      ],
+      "quote": {
+        "kind": "eligible_offers",
+        "selection": "automatic",
+        "state": "unselected"
+      },
+      "amountAtomic": "25",
+      "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "network": "eip155:8453",
+      "payTo": "0x1111111111111111111111111111111111111111",
+      "expiresAtUnixMs": 1900000060000
+    },
+    "recovered": {
+      "ok": true,
+      "intentId": "10000000-0000-4000-8000-000000000001",
+      "paymentRequired": true,
+      "paymentOptions": [
+        {
+          "scheme": "exact",
+          "network": "eip155:8453",
+          "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "payTo": "0x1111111111111111111111111111111111111111",
+          "amountAtomic": "25",
+          "expiresAt": "2030-03-17T17:47:40.000Z"
+        }
+      ],
+      "quote": {
+        "kind": "eligible_offers",
+        "selection": "automatic",
+        "state": "unselected"
+      },
+      "amountAtomic": "25",
+      "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "network": "eip155:8453",
+      "payTo": "0x1111111111111111111111111111111111111111",
+      "expiresAtUnixMs": 1900000060000,
+      "checkRequestId": "request-one"
+    },
+    "selected": {
+      "ok": true,
+      "intentId": "10000000-0000-4000-8000-000000000001",
+      "paymentRequired": true,
+      "paymentOptions": [
+        {
+          "scheme": "exact",
+          "network": "eip155:8453",
+          "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "payTo": "0x1111111111111111111111111111111111111111",
+          "amountAtomic": "25",
+          "expiresAt": "2030-03-17T17:47:40.000Z"
+        }
+      ],
+      "quote": {
+        "kind": "eligible_offers",
+        "selection": "automatic",
+        "state": "selected",
+        "selectedOfferIndex": 0
+      },
+      "amountAtomic": "25",
+      "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "network": "eip155:8453",
+      "payTo": "0x1111111111111111111111111111111111111111",
+      "expiresAtUnixMs": 1900000060000
+    },
+    "final": {
+      "ok": true,
+      "intentId": "10000000-0000-4000-8000-000000000001",
+      "status": "confirmed",
+      "delivery": {
+        "state": "response_received",
+        "httpStatus": 200,
+        "result": {
+          "fixture": "unsupported-dual"
+        }
+      },
+      "payment": {
+        "state": "confirmed",
+        "confirmed": true,
+        "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "network": "eip155:8453",
+        "sourceAsset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "sourceNetwork": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+        "amountAtomic": "25"
+      }
+    },
+    "status": {
+      "ok": true,
+      "intentId": "10000000-0000-4000-8000-000000000001",
+      "status": "confirmed",
+      "delivery": {
+        "state": "response_received",
+        "httpStatus": 200,
+        "result": {
+          "fixture": "unsupported-dual"
+        }
+      },
+      "payment": {
+        "state": "confirmed",
+        "confirmed": true,
+        "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "network": "eip155:8453",
+        "sourceAsset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "sourceNetwork": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+        "amountAtomic": "25"
+      }
+    }
+  },
+  {
+    "name": "solana-only",
+    "fresh": {
+      "ok": true,
+      "intentId": "10000000-0000-4000-8000-000000000001",
+      "paymentRequired": true,
+      "paymentOptions": [
+        {
+          "scheme": "exact",
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "payTo": "GmaDrppjnZBxjBVgxiZJWFY7tXJVHTYUBVoBtmofpNNw",
+          "amountAtomic": "25",
+          "expiresAt": "2030-03-17T17:47:40.000Z",
+          "smartWalletSupport": "unknown"
+        }
+      ],
+      "quote": {
+        "kind": "eligible_offers",
+        "selection": "automatic",
+        "state": "unselected"
+      },
+      "amountAtomic": "25",
+      "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+      "payTo": "GmaDrppjnZBxjBVgxiZJWFY7tXJVHTYUBVoBtmofpNNw",
+      "expiresAtUnixMs": 1900000060000
+    },
+    "recovered": {
+      "ok": true,
+      "intentId": "10000000-0000-4000-8000-000000000001",
+      "paymentRequired": true,
+      "paymentOptions": [
+        {
+          "scheme": "exact",
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "payTo": "GmaDrppjnZBxjBVgxiZJWFY7tXJVHTYUBVoBtmofpNNw",
+          "amountAtomic": "25",
+          "expiresAt": "2030-03-17T17:47:40.000Z",
+          "smartWalletSupport": "unknown"
+        }
+      ],
+      "quote": {
+        "kind": "eligible_offers",
+        "selection": "automatic",
+        "state": "unselected"
+      },
+      "amountAtomic": "25",
+      "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+      "payTo": "GmaDrppjnZBxjBVgxiZJWFY7tXJVHTYUBVoBtmofpNNw",
+      "expiresAtUnixMs": 1900000060000,
+      "checkRequestId": "request-one"
+    },
+    "selected": {
+      "ok": true,
+      "intentId": "10000000-0000-4000-8000-000000000001",
+      "paymentRequired": true,
+      "paymentOptions": [
+        {
+          "scheme": "exact",
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "payTo": "GmaDrppjnZBxjBVgxiZJWFY7tXJVHTYUBVoBtmofpNNw",
+          "amountAtomic": "25",
+          "expiresAt": "2030-03-17T17:47:40.000Z",
+          "smartWalletSupport": "unknown"
+        }
+      ],
+      "quote": {
+        "kind": "eligible_offers",
+        "selection": "automatic",
+        "state": "selected",
+        "selectedOfferIndex": 0
+      },
+      "amountAtomic": "25",
+      "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+      "payTo": "GmaDrppjnZBxjBVgxiZJWFY7tXJVHTYUBVoBtmofpNNw",
+      "expiresAtUnixMs": 1900000060000
+    },
+    "final": {
+      "ok": true,
+      "intentId": "10000000-0000-4000-8000-000000000001",
+      "status": "direct_exact_complete",
+      "delivery": {
+        "state": "response_received",
+        "httpStatus": 200
+      },
+      "payment": {
+        "state": "confirmed",
+        "confirmed": true,
+        "amountAtomic": "25"
+      }
+    },
+    "status": {
+      "ok": true,
+      "intentId": "10000000-0000-4000-8000-000000000001",
+      "status": "direct_exact_complete"
+    }
+  },
+  {
+    "name": "required-identifier",
+    "fresh": {
+      "ok": true,
+      "intentId": "10000000-0000-4000-8000-000000000001",
+      "paymentRequired": true,
+      "paymentOptions": [
+        {
+          "scheme": "exact",
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "payTo": "GmaDrppjnZBxjBVgxiZJWFY7tXJVHTYUBVoBtmofpNNw",
+          "amountAtomic": "25",
+          "expiresAt": "2030-03-17T17:47:40.000Z",
+          "smartWalletSupport": "unknown"
+        }
+      ],
+      "quote": {
+        "kind": "eligible_offers",
+        "selection": "automatic",
+        "state": "unselected"
+      },
+      "amountAtomic": "25",
+      "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+      "payTo": "GmaDrppjnZBxjBVgxiZJWFY7tXJVHTYUBVoBtmofpNNw",
+      "expiresAtUnixMs": 1900000060000
+    },
+    "recovered": {
+      "ok": true,
+      "intentId": "10000000-0000-4000-8000-000000000001",
+      "paymentRequired": true,
+      "paymentOptions": [
+        {
+          "scheme": "exact",
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "payTo": "GmaDrppjnZBxjBVgxiZJWFY7tXJVHTYUBVoBtmofpNNw",
+          "amountAtomic": "25",
+          "expiresAt": "2030-03-17T17:47:40.000Z",
+          "smartWalletSupport": "unknown"
+        }
+      ],
+      "quote": {
+        "kind": "eligible_offers",
+        "selection": "automatic",
+        "state": "unselected"
+      },
+      "amountAtomic": "25",
+      "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+      "payTo": "GmaDrppjnZBxjBVgxiZJWFY7tXJVHTYUBVoBtmofpNNw",
+      "expiresAtUnixMs": 1900000060000,
+      "checkRequestId": "request-one"
+    },
+    "selected": {
+      "ok": true,
+      "intentId": "10000000-0000-4000-8000-000000000001",
+      "paymentRequired": true,
+      "paymentOptions": [
+        {
+          "scheme": "exact",
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "payTo": "GmaDrppjnZBxjBVgxiZJWFY7tXJVHTYUBVoBtmofpNNw",
+          "amountAtomic": "25",
+          "expiresAt": "2030-03-17T17:47:40.000Z",
+          "smartWalletSupport": "unknown"
+        }
+      ],
+      "quote": {
+        "kind": "eligible_offers",
+        "selection": "automatic",
+        "state": "selected",
+        "selectedOfferIndex": 0
+      },
+      "amountAtomic": "25",
+      "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+      "payTo": "GmaDrppjnZBxjBVgxiZJWFY7tXJVHTYUBVoBtmofpNNw",
+      "expiresAtUnixMs": 1900000060000
+    },
+    "final": {
+      "ok": true,
+      "intentId": "10000000-0000-4000-8000-000000000001",
+      "status": "direct_exact_complete",
+      "delivery": {
+        "state": "response_received",
+        "httpStatus": 200
+      },
+      "payment": {
+        "state": "confirmed",
+        "confirmed": true,
+        "amountAtomic": "25"
+      }
+    },
+    "status": {
+      "ok": true,
+      "intentId": "10000000-0000-4000-8000-000000000001",
+      "status": "direct_exact_complete"
+    }
+  },
+  {
+    "name": "differing-price",
+    "fresh": {
+      "ok": true,
+      "intentId": "10000000-0000-4000-8000-000000000001",
+      "paymentRequired": true,
+      "paymentOptions": [
+        {
+          "scheme": "exact",
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "payTo": "GmaDrppjnZBxjBVgxiZJWFY7tXJVHTYUBVoBtmofpNNw",
+          "amountAtomic": "25",
+          "expiresAt": "2030-03-17T17:47:40.000Z",
+          "smartWalletSupport": "unknown"
+        }
+      ],
+      "quote": {
+        "kind": "eligible_offers",
+        "selection": "automatic",
+        "state": "unselected"
+      },
+      "amountAtomic": "25",
+      "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+      "payTo": "GmaDrppjnZBxjBVgxiZJWFY7tXJVHTYUBVoBtmofpNNw",
+      "expiresAtUnixMs": 1900000060000
+    },
+    "recovered": {
+      "ok": true,
+      "intentId": "10000000-0000-4000-8000-000000000001",
+      "paymentRequired": true,
+      "paymentOptions": [
+        {
+          "scheme": "exact",
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "payTo": "GmaDrppjnZBxjBVgxiZJWFY7tXJVHTYUBVoBtmofpNNw",
+          "amountAtomic": "25",
+          "expiresAt": "2030-03-17T17:47:40.000Z",
+          "smartWalletSupport": "unknown"
+        }
+      ],
+      "quote": {
+        "kind": "eligible_offers",
+        "selection": "automatic",
+        "state": "unselected"
+      },
+      "amountAtomic": "25",
+      "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+      "payTo": "GmaDrppjnZBxjBVgxiZJWFY7tXJVHTYUBVoBtmofpNNw",
+      "expiresAtUnixMs": 1900000060000,
+      "checkRequestId": "request-one"
+    },
+    "selected": {
+      "ok": true,
+      "intentId": "10000000-0000-4000-8000-000000000001",
+      "paymentRequired": true,
+      "paymentOptions": [
+        {
+          "scheme": "exact",
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "payTo": "GmaDrppjnZBxjBVgxiZJWFY7tXJVHTYUBVoBtmofpNNw",
+          "amountAtomic": "25",
+          "expiresAt": "2030-03-17T17:47:40.000Z",
+          "smartWalletSupport": "unknown"
+        }
+      ],
+      "quote": {
+        "kind": "eligible_offers",
+        "selection": "automatic",
+        "state": "selected",
+        "selectedOfferIndex": 0
+      },
+      "amountAtomic": "25",
+      "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+      "payTo": "GmaDrppjnZBxjBVgxiZJWFY7tXJVHTYUBVoBtmofpNNw",
+      "expiresAtUnixMs": 1900000060000
+    },
+    "final": {
+      "ok": true,
+      "intentId": "10000000-0000-4000-8000-000000000001",
+      "status": "direct_exact_complete",
+      "delivery": {
+        "state": "response_received",
+        "httpStatus": 200
+      },
+      "payment": {
+        "state": "confirmed",
+        "confirmed": true,
+        "amountAtomic": "25"
+      }
+    },
+    "status": {
+      "ok": true,
+      "intentId": "10000000-0000-4000-8000-000000000001",
+      "status": "direct_exact_complete"
+    }
+  },
+  {
+    "name": "tab-and-exact",
+    "fresh": {
+      "ok": true,
+      "intentId": "10000000-0000-4000-8000-000000000001",
+      "paymentRequired": true,
+      "paymentOptions": [
+        {
+          "scheme": "tab",
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "payTo": "GmaDrppjnZBxjBVgxiZJWFY7tXJVHTYUBVoBtmofpNNw",
+          "amountAtomic": "25",
+          "expiresAt": "2030-03-17T17:47:40.000Z"
+        },
+        {
+          "scheme": "exact",
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "payTo": "GmaDrppjnZBxjBVgxiZJWFY7tXJVHTYUBVoBtmofpNNw",
+          "amountAtomic": "25",
+          "expiresAt": "2030-03-17T17:47:40.000Z",
+          "smartWalletSupport": "unknown"
+        },
+        {
+          "scheme": "exact",
+          "network": "eip155:8453",
+          "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "payTo": "0x1111111111111111111111111111111111111111",
+          "amountAtomic": "25",
+          "expiresAt": "2030-03-17T17:47:40.000Z"
+        }
+      ],
+      "quote": {
+        "kind": "eligible_offers",
+        "selection": "automatic",
+        "state": "unselected"
+      },
+      "amountAtomic": "25",
+      "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+      "payTo": "GmaDrppjnZBxjBVgxiZJWFY7tXJVHTYUBVoBtmofpNNw",
+      "expiresAtUnixMs": 1900000060000
+    },
+    "recovered": {
+      "ok": true,
+      "intentId": "10000000-0000-4000-8000-000000000001",
+      "paymentRequired": true,
+      "paymentOptions": [
+        {
+          "scheme": "tab",
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "payTo": "GmaDrppjnZBxjBVgxiZJWFY7tXJVHTYUBVoBtmofpNNw",
+          "amountAtomic": "25",
+          "expiresAt": "2030-03-17T17:47:40.000Z"
+        },
+        {
+          "scheme": "exact",
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "payTo": "GmaDrppjnZBxjBVgxiZJWFY7tXJVHTYUBVoBtmofpNNw",
+          "amountAtomic": "25",
+          "expiresAt": "2030-03-17T17:47:40.000Z",
+          "smartWalletSupport": "unknown"
+        },
+        {
+          "scheme": "exact",
+          "network": "eip155:8453",
+          "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "payTo": "0x1111111111111111111111111111111111111111",
+          "amountAtomic": "25",
+          "expiresAt": "2030-03-17T17:47:40.000Z"
+        }
+      ],
+      "quote": {
+        "kind": "eligible_offers",
+        "selection": "automatic",
+        "state": "unselected"
+      },
+      "amountAtomic": "25",
+      "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+      "payTo": "GmaDrppjnZBxjBVgxiZJWFY7tXJVHTYUBVoBtmofpNNw",
+      "expiresAtUnixMs": 1900000060000,
+      "checkRequestId": "request-one"
+    },
+    "selected": {
+      "ok": true,
+      "intentId": "10000000-0000-4000-8000-000000000001",
+      "paymentRequired": true,
+      "paymentOptions": [
+        {
+          "scheme": "tab",
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "payTo": "GmaDrppjnZBxjBVgxiZJWFY7tXJVHTYUBVoBtmofpNNw",
+          "amountAtomic": "25",
+          "expiresAt": "2030-03-17T17:47:40.000Z"
+        },
+        {
+          "scheme": "exact",
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "payTo": "GmaDrppjnZBxjBVgxiZJWFY7tXJVHTYUBVoBtmofpNNw",
+          "amountAtomic": "25",
+          "expiresAt": "2030-03-17T17:47:40.000Z",
+          "smartWalletSupport": "unknown"
+        },
+        {
+          "scheme": "exact",
+          "network": "eip155:8453",
+          "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "payTo": "0x1111111111111111111111111111111111111111",
+          "amountAtomic": "25",
+          "expiresAt": "2030-03-17T17:47:40.000Z"
+        }
+      ],
+      "quote": {
+        "kind": "eligible_offers",
+        "selection": "automatic",
+        "state": "selected",
+        "selectedOfferIndex": 0
+      },
+      "amountAtomic": "25",
+      "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+      "payTo": "GmaDrppjnZBxjBVgxiZJWFY7tXJVHTYUBVoBtmofpNNw",
+      "expiresAtUnixMs": 1900000060000
+    },
+    "final": {
+      "ok": true,
+      "intentId": "10000000-0000-4000-8000-000000000001",
+      "status": "seller_accepted",
+      "reservationState": "voucher_authorized",
+      "retryable": false,
+      "retryWithSameIntentOnly": true,
+      "data": {
+        "delivered": true
+      },
+      "acceptedUsageReceipt": {
+        "contractVersion": "dexter-accepted-usage-receipt/v1",
+        "economicOperationId": "20000000-0000-4000-8000-000000000002",
+        "checkId": "10000000-0000-4000-8000-000000000001",
+        "economicOperationDigest": "7777777777777777777777777777777777777777777777777777777777777777",
+        "orderDigest": "8888888888888888888888888888888888888888888888888888888888888888",
+        "seller": "GmaDrppjnZBxjBVgxiZJWFY7tXJVHTYUBVoBtmofpNNw",
+        "termsVersion": "dexter-tab-hosted-pay-before-delivery/v1",
+        "acceptanceRule": "pay_before_delivery_seller_2xx",
+        "authorityEpochDigest": "efa1bef9e18dc147c81a7bde0821e5e4b5ed1d3dd060724a2134bc8b1135a9e4",
+        "sessionId": "40000000-0000-4000-8000-000000000004",
+        "sessionGeneration": "7",
+        "priorCumulativeAtomic": "100",
+        "newCumulativeAtomic": "125",
+        "acceptedAtomic": "25",
+        "voucherDigest": "4444444444444444444444444444444444444444444444444444444444444444",
+        "responseEvidenceDigest": "8888888888888888888888888888888888888888888888888888888888888888",
+        "acceptedAtUnixMs": 1900000000010,
+        "claimDeadlineUnixMs": 1900604800010,
+        "disputeDeadlineUnixMs": 1900000000010,
+        "terminalizationDeadlineUnixMs": 1903196800010
+      },
+      "delivery": {
+        "state": "response_received",
+        "httpStatus": 200,
+        "result": {
+          "delivered": true
+        }
+      },
+      "payment": {
+        "state": "settlement_pending",
+        "confirmed": false,
+        "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+        "amountAtomic": "25"
+      },
+      "reconciliation": {
+        "required": true,
+        "performed": false
+      }
+    },
+    "status": {
+      "ok": true,
+      "intentId": "10000000-0000-4000-8000-000000000001",
+      "status": "seller_accepted",
+      "reservationState": "voucher_authorized",
+      "retryable": false,
+      "retryWithSameIntentOnly": true,
+      "data": {
+        "delivered": true
+      },
+      "acceptedUsageReceipt": {
+        "contractVersion": "dexter-accepted-usage-receipt/v1",
+        "economicOperationId": "20000000-0000-4000-8000-000000000002",
+        "checkId": "10000000-0000-4000-8000-000000000001",
+        "economicOperationDigest": "7777777777777777777777777777777777777777777777777777777777777777",
+        "orderDigest": "8888888888888888888888888888888888888888888888888888888888888888",
+        "seller": "GmaDrppjnZBxjBVgxiZJWFY7tXJVHTYUBVoBtmofpNNw",
+        "termsVersion": "dexter-tab-hosted-pay-before-delivery/v1",
+        "acceptanceRule": "pay_before_delivery_seller_2xx",
+        "authorityEpochDigest": "efa1bef9e18dc147c81a7bde0821e5e4b5ed1d3dd060724a2134bc8b1135a9e4",
+        "sessionId": "40000000-0000-4000-8000-000000000004",
+        "sessionGeneration": "7",
+        "priorCumulativeAtomic": "100",
+        "newCumulativeAtomic": "125",
+        "acceptedAtomic": "25",
+        "voucherDigest": "4444444444444444444444444444444444444444444444444444444444444444",
+        "responseEvidenceDigest": "8888888888888888888888888888888888888888888888888888888888888888",
+        "acceptedAtUnixMs": 1900000000010,
+        "claimDeadlineUnixMs": 1900604800010,
+        "disputeDeadlineUnixMs": 1900000000010,
+        "terminalizationDeadlineUnixMs": 1903196800010
+      },
+      "delivery": {
+        "state": "response_received",
+        "httpStatus": 200,
+        "result": {
+          "delivered": true
+        }
+      },
+      "payment": {
+        "state": "settlement_pending",
+        "confirmed": false,
+        "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+        "amountAtomic": "25"
+      },
+      "reconciliation": {
+        "required": true,
+        "performed": false
+      }
+    }
+  }
+]

@@ -15,6 +15,7 @@ export type PaymentOption = {
   decimals?: number | null;
   facilitator?: string | null;
   expiresAt?: string | null;
+  smartWalletSupport?: boolean | 'unknown';
 };
 
 export type ResponseKind =
@@ -139,6 +140,12 @@ export type PricingPayload = {
   x402Version?: number;
   authMode?: 'paid' | 'siwx' | 'apiKey' | 'apiKey+paid' | 'unprotected' | 'unknown';
   paymentOptions?: PaymentOption[];
+  quote?: {
+    kind: 'eligible_offers';
+    selection: 'automatic' | 'credit_requested';
+    state: 'unselected' | 'selected';
+    selectedOfferIndex?: number;
+  };
   checkedRequest?: {
     url?: string;
     resourceId?: string;

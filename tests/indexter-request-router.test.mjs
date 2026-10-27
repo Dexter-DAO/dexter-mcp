@@ -266,6 +266,23 @@ test('offers bounded provider candidates for authoritative catalog resolution', 
   ]) assert.equal(getIndexterProviderCandidate(query), null, String(query));
 });
 
+test('bare provider identifiers require an exact catalog resolution', () => {
+  for (const query of ['Birdeye', 'birdeye', 'Massive.com', 'Nansen', '“Creative Tim”']) {
+    assert.equal(getIndexterProviderCandidate(query), query.replace(/[“”]/g, ''));
+    assert.notEqual(classifyIndexterRequest(query).route, 'provider');
+  }
+  assert.deepEqual(classifyIndexterRequest('birdeye', { providerNames: ['Birdeye'] }), {
+    route: 'provider', provider: 'birdeye', routingReason: 'provider_requested',
+  });
+  assert.deepEqual(classifyIndexterRequest('creative tim', { providerNames: ['Creative Tim'] }), {
+    route: 'provider', provider: 'creative tim', routingReason: 'provider_requested',
+  });
+  for (const query of ['weather', 'Birdeye Solana token price data', 'Amazon best sellers', 'best historical BTC data']) {
+    assert.equal(getIndexterProviderCandidate(query), null);
+  }
+  assert.equal(getIndexterProviderCandidate('Birdeye', { taskConstraints: true }), null);
+});
+
 
 test('contextual follow-ups route the resolved task while retaining original-input safeguards', () => {
   const originalQuery = 'same thing for Boston';
