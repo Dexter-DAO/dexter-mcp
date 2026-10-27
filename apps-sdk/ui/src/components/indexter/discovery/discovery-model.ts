@@ -1,3 +1,4 @@
+import { isIndexterCurrentFailureReason } from '../../../../../../lib/indexter-endpoint-availability.mjs';
 import {
   ipAddressFamily,
   isPublicIpAddress,
@@ -52,6 +53,13 @@ export type IndexterRequestInput = {
   fields: IndexterRequestInputField[];
 };
 
+export type IndexterInputContract = {
+  status: 'inline' | 'available' | 'details_required' | 'unavailable' | 'not_published';
+  complete: boolean;
+  reason?: 'inline_limit' | 'page_limit' | 'contract_too_large' | 'unsafe_contract';
+  detail?: { resourceId: string; method: 'GET' | 'POST' | 'PUT' | 'DELETE' };
+};
+
 export type IndexterEndpointAction =
   | {
       kind: 'check_endpoint';
@@ -73,7 +81,8 @@ export type IndexterEndpointAction =
       kind: 'endpoint_unavailable';
       label: 'Unavailable';
       state: 'unavailable';
-      reason: 'safety_unavailable' | 'execution_unavailable' | 'input_contract_unavailable';
+      reason: 'safety_unavailable' | 'execution_unavailable' | 'input_contract_unavailable'
+        | 'not_found' | 'auth_gated' | 'merchant_down';
       resourceId: string;
       resourceUrl: string | null;
     };
@@ -102,6 +111,17 @@ export type IndexterDiscoveryResource = {
   };
   requestInput: IndexterRequestInput | null;
   action: IndexterEndpointAction;
+  inputContract?: IndexterInputContract;
+  schemaSource?: 'bazaar' | 'openapi' | 'profile' | 'none';
+};
+
+export type IndexterInputContractPayload = {
+  route: 'input_contract';
+  ok: boolean;
+  contractRequest: { resourceId: string; method: 'GET' | 'POST' | 'PUT' | 'DELETE' };
+  contract: IndexterDiscoveryResource | null;
+  publishedContract: { inputSchema: unknown; pathParams: unknown } | null;
+  warnings: { code: string; message: string }[];
 };
 
 export type IndexterDiscoveryProviderIdentity = {
@@ -835,8 +855,9 @@ function isEndpointAction(
         value.reason === 'safety_unavailable'
         || value.reason === 'execution_unavailable'
         || value.reason === 'input_contract_unavailable'
+        || isIndexterCurrentFailureReason(value.reason)
       )
-      && requestInput === null;
+      && (requestInput === null || isIndexterCurrentFailureReason(value.reason));
   }
   if (!isRecord(value.safety) || requestInput === null) return false;
   const safety = value.safety;
@@ -953,7 +974,13 @@ function isResource(value: unknown): value is IndexterDiscoveryResource {
     && isNullableBoundedString(value.price.network, 80)
     && isEvidence(value.evidence)
     && value.access.requiresFreshCheck === true
-    && value.access.checkable === true
+    && !(isRecord(value.action) && isIndexterCurrentFailureReason(value.action.reason)
+      && value.access.checkable !== false)
+    && (value.access.checkable === true || (value.access.checkable === false
+      && isRecord(value.action) && value.action.kind === 'endpoint_unavailable'
+      && (isIndexterCurrentFailureReason(value.action.reason)
+        || (isRecord(value.inputContract) && value.inputContract.complete === false))))
+    && isInputContractMetadata(value)
     && (
       (value.access.kind === 'direct_url' && isHttpsUrl(value.resourceUrl))
       || (value.access.kind === 'managed_resolvable' && value.resourceUrl === null)
@@ -965,6 +992,68 @@ function isResource(value: unknown): value is IndexterDiscoveryResource {
       value.method,
       requestInput,
     );
+}
+
+function isInputContractMetadata(value: Record<string, unknown>): boolean {
+  if (value.inputContract === undefined) return value.schemaSource === undefined;
+  const contract = value.inputContract;
+  if (!isRecord(contract) || !['inline', 'available', 'details_required', 'unavailable', 'not_published'].includes(String(contract.status))
+    || contract.complete !== ['inline', 'available', 'not_published'].includes(String(contract.status))
+    || !['bazaar', 'openapi', 'profile', 'none'].includes(String(value.schemaSource))
+    || (contract.reason !== undefined && !['inline_limit', 'page_limit', 'contract_too_large', 'unsafe_contract'].includes(String(contract.reason)))) return false;
+  if (contract.complete === false && (value.requestInput !== null || !isRecord(value.action)
+    || value.action.kind !== 'endpoint_unavailable' || !isRecord(value.access) || value.access.checkable !== false)) return false;
+  if (contract.status === 'details_required') {
+    return isRecord(contract.detail) && contract.detail.resourceId === value.resourceId
+      && contract.detail.method === value.method;
+  }
+  return contract.detail === undefined;
+}
+
+export function isIndexterInputContractPayload(value: unknown): value is IndexterInputContractPayload {
+  if (!isRecord(value) || value.route !== 'input_contract' || !isBoundedDiscoveryPayload(value)
+    || typeof value.ok !== 'boolean' || !isRecord(value.contractRequest)
+    || !isResourceId(value.contractRequest.resourceId)
+    || !['GET', 'POST', 'PUT', 'DELETE'].includes(String(value.contractRequest.method))
+    || !Array.isArray(value.warnings) || value.warnings.length > 8
+    || !value.warnings.every((warning) => isRecord(warning)
+      && isNonEmptyBoundedString(warning.code, 64) && isNonEmptyBoundedString(warning.message, 240))) return false;
+  if (!value.ok) return value.contract === null && value.publishedContract === null;
+  if (!isRecord(value.publishedContract) || !Object.hasOwn(value.publishedContract, 'inputSchema')
+    || !Object.hasOwn(value.publishedContract, 'pathParams')
+    || JSON.stringify(value.publishedContract).length > 64 * 1024) return false;
+  return isResource(value.contract) && value.contract.resourceId === value.contractRequest.resourceId
+    && value.contract.method === value.contractRequest.method && value.contract.inputContract?.complete === true
+    && ['available', 'not_published'].includes(value.contract.inputContract.status);
+}
+
+export function buildInputContractFollowUp(resource: IndexterDiscoveryResource): string | null {
+  if (!isResource(resource) || resource.inputContract?.status !== 'details_required') return null;
+  const detail = resource.inputContract.detail!;
+  return 'Read the catalog input contract for this selected endpoint with indexter_search using only '
+    + JSON.stringify({ contractResourceId: detail.resourceId, contractMethod: detail.method })
+    + '. Show the published fields or the returned limitation. This request is for catalog details only; do not call x402_check or contact the seller.';
+}
+
+/** Split only the display, preserving every original character across pages. */
+export function splitPublishedContract(text: string, maxCharacters: number, maxLines: number): string[] {
+  const pages: string[] = [];
+  let page = '';
+  let characters = 0;
+  let lines = 1;
+  for (const character of text) {
+    if (page && (characters >= maxCharacters || (character === '\n' && lines >= maxLines))) {
+      pages.push(page);
+      page = '';
+      characters = 0;
+      lines = 1;
+    }
+    page += character;
+    characters += 1;
+    if (character === '\n') lines += 1;
+  }
+  if (page || pages.length === 0) pages.push(page);
+  return pages;
 }
 
 function isProviderIdentity(value: unknown): value is IndexterDiscoveryProviderIdentity {

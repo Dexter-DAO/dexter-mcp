@@ -1,0 +1,88 @@
+{
+  "fixtures": [
+    {
+      "file": "purch-discovery-not_found.json",
+      "source": "/home/branchmanager/dexter-reports/2026-10-26/grokbot-debug-loop/purch-catalog-hygiene/purch-discovery-not_found.json",
+      "sha256": "79eb2e0be97d0d21bea4f13fa4a99f837f4a9c5c8363dafef3045d1b9d213720",
+      "evidence": "saved public Purch resource/status/schema through actual producer"
+    },
+    {
+      "file": "purch-task-not_found.json",
+      "source": "/home/branchmanager/dexter-reports/2026-10-26/grokbot-debug-loop/purch-catalog-hygiene/purch-task-not_found.json",
+      "sha256": "7828f1ab70fd6a53d24c276da395673a5cf9ed2a4ed6f44860515db3a6569286",
+      "evidence": "saved public Purch resource/status/schema through actual producer"
+    },
+    {
+      "file": "purch-discovery-auth_gated.json",
+      "source": "/home/branchmanager/dexter-reports/2026-10-26/grokbot-debug-loop/purch-catalog-hygiene/purch-discovery-auth_gated.json",
+      "sha256": "b033d39c35f8af8314cdd7bdc0cd62b9a02d7d7c725fa2430e24126026b7fd60",
+      "evidence": "isolated verifier-status control through actual producer"
+    },
+    {
+      "file": "purch-task-auth_gated.json",
+      "source": "/home/branchmanager/dexter-reports/2026-10-26/grokbot-debug-loop/purch-catalog-hygiene/purch-task-auth_gated.json",
+      "sha256": "cd7d02e506f2727dbc71700ba3f7f230e895c6efc543e6e17ef1233bafbaf7f2",
+      "evidence": "isolated verifier-status control through actual producer"
+    },
+    {
+      "file": "purch-discovery-merchant_down.json",
+      "source": "/home/branchmanager/dexter-reports/2026-10-26/grokbot-debug-loop/purch-catalog-hygiene/purch-discovery-merchant_down.json",
+      "sha256": "a3604e7875dad4e567be322e09424a1609cfb3933ddf2003d76ea5083ada1f1c",
+      "evidence": "isolated verifier-status control through actual producer"
+    },
+    {
+      "file": "purch-task-merchant_down.json",
+      "source": "/home/branchmanager/dexter-reports/2026-10-26/grokbot-debug-loop/purch-catalog-hygiene/purch-task-merchant_down.json",
+      "sha256": "3a3cecaf4da7b49c16aaf6c74e4f8938b9bc3b1ce561eb6e709d426a44e39754",
+      "evidence": "isolated verifier-status control through actual producer"
+    },
+    {
+      "file": "purch-discovery-pass.json",
+      "source": "/home/branchmanager/dexter-reports/2026-10-26/grokbot-debug-loop/purch-catalog-hygiene/purch-discovery-pass.json",
+      "sha256": "fded9166cbe098c4e7df3cd44eb8ad1dba20581a84b41ff7e097d78b06e1dc91",
+      "evidence": "isolated verifier-status control through actual producer"
+    },
+    {
+      "file": "purch-task-pass.json",
+      "source": "/home/branchmanager/dexter-reports/2026-10-26/grokbot-debug-loop/purch-catalog-hygiene/purch-task-pass.json",
+      "sha256": "a2e55107bc1a12d85a0274866dacd43a3465aa826fb4209b90f40eb94fe5187a",
+      "evidence": "isolated verifier-status control through actual producer"
+    },
+    {
+      "file": "purch-discovery-unverified.json",
+      "source": "/home/branchmanager/dexter-reports/2026-10-26/grokbot-debug-loop/purch-catalog-hygiene/purch-discovery-unverified.json",
+      "sha256": "883ffb4a6110c5d09729fce892dd4c4d6328ec194a66973a7643150b628e162e",
+      "evidence": "isolated verifier-status control through actual producer"
+    },
+    {
+      "file": "purch-task-unverified.json",
+      "source": "/home/branchmanager/dexter-reports/2026-10-26/grokbot-debug-loop/purch-catalog-hygiene/purch-task-unverified.json",
+      "sha256": "996fb25727f474c5e4f1915fb4975dbf2551cee0d8914569013d9f1f2c2a6b77",
+      "evidence": "isolated verifier-status control through actual producer"
+    },
+    {
+      "file": "purch-discovery-fail.json",
+      "source": "/home/branchmanager/dexter-reports/2026-10-26/grokbot-debug-loop/purch-catalog-hygiene/purch-discovery-fail.json",
+      "sha256": "7945e923295f409acaeac370d742c04b39f479b485a9fe2e7e46d28fe93bf7bd",
+      "evidence": "isolated verifier-status control through actual producer"
+    },
+    {
+      "file": "purch-task-fail.json",
+      "source": "/home/branchmanager/dexter-reports/2026-10-26/grokbot-debug-loop/purch-catalog-hygiene/purch-task-fail.json",
+      "sha256": "c2c47493676174bacb9032ca9a7dd3b0eda65e4b1fbd9ebe2ce98b8b6e6391e1",
+      "evidence": "isolated verifier-status control through actual producer"
+    },
+    {
+      "file": "purch-discovery-null.json",
+      "source": "/home/branchmanager/dexter-reports/2026-10-26/grokbot-debug-loop/purch-catalog-hygiene/purch-discovery-null.json",
+      "sha256": "eeb2783cf82ff81c15fda580f5fbd4f727d8797d0dc4495497712da03cf853e0",
+      "evidence": "isolated verifier-status control through actual producer"
+    },
+    {
+      "file": "purch-task-null.json",
+      "source": "/home/branchmanager/dexter-reports/2026-10-26/grokbot-debug-loop/purch-catalog-hygiene/purch-task-null.json",
+      "sha256": "e0b93797efa8b758ec2249336dcc80a2d9152c7a4bb3ad67267bdf562ae05eac",
+      "evidence": "isolated verifier-status control through actual producer"
+    }
+  ]
+}

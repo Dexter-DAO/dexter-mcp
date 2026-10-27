@@ -96,6 +96,7 @@ export interface ResourceExecution {
   userExecution: 'allowed' | 'unsupported';
   confirmationRequired: boolean;
   availability: 'available' | 'catalog_only' | 'unsupported';
+  unavailableReason?: 'not_found' | 'auth_gated' | 'merchant_down';
   requiresExplicitInput: boolean;
   quoteMayCreateProviderReservation: boolean;
 }
@@ -139,6 +140,12 @@ export interface ServiceProfile {
   ideal_test_input_guidance: string;
 }
 
+export interface IndexterProviderEditorial {
+  /** Current catalog curation, independent of relevance and verification. */
+  providerFeatured: boolean;
+  providerOrder: number | null;
+}
+
 export interface RawCapabilityResult {
   /** Present on current endpoint results. Leave absent for untyped legacy rows. */
   kind?: 'endpoint';
@@ -146,6 +153,7 @@ export interface RawCapabilityResult {
   resourceUrl: string | null;
   access?: IndexterEndpointAccess;
   merchant?: IndexterMerchantIdentity;
+  editorial?: IndexterProviderEditorial;
   displayName: string | null;
   description: string | null;
   category: string | null;
@@ -304,6 +312,7 @@ export interface FormattedResource {
   access?: IndexterEndpointAccess;
   evidence?: IndexterEvidence;
   merchant: IndexterMerchantIdentity;
+  editorial?: IndexterProviderEditorial;
   method: string;
 
   // Pricing

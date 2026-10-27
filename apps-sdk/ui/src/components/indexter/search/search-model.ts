@@ -1,3 +1,4 @@
+import { indexterCurrentFailureReason } from '../../../../../../lib/indexter-endpoint-availability.mjs';
 import type {
   SearchIntent,
   SearchMeta,
@@ -536,15 +537,14 @@ function isSafeChain(value: unknown): boolean {
       || isFiniteNonNegative(value.priceUsdc));
 }
 
-function hasUnavailableInputContract(value: Record<string, unknown>): boolean {
+function hasUnavailableAction(value: Record<string, unknown>, reason: string): boolean {
   const action = value.action;
-  return value.requestInput === null
-    && isRecord(action)
+  return isRecord(action)
     && Object.keys(action).sort().join(',') === 'kind,label,reason,resourceId,resourceUrl,state'
     && action.kind === 'endpoint_unavailable'
     && action.label === 'Unavailable'
     && action.state === 'unavailable'
-    && action.reason === 'input_contract_unavailable'
+    && action.reason === reason
     && action.resourceId === value.resourceId
     && action.resourceUrl === value.url;
 }
@@ -556,15 +556,18 @@ function isSafeResource(value: unknown, expectedTier?: 'strong' | 'related'): va
   if (!isNonEmptyText(value.price, 100) || !isSafeText(value.description, 4_000)) return false;
   if (!isNonEmptyText(value.category, 160) || !isSafeMerchant(value.merchant)) return false;
   if (!isSafeExecution(value.execution)) return false;
-  const inputUnavailable = hasUnavailableInputContract(value);
-  if (Object.hasOwn(value, 'action') && !inputUnavailable) return false;
+  const inputUnavailable = value.requestInput === null && hasUnavailableAction(value, 'input_contract_unavailable');
+  const failureReason = indexterCurrentFailureReason(value);
+  const currentFailure = Boolean(failureReason && hasUnavailableAction(value, failureReason));
+  if (Object.hasOwn(value, 'action') && !inputUnavailable && !currentFailure) return false;
   if (
     Object.prototype.hasOwnProperty.call(value, 'inputSchema')
     || Object.prototype.hasOwnProperty.call(value, 'pathParams')
-    || (!inputUnavailable && !isSafeSearchRequestInput(value.requestInput))
+    || (!inputUnavailable && !(currentFailure && value.requestInput === null)
+      && !isSafeSearchRequestInput(value.requestInput))
   ) return false;
   if (
-    !inputUnavailable
+    !inputUnavailable && !currentFailure
     && (value.execution as Record<string, unknown>).requiresExplicitInput === true
     && (value.requestInput as { fields: unknown[] }).fields.length === 0
   ) return false;
@@ -581,7 +584,7 @@ function isSafeResource(value: unknown, expectedTier?: 'strong' | 'related'): va
   const access = value.access;
   if (!isRecord(access)
     || !['direct_url', 'managed_resolvable'].includes(String(access.kind))
-    || access.checkable !== true
+    || (access.checkable !== true && !currentFailure)
     || access.requiresFreshCheck !== true) return false;
   if (access.kind === 'direct_url' ? !isPublicHttpsUrl(url) : url !== null) return false;
   if (value.resourceUrl !== undefined && value.resourceUrl !== url) return false;
@@ -608,6 +611,14 @@ function isSafeResource(value: unknown, expectedTier?: 'strong' | 'related'): va
   }
   if (value.host !== undefined && value.host !== null && !isPublicHostname(value.host)) return false;
 
+  if (value.editorial !== undefined) {
+    if (!isRecord(value.editorial)
+      || Object.keys(value.editorial).some(key => !['providerFeatured', 'providerOrder'].includes(key))
+      || typeof value.editorial.providerFeatured !== 'boolean'
+      || (value.editorial.providerOrder !== null
+        && (!Number.isSafeInteger(value.editorial.providerOrder) || Number(value.editorial.providerOrder) < 0))
+      || (value.editorial.providerFeatured === false && value.editorial.providerOrder !== null)) return false;
+  }
   if (value.sellerMeta !== undefined) {
     if (!isRecord(value.sellerMeta)
       || !isNullableSafeText(value.sellerMeta.payTo, 256)

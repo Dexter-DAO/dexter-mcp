@@ -436,6 +436,12 @@
   -webkit-line-clamp: 1;
 }
 
+.dx-discovery-resource__body > .dx-discovery-resource__availability {
+  display: block;
+  overflow: visible;
+  -webkit-line-clamp: unset;
+}
+
 .dx-discovery-resource__meta {
   display: flex;
   flex-wrap: wrap;
@@ -761,7 +767,7 @@
     font-size: var(--dx-text-xs);
   }
 
-  .dx-discovery-resource__body > p {
+  .dx-discovery-resource__body > p:not(.dx-discovery-resource__availability) {
     display: none;
   }
 

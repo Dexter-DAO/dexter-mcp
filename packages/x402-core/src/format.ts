@@ -243,6 +243,15 @@ export function formatResource(r: RawCapabilityResult): FormattedResource {
   const access = currentEndpointAccess(r, resourceUrl);
   const evidence = currentEvidence(verification);
   const merchant = currentMerchantIdentity(r, resourceUrl);
+  const editorial = r.editorial && typeof r.editorial.providerFeatured === 'boolean'
+    ? {
+        providerFeatured: r.editorial.providerFeatured,
+        providerOrder: r.editorial.providerFeatured === true
+          && Number.isSafeInteger(r.editorial.providerOrder)
+          && Number(r.editorial.providerOrder) >= 0
+            ? Number(r.editorial.providerOrder) : null,
+      }
+    : null;
 
   return {
     // Identity
@@ -254,6 +263,7 @@ export function formatResource(r: RawCapabilityResult): FormattedResource {
     ...(access ? { access } : {}),
     ...(evidence ? { evidence } : {}),
     merchant,
+    ...(editorial ? { editorial } : {}),
     method: r.method || 'GET',
 
     // Pricing

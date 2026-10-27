@@ -56,9 +56,11 @@ import {
   IndexterDiscovery,
   IndexterDiscoveryUnavailable,
 } from '../components/indexter/discovery/IndexterDiscovery';
+import { IndexterInputContract } from '../components/indexter/discovery/IndexterInputContract';
 import {
   isIndexterDiscoveryCandidate,
   isIndexterDiscoveryPayload,
+  isIndexterInputContractPayload,
   type IndexterDiscoveryPayload,
 } from '../components/indexter/discovery/discovery-model';
 
@@ -824,10 +826,10 @@ if (root) {
   createRoot(root).render(<IndexterEntry />);
 }
 
-function unifiedRoute(value: unknown): 'overview' | 'provider' | 'task' | null {
+function unifiedRoute(value: unknown): 'overview' | 'provider' | 'task' | 'input_contract' | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const route = (value as Record<string, unknown>).route;
-  return route === 'overview' || route === 'provider' || route === 'task'
+  return route === 'overview' || route === 'provider' || route === 'task' || route === 'input_contract'
     ? route
     : null;
 }
@@ -848,7 +850,7 @@ function IndexterEntry() {
   const toolOutput = useToolOutput<unknown>();
   const toolMetadata = useToolResponseMetadata<{
     indexterPayload?: {
-      route?: 'overview' | 'provider' | 'task';
+      route?: 'overview' | 'provider' | 'task' | 'input_contract';
       data?: unknown;
     };
   }>();
@@ -869,6 +871,15 @@ function IndexterEntry() {
         )}
       />
     );
+  }
+  if (structuredRoute === 'input_contract') {
+    if (!isIndexterInputContractPayload(toolOutput)) return <IndexterDiscoveryUnavailable />;
+    if (payloadEnvelope?.data !== undefined && (!isIndexterInputContractPayload(payloadEnvelope.data)
+      || payloadEnvelope.data.contractRequest.resourceId !== toolOutput.contractRequest.resourceId
+      || payloadEnvelope.data.contractRequest.method !== toolOutput.contractRequest.method)) {
+      return <IndexterDiscoveryUnavailable />;
+    }
+    return <IndexterInputContract payload={toolOutput} />;
   }
   if (structuredRoute && payloadEnvelope?.data === undefined) {
     return (

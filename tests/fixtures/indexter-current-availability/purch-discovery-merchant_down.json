@@ -1,0 +1,304 @@
+{
+  "discovery": {
+    "ok": true,
+    "mode": "provider",
+    "generatedAt": "2026-10-27T03:14:54.927Z",
+    "summary": {
+      "endpointCatalog": {
+        "featuredProviderCount": 1,
+        "providerCount": 1,
+        "endpointCount": 2
+      },
+      "returnedProviderCount": 1
+    },
+    "providers": [
+      {
+        "kind": "provider",
+        "providerKey": "purch.xyz",
+        "providerSlug": "purch",
+        "technicalHost": "api.purch.xyz",
+        "displayName": "Purch",
+        "logoUrl": "https://purch.xyz/favicon.ico",
+        "id": "purch.xyz",
+        "description": "Search and buy products on Amazon and Shopify, and track shipments across 3,400+ carriers.",
+        "docsUrl": "https://docs.purch.xyz/docs/api/overview",
+        "editorial": {
+          "featured": true,
+          "order": 16,
+          "evidenceResourceId": null
+        },
+        "catalog": {
+          "resourceCount": 2,
+          "actorCounts": {
+            "returned": 0,
+            "indexed": 0,
+            "total": 0
+          },
+          "offeringCounts": {
+            "returned": 2,
+            "indexed": 2,
+            "total": 2
+          },
+          "capabilityGroupCount": 2,
+          "countsComplete": true
+        },
+        "evidence": {
+          "totalResourceCount": 2,
+          "evaluatedResourceCount": 2,
+          "deliveredRecentlyCount": 0,
+          "termsCheckedCount": 0,
+          "noCurrentConfirmationCount": 2,
+          "latestObservedAt": null,
+          "coverageComplete": true
+        },
+        "capabilityGroups": [
+          {
+            "id": "purch.xyz:control",
+            "label": "Control",
+            "resourceCount": 1,
+            "returnedResourceCount": 1,
+            "resources": [
+              {
+                "kind": "endpoint",
+                "id": "00000000-0000-4000-8000-000000000099",
+                "resourceId": "00000000-0000-4000-8000-000000000099",
+                "resourceUrl": "https://api.purch.xyz/control",
+                "displayName": "Purch Search",
+                "description": "Search the Purch x402 API for paid results on Solana.",
+                "category": "Data",
+                "method": "GET",
+                "iconUrl": "https://purch.xyz/favicon.ico",
+                "docsUrl": "https://docs.purch.xyz/docs/api/search",
+                "price": {
+                  "usdc": 0.01,
+                  "label": "$0.01",
+                  "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+                },
+                "evidence": {
+                  "state": "no_current_confirmation",
+                  "label": "No current confirmation",
+                  "observedAt": null
+                },
+                "access": {
+                  "kind": "direct_url",
+                  "checkable": true,
+                  "requiresFreshCheck": true
+                },
+                "execution": {
+                  "sideEffectful": false,
+                  "effect": null,
+                  "automatedVerification": "enabled",
+                  "userExecution": "allowed",
+                  "confirmationRequired": false,
+                  "availability": "available",
+                  "requiresExplicitInput": false,
+                  "quoteMayCreateProviderReservation": false
+                },
+                "inputSchema": {
+                  "type": "object",
+                  "required": [
+                    "q"
+                  ],
+                  "properties": {
+                    "q": {
+                      "type": "string",
+                      "description": "Search query"
+                    },
+                    "page": {
+                      "type": "integer",
+                      "description": "Page number for pagination"
+                    },
+                    "brand": {
+                      "type": "string",
+                      "description": "Filter by brand"
+                    },
+                    "priceMax": {
+                      "type": "number",
+                      "description": "Maximum price filter"
+                    },
+                    "priceMin": {
+                      "type": "number",
+                      "description": "Minimum price filter"
+                    }
+                  }
+                },
+                "pathParams": null,
+                "schemaSource": "bazaar",
+                "inputContract": {
+                  "status": "inline",
+                  "complete": true
+                }
+              }
+            ]
+          },
+          {
+            "id": "purch.xyz:search",
+            "label": "Search",
+            "resourceCount": 1,
+            "returnedResourceCount": 1,
+            "resources": [
+              {
+                "kind": "endpoint",
+                "id": "e48147e8-d35f-487f-b55f-43caebd0b4c0",
+                "resourceId": "e48147e8-d35f-487f-b55f-43caebd0b4c0",
+                "resourceUrl": "https://api.purch.xyz/x402/search",
+                "displayName": "Purch Search",
+                "description": "Search the Purch x402 API for paid results on Solana.",
+                "category": "Data",
+                "method": "GET",
+                "iconUrl": "https://purch.xyz/favicon.ico",
+                "docsUrl": "https://docs.purch.xyz/docs/api/search",
+                "price": {
+                  "usdc": 0.01,
+                  "label": "$0.01",
+                  "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+                },
+                "evidence": {
+                  "state": "no_current_confirmation",
+                  "label": "No current confirmation",
+                  "observedAt": null
+                },
+                "access": {
+                  "kind": "direct_url",
+                  "checkable": false,
+                  "requiresFreshCheck": true
+                },
+                "execution": {
+                  "sideEffectful": false,
+                  "effect": null,
+                  "automatedVerification": "enabled",
+                  "userExecution": "allowed",
+                  "confirmationRequired": false,
+                  "availability": "catalog_only",
+                  "unavailableReason": "merchant_down",
+                  "requiresExplicitInput": false,
+                  "quoteMayCreateProviderReservation": false
+                },
+                "inputSchema": {
+                  "type": "object",
+                  "required": [
+                    "q"
+                  ],
+                  "properties": {
+                    "q": {
+                      "type": "string",
+                      "description": "Search query"
+                    },
+                    "page": {
+                      "type": "integer",
+                      "description": "Page number for pagination"
+                    },
+                    "brand": {
+                      "type": "string",
+                      "description": "Filter by brand"
+                    },
+                    "priceMax": {
+                      "type": "number",
+                      "description": "Maximum price filter"
+                    },
+                    "priceMin": {
+                      "type": "number",
+                      "description": "Minimum price filter"
+                    }
+                  }
+                },
+                "pathParams": null,
+                "schemaSource": "bazaar",
+                "inputContract": {
+                  "status": "inline",
+                  "complete": true
+                }
+              }
+            ]
+          }
+        ],
+        "actorCatalog": null
+      }
+    ],
+    "featuredOfferings": [],
+    "page": {
+      "version": 2,
+      "namespace": "indexter.endpoint.provider-capabilities.v1",
+      "scope": "provider_capabilities",
+      "order": "curated_capability_breadth_v1",
+      "limit": 16,
+      "returned": 2,
+      "hasMore": false,
+      "nextCursor": null
+    }
+  },
+  "detail": {
+    "ok": true,
+    "generatedAt": "2026-10-27T03:14:54.931Z",
+    "kind": "endpoint",
+    "id": "e48147e8-d35f-487f-b55f-43caebd0b4c0",
+    "resourceId": "e48147e8-d35f-487f-b55f-43caebd0b4c0",
+    "resourceUrl": "https://api.purch.xyz/x402/search",
+    "displayName": "Purch Search",
+    "description": "Search the Purch x402 API for paid results on Solana.",
+    "category": "Data",
+    "method": "GET",
+    "iconUrl": "https://purch.xyz/favicon.ico",
+    "docsUrl": "https://docs.purch.xyz/docs/api/search",
+    "price": {
+      "usdc": 0.01,
+      "label": "$0.01",
+      "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+    },
+    "evidence": {
+      "state": "no_current_confirmation",
+      "label": "No current confirmation",
+      "observedAt": null
+    },
+    "access": {
+      "kind": "direct_url",
+      "checkable": false,
+      "requiresFreshCheck": true
+    },
+    "execution": {
+      "sideEffectful": false,
+      "effect": null,
+      "automatedVerification": "enabled",
+      "userExecution": "allowed",
+      "confirmationRequired": false,
+      "availability": "catalog_only",
+      "unavailableReason": "merchant_down",
+      "requiresExplicitInput": false,
+      "quoteMayCreateProviderReservation": false
+    },
+    "inputSchema": {
+      "type": "object",
+      "required": [
+        "q"
+      ],
+      "properties": {
+        "q": {
+          "type": "string",
+          "description": "Search query"
+        },
+        "page": {
+          "type": "integer",
+          "description": "Page number for pagination"
+        },
+        "brand": {
+          "type": "string",
+          "description": "Filter by brand"
+        },
+        "priceMax": {
+          "type": "number",
+          "description": "Maximum price filter"
+        },
+        "priceMin": {
+          "type": "number",
+          "description": "Minimum price filter"
+        }
+      }
+    },
+    "pathParams": null,
+    "schemaSource": "bazaar",
+    "inputContract": {
+      "status": "available",
+      "complete": true
+    }
+  }
+}

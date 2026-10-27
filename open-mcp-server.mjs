@@ -167,11 +167,13 @@ import {
   getIndexterProviderCandidate,
   INDEXTER_MAX_QUERY_CODE_UNITS,
   classifyIndexterRequest,
+  hasIndexterTaskConstraints,
 } from './lib/indexter-request-router.mjs';
 import {
   INDEXTER_RESULT_LIMIT,
   INDEXTER_TOOL_RESULT_MAX_JSON_BYTES,
   buildIndexterToolResult,
+  buildIndexterInputContractResult,
   completeIndexterToolResultBytes,
   projectIndexterDiscoveryEndpointActions,
 } from './lib/indexter-tool-result.mjs';
@@ -571,7 +573,7 @@ async function indexterDiscover({
           accept: 'application/json',
           'accept-encoding': 'identity',
         },
-        signal: AbortSignal.timeout(10_000),
+        signal: AbortSignal.timeout(20_000),
       },
       { origin: API_BASE_FALLBACK },
     );
@@ -2456,10 +2458,13 @@ export function createOpenMcpServer({
 
   registerOpenTool(server, 'indexter_search', {
     title: 'Indexter Search',
-    description: 'Call once for broad suggestions, Indexter exploration, named providers, or API and service discovery. The server routes the exact wording to a curated overview, one provider, or task search. Results never authorize payment or Actor execution.',
-    inputSchema: {
-      query: z.string().max(INDEXTER_MAX_QUERY_CODE_UNITS).describe('A standalone discovery request using the current message and relevant conversation context. Keep the requested task and constraints.'),
+    description: 'Find services for a task, browse a named provider, or explore featured providers. Copy page.nextCursor into overviewCursor for another overview page. Read deferred catalog inputs with contractResourceId and contractMethod. Task constraints stay with task search.',
+    inputSchema: z.object({
+      query: z.string().max(INDEXTER_MAX_QUERY_CODE_UNITS).optional().describe('A standalone discovery request using the current message and relevant conversation context. Required except for an exact catalog input-contract read.'),
+      contractResourceId: z.string().regex(OPEN_INDEXTER_RESOURCE_ID_RE).optional().describe('Copy inputContract.detail.resourceId to retrieve its complete catalog input contract. Supply only this field and contractMethod.'),
+      contractMethod: z.enum(['GET', 'POST', 'PUT', 'DELETE']).optional().describe('Exact inputContract.detail.method. This reads the catalog without contacting the seller.'),
       originalQuery: z.string().max(INDEXTER_MAX_QUERY_CODE_UNITS).optional().describe('The exact current user wording when query resolves a contextual follow-up. Preserve it without adding provider instructions.'),
+      overviewCursor: z.string().min(1).max(2048).optional().describe('For another overview page, copy page.nextCursor exactly and keep the overview query. This cursor is only for overview providers; omit task filters and endpoint or Actor cursors.'),
       network: z.string().optional().describe('Optional hard seller-network filter ("solana", "base", "ethereum", "polygon", "arbitrum", "optimism", "avalanche", or a CAIP-2 id). Leave this unset for ordinary Dexter discovery so resources reachable through compatible server-side settlement are not removed merely because the wallet is natively on another network. Set it only when the user explicitly requires a seller on that network.'),
       maxPriceUsdc: z.number().finite().nonnegative().optional().describe('Optional hard ceiling, in USDC, for invoking the discovered API. Use this field for an API-call budget; keep product or order budgets in the natural-language query.'),
       minPriceUsdc: z.number().finite().nonnegative().optional().describe('Optional hard floor, in USDC, for invoking the discovered API. When both price fields are set, minPriceUsdc must be less than or equal to maxPriceUsdc.'),
@@ -2469,16 +2474,61 @@ export function createOpenMcpServer({
       unverified: z.boolean().optional().describe('Include unverified resources (default false). Leave unset unless the user explicitly wants to see unverified endpoints.'),
       testnets: z.boolean().optional().describe('Include testnet-only resources (default false). Testnets are excluded by default to keep Indexter results focused on current production services.'),
       rerank: z.boolean().optional().describe('Cross-encoder LLM rerank of top strong results (default true). Set false for deterministic order or lowest-latency path.'),
-    },
+    }).strict().superRefine((value, context) => {
+      const contractRead = value.contractResourceId !== undefined || value.contractMethod !== undefined;
+      if (contractRead) {
+        if (!value.contractResourceId || !value.contractMethod
+          || Object.keys(value).some((key) => !['contractResourceId', 'contractMethod'].includes(key))) {
+          context.addIssue({ code: z.ZodIssueCode.custom, message: 'Supply exactly contractResourceId and contractMethod for a catalog input-contract read.' });
+        }
+        return;
+      }
+      if (value.query === undefined) {
+        context.addIssue({ code: z.ZodIssueCode.custom, path: ['query'], message: 'A discovery query is required.' });
+        return;
+      }
+      if (value.overviewCursor === undefined) return;
+      const decision = classifyIndexterRequest(value.query, {
+        originalQuery: value.originalQuery,
+        taskConstraints: hasIndexterTaskConstraints(value),
+      });
+      if (decision.route !== 'overview' || decision.routingReason === 'input_rejected') {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['overviewCursor'],
+          message: 'overviewCursor requires an overview query without task filters. Start a task search without this cursor when the task or constraints change.',
+        });
+      }
+    }),
     annotations: { readOnlyHint: true },
     _meta: SEARCH_META,
   }, async (args) => {
-    let decision = classifyIndexterRequest(args.query, { originalQuery: args.originalQuery });
+    if (args.contractResourceId !== undefined) {
+      let payload;
+      let error;
+      try {
+        const query = new URLSearchParams({ resourceId: args.contractResourceId, method: args.contractMethod });
+        const response = await fetchInternalApi(`/api/x402gle/indexter/input-contract?${query}`, {
+          headers: { accept: 'application/json', 'accept-encoding': 'identity' },
+          signal: AbortSignal.timeout(20_000),
+        }, { origin: API_BASE_FALLBACK });
+        payload = await readBoundedIndexterDiscoveryJson(response);
+        if (!response.ok || payload?.ok !== true) error = payload?.error ?? 'input_contract_unavailable';
+      } catch (cause) {
+        error = cause instanceof IndexterDiscoveryPayloadError ? 'input_contract_invalid' : 'input_contract_unavailable';
+      }
+      return buildIndexterInputContractResult({
+        resourceId: args.contractResourceId, method: args.contractMethod,
+        payload, error, baseMeta: SEARCH_META,
+      });
+    }
+    const taskConstraints = hasIndexterTaskConstraints(args);
+    let decision = classifyIndexterRequest(args.query, { originalQuery: args.originalQuery, taskConstraints });
     let taskSearchAttempted = false;
     try {
       let providerData;
       const candidate = decision.route !== 'provider'
-        ? getIndexterProviderCandidate(args.query, { originalQuery: args.originalQuery })
+        ? getIndexterProviderCandidate(args.query, { originalQuery: args.originalQuery, taskConstraints })
         : null;
       if (candidate) {
         decision = { ...decision, routingReason: 'provider_requested' };
@@ -2508,6 +2558,7 @@ export function createOpenMcpServer({
           data = await indexterDiscover({
             provider: decision.provider ?? undefined,
             limit: decision.route === 'overview' ? 4 : undefined,
+            cursor: decision.route === 'overview' ? args.overviewCursor : undefined,
             capabilityPageSize: decision.route === 'provider' ? 12 : undefined,
             actorPageSize: decision.route === 'provider' ? 8 : undefined,
           });

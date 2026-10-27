@@ -10,6 +10,7 @@ import { createServer } from 'vite';
 import { normalizeDexterPortfolio } from '../apps-sdk/ui/src/components/portfolio/portfolio-model.ts';
 
 import { OPEN_TOOL_NAMES } from '../lib/open-tool-contracts.mjs';
+import { indexterCurrentFailureMessage } from '../lib/indexter-endpoint-availability.mjs';
 import {
   GALLERY_FIXED_NOW,
   MCP_APPS_HOST_TOKENS,
@@ -675,8 +676,13 @@ async function renderVariant({ browser, baseUrl, surface, device, theme }) {
       brandContract.expectedVisibleCount,
       `${surface.id} did not display the canonical product lockup for ${theme}`,
     );
+    // Saved catalog descriptions and endpoint paths may name the x402 protocol.
+    // The product branding check applies to our header, not provider data.
+    const brandText = TOOL_RESULT_FILE && surface.id === 'indexter-search'
+      ? await frame.locator('.dx-search-shell__header, .dx-discovery__header').innerText()
+      : await frame.locator('body').innerText();
     assert.doesNotMatch(
-      await frame.locator('body').innerText(),
+      brandText,
       brandContract.forbiddenText,
       `${surface.id} exposed retired product naming`,
     );
@@ -1073,7 +1079,27 @@ async function renderVariant({ browser, baseUrl, surface, device, theme }) {
       'Actor detail must fit the host width');
   }
 
-  if (SEARCH_VIEW !== 'initial') {
+  if (SEARCH_VIEW === 'contract-schema') {
+    assert.equal(surface.output?.route, 'input_contract');
+    await frame.locator('summary').filter({ hasText: 'Published input contract' }).click();
+    await frame.locator('.dx-input-contract__schema').waitFor({ state: 'visible' });
+    let read = '';
+    for (let index = 0; index < 1024; index += 1) {
+      read += await frame.locator('.dx-input-contract__schema').textContent();
+      assert.ok(await frame.locator('.dx-input-contract').evaluate(element => element.scrollWidth <= element.clientWidth + 1));
+      await page.waitForTimeout(30);
+      const bounds = await page.evaluate(() => window.__rendererGallerySize);
+      assert.ok(bounds.reported <= bounds.applied + 1, `Contract page ${index + 1} exceeds the ${device} host height`);
+      const next = frame.getByRole('button', { name: 'Next', exact: true });
+      if (await next.count() === 0 || !await next.isEnabled()) break;
+      assert.ok(index < 1023, 'Contract pagination did not finish');
+      await next.click();
+    }
+    assert.equal(read, JSON.stringify(surface.output.publishedContract, null, 2));
+    const previous = frame.getByRole('button', { name: 'Previous', exact: true });
+    while (await previous.count() && await previous.isEnabled()) await previous.click();
+    assert.deepEqual(await page.evaluate(() => (window.__rendererGalleryCalls ?? []).filter(call => ['tools/call', 'ui/message'].includes(call.method))), []);
+  } else if (SEARCH_VIEW !== 'initial') {
     assert.equal(surface.id, 'indexter-search', 'Search interactions require the search surface');
     assert.ok(['compare', 'detail'].includes(SEARCH_VIEW), 'Unknown Search gallery view');
     await frame.getByRole('button', { name: /^Compare all/ }).click();
@@ -1088,6 +1114,42 @@ async function renderVariant({ browser, baseUrl, surface, device, theme }) {
       )), undefined, { timeout: 8_000 });
     }
     await page.waitForTimeout(100);
+  }
+
+  if (TOOL_RESULT_FILE && surface.id === 'indexter-search') {
+    const entries = surface.output?.route === 'input_contract'
+      ? [surface.output.contract] : surface.output?.results ?? [];
+    const messages = [...new Set(entries.filter(entry => entry?.action?.kind === 'endpoint_unavailable')
+      .map(entry => indexterCurrentFailureMessage(entry.action.reason)).filter(Boolean))];
+    for (const message of messages) {
+      assert.equal(await frame.getByText(message, { exact: false }).first().isVisible(), true,
+        'The current verifier failure must remain visible at this width');
+    }
+    for (const notice of await frame.locator('.dx-discovery-resource__availability').all()) {
+      assert.equal(await notice.evaluate(element => element.scrollHeight <= element.clientHeight + 1), true,
+        'The current verifier failure must not be clipped');
+    }
+    if (messages.length && surface.output?.route !== 'input_contract') {
+      const unavailable = frame.locator('button').filter({ hasText: /^Unavailable$/ });
+      assert.ok(await unavailable.count() > 0, 'The unavailable result must expose a disabled action');
+      for (const button of await unavailable.all()) assert.equal(await button.isDisabled(), true);
+    }
+    if (messages.length && surface.output?.route === 'input_contract' && SEARCH_VIEW === 'initial') {
+      const readFields = [];
+      for (let index = 0; index < 24; index += 1) {
+        readFields.push(...await frame.locator('.dx-input-contract__fields dt').allTextContents());
+        await page.waitForTimeout(30);
+        const bounds = await page.evaluate(() => window.__rendererGallerySize);
+        assert.ok(bounds.reported <= bounds.applied + 1, 'The contract fields must fit the host height');
+        const next = frame.getByRole('button', { name: 'Next', exact: true });
+        if (await next.count() === 0 || !await next.isEnabled()) break;
+        await next.click();
+      }
+      assert.deepEqual(readFields, surface.output.contract.requestInput.fields.map(field => field.name));
+      const previous = frame.getByRole('button', { name: 'Previous', exact: true });
+      while (await previous.count() && await previous.isEnabled()) await previous.click();
+      assert.deepEqual(await page.evaluate(() => (window.__rendererGalleryCalls ?? []).filter(call => ['tools/call', 'ui/message'].includes(call.method))), []);
+    }
   }
 
   const engineSuffix = BROWSER_ENGINE === 'chromium' ? '' : `--${BROWSER_ENGINE}`;
@@ -1382,12 +1444,19 @@ galleryTest('current OpenDexter renderers fill one deterministic host-frame gall
       }
     } else {
       assert.equal(SURFACE_FILTER, 'indexter-search', 'Recorded results require the Search or governed-action surface');
-      assert.equal(recorded.structuredContent?.route, 'task');
+      assert.ok(['task', 'input_contract', 'provider', 'overview'].includes(recorded.structuredContent?.route));
       assert.ok(recorded._meta?.indexterPayload?.data, 'Recorded result lacks its widget payload');
       const searchSurface = allSurfaces.find(({ id }) => id === 'indexter-search');
       searchSurface.output = recorded.structuredContent;
       searchSurface.metadata = recorded._meta;
       searchSurface.input = { query: process.env.DEXTER_RENDERER_GALLERY_QUERY || 'Find current weather and forecast APIs' };
+      if (recorded.structuredContent.route === 'input_contract') {
+        const request = recorded.structuredContent.contractRequest;
+        searchSurface.input = { contractResourceId: request.resourceId, contractMethod: request.method };
+        searchSurface.readySelector = '.dx-input-contract';
+      } else if (['provider', 'overview'].includes(recorded.structuredContent.route)) {
+        searchSurface.readySelector = '.dx-discovery__main';
+      }
     }
   }
   const surfaces = SURFACE_FILTER
@@ -1435,6 +1504,7 @@ galleryTest('current OpenDexter renderers fill one deterministic host-frame gall
     logLevel: 'error',
   });
   await vite.listen();
+  t.after(async () => { await vite.close(); });
   const address = vite.httpServer?.address();
   assert.ok(address && typeof address === 'object');
   const baseUrl = `http://127.0.0.1:${address.port}`;
@@ -1447,7 +1517,6 @@ galleryTest('current OpenDexter renderers fill one deterministic host-frame gall
   });
   t.after(async () => {
     await browser.close();
-    await vite.close();
   });
 
   const rendered = [];
