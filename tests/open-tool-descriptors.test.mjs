@@ -523,8 +523,8 @@ test('source materializer emits one deterministic full hosted descriptor', async
     repository: 'https://github.com/Dexter-DAO/dexter-api',
     commit: acceptedProduction.api.sourceCommit,
     tree: acceptedProduction.api.sourceTree,
-    governedContractCommit: '719987075e7327d1f25fb8cb009f2e69b301b1bc',
-    governedContractTree: '0be85d43e695c09ecc54f8d2bb4e85cc67dbf174',
+    governedContractCommit: '6ff831a546fab7100f3928c7ff7c7ac2e2b06152',
+    governedContractTree: '2fbfbcd77cf446ea85c1f287ed5536e6a2aadd5a',
   });
   assert.deepEqual(descriptor.sourceContracts.portfolioProjection, {
     repository: 'https://github.com/Dexter-DAO/dexter-api',
