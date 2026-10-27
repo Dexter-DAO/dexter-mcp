@@ -16,15 +16,15 @@
     },
     "integratedApiRelease": {
       "repository": "https://github.com/Dexter-DAO/dexter-api",
-      "commit": "6ff831a546fab7100f3928c7ff7c7ac2e2b06152",
-      "tree": "2fbfbcd77cf446ea85c1f287ed5536e6a2aadd5a",
-      "governedContractCommit": "6ff831a546fab7100f3928c7ff7c7ac2e2b06152",
-      "governedContractTree": "2fbfbcd77cf446ea85c1f287ed5536e6a2aadd5a"
+      "commit": "84533f0027919d0f223ebd752f669e329103e202",
+      "tree": "60320e86b38ebff431734f4b07342c1fbd57ea0c",
+      "governedContractCommit": "84533f0027919d0f223ebd752f669e329103e202",
+      "governedContractTree": "60320e86b38ebff431734f4b07342c1fbd57ea0c"
     },
     "portfolioProjection": {
       "repository": "https://github.com/Dexter-DAO/dexter-api",
-      "commit": "6ff831a546fab7100f3928c7ff7c7ac2e2b06152",
-      "tree": "2fbfbcd77cf446ea85c1f287ed5536e6a2aadd5a",
+      "commit": "84533f0027919d0f223ebd752f669e329103e202",
+      "tree": "60320e86b38ebff431734f4b07342c1fbd57ea0c",
       "sourcePaths": [
         "src/portfolio/approvedActionTargets.ts",
         "src/routes/passkeyMcpBinding.ts",
@@ -5789,6 +5789,29 @@
             "type": "array",
             "items": {}
           },
+          "quote": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "$ref": "#/definitions/__schema2"
+              },
+              "selection": {
+                "$ref": "#/definitions/__schema3"
+              },
+              "state": {
+                "$ref": "#/definitions/__schema4"
+              },
+              "selectedOfferIndex": {
+                "$ref": "#/definitions/__schema5"
+              }
+            },
+            "required": [
+              "kind",
+              "selection",
+              "state"
+            ],
+            "additionalProperties": false
+          },
           "intentId": {
             "type": [
               "string",
@@ -5859,19 +5882,19 @@
                 "type": "object",
                 "properties": {
                   "url": {
-                    "$ref": "#/definitions/__schema2"
+                    "$ref": "#/definitions/__schema6"
                   },
                   "resourceId": {
-                    "$ref": "#/definitions/__schema3"
+                    "$ref": "#/definitions/__schema7"
                   },
                   "method": {
-                    "$ref": "#/definitions/__schema4"
+                    "$ref": "#/definitions/__schema8"
                   },
                   "body": {
-                    "$ref": "#/definitions/__schema5"
+                    "$ref": "#/definitions/__schema9"
                   },
                   "requestBound": {
-                    "$ref": "#/definitions/__schema6"
+                    "$ref": "#/definitions/__schema10"
                   }
                 },
                 "required": [
@@ -5908,19 +5931,19 @@
                 "type": "object",
                 "properties": {
                   "providerKey": {
-                    "$ref": "#/definitions/__schema7"
+                    "$ref": "#/definitions/__schema11"
                   },
                   "providerSlug": {
-                    "$ref": "#/definitions/__schema8"
+                    "$ref": "#/definitions/__schema12"
                   },
                   "displayName": {
-                    "$ref": "#/definitions/__schema9"
+                    "$ref": "#/definitions/__schema13"
                   },
                   "logoUrl": {
-                    "$ref": "#/definitions/__schema10"
+                    "$ref": "#/definitions/__schema14"
                   },
                   "technicalHost": {
-                    "$ref": "#/definitions/__schema11"
+                    "$ref": "#/definitions/__schema15"
                   }
                 },
                 "required": [
@@ -6096,13 +6119,36 @@
           },
           "__schema2": {
             "type": "string",
-            "format": "uri"
+            "const": "eligible_offers"
           },
           "__schema3": {
             "type": "string",
-            "format": "uuid"
+            "enum": [
+              "automatic",
+              "credit_requested"
+            ]
           },
           "__schema4": {
+            "type": "string",
+            "enum": [
+              "unselected",
+              "selected"
+            ]
+          },
+          "__schema5": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3
+          },
+          "__schema6": {
+            "type": "string",
+            "format": "uri"
+          },
+          "__schema7": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "__schema8": {
             "type": "string",
             "enum": [
               "GET",
@@ -6111,16 +6157,16 @@
               "DELETE"
             ]
           },
-          "__schema5": {
+          "__schema9": {
             "type": [
               "string",
               "null"
             ]
           },
-          "__schema6": {
+          "__schema10": {
             "type": "boolean"
           },
-          "__schema7": {
+          "__schema11": {
             "anyOf": [
               {
                 "type": "string",
@@ -6131,7 +6177,7 @@
               }
             ]
           },
-          "__schema8": {
+          "__schema12": {
             "anyOf": [
               {
                 "type": "string",
@@ -6142,7 +6188,7 @@
               }
             ]
           },
-          "__schema9": {
+          "__schema13": {
             "anyOf": [
               {
                 "type": "string",
@@ -6153,7 +6199,7 @@
               }
             ]
           },
-          "__schema10": {
+          "__schema14": {
             "anyOf": [
               {
                 "type": "string",
@@ -6165,7 +6211,7 @@
               }
             ]
           },
-          "__schema11": {
+          "__schema15": {
             "anyOf": [
               {
                 "type": "string",
@@ -6195,7 +6241,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-pricing-00920e53",
+          "resourceUri": "ui://dexter/x402-pricing-c8a6b418",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash",
@@ -6212,8 +6258,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/x402-pricing-00920e53",
-        "openai/outputTemplate": "ui://dexter/x402-pricing-00920e53",
+        "ui/resourceUri": "ui://dexter/x402-pricing-c8a6b418",
+        "openai/outputTemplate": "ui://dexter/x402-pricing-c8a6b418",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -6952,6 +6998,29 @@
             "type": "array",
             "items": {}
           },
+          "quote": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "$ref": "#/definitions/__schema2"
+              },
+              "selection": {
+                "$ref": "#/definitions/__schema3"
+              },
+              "state": {
+                "$ref": "#/definitions/__schema4"
+              },
+              "selectedOfferIndex": {
+                "$ref": "#/definitions/__schema5"
+              }
+            },
+            "required": [
+              "kind",
+              "selection",
+              "state"
+            ],
+            "additionalProperties": false
+          },
           "intentId": {
             "type": [
               "string",
@@ -7022,19 +7091,19 @@
                 "type": "object",
                 "properties": {
                   "url": {
-                    "$ref": "#/definitions/__schema2"
+                    "$ref": "#/definitions/__schema6"
                   },
                   "resourceId": {
-                    "$ref": "#/definitions/__schema3"
+                    "$ref": "#/definitions/__schema7"
                   },
                   "method": {
-                    "$ref": "#/definitions/__schema4"
+                    "$ref": "#/definitions/__schema8"
                   },
                   "body": {
-                    "$ref": "#/definitions/__schema5"
+                    "$ref": "#/definitions/__schema9"
                   },
                   "requestBound": {
-                    "$ref": "#/definitions/__schema6"
+                    "$ref": "#/definitions/__schema10"
                   }
                 },
                 "required": [
@@ -7071,19 +7140,19 @@
                 "type": "object",
                 "properties": {
                   "providerKey": {
-                    "$ref": "#/definitions/__schema7"
+                    "$ref": "#/definitions/__schema11"
                   },
                   "providerSlug": {
-                    "$ref": "#/definitions/__schema8"
+                    "$ref": "#/definitions/__schema12"
                   },
                   "displayName": {
-                    "$ref": "#/definitions/__schema9"
+                    "$ref": "#/definitions/__schema13"
                   },
                   "logoUrl": {
-                    "$ref": "#/definitions/__schema10"
+                    "$ref": "#/definitions/__schema14"
                   },
                   "technicalHost": {
-                    "$ref": "#/definitions/__schema11"
+                    "$ref": "#/definitions/__schema15"
                   }
                 },
                 "required": [
@@ -7325,13 +7394,36 @@
           },
           "__schema2": {
             "type": "string",
-            "format": "uri"
+            "const": "eligible_offers"
           },
           "__schema3": {
             "type": "string",
-            "format": "uuid"
+            "enum": [
+              "automatic",
+              "credit_requested"
+            ]
           },
           "__schema4": {
+            "type": "string",
+            "enum": [
+              "unselected",
+              "selected"
+            ]
+          },
+          "__schema5": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3
+          },
+          "__schema6": {
+            "type": "string",
+            "format": "uri"
+          },
+          "__schema7": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "__schema8": {
             "type": "string",
             "enum": [
               "GET",
@@ -7340,16 +7432,16 @@
               "DELETE"
             ]
           },
-          "__schema5": {
+          "__schema9": {
             "type": [
               "string",
               "null"
             ]
           },
-          "__schema6": {
+          "__schema10": {
             "type": "boolean"
           },
-          "__schema7": {
+          "__schema11": {
             "anyOf": [
               {
                 "type": "string",
@@ -7360,7 +7452,7 @@
               }
             ]
           },
-          "__schema8": {
+          "__schema12": {
             "anyOf": [
               {
                 "type": "string",
@@ -7371,7 +7463,7 @@
               }
             ]
           },
-          "__schema9": {
+          "__schema13": {
             "anyOf": [
               {
                 "type": "string",
@@ -7382,7 +7474,7 @@
               }
             ]
           },
-          "__schema10": {
+          "__schema14": {
             "anyOf": [
               {
                 "type": "string",
@@ -7394,7 +7486,7 @@
               }
             ]
           },
-          "__schema11": {
+          "__schema15": {
             "anyOf": [
               {
                 "type": "string",
@@ -7984,7 +8076,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-pricing-00920e53",
+          "resourceUri": "ui://dexter/x402-pricing-c8a6b418",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash",
@@ -8001,8 +8093,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/x402-pricing-00920e53",
-        "openai/outputTemplate": "ui://dexter/x402-pricing-00920e53",
+        "ui/resourceUri": "ui://dexter/x402-pricing-c8a6b418",
+        "openai/outputTemplate": "ui://dexter/x402-pricing-c8a6b418",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
