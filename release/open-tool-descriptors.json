@@ -3519,7 +3519,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/indexter-search-7e9b3eef",
+          "resourceUri": "ui://dexter/indexter-search-6f0970b4",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash",
@@ -3538,8 +3538,8 @@
             "app"
           ]
         },
-        "ui/resourceUri": "ui://dexter/indexter-search-7e9b3eef",
-        "openai/outputTemplate": "ui://dexter/indexter-search-7e9b3eef",
+        "ui/resourceUri": "ui://dexter/indexter-search-6f0970b4",
+        "openai/outputTemplate": "ui://dexter/indexter-search-6f0970b4",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -5294,7 +5294,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/indexter-search-7e9b3eef",
+          "resourceUri": "ui://dexter/indexter-search-6f0970b4",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash",
@@ -5312,8 +5312,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/indexter-search-7e9b3eef",
-        "openai/outputTemplate": "ui://dexter/indexter-search-7e9b3eef",
+        "ui/resourceUri": "ui://dexter/indexter-search-6f0970b4",
+        "openai/outputTemplate": "ui://dexter/indexter-search-6f0970b4",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -6241,7 +6241,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-pricing-00920e53",
+          "resourceUri": "ui://dexter/x402-pricing-c8a6b418",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash",
@@ -6258,8 +6258,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/x402-pricing-00920e53",
-        "openai/outputTemplate": "ui://dexter/x402-pricing-00920e53",
+        "ui/resourceUri": "ui://dexter/x402-pricing-c8a6b418",
+        "openai/outputTemplate": "ui://dexter/x402-pricing-c8a6b418",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -8076,7 +8076,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-pricing-00920e53",
+          "resourceUri": "ui://dexter/x402-pricing-c8a6b418",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash",
@@ -8093,8 +8093,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/x402-pricing-00920e53",
-        "openai/outputTemplate": "ui://dexter/x402-pricing-00920e53",
+        "ui/resourceUri": "ui://dexter/x402-pricing-c8a6b418",
+        "openai/outputTemplate": "ui://dexter/x402-pricing-c8a6b418",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
