@@ -13,15 +13,15 @@
   },
   "integratedApiRelease": {
     "repository": "https://github.com/Dexter-DAO/dexter-api",
-    "commit": "e73b7e49d5e8a46975d5fb17d202079b5f70937d",
-    "tree": "9fef58ba0e3398f842faf1a7a46c5413559f6b7a",
-    "governedContractCommit": "e73b7e49d5e8a46975d5fb17d202079b5f70937d",
-    "governedContractTree": "9fef58ba0e3398f842faf1a7a46c5413559f6b7a"
+    "commit": "0667308f5cffdf48babe07636d70cf9e9ec554c6",
+    "tree": "dc305c0261909a4aa94052db6276324434285aa9",
+    "governedContractCommit": "0667308f5cffdf48babe07636d70cf9e9ec554c6",
+    "governedContractTree": "dc305c0261909a4aa94052db6276324434285aa9"
   },
   "portfolioProjection": {
     "repository": "https://github.com/Dexter-DAO/dexter-api",
-    "commit": "e73b7e49d5e8a46975d5fb17d202079b5f70937d",
-    "tree": "9fef58ba0e3398f842faf1a7a46c5413559f6b7a",
+    "commit": "0667308f5cffdf48babe07636d70cf9e9ec554c6",
+    "tree": "dc305c0261909a4aa94052db6276324434285aa9",
     "sourcePaths": [
       "src/portfolio/approvedActionTargets.ts",
       "src/routes/passkeyMcpBinding.ts",

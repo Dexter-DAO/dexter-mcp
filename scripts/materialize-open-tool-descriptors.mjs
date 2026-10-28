@@ -171,6 +171,7 @@ const API_GOVERNED_CONTRACT_PATHS = Object.freeze([
   'prisma/schema.prisma',
   'prisma/migrations/20261026202500_bind_one_action_native_tab_sessions/migration.sql',
   'prisma/migrations/20261027061500_recover_crosspay_saved_settlement_receipts/migration.sql',
+  'prisma/migrations/20261028023000_observe_finalized_locked_tab_receipts/migration.sql',
   'src/services/x402/nativeMcpTarget.ts',
   'src/services/x402/nativeMcpTransport.ts',
   'src/services/x402/swigExactPayment.ts',
@@ -184,6 +185,7 @@ const API_GOVERNED_CONTRACT_PATHS = Object.freeze([
   'src/services/x402/gatewayOwnerApprovalPersistence.ts',
   'src/services/x402/gatewayX402AgentCapacity.ts',
   'src/services/nativeTabSettlementProof.ts',
+  'src/services/nativeTabLockedSettlementProof.ts',
   'src/services/x402/nativeExactCoordinator.ts',
   'src/services/x402/nativeExactFacilitator.ts',
   'src/services/x402/nativeExactLifecycle.ts',
@@ -196,6 +198,7 @@ const API_GOVERNED_CONTRACT_PATHS = Object.freeze([
   'src/services/purchasingGateway/defaultNativeTabGateway.ts',
   'src/services/purchasingGateway/opaqueNativeTabGateway.ts',
   'src/services/purchasingGateway/hostedNativeTab.ts',
+  'src/services/purchasingGateway/nativeTabLockedReceipt.ts',
   'src/services/purchasingGateway/nativeTab.ts',
   'src/services/purchasingGateway/nativeTabConsentPreparation.ts',
   'src/services/purchasingGateway/nativeTabConsentAccount.ts',
@@ -260,9 +263,11 @@ const EXPECTED_SOURCE_CONTRACTS = Object.freeze({
   // Checked purchase responses preserve all eligible quoted payment offers.
   // The accepted book continuation binds current account and consent expiry;
   // Birdeye resource matching retains the same request and payment authority.
+  // Accepted locked Tab receipts retain finalized claim evidence and expose
+  // the saved settlement signature without renewing payment authority.
   // Later releases must preserve these API_GOVERNED_CONTRACT_PATHS bytes.
-  integratedGovernedCommit: 'e73b7e49d5e8a46975d5fb17d202079b5f70937d',
-  integratedGovernedTree: '9fef58ba0e3398f842faf1a7a46c5413559f6b7a',
+  integratedGovernedCommit: '0667308f5cffdf48babe07636d70cf9e9ec554c6',
+  integratedGovernedTree: 'dc305c0261909a4aa94052db6276324434285aa9',
   apiFixtureSha256:
     'ad06690a3914e0ef0f359c4164eb62f78ca54abe6697a52672d739df63c2c352',
   apiCanonicalBodyDigest:
