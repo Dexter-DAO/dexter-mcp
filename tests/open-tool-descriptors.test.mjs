@@ -231,7 +231,7 @@ test('--emit-json emits exactly one descriptor document and exits', () => {
   );
   assert.equal(indexterDiscovery._meta['openai/outputTemplate'], INDEXTER_WIDGET_URIS.search);
   assert.equal(indexterDiscovery._meta['openai/widgetAccessible'], true);
-  assert.deepEqual(indexterDiscovery._meta.ui.visibility, ['app']);
+  assert.deepEqual(indexterDiscovery._meta.ui.visibility, ['model', 'app']);
   assert.equal(
     Object.hasOwn(indexterDiscovery.inputSchema.properties, 'cursor'),
     true,
@@ -523,8 +523,8 @@ test('source materializer emits one deterministic full hosted descriptor', async
     repository: 'https://github.com/Dexter-DAO/dexter-api',
     commit: acceptedProduction.api.sourceCommit,
     tree: acceptedProduction.api.sourceTree,
-    governedContractCommit: '6ff831a546fab7100f3928c7ff7c7ac2e2b06152',
-    governedContractTree: '2fbfbcd77cf446ea85c1f287ed5536e6a2aadd5a',
+    governedContractCommit: 'e73b7e49d5e8a46975d5fb17d202079b5f70937d',
+    governedContractTree: '9fef58ba0e3398f842faf1a7a46c5413559f6b7a',
   });
   assert.deepEqual(descriptor.sourceContracts.portfolioProjection, {
     repository: 'https://github.com/Dexter-DAO/dexter-api',
