@@ -101,6 +101,185 @@ async function connectedOpenClient(t) {
   return client;
 }
 
+test('unquoted full names use complete published identity, not an alias or first result', async (t) => {
+  const prior=globalThis.fetch; const requests=[];
+  let returnedName='Birdeye Data'; let status=200;
+  globalThis.fetch=async(input)=>{
+    const url=new URL(String(input));requests.push(url);
+    if(url.pathname==='/api/x402gle/capability') return Response.json(emptyTask());
+    if(!url.searchParams.get('provider')) return Response.json(emptyDiscovery('overview'));
+    if(status!==200) return Response.json({ok:false,error:status===409?'provider_ambiguous':'indexter_discovery_unavailable'},{status});
+    const body=emptyDiscovery('provider');body.providers[0].displayName=returnedName;
+    return Response.json(body);
+  };
+  t.after(()=>{globalThis.fetch=prior;});const client=await connectedOpenClient(t);
+  for(const [query,name] of [['Birdeye Data','Birdeye Data'],['birdeye data','Birdeye Data'],['OpenWeb Ninja','OpenWeb Ninja']]){
+    returnedName=name;requests.length=0;
+    const result=await client.callTool({name:'indexter_search',arguments:{query}});
+    assert.equal(result.structuredContent.route,'provider');assert.equal(requests.length,1);
+  }
+  returnedName='Birdeye Data API';requests.length=0;
+  const mismatch=await client.callTool({name:'indexter_search',arguments:{query:'Birdeye Data'}});
+  assert.equal(mismatch.structuredContent.route,'overview');assert.equal(requests.length,2);
+  for(const unavailableStatus of [409,503]){
+    status=unavailableStatus;requests.length=0;
+    const result=await client.callTool({name:'indexter_search',arguments:{query:'Birdeye Data'}});
+    assert.equal(result.structuredContent.route,'provider');assert.equal(result.structuredContent.ok,false);
+    assert.equal(requests.length,1);
+    if(status===409) assert.match(JSON.stringify(result),/provider_ambiguous/);
+  }
+});
+
+test('ordinary noun-phrase jobs and explicit filters survive a literal-name miss',async(t)=>{
+  const prior=globalThis.fetch;const requests=[];
+  globalThis.fetch=async(input)=>{
+    const url=new URL(String(input));requests.push(url);
+    if(url.pathname==='/api/x402gle/indexter/discovery') return Response.json({ok:false,error:'provider_not_found'},{status:404});
+    return Response.json(emptyTask());
+  };
+  t.after(()=>{globalThis.fetch=prior;});const client=await connectedOpenClient(t);
+  for(const query of ['AAPL news','crypto market data','Amazon best sellers','best historical BTC data']){
+    requests.length=0;
+    const result=await client.callTool({name:'indexter_search',arguments:{query}});
+    assert.equal(result.structuredContent.route,'task',query);
+    assert.equal(requests.at(-1).pathname,'/api/x402gle/capability');
+    assert.equal(requests.at(-1).searchParams.get('q'),query);
+    assert.ok(requests.length<=2);
+  }
+  requests.length=0;
+  await client.callTool({name:'indexter_search',arguments:{query:'Birdeye Data',maxPriceUsdc:0.02,network:'solana',sortBy:'price_asc'}});
+  assert.equal(requests.length,1);
+  assert.equal(requests[0].pathname,'/api/x402gle/capability');
+  assert.equal(requests[0].searchParams.get('q'),'Birdeye Data');
+  assert.equal(requests[0].searchParams.get('maxPriceUsdc'),'0.02');
+  assert.equal(requests[0].searchParams.get('sortBy'),'price_asc');
+});
+
+const nextTurn = () => new Promise((resolve) => setImmediate(resolve));
+
+for (const phase of ['headers', 'body']) {
+  for (const finishesInTime of [true, false]) {
+    test(`full-name ${phase} ${finishesInTime ? 'completes near' : 'exceeds'} its four-second deadline`, async (t) => {
+      const previousFetch = globalThis.fetch;
+      const requests = [];
+      let signal;
+      let finish;
+      globalThis.fetch = async (input, options) => {
+        const url = new URL(String(input));
+        requests.push(url);
+        if (url.pathname === '/api/x402gle/capability') return Response.json(emptyTask());
+        signal = options.signal;
+        const payload = emptyDiscovery('provider');
+        payload.providers[0].displayName = 'Birdeye Data';
+        if (phase === 'headers') {
+          return new Promise((resolve) => { finish = () => resolve(Response.json(payload)); });
+        }
+        return new Response(new ReadableStream({
+          start(controller) {
+            finish = () => {
+              controller.enqueue(new TextEncoder().encode(JSON.stringify(payload)));
+              controller.close();
+            };
+          },
+        }), { headers: { 'content-type': 'application/json' } });
+      };
+      t.after(() => { globalThis.fetch = previousFetch; });
+      const client = await connectedOpenClient(t);
+      t.mock.timers.enable({ apis: ['setTimeout'] });
+      // AAPL news preserves task fallback. Use its exact returned display name
+      // only for the successful catalog equality control.
+      const query = finishesInTime ? 'Birdeye Data' : 'AAPL news';
+      const resultPromise = client.callTool({ name: 'indexter_search', arguments: { query } });
+      await nextTurn();
+      t.mock.timers.tick(finishesInTime ? 3_999 : 4_000);
+      if (finishesInTime) finish();
+      const result = await resultPromise;
+      assert.equal(signal.aborted, !finishesInTime);
+      assert.equal(result.structuredContent.route, finishesInTime ? 'provider' : 'task');
+      assert.equal(requests.length, finishesInTime ? 1 : 2);
+      if (!finishesInTime) {
+        assert.equal(result.structuredContent.routingReason, 'task_query');
+        assert.equal(requests[1].searchParams.get('q'), query);
+        finish();
+        await nextTurn();
+        assert.equal(result.structuredContent.route, 'task');
+        assert.equal(requests.length, 2);
+      }
+    });
+  }
+}
+
+for (const fallback of ['task', 'overview']) {
+  test(`literal-name miss shares the whole deadline with ${fallback} fallback`, async (t) => {
+    const previousFetch = globalThis.fetch;
+    const requests = [];
+    let miss;
+    let finish;
+    let fallbackSignal;
+    globalThis.fetch = async (input, options) => {
+      const url = new URL(String(input));
+      requests.push(url);
+      if (requests.length === 1) {
+        return new Promise((resolve) => {
+          miss = () => resolve(Response.json({ ok: false, error: 'provider_not_found' }, { status: 404 }));
+        });
+      }
+      fallbackSignal = options.signal;
+      return new Promise((resolve) => {
+        finish = () => resolve(Response.json(fallback === 'task' ? emptyTask() : emptyDiscovery('overview')));
+      });
+    };
+    t.after(() => { globalThis.fetch = previousFetch; });
+    const client = await connectedOpenClient(t);
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const query = fallback === 'task' ? 'AAPL news' : 'Birdeye Data';
+    const resultPromise = client.callTool({ name: 'indexter_search', arguments: { query } });
+    await nextTurn();
+    t.mock.timers.tick(3_900);
+    miss();
+    await nextTurn();
+    assert.equal(requests.length, 2);
+    t.mock.timers.tick(16_099);
+    assert.equal(fallbackSignal.aborted, false);
+    t.mock.timers.tick(1);
+    const result = await resultPromise;
+    assert.equal(fallbackSignal.aborted, true);
+    assert.equal(result.structuredContent.ok, false);
+    assert.equal(result.structuredContent.route, fallback);
+    assert.equal(result.structuredContent.taskSearchAttempted, fallback === 'task');
+    finish();
+    await nextTurn();
+    assert.equal(requests.length, 2);
+  });
+}
+
+test('an earlier caller deadline stops the name lookup before fallback begins', async (t) => {
+  const previousFetch = globalThis.fetch;
+  let calls = 0;
+  let signal;
+  let finish;
+  globalThis.fetch = async (_input, options) => {
+    calls += 1;
+    signal = options.signal;
+    return new Promise((resolve) => { finish = () => resolve(Response.json(emptyDiscovery('provider'))); });
+  };
+  t.after(() => { globalThis.fetch = previousFetch; });
+  const client = await connectedOpenClient(t);
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const resultPromise = client.callTool({ name: 'indexter_search', arguments: { query: 'AAPL news' },
+    _meta: { 'dexter/operationDeadlineUnixMs': Date.now() + 500 } });
+  await nextTurn();
+  t.mock.timers.tick(500);
+  const result = await resultPromise;
+  assert.equal(signal.aborted, true);
+  assert.equal(result.structuredContent.ok, false);
+  assert.equal(result.structuredContent.taskSearchAttempted, false);
+  assert.equal(calls, 1);
+  finish();
+  await nextTurn();
+  assert.equal(calls, 1);
+});
+
 test('unified entry dispatches exactly once for overview, provider, task, and safe defaults', async (t) => {
   const previousFetch = globalThis.fetch;
   const requests = [];
@@ -593,7 +772,7 @@ test('search scope records actual attempts through task errors and provider reso
   assert.equal(failed.structuredContent.routingReason, 'task_query');
   assert.equal(failed.structuredContent.taskSearchAttempted, true);
   assert.equal(failed._meta.indexterPayload.taskSearchAttempted, true);
-  assert.deepEqual(requests.map(({ pathname }) => pathname), ['/api/x402gle/capability']);
+  assert.deepEqual(requests.map(({ pathname }) => pathname), ['/api/x402gle/indexter/discovery', '/api/x402gle/capability']);
 
   const query = 'Does parcel company support address lookup?';
   requests.length = 0;

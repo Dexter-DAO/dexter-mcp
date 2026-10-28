@@ -420,6 +420,8 @@ export interface CapabilitySearchOptions {
   sortBy?: CapabilitySearchSortBy;
   debug?: boolean;
   endpoint?: string;
+  /** Earlier caller cancellation or whole-operation deadline. */
+  signal?: AbortSignal;
 }
 
 /**

@@ -198,6 +198,8 @@ const API_GOVERNED_CONTRACT_PATHS = Object.freeze([
   'src/services/purchasingGateway/hostedNativeTab.ts',
   'src/services/purchasingGateway/nativeTab.ts',
   'src/services/purchasingGateway/nativeTabConsentPreparation.ts',
+  'src/services/purchasingGateway/nativeTabConsentAccount.ts',
+  'src/services/purchasingGateway/nativeTabConsentExpiry.ts',
   'src/services/purchasingGateway/nativeTabFeeTerms.ts',
   'src/services/purchasingGateway/gatewayX402ExactAuthority.ts',
   'src/services/purchasingGateway/canonical.ts',
@@ -256,9 +258,11 @@ const EXPECTED_SOURCE_CONTRACTS = Object.freeze({
   // Reviewed paid-delivery recovery derives settlement from the immutable
   // seller receipt while retaining chain proof, ownership and accounting guards.
   // Checked purchase responses preserve all eligible quoted payment offers.
+  // The accepted book continuation binds current account and consent expiry;
+  // Birdeye resource matching retains the same request and payment authority.
   // Later releases must preserve these API_GOVERNED_CONTRACT_PATHS bytes.
-  integratedGovernedCommit: '84533f0027919d0f223ebd752f669e329103e202',
-  integratedGovernedTree: '60320e86b38ebff431734f4b07342c1fbd57ea0c',
+  integratedGovernedCommit: 'e73b7e49d5e8a46975d5fb17d202079b5f70937d',
+  integratedGovernedTree: '9fef58ba0e3398f842faf1a7a46c5413559f6b7a',
   apiFixtureSha256:
     'ad06690a3914e0ef0f359c4164eb62f78ca54abe6697a52672d739df63c2c352',
   apiCanonicalBodyDigest:
