@@ -1,0 +1,181 @@
+{
+  "composition": "Production capabilitySearch with explicit synthetic advertised-scheme control; no eligibility proof.",
+  "response": {
+    "query": "market data",
+    "intent": {
+      "capabilityText": "market data",
+      "expandedCapabilityText": "market data",
+      "categories": null,
+      "networks": null,
+      "minQualityScore": null,
+      "maxPriceUsdc": null,
+      "minPriceUsdc": null,
+      "requireVerified": false
+    },
+    "appliedConstraints": {
+      "maxPriceUsdc": null,
+      "minPriceUsdc": null,
+      "paidOnly": false
+    },
+    "appliedOrdering": {
+      "sortBy": "relevance"
+    },
+    "strongResults": [
+      {
+        "kind": "endpoint",
+        "resourceId": "00000000-0000-4000-8000-000000000091",
+        "resourceUrl": "https://api.example.com/data",
+        "access": {
+          "kind": "direct_url",
+          "checkable": true,
+          "requiresFreshCheck": true
+        },
+        "merchant": {
+          "providerKey": "api.example.com",
+          "providerSlug": "api.example.com",
+          "displayName": null,
+          "logoUrl": null,
+          "technicalHost": "api.example.com"
+        },
+        "displayName": "Example API",
+        "description": "Fetch data from example.",
+        "category": "data",
+        "host": "api.example.com",
+        "method": "GET",
+        "icon": "https://www.google.com/s2/favicons?domain=api.example.com&sz=64",
+        "pricing": {
+          "usdc": 0.01,
+          "network": "eip155:8453",
+          "networkLabel": "Base",
+          "asset": "0xUSDC",
+          "mode": "fixed",
+          "quoteRequired": false,
+          "chains": [
+            {
+              "network": "eip155:8453",
+              "networkLabel": "Base",
+              "asset": "USDC",
+              "scheme": "exact",
+              "priceAtomic": "1000",
+              "priceUsdc": 0.001,
+              "priceLabel": "$0.001"
+            },
+            {
+              "network": "solana",
+              "networkLabel": "solana",
+              "asset": "USDC",
+              "scheme": "tab",
+              "priceAtomic": "5000",
+              "priceUsdc": 0.005,
+              "priceLabel": "$0.005"
+            },
+            {
+              "network": "solana",
+              "networkLabel": "solana",
+              "asset": "USDC",
+              "scheme": "future_scheme",
+              "priceAtomic": "7000",
+              "priceUsdc": 0.007,
+              "priceLabel": "$0.007"
+            }
+          ]
+        },
+        "execution": {
+          "sideEffectful": false,
+          "effect": null,
+          "automatedVerification": "enabled",
+          "userExecution": "allowed",
+          "confirmationRequired": false,
+          "availability": "available",
+          "requiresExplicitInput": false,
+          "quoteMayCreateProviderReservation": false
+        },
+        "verification": {
+          "status": "pass",
+          "paid": true,
+          "paidQualityTestPassed": true,
+          "trustBasis": "paid_test",
+          "trustLabel": "Terms checked",
+          "evidenceState": "terms_checked",
+          "evidenceLabel": "Terms checked",
+          "evidenceAt": "2026-01-01T00:00:00.000Z",
+          "qualityScore": 80,
+          "lastVerifiedAt": "2026-01-01T00:00:00.000Z",
+          "responseStatus": null
+        },
+        "usage": {
+          "totalSettlements": 100,
+          "totalVolumeUsdc": 5,
+          "lastSettlementAt": "2026-01-10T00:00:00.000Z"
+        },
+        "safetyFlags": [],
+        "ogImage": null,
+        "docsUrl": null,
+        "openapiSpecUrl": null,
+        "pathParams": null,
+        "inputSchema": null,
+        "outputSchema": null,
+        "schemaSource": "none",
+        "latency": {
+          "p50Ms": 120,
+          "p95Ms": 400
+        },
+        "uptime": {
+          "pct": 99.5
+        },
+        "similarity": 0.72,
+        "serviceProfile": null,
+        "band": "exact",
+        "verificationRank": 0,
+        "qualityScore": 80,
+        "recencyDays": 301.2589259606481,
+        "why": "exact match · Terms checked",
+        "tier": "strong",
+        "editorial": {
+          "providerFeatured": false,
+          "providerOrder": null
+        }
+      }
+    ],
+    "relatedResults": [],
+    "composedSkills": [
+      {
+        "type": "composed_skill",
+        "qualifiedSlug": "undefined/undefined",
+        "costEstimateUsdc": null,
+        "callCountEstimate": null,
+        "qualityScore": 80,
+        "totalInstalls": null,
+        "totalRuns": null,
+        "previewUrl": "https://x402gle.com/skills/undefined/undefined",
+        "marketplaceJsonUrl": "https://api.dexter.cash/api/public/composed-skills/undefined/undefined/marketplace.json",
+        "installCommand": "/plugin marketplace add https://x402gle.com/marketplace.json"
+      }
+    ],
+    "components": {
+      "composedSkills": {
+        "status": "complete"
+      }
+    },
+    "totalCandidates": 1,
+    "strongCount": 1,
+    "relatedCount": 0,
+    "topSimilarity": 0.72,
+    "noMatchReason": null,
+    "thresholds": {
+      "similarityFloor": 0.2
+    },
+    "rankingMode": "full",
+    "rerank": {
+      "enabled": true,
+      "applied": true
+    },
+    "confidence": {
+      "profileCoverage": 0,
+      "topMatchProfileBacked": false,
+      "triangulatableAlternates": []
+    },
+    "embeddingTokens": 8,
+    "durationMs": 32
+  }
+}

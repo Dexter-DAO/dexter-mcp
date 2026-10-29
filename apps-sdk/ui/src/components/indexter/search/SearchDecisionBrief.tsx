@@ -1,5 +1,6 @@
 import { useEffect, useId, useState } from 'react';
 import type { SearchResource } from './types';
+import { indexterTabAdvertisementLabel } from '../../../../../../lib/indexter-payment-schemes.mjs';
 import { SearchIdentityIcon } from './SearchIdentityIcon';
 import {
   buildSearchDecision,
@@ -139,6 +140,7 @@ export function SearchDecisionBrief({
               <p className="dx-search-result-primary__merchant">{merchantCaption(actionTarget)}</p>
             )}
             <h2 id={headingId} className="dx-search-brief__title">{actionTarget.name}</h2>
+            {indexterTabAdvertisementLabel(actionTarget.paymentSchemes) ? <p className="dx-search-result-primary__merchant">{indexterTabAdvertisementLabel(actionTarget.paymentSchemes)}</p> : null}
           </div>
           <strong className="dx-search-result-primary__price">{listedPrice(actionTarget)}</strong>
         </div>
@@ -196,6 +198,7 @@ export function SearchDecisionBrief({
                   <span className="dx-search-result-alternatives__copy">
                     {merchantCaption(resource) && <small>{merchantCaption(resource)}</small>}
                     <strong>{resource.name}</strong>
+                    {indexterTabAdvertisementLabel(resource.paymentSchemes) ? <small>{indexterTabAdvertisementLabel(resource.paymentSchemes)}</small> : null}
                   </span>
                   <span className="dx-search-result-alternatives__price">{listedPrice(resource)}</span>
                 </button>

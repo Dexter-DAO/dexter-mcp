@@ -6,6 +6,7 @@ import {
   formatListedPrice,
   merchantLabel,
 } from './utils';
+import { indexterTabAdvertisementLabel } from '../../../../../../lib/indexter-payment-schemes.mjs';
 
 type Props = {
   resource: SearchResource;
@@ -53,6 +54,7 @@ export function SearchInlineDetail({
         <SearchIdentityIcon resource={resource} size={40} />
         <div>
           <p>{merchantLabel(resource)}{resource.editorial?.providerFeatured === true ? ' · Featured provider' : ''}</p>
+          {indexterTabAdvertisementLabel(resource.paymentSchemes) ? <p>{indexterTabAdvertisementLabel(resource.paymentSchemes)}</p> : null}
           <h2>{resource.name}</h2>
         </div>
         <strong>{price}</strong>

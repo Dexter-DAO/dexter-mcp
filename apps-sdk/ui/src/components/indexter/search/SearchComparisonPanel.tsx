@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { SearchResource } from './types';
+import { indexterTabAdvertisementLabel } from '../../../../../../lib/indexter-payment-schemes.mjs';
 import { SearchIdentityIcon } from './SearchIdentityIcon';
 import { summarizeSearchResource } from './SearchDecisionBrief.model';
 import {
@@ -123,6 +124,7 @@ export function SearchComparisonPanel({
                 <div>
                   {merchantCaption(resource) && <small>{merchantCaption(resource)}</small>}
                   <strong>{resource.name}</strong>
+                  {indexterTabAdvertisementLabel(resource.paymentSchemes) ? <small>{indexterTabAdvertisementLabel(resource.paymentSchemes)}</small> : null}
                   <span className="sr-only">Result {ordinal} of {resources.length}</span>
                 </div>
                 <span className="dx-search-compare__price">{price}</span>

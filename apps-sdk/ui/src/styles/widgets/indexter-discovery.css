@@ -390,6 +390,21 @@
   min-width: 0;
 }
 
+.dx-discovery-resource__merchant.dx-discovery-resource__merchant--payment {
+  display: flex;
+  gap: 8px;
+}
+
+.dx-discovery-resource__merchant--payment > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dx-discovery-resource__merchant--payment > span:last-child {
+  flex: 0 0 auto;
+}
+
 .dx-discovery-resource__merchant {
   display: block;
   min-width: 0;

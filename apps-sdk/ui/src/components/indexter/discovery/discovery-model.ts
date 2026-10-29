@@ -1,4 +1,5 @@
 import { isIndexterCurrentFailureReason } from '../../../../../../lib/indexter-endpoint-availability.mjs';
+import { isIndexterPaymentSchemes } from '../../../../../../lib/indexter-payment-schemes.mjs';
 import {
   ipAddressFamily,
   isPublicIpAddress,
@@ -62,6 +63,13 @@ export type IndexterInputContract = {
 
 export type IndexterEndpointAction =
   | {
+      kind: 'read_input_contract';
+      label: 'View inputs';
+      state: 'details_required';
+      resourceId: string;
+      resourceUrl: string | null;
+    }
+  | {
       kind: 'check_endpoint';
       label: 'Check current terms';
       state: 'ready_for_check';
@@ -88,6 +96,7 @@ export type IndexterEndpointAction =
     };
 
 export type IndexterDiscoveryResource = {
+  paymentSchemes?: string[];
   kind: 'endpoint';
   id: string;
   resourceId: string;
@@ -849,6 +858,13 @@ function isEndpointAction(
     || value.resourceId !== resourceId
     || value.resourceUrl !== resourceUrl
   ) return false;
+  if (value.kind === 'read_input_contract') {
+    return value.label === 'View inputs' && value.state === 'details_required'
+      && requestInput === null && inputContract?.status === 'details_required'
+      && inputContract.complete === false
+      && (inputContract.reason === undefined || ['inline_limit', 'page_limit'].includes(inputContract.reason))
+      && inputContract.detail?.resourceId === resourceId && inputContract.detail?.method === method;
+  }
   if (value.kind === 'endpoint_unavailable') {
     return value.label === 'Unavailable'
       && value.state === 'unavailable'
@@ -983,10 +999,11 @@ function isResource(value: unknown): value is IndexterDiscoveryResource {
     && !(isRecord(value.action) && isIndexterCurrentFailureReason(value.action.reason)
       && value.access.checkable !== false)
     && (value.access.checkable === true || (value.access.checkable === false
-      && isRecord(value.action) && value.action.kind === 'endpoint_unavailable'
+      && isRecord(value.action) && ['endpoint_unavailable', 'read_input_contract'].includes(String(value.action.kind))
       && (isIndexterCurrentFailureReason(value.action.reason)
         || (isRecord(value.inputContract) && value.inputContract.complete === false))))
     && isInputContractMetadata(value)
+    && (value.paymentSchemes === undefined || isIndexterPaymentSchemes(value.paymentSchemes))
     && (
       (value.access.kind === 'direct_url' && isHttpsUrl(value.resourceUrl))
       || (value.access.kind === 'managed_resolvable' && value.resourceUrl === null)
@@ -1014,6 +1031,13 @@ function isInputContractMetadata(value: Record<string, unknown>): boolean {
       || !['available', 'details_required'].includes(String(contract.status))) return false;
     return contract.status === 'available' ? contract.detail === undefined
       : isRecord(contract.detail) && contract.detail.resourceId === value.resourceId && contract.detail.method === value.method;
+  }
+  if (isRecord(value.action) && value.action.kind === 'read_input_contract') {
+    return contract.status === 'details_required' && contract.complete === false
+      && value.requestInput === null && isRecord(value.access) && value.access.checkable === false
+      && (contract.reason === undefined || ['inline_limit', 'page_limit'].includes(String(contract.reason)))
+      && isRecord(contract.detail) && contract.detail.resourceId === value.resourceId
+      && contract.detail.method === value.method;
   }
   if (contract.complete === false && (value.requestInput !== null || !isRecord(value.action)
     || value.action.kind !== 'endpoint_unavailable' || !isRecord(value.access) || value.access.checkable !== false)) return false;
@@ -1495,6 +1519,7 @@ export function buildResourceCheckFollowUp(
     || resource.action.resourceId !== resource.resourceId
     || resource.action.resourceUrl !== resource.resourceUrl
     || resource.action.kind === 'endpoint_unavailable'
+    || resource.action.kind === 'read_input_contract'
     || !isRequestInput(resource.requestInput)
   ) return null;
   const identity = {

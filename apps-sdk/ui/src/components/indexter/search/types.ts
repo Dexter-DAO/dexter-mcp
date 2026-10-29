@@ -65,6 +65,7 @@ export type SearchRequestInput = {
 };
 
 export type SearchResource = {
+  paymentSchemes?: string[];
   kind: 'endpoint';
   resourceId: string;
   name: string;

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Ref } from 'react';
 import { indexterCurrentFailureMessage } from '../../../../../../lib/indexter-endpoint-availability.mjs';
+import { indexterTabAdvertisementLabel } from '../../../../../../lib/indexter-payment-schemes.mjs';
 import {
   useAdaptiveCallToolFn,
   useAdaptiveDisplayMode,
@@ -263,6 +264,7 @@ function ResourceRow({
   showMerchant?: boolean;
 }) {
   const actionAvailable = resource.action.kind !== 'endpoint_unavailable';
+  const tabAdvertisement = indexterTabAdvertisementLabel(resource.paymentSchemes);
   const failureMessage = resource.action.kind === 'endpoint_unavailable'
     ? indexterCurrentFailureMessage(resource.action.reason) : null;
   const hasDeferredInputs = resource.inputContract?.status === 'details_required';
@@ -287,8 +289,11 @@ function ResourceRow({
         size={36}
       />
       <div className="dx-discovery-resource__body">
-        {showMerchant ? (
-          <span className="dx-discovery-resource__merchant">{provider.displayName}</span>
+        {showMerchant || tabAdvertisement ? (
+          <span className={`dx-discovery-resource__merchant${tabAdvertisement ? ' dx-discovery-resource__merchant--payment' : ''}`}>
+            {showMerchant ? <span title={provider.displayName}>{provider.displayName}</span> : null}
+            {tabAdvertisement ? <span>{tabAdvertisement}</span> : null}
+          </span>
         ) : null}
         <div className="dx-discovery-resource__heading">
           <strong>{resource.displayName}</strong>

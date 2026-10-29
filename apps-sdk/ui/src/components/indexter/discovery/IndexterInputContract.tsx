@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { indexterCurrentFailureMessage } from '../../../../../../lib/indexter-endpoint-availability.mjs';
+import { indexterTabAdvertisementLabel } from '../../../../../../lib/indexter-payment-schemes.mjs';
 import { useAdaptiveTheme, useAdaptiveHostContext } from '../../../sdk';
 import { IndexterLockup } from '../../brand/IndexterLockup';
 import { useIntrinsicHeight } from '../../x402/useIntrinsicHeight';
@@ -41,6 +42,7 @@ export function IndexterInputContract({ payload }: { payload: IndexterInputContr
         <div>
           <h2 title={contract?.displayName}>{contract?.displayName ?? 'Inputs unavailable'}</h2>
           {contract?.description ? <p className="dx-input-contract__description" title={contract.description}>{contract.description}</p> : null}
+          {indexterTabAdvertisementLabel(contract?.paymentSchemes) ? <p>{indexterTabAdvertisementLabel(contract?.paymentSchemes)}</p> : null}
           <p className="dx-input-contract__target" title={contract?.resourceUrl ?? payload.contractRequest.resourceId}>
             <strong>{payload.contractRequest.method}</strong>{' '}
             {contract?.resourceUrl ?? payload.contractRequest.resourceId}
