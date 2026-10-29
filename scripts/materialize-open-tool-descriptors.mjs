@@ -123,6 +123,12 @@ const API_GOVERNED_CONTRACT_PATHS = Object.freeze([
   'src/agentRuntime/agentWorkReportIdentity.ts',
   'src/agentRuntime/agentWorkReportStore.ts',
   'src/routes/agentWorkReport.ts',
+  'src/routes/indexterDiscovery.ts',
+  'src/routes/x402gleCapability.ts',
+  'src/routes/indexterCatalog.ts',
+  'src/services/capabilitySearch.ts',
+  'src/services/indexter',
+  'src/identity/hostname.ts',
   'src/prisma.ts',
   'src/marketData/priceUnits.ts',
   'src/portfolio/enrichment.ts',
@@ -265,9 +271,11 @@ const EXPECTED_SOURCE_CONTRACTS = Object.freeze({
   // Birdeye resource matching retains the same request and payment authority.
   // Accepted locked Tab receipts retain finalized claim evidence and expose
   // the saved settlement signature without renewing payment authority.
+  // Reviewed discovery preserves canonical provider identity and publishes
+  // catalog payment advertisements with complete request-contract references.
   // Later releases must preserve these API_GOVERNED_CONTRACT_PATHS bytes.
-  integratedGovernedCommit: '0667308f5cffdf48babe07636d70cf9e9ec554c6',
-  integratedGovernedTree: 'dc305c0261909a4aa94052db6276324434285aa9',
+  integratedGovernedCommit: '6fcb2cb97bc5e3ba2dc35c6fa4f8cac1dd024060',
+  integratedGovernedTree: '71cc2355f28a7476bfc0de1deb2934bc861320e8',
   apiFixtureSha256:
     'ad06690a3914e0ef0f359c4164eb62f78ca54abe6697a52672d739df63c2c352',
   apiCanonicalBodyDigest:
