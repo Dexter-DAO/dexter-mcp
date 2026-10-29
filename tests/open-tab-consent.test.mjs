@@ -14,6 +14,19 @@ const session = 'authenticated-connection-session';
 const args = { intentId, maxAmountAtomic: '25', expiresAtUnix: 1_900_003_600 };
 const secret = 'tab-preparation-test-secret-at-least-32-bytes';
 
+function preparedData(terms = args) {
+  const publicAddress = '11111111111111111111111111111111';
+  return { ok: true, intentId, status: 'pending_consent', paymentDispatched: false,
+    preparation: { caseId: intentId, sessionId: intentId, gatewayIntentId: intentId,
+      ownerReviewUrl: `https://dexter.cash/mandate?case=${intentId}&review=1`,
+      sessionPublicKey: publicAddress, sessionPublicKeyHex: '00'.repeat(32),
+      vaultPda: publicAddress, seller: publicAddress,
+      network: 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp', asset: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+      proposedTerms: { maxAmountAtomic: terms.maxAmountAtomic, maxRevolvingCapacityAtomic: terms.maxRevolvingCapacityAtomic ?? terms.maxAmountAtomic, expiresAtUnix: terms.expiresAtUnix },
+      proposedTermsDigest: 'a'.repeat(64), consentRequestId: intentId, consentRequestDigest: 'b'.repeat(64),
+      consentUrl: 'https://dexter.cash/tabs/new?req=e30', agentId: intentId, grantId: intentId, grantRevision: 1, grantRevisionDigest: 'c'.repeat(64) } };
+}
+
 test('native MCP call binds current connection metadata to exact preparation HMAC without executing fetch', async () => {
   const calls = [];
   const callApi = (action, input) => callOpenX402IntentApi(action, input, {
@@ -61,6 +74,52 @@ test('missing connection and malformed input stop before API access', async () =
   assert.equal((await handler({ ...args, wallet: 'caller-selected' })).structuredContent.error, 'invalid_tab_preparation_terms');
   assert.equal(calls, 0);
   assert.throws(() => buildOpenX402IntentRequest('tabPrepare', { ...args, sessionId: session, expiresAtUnix: Infinity }), /invalid_tab_expiry/);
+  for (const capacity of ['0', '-1', '1.5', 1500000]) {
+    assert.equal((await handler({ ...args, maxRevolvingCapacityAtomic: capacity })).structuredContent.error, 'invalid_tab_preparation_terms');
+    assert.throws(() => buildOpenX402IntentRequest('tabPrepare', { ...args, sessionId: session,
+      maxRevolvingCapacityAtomic: capacity }), /invalid_tab_revolving_capacity/);
+  }
+  assert.equal(calls, 0);
+});
+
+test('native MCP prepares a five dollar cap and separate purchase capacity without changing approved terms', async () => {
+  const standing = { ...args, maxAmountAtomic: '5000000', maxRevolvingCapacityAtomic: '1500000' };
+  const data = preparedData(standing), calls = [];
+  const callApi = (action, input) => callOpenX402IntentApi(action, input, {
+    now: () => 1_900_000_000_000, serviceSecret: secret,
+    fetchImpl: async (path, request) => {
+      calls.push({ path, request });
+      return new Response(JSON.stringify(data), { status: 200 });
+    },
+  });
+  const server = new McpServer({ name: 'standing-tab-test', version: '1.0.0' });
+  installOpenToolContracts(server);
+  registerOpenTool(server, 'x402_prepare_tab', { inputSchema: TAB_CONSENT_INPUT },
+    createTabConsentHandler({ resolveSession: async () => ({ sessionId: session, authenticated: true }), callApi }));
+  const client = new Client({ name: 'standing-tab-client', version: '1.0.0' });
+  const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair();
+  await server.connect(serverTransport); await client.connect(clientTransport);
+  try {
+    const response = await client.callTool({ name: 'x402_prepare_tab', arguments: standing });
+    assert.equal(response.isError, false);
+    assert.equal(response.structuredContent.paymentDispatched, false);
+    assert.deepEqual(response.structuredContent.preparation.proposedTerms, {
+      maxAmountAtomic: '5000000', maxRevolvingCapacityAtomic: '1500000', expiresAtUnix: standing.expiresAtUnix,
+    });
+    assert.match(response.content[0].text, /Proposed Tab limit: 5 USDC/);
+    assert.match(response.content[0].text, /Maximum outstanding Tab amount: 1.5 USDC/);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].path, '/v2/pay/anon/x402/tab/prepare');
+    assert.deepEqual(JSON.parse(calls[0].request.body), { mcp_session_id: session,
+      intentId, maxAmountAtomic: '5000000', expiresAtUnix: standing.expiresAtUnix, maxRevolvingCapacityAtomic: '1500000' });
+    const message = ['dexter.native-exact.mcp-service.v1', '1900000000000', 'POST', calls[0].path,
+      createHash('sha256').update(calls[0].request.body).digest('hex')].join('\n');
+    assert.equal(calls[0].request.headers['x-internal-signature'], createHmac('sha256', secret).update(message).digest('hex'));
+    data.preparation.proposedTerms.maxRevolvingCapacityAtomic = '5000000';
+    const changed = await client.callTool({ name: 'x402_prepare_tab', arguments: standing });
+    assert.equal(changed.isError, true);
+    assert.equal(changed.structuredContent.error, 'tab_preparation_unavailable');
+  } finally { await client.close(); await server.close(); }
 });
 
 test('an execution response or mismatched terms cannot masquerade as prepared authority', async () => {
@@ -73,16 +132,7 @@ test('an execution response or mismatched terms cannot masquerade as prepared au
 });
 
 test('successful preparation preserves its public session and case through the common result policy', async () => {
-  const publicAddress = '11111111111111111111111111111111';
-  const data = { ok: true, intentId, status: 'pending_consent', paymentDispatched: false,
-    preparation: { caseId: intentId, sessionId: intentId, gatewayIntentId: intentId,
-      ownerReviewUrl: `https://dexter.cash/mandate?case=${intentId}&review=1`,
-      sessionPublicKey: publicAddress, sessionPublicKeyHex: '00'.repeat(32),
-      vaultPda: publicAddress, seller: publicAddress,
-      network: 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp', asset: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
-      proposedTerms: { maxAmountAtomic: args.maxAmountAtomic, maxRevolvingCapacityAtomic: args.maxAmountAtomic, expiresAtUnix: args.expiresAtUnix },
-      proposedTermsDigest: 'a'.repeat(64), consentRequestId: intentId, consentRequestDigest: 'b'.repeat(64),
-      consentUrl: 'https://dexter.cash/tabs/new?req=e30', agentId: intentId, grantId: intentId, grantRevision: 1, grantRevisionDigest: 'c'.repeat(64) } };
+  const data = preparedData();
   const handler = createTabConsentHandler({ resolveSession: async () => ({ sessionId: session, authenticated: true }),
     callApi: async () => ({ data }) });
   const output = applyOpenToolResultPolicy('x402_prepare_tab', await handler(args));
