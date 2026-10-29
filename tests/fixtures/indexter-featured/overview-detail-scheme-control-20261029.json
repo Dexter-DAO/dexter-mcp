@@ -1,0 +1,597 @@
+{
+  "composition": "Production overview and detail with synthetic explicit scheme advertisements; availability unchanged.",
+  "overview": {
+    "ok": true,
+    "mode": "overview",
+    "generatedAt": "2026-10-29T06:08:43.361Z",
+    "summary": {
+      "endpointCatalog": {
+        "featuredProviderCount": 2,
+        "providerCount": 25,
+        "endpointCount": 150
+      },
+      "returnedProviderCount": 2
+    },
+    "providers": [
+      {
+        "kind": "provider",
+        "providerKey": "massive.com",
+        "providerSlug": "massive-com",
+        "technicalHost": "agent.massive.com",
+        "displayName": "Massive",
+        "logoUrl": "https://massive.com/logo.png",
+        "id": "massive.com",
+        "description": "Market data and company filings.",
+        "docsUrl": "https://massive.com/docs",
+        "editorial": {
+          "featured": true,
+          "order": 0,
+          "evidenceResourceId": "00000000-0000-4000-8000-000000000001"
+        },
+        "catalog": {
+          "resourceCount": 4,
+          "actorCounts": {
+            "returned": 0,
+            "indexed": 0,
+            "total": 0
+          },
+          "offeringCounts": {
+            "returned": 3,
+            "indexed": 4,
+            "total": 4
+          },
+          "capabilityGroupCount": 4,
+          "countsComplete": true
+        },
+        "evidence": {
+          "totalResourceCount": 4,
+          "evaluatedResourceCount": 4,
+          "deliveredRecentlyCount": 1,
+          "termsCheckedCount": 1,
+          "noCurrentConfirmationCount": 2,
+          "latestObservedAt": "2026-09-03T12:00:00.000Z",
+          "coverageComplete": true
+        },
+        "capabilityGroups": [
+          {
+            "id": "massive.com:reference",
+            "label": "Reference data",
+            "resourceCount": 1,
+            "returnedResourceCount": 1,
+            "resources": [
+              {
+                "kind": "endpoint",
+                "id": "00000000-0000-4000-8000-000000000001",
+                "resourceId": "00000000-0000-4000-8000-000000000001",
+                "resourceUrl": "https://agent.massive.com/v1/reference/tickers",
+                "displayName": "Ticker reference",
+                "description": "Look up ticker reference data.",
+                "category": "market data",
+                "method": "GET",
+                "iconUrl": null,
+                "docsUrl": "https://massive.com/docs/reference",
+                "price": {
+                  "usdc": 0.001,
+                  "label": "$0.001",
+                  "network": "solana"
+                },
+                "paymentSchemes": [
+                  "exact",
+                  "tab",
+                  "future_scheme"
+                ],
+                "evidence": {
+                  "state": "delivered_recently",
+                  "label": "Delivered recently",
+                  "observedAt": "2026-09-03T12:00:00.000Z"
+                },
+                "access": {
+                  "kind": "direct_url",
+                  "checkable": true,
+                  "requiresFreshCheck": true
+                },
+                "execution": {
+                  "sideEffectful": false,
+                  "effect": null,
+                  "automatedVerification": "enabled",
+                  "userExecution": "allowed",
+                  "confirmationRequired": false,
+                  "availability": "available",
+                  "requiresExplicitInput": false,
+                  "quoteMayCreateProviderReservation": false
+                },
+                "inputSchema": null,
+                "pathParams": null,
+                "schemaSource": "none",
+                "inputContract": {
+                  "status": "not_published",
+                  "complete": true
+                }
+              }
+            ]
+          },
+          {
+            "id": "massive.com:indicators",
+            "label": "Indicators",
+            "resourceCount": 1,
+            "returnedResourceCount": 1,
+            "resources": [
+              {
+                "kind": "endpoint",
+                "id": "00000000-0000-4000-8000-000000000002",
+                "resourceId": "00000000-0000-4000-8000-000000000002",
+                "resourceUrl": "https://agent.massive.com/v1/indicators/sma",
+                "displayName": "Simple moving average",
+                "description": "Look up ticker reference data.",
+                "category": "market data",
+                "method": "GET",
+                "iconUrl": null,
+                "docsUrl": "https://massive.com/docs/reference",
+                "price": {
+                  "usdc": null,
+                  "label": "Check price",
+                  "network": null
+                },
+                "paymentSchemes": [],
+                "evidence": {
+                  "state": "terms_checked",
+                  "label": "Terms checked",
+                  "observedAt": "2026-09-02T12:00:00.000Z"
+                },
+                "access": {
+                  "kind": "direct_url",
+                  "checkable": true,
+                  "requiresFreshCheck": true
+                },
+                "execution": {
+                  "sideEffectful": false,
+                  "effect": null,
+                  "automatedVerification": "enabled",
+                  "userExecution": "allowed",
+                  "confirmationRequired": false,
+                  "availability": "available",
+                  "requiresExplicitInput": false,
+                  "quoteMayCreateProviderReservation": false
+                },
+                "inputSchema": null,
+                "pathParams": null,
+                "schemaSource": "none",
+                "inputContract": {
+                  "status": "not_published",
+                  "complete": true
+                }
+              }
+            ]
+          },
+          {
+            "id": "massive.com:news",
+            "label": "News",
+            "resourceCount": 1,
+            "returnedResourceCount": 1,
+            "resources": [
+              {
+                "kind": "endpoint",
+                "id": "00000000-0000-4000-8000-000000000003",
+                "resourceId": "00000000-0000-4000-8000-000000000003",
+                "resourceUrl": "https://agent.massive.com/v1/news/articles",
+                "displayName": "Market news",
+                "description": "Look up ticker reference data.",
+                "category": "market data",
+                "method": "GET",
+                "iconUrl": null,
+                "docsUrl": "https://massive.com/docs/reference",
+                "price": {
+                  "usdc": null,
+                  "label": "Check price",
+                  "network": null
+                },
+                "paymentSchemes": [],
+                "evidence": {
+                  "state": "no_current_confirmation",
+                  "label": "No current confirmation",
+                  "observedAt": null
+                },
+                "access": {
+                  "kind": "direct_url",
+                  "checkable": true,
+                  "requiresFreshCheck": true
+                },
+                "execution": {
+                  "sideEffectful": false,
+                  "effect": null,
+                  "automatedVerification": "enabled",
+                  "userExecution": "allowed",
+                  "confirmationRequired": false,
+                  "availability": "available",
+                  "requiresExplicitInput": false,
+                  "quoteMayCreateProviderReservation": false
+                },
+                "inputSchema": null,
+                "pathParams": null,
+                "schemaSource": "none",
+                "inputContract": {
+                  "status": "not_published",
+                  "complete": true
+                }
+              }
+            ]
+          }
+        ],
+        "actorCatalog": null
+      },
+      {
+        "kind": "provider",
+        "providerKey": "apollo",
+        "providerSlug": "apollo",
+        "technicalHost": "apollo.io",
+        "displayName": "Apollo",
+        "logoUrl": null,
+        "id": "apollo",
+        "description": "Company and people data.",
+        "docsUrl": "https://docs.apollo.io/",
+        "editorial": {
+          "featured": true,
+          "order": 1,
+          "evidenceResourceId": "00000000-0000-4000-8000-000000000005"
+        },
+        "catalog": {
+          "resourceCount": 1,
+          "actorCounts": {
+            "returned": 0,
+            "indexed": 0,
+            "total": 0
+          },
+          "offeringCounts": {
+            "returned": 1,
+            "indexed": 1,
+            "total": 1
+          },
+          "capabilityGroupCount": 1,
+          "countsComplete": true
+        },
+        "evidence": {
+          "totalResourceCount": 1,
+          "evaluatedResourceCount": 1,
+          "deliveredRecentlyCount": 0,
+          "termsCheckedCount": 1,
+          "noCurrentConfirmationCount": 0,
+          "latestObservedAt": "2026-09-03T10:00:00.000Z",
+          "coverageComplete": true
+        },
+        "capabilityGroups": [
+          {
+            "id": "apollo:people",
+            "label": "People",
+            "resourceCount": 1,
+            "returnedResourceCount": 1,
+            "resources": [
+              {
+                "kind": "endpoint",
+                "id": "00000000-0000-4000-8000-000000000005",
+                "resourceId": "00000000-0000-4000-8000-000000000005",
+                "resourceUrl": null,
+                "displayName": "People match",
+                "description": "Match a person to current company data.",
+                "category": "people data",
+                "method": "POST",
+                "iconUrl": null,
+                "docsUrl": "https://massive.com/docs/reference",
+                "price": {
+                  "usdc": null,
+                  "label": "Check price",
+                  "network": null
+                },
+                "paymentSchemes": [],
+                "evidence": {
+                  "state": "terms_checked",
+                  "label": "Terms checked",
+                  "observedAt": "2026-09-03T10:00:00.000Z"
+                },
+                "access": {
+                  "kind": "managed_resolvable",
+                  "checkable": true,
+                  "requiresFreshCheck": true
+                },
+                "execution": {
+                  "sideEffectful": false,
+                  "effect": null,
+                  "automatedVerification": "enabled",
+                  "userExecution": "allowed",
+                  "confirmationRequired": false,
+                  "availability": "available",
+                  "requiresExplicitInput": false,
+                  "quoteMayCreateProviderReservation": false
+                },
+                "inputSchema": null,
+                "pathParams": null,
+                "schemaSource": "none",
+                "inputContract": {
+                  "status": "not_published",
+                  "complete": true
+                }
+              }
+            ]
+          }
+        ],
+        "actorCatalog": null
+      }
+    ],
+    "featuredOfferings": [
+      {
+        "kind": "endpoint",
+        "id": "00000000-0000-4000-8000-000000000001",
+        "resourceId": "00000000-0000-4000-8000-000000000001",
+        "resourceUrl": "https://agent.massive.com/v1/reference/tickers",
+        "displayName": "Ticker reference",
+        "description": "Look up ticker reference data.",
+        "category": "market data",
+        "method": "GET",
+        "iconUrl": null,
+        "docsUrl": "https://massive.com/docs/reference",
+        "price": {
+          "usdc": 0.001,
+          "label": "$0.001",
+          "network": "solana"
+        },
+        "paymentSchemes": [
+          "exact",
+          "tab",
+          "future_scheme"
+        ],
+        "evidence": {
+          "state": "delivered_recently",
+          "label": "Delivered recently",
+          "observedAt": "2026-09-03T12:00:00.000Z"
+        },
+        "access": {
+          "kind": "direct_url",
+          "checkable": true,
+          "requiresFreshCheck": true
+        },
+        "execution": {
+          "sideEffectful": false,
+          "effect": null,
+          "automatedVerification": "enabled",
+          "userExecution": "allowed",
+          "confirmationRequired": false,
+          "availability": "available",
+          "requiresExplicitInput": false,
+          "quoteMayCreateProviderReservation": false
+        },
+        "inputSchema": null,
+        "pathParams": null,
+        "schemaSource": "none",
+        "inputContract": {
+          "status": "not_published",
+          "complete": true
+        },
+        "provider": {
+          "kind": "provider",
+          "providerKey": "massive.com",
+          "providerSlug": "massive-com",
+          "technicalHost": "agent.massive.com",
+          "displayName": "Massive",
+          "logoUrl": "https://massive.com/logo.png"
+        }
+      },
+      {
+        "kind": "endpoint",
+        "id": "00000000-0000-4000-8000-000000000005",
+        "resourceId": "00000000-0000-4000-8000-000000000005",
+        "resourceUrl": null,
+        "displayName": "People match",
+        "description": "Match a person to current company data.",
+        "category": "people data",
+        "method": "POST",
+        "iconUrl": null,
+        "docsUrl": "https://massive.com/docs/reference",
+        "price": {
+          "usdc": null,
+          "label": "Check price",
+          "network": null
+        },
+        "paymentSchemes": [],
+        "evidence": {
+          "state": "terms_checked",
+          "label": "Terms checked",
+          "observedAt": "2026-09-03T10:00:00.000Z"
+        },
+        "access": {
+          "kind": "managed_resolvable",
+          "checkable": true,
+          "requiresFreshCheck": true
+        },
+        "execution": {
+          "sideEffectful": false,
+          "effect": null,
+          "automatedVerification": "enabled",
+          "userExecution": "allowed",
+          "confirmationRequired": false,
+          "availability": "available",
+          "requiresExplicitInput": false,
+          "quoteMayCreateProviderReservation": false
+        },
+        "inputSchema": null,
+        "pathParams": null,
+        "schemaSource": "none",
+        "inputContract": {
+          "status": "not_published",
+          "complete": true
+        },
+        "provider": {
+          "kind": "provider",
+          "providerKey": "apollo",
+          "providerSlug": "apollo",
+          "technicalHost": "apollo.io",
+          "displayName": "Apollo",
+          "logoUrl": null
+        }
+      },
+      {
+        "kind": "endpoint",
+        "id": "00000000-0000-4000-8000-000000000002",
+        "resourceId": "00000000-0000-4000-8000-000000000002",
+        "resourceUrl": "https://agent.massive.com/v1/indicators/sma",
+        "displayName": "Simple moving average",
+        "description": "Look up ticker reference data.",
+        "category": "market data",
+        "method": "GET",
+        "iconUrl": null,
+        "docsUrl": "https://massive.com/docs/reference",
+        "price": {
+          "usdc": null,
+          "label": "Check price",
+          "network": null
+        },
+        "paymentSchemes": [],
+        "evidence": {
+          "state": "terms_checked",
+          "label": "Terms checked",
+          "observedAt": "2026-09-02T12:00:00.000Z"
+        },
+        "access": {
+          "kind": "direct_url",
+          "checkable": true,
+          "requiresFreshCheck": true
+        },
+        "execution": {
+          "sideEffectful": false,
+          "effect": null,
+          "automatedVerification": "enabled",
+          "userExecution": "allowed",
+          "confirmationRequired": false,
+          "availability": "available",
+          "requiresExplicitInput": false,
+          "quoteMayCreateProviderReservation": false
+        },
+        "inputSchema": null,
+        "pathParams": null,
+        "schemaSource": "none",
+        "inputContract": {
+          "status": "not_published",
+          "complete": true
+        },
+        "provider": {
+          "kind": "provider",
+          "providerKey": "massive.com",
+          "providerSlug": "massive-com",
+          "technicalHost": "agent.massive.com",
+          "displayName": "Massive",
+          "logoUrl": "https://massive.com/logo.png"
+        }
+      },
+      {
+        "kind": "endpoint",
+        "id": "00000000-0000-4000-8000-000000000003",
+        "resourceId": "00000000-0000-4000-8000-000000000003",
+        "resourceUrl": "https://agent.massive.com/v1/news/articles",
+        "displayName": "Market news",
+        "description": "Look up ticker reference data.",
+        "category": "market data",
+        "method": "GET",
+        "iconUrl": null,
+        "docsUrl": "https://massive.com/docs/reference",
+        "price": {
+          "usdc": null,
+          "label": "Check price",
+          "network": null
+        },
+        "paymentSchemes": [],
+        "evidence": {
+          "state": "no_current_confirmation",
+          "label": "No current confirmation",
+          "observedAt": null
+        },
+        "access": {
+          "kind": "direct_url",
+          "checkable": true,
+          "requiresFreshCheck": true
+        },
+        "execution": {
+          "sideEffectful": false,
+          "effect": null,
+          "automatedVerification": "enabled",
+          "userExecution": "allowed",
+          "confirmationRequired": false,
+          "availability": "available",
+          "requiresExplicitInput": false,
+          "quoteMayCreateProviderReservation": false
+        },
+        "inputSchema": null,
+        "pathParams": null,
+        "schemaSource": "none",
+        "inputContract": {
+          "status": "not_published",
+          "complete": true
+        },
+        "provider": {
+          "kind": "provider",
+          "providerKey": "massive.com",
+          "providerSlug": "massive-com",
+          "technicalHost": "agent.massive.com",
+          "displayName": "Massive",
+          "logoUrl": "https://massive.com/logo.png"
+        }
+      }
+    ],
+    "page": {
+      "version": 2,
+      "namespace": "indexter.endpoint.providers.v1",
+      "scope": "providers",
+      "order": "featured_provider_curation_v1",
+      "limit": 2,
+      "returned": 2,
+      "hasMore": false,
+      "nextCursor": null
+    }
+  },
+  "detail": {
+    "kind": "endpoint",
+    "id": "00000000-0000-4000-8000-000000000001",
+    "resourceId": "00000000-0000-4000-8000-000000000001",
+    "resourceUrl": "https://agent.massive.com/v1/reference/tickers",
+    "displayName": "Ticker reference",
+    "description": "Look up ticker reference data.",
+    "category": "market data",
+    "method": "GET",
+    "iconUrl": null,
+    "docsUrl": "https://massive.com/docs/reference",
+    "price": {
+      "usdc": 0.001,
+      "label": "$0.001",
+      "network": "solana"
+    },
+    "paymentSchemes": [
+      "exact",
+      "tab",
+      "future_scheme"
+    ],
+    "evidence": {
+      "state": "no_current_confirmation",
+      "label": "No current confirmation",
+      "observedAt": null
+    },
+    "access": {
+      "kind": "direct_url",
+      "checkable": true,
+      "requiresFreshCheck": true
+    },
+    "execution": {
+      "sideEffectful": false,
+      "effect": null,
+      "automatedVerification": "enabled",
+      "userExecution": "allowed",
+      "confirmationRequired": false,
+      "availability": "available",
+      "requiresExplicitInput": false,
+      "quoteMayCreateProviderReservation": false
+    },
+    "inputSchema": null,
+    "pathParams": null,
+    "schemaSource": "none",
+    "inputContract": {
+      "status": "not_published",
+      "complete": true
+    }
+  }
+}

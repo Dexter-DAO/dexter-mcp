@@ -1119,6 +1119,11 @@ async function renderVariant({ browser, baseUrl, surface, device, theme }) {
   if (TOOL_RESULT_FILE && surface.id === 'indexter-search') {
     const entries = surface.output?.route === 'input_contract'
       ? [surface.output.contract] : surface.output?.results ?? [];
+    if (SEARCH_VIEW !== 'contract-schema' && entries[0]?.paymentSchemes?.includes('tab')) {
+      const visibleLabels = await Promise.all((await frame.getByText('Tabs advertised', { exact: true }).all()).map(label => label.isVisible()));
+      assert.ok(visibleLabels.some(Boolean),
+        'The primary result must retain its Tab advertisement at this width');
+    }
     const messages = [...new Set(entries.filter(entry => entry?.action?.kind === 'endpoint_unavailable')
       .map(entry => indexterCurrentFailureMessage(entry.action.reason)).filter(Boolean))];
     for (const message of messages) {

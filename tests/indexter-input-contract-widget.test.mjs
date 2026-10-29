@@ -50,7 +50,7 @@ test('app discovery preserves a deferred endpoint and emits only a catalog-read 
     .find(row => row.inputContract?.status === 'details_required');
   assert.ok(resource);
   assert.equal(resource.access.checkable, false);
-  assert.equal(resource.action.kind, 'endpoint_unavailable');
+  assert.equal(resource.action.kind, 'read_input_contract');
   const prompt = buildInputContractFollowUp(resource);
   assert.ok(prompt.includes(JSON.stringify({ contractResourceId: resource.resourceId, contractMethod: resource.method })));
   assert.match(prompt, /catalog details only/);

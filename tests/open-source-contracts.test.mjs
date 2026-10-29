@@ -842,6 +842,26 @@ test('cross-repository source verifier accepts only the exact frozen graph', asy
   });
 });
 
+test('discovery producer guards reject route, identity, schema and scheme drift', async (t) => {
+  for (const path of [
+    'src/routes/indexterDiscovery.ts',
+    'src/routes/x402gleCapability.ts',
+    'src/routes/indexterCatalog.ts',
+    'src/services/capabilitySearch.ts',
+    'src/services/indexter/discovery.ts',
+    'src/services/indexter/inputContract.ts',
+    'src/services/indexter/taskMerchantIdentity.ts',
+    'src/services/indexter/catalogPaymentSchemes.ts',
+    'src/services/indexter/managedResourceRedaction.ts',
+    'src/identity/hostname.ts',
+  ]) {
+    await t.test(path, async (subtest) => {
+      const harness = createCrossRepositoryHarness(subtest, { governedDrift: path });
+      await assert.rejects(verifyHarness(harness), /changes the frozen/);
+    });
+  }
+});
+
 test('cross-repository source verifier rejects every identity and byte attack', async (t) => {
   const cases = [
     ['wrong tree', { wrongTree: true }, /commit\/tree identity mismatch/],

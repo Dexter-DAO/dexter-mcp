@@ -1,0 +1,807 @@
+{
+  "provenance": {
+    "capturedAt": "2026-10-29",
+    "sources": [
+      {
+        "path": "/home/branchmanager/dexter-reports/2026-10-29/discovery-readback/indexter-website/backend-catalog-page-2.json",
+        "sha256": "6c3ab3cda960c5fbd3c9dd3e17c554c8c9e946a77ddf33954aec720f10908c8a"
+      },
+      {
+        "path": "/home/branchmanager/dexter-reports/2026-10-29/discovery-readback/indexter-website/backend-catalog-page-3.json",
+        "sha256": "47cee11c9a8c417081e7dafbd907c7d3c259a8c9580814d697c3bd094e36ac0c"
+      },
+      {
+        "path": "/home/branchmanager/dexter-reports/2026-10-29/discovery-readback/indexter-website/backend-catalog-page-5.json",
+        "sha256": "b7e1e26a722eb8190c0d669a3a658ffb9f8d40b7a134720e4f4eb465322c4eb2"
+      }
+    ],
+    "limits": "Selected public catalog fields; task ranking and recall are supplied by isolated tests, not a new live search."
+  },
+  "composition": "Production capabilitySearch with saved public catalog identities and isolated recall/rank fixtures.",
+  "response": {
+    "query": "crypto market data",
+    "intent": {
+      "capabilityText": "crypto market data",
+      "expandedCapabilityText": "crypto market data",
+      "categories": null,
+      "networks": null,
+      "minQualityScore": null,
+      "maxPriceUsdc": null,
+      "minPriceUsdc": null,
+      "requireVerified": false
+    },
+    "appliedConstraints": {
+      "maxPriceUsdc": null,
+      "minPriceUsdc": null,
+      "paidOnly": false
+    },
+    "appliedOrdering": {
+      "sortBy": "relevance"
+    },
+    "strongResults": [
+      {
+        "kind": "endpoint",
+        "resourceId": "10442fbd-1295-404c-955b-489458879778",
+        "resourceUrl": "https://api.arkm.com/x402/token/market/by-id",
+        "access": {
+          "kind": "direct_url",
+          "checkable": true,
+          "requiresFreshCheck": true
+        },
+        "merchant": {
+          "providerKey": "arkm.com",
+          "providerSlug": "api.arkm.com",
+          "displayName": "Arkham API",
+          "logoUrl": "https://api.arkm.com/black-logo.png",
+          "technicalHost": "api.arkm.com"
+        },
+        "displayName": "Arkham Token Market Lookup",
+        "description": "Retrieves token market data by ID for Arkham x402.",
+        "category": "Data",
+        "host": "api.arkm.com",
+        "method": "POST",
+        "icon": "https://www.google.com/s2/favicons?domain=arkm.com&sz=64",
+        "pricing": {
+          "usdc": 0.01,
+          "network": "eip155:8453",
+          "networkLabel": "Base",
+          "asset": "0xUSDC",
+          "mode": "fixed",
+          "quoteRequired": false,
+          "chains": [
+            {
+              "network": "eip155:8453",
+              "networkLabel": "Base",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "scheme": "exact",
+              "priceAtomic": "200000",
+              "priceUsdc": 0.2,
+              "priceLabel": "$0.20"
+            },
+            {
+              "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+              "networkLabel": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+              "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+              "scheme": "exact",
+              "priceAtomic": "200000",
+              "priceUsdc": 0.2,
+              "priceLabel": "$0.20"
+            }
+          ]
+        },
+        "execution": {
+          "sideEffectful": false,
+          "effect": null,
+          "automatedVerification": "enabled",
+          "userExecution": "allowed",
+          "confirmationRequired": false,
+          "availability": "available",
+          "requiresExplicitInput": false,
+          "quoteMayCreateProviderReservation": false
+        },
+        "verification": {
+          "status": "unverified",
+          "paid": false,
+          "paidQualityTestPassed": false,
+          "trustBasis": "none",
+          "trustLabel": "No current confirmation",
+          "evidenceState": "no_current_confirmation",
+          "evidenceLabel": "No current confirmation",
+          "evidenceAt": null,
+          "qualityScore": 80,
+          "lastVerifiedAt": "2026-01-01T00:00:00.000Z",
+          "responseStatus": null
+        },
+        "usage": {
+          "totalSettlements": 100,
+          "totalVolumeUsdc": 5,
+          "lastSettlementAt": "2026-01-10T00:00:00.000Z"
+        },
+        "safetyFlags": [],
+        "ogImage": null,
+        "docsUrl": "https://api.arkm.com/x402/openapi.json",
+        "openapiSpecUrl": null,
+        "pathParams": null,
+        "inputSchema": {
+          "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "required": [
+            "id"
+          ],
+          "properties": {
+            "id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "boolean"
+                      }
+                    ]
+                  }
+                }
+              ],
+              "description": "The CoinGecko pricing ID of the token."
+            }
+          },
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "boolean"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        "outputSchema": {
+          "type": "object",
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "example": {
+              "type": "object",
+              "$schema": "https://json-schema.org/draft/2020-12/schema"
+            }
+          }
+        },
+        "schemaSource": "bazaar",
+        "latency": {
+          "p50Ms": 120,
+          "p95Ms": 400
+        },
+        "uptime": {
+          "pct": 99.5
+        },
+        "similarity": 0.72,
+        "serviceProfile": null,
+        "band": "exact",
+        "verificationRank": 2,
+        "qualityScore": 80,
+        "recencyDays": 301.2560833449074,
+        "why": "exact match · No current confirmation",
+        "tier": "strong",
+        "editorial": {
+          "providerFeatured": false,
+          "providerOrder": null
+        }
+      },
+      {
+        "kind": "endpoint",
+        "resourceId": "4be066e1-fff9-4ef9-838a-cd7d49e25d3a",
+        "resourceUrl": "https://agents.allium.so/api/v1/developer/wallet/balances",
+        "access": {
+          "kind": "direct_url",
+          "checkable": true,
+          "requiresFreshCheck": true
+        },
+        "merchant": {
+          "providerKey": "allium.so",
+          "providerSlug": "agents.allium.so",
+          "displayName": "Allium",
+          "logoUrl": "https://pbs.twimg.com/profile_images/1858260625361547264/FJiE1Ub4_400x400.jpg",
+          "technicalHost": "agents.allium.so"
+        },
+        "displayName": "Paid Dev Wallet Balances",
+        "description": "Fetches a developer wallet's token balances across networks; requires payment with multi-asset on-chain payment parameters.",
+        "category": "Data",
+        "host": "agents.allium.so",
+        "method": "POST",
+        "icon": "https://www.google.com/s2/favicons?domain=agents.allium.so&sz=64",
+        "pricing": {
+          "usdc": 0.01,
+          "network": "eip155:8453",
+          "networkLabel": "Base",
+          "asset": "0xUSDC",
+          "mode": "fixed",
+          "quoteRequired": false,
+          "chains": [
+            {
+              "network": "eip155:8453",
+              "networkLabel": "Base",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "scheme": "exact",
+              "priceAtomic": "10000",
+              "priceUsdc": 0.01,
+              "priceLabel": "$0.01"
+            },
+            {
+              "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+              "networkLabel": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+              "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+              "scheme": "exact",
+              "priceAtomic": "10000",
+              "priceUsdc": 0.01,
+              "priceLabel": "$0.01"
+            },
+            {
+              "network": "eip155:196",
+              "networkLabel": "eip155:196",
+              "asset": "0x74b7f16337b8972027f6196a17a631ac6de26d22",
+              "scheme": "exact",
+              "priceAtomic": "10000",
+              "priceUsdc": null,
+              "priceLabel": "10000 0x74b7f16337b8972027f6196a17a631ac6de26d22 atomic units"
+            },
+            {
+              "network": "eip155:137",
+              "networkLabel": "eip155:137",
+              "asset": "0x3c499c542cEF5E3811e1192ce70d8cc03d5c3359",
+              "scheme": "exact",
+              "priceAtomic": "10000",
+              "priceUsdc": null,
+              "priceLabel": "10000 0x3c499c542cEF5E3811e1192ce70d8cc03d5c3359 atomic units"
+            }
+          ]
+        },
+        "execution": {
+          "sideEffectful": false,
+          "effect": null,
+          "automatedVerification": "enabled",
+          "userExecution": "allowed",
+          "confirmationRequired": false,
+          "availability": "available",
+          "requiresExplicitInput": false,
+          "quoteMayCreateProviderReservation": false
+        },
+        "verification": {
+          "status": "unverified",
+          "paid": false,
+          "paidQualityTestPassed": false,
+          "trustBasis": "none",
+          "trustLabel": "No current confirmation",
+          "evidenceState": "no_current_confirmation",
+          "evidenceLabel": "No current confirmation",
+          "evidenceAt": null,
+          "qualityScore": 80,
+          "lastVerifiedAt": "2026-01-01T00:00:00.000Z",
+          "responseStatus": null
+        },
+        "usage": {
+          "totalSettlements": 100,
+          "totalVolumeUsdc": 5,
+          "lastSettlementAt": "2026-01-10T00:00:00.000Z"
+        },
+        "safetyFlags": [],
+        "ogImage": null,
+        "docsUrl": "https://docs.allium.so/ai/x402/api-reference",
+        "openapiSpecUrl": null,
+        "pathParams": null,
+        "inputSchema": {
+          "type": "object",
+          "required": [
+            "chain",
+            "address"
+          ],
+          "properties": {
+            "chain": {
+              "type": "string",
+              "description": "Blockchain network (e.g. ethereum, solana, base)"
+            },
+            "address": {
+              "type": "string",
+              "description": "Wallet address"
+            }
+          }
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "example": {
+              "type": "object"
+            }
+          }
+        },
+        "schemaSource": "bazaar",
+        "latency": {
+          "p50Ms": 120,
+          "p95Ms": 400
+        },
+        "uptime": {
+          "pct": 99.5
+        },
+        "similarity": 0.72,
+        "serviceProfile": null,
+        "band": "exact",
+        "verificationRank": 2,
+        "qualityScore": 80,
+        "recencyDays": 301.2560833449074,
+        "why": "exact match · No current confirmation",
+        "tier": "strong",
+        "editorial": {
+          "providerFeatured": false,
+          "providerOrder": null
+        }
+      },
+      {
+        "kind": "endpoint",
+        "resourceId": "75def672-16c5-4842-b6f2-fd2b6cc60520",
+        "resourceUrl": "https://x402.alchemy.com/prices/v1/tokens/historical",
+        "access": {
+          "kind": "direct_url",
+          "checkable": true,
+          "requiresFreshCheck": true
+        },
+        "merchant": {
+          "providerKey": "alchemy.com",
+          "providerSlug": "alchemy.com",
+          "displayName": "Alchemy",
+          "logoUrl": "https://media.alchemy.com/1699253173-alchemy-logo.svg",
+          "technicalHost": "x402.alchemy.com"
+        },
+        "displayName": "Alchemy Token Price History",
+        "description": "Returns historical price time series for tokens across supported chains, providing timestamps and price values for analysis.",
+        "category": "Data",
+        "host": "x402.alchemy.com",
+        "method": "POST",
+        "icon": "https://www.alchemy.com/favicon.ico",
+        "pricing": {
+          "usdc": 0.01,
+          "network": "eip155:8453",
+          "networkLabel": "Base",
+          "asset": "0xUSDC",
+          "mode": "fixed",
+          "quoteRequired": false,
+          "chains": [
+            {
+              "network": "eip155:8453",
+              "networkLabel": "Base",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "scheme": "exact",
+              "priceAtomic": "1000",
+              "priceUsdc": 0.001,
+              "priceLabel": "$0.001"
+            },
+            {
+              "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+              "networkLabel": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+              "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+              "scheme": "exact",
+              "priceAtomic": "1000",
+              "priceUsdc": 0.001,
+              "priceLabel": "$0.001"
+            },
+            {
+              "network": "eip155:8453",
+              "networkLabel": "Base",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "scheme": "exact",
+              "priceAtomic": "1000",
+              "priceUsdc": 0.001,
+              "priceLabel": "$0.001"
+            }
+          ]
+        },
+        "execution": {
+          "sideEffectful": false,
+          "effect": null,
+          "automatedVerification": "enabled",
+          "userExecution": "allowed",
+          "confirmationRequired": false,
+          "availability": "available",
+          "requiresExplicitInput": false,
+          "quoteMayCreateProviderReservation": false
+        },
+        "verification": {
+          "status": "unverified",
+          "paid": false,
+          "paidQualityTestPassed": false,
+          "trustBasis": "none",
+          "trustLabel": "No current confirmation",
+          "evidenceState": "no_current_confirmation",
+          "evidenceLabel": "No current confirmation",
+          "evidenceAt": null,
+          "qualityScore": 80,
+          "lastVerifiedAt": "2026-01-01T00:00:00.000Z",
+          "responseStatus": null
+        },
+        "usage": {
+          "totalSettlements": 100,
+          "totalVolumeUsdc": 5,
+          "lastSettlementAt": "2026-01-10T00:00:00.000Z"
+        },
+        "safetyFlags": [],
+        "ogImage": null,
+        "docsUrl": "https://github.com/alchemyplatform/skills/tree/main/skills/agentic-gateway",
+        "openapiSpecUrl": null,
+        "pathParams": null,
+        "inputSchema": {
+          "type": "object",
+          "required": [
+            "startTime",
+            "endTime"
+          ],
+          "properties": {
+            "symbol": {
+              "type": "string",
+              "description": "string (optional, use with startTime/endTime)"
+            },
+            "address": {
+              "type": "string",
+              "description": "string (optional, required with network if symbol omitted)"
+            },
+            "endTime": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "description": "string | number (required)"
+            },
+            "network": {
+              "type": "string",
+              "description": "string (optional, required with address if symbol omitted)"
+            },
+            "interval": {
+              "type": "string",
+              "description": "string (optional: 5m | 1h | 1d)"
+            },
+            "startTime": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "description": "string | number (required)"
+            },
+            "withMarketData": {
+              "type": "boolean",
+              "description": "boolean (optional)"
+            }
+          },
+          "additionalProperties": false,
+          "x-dexter-verification": {
+            "mode": "manual_only",
+            "effect": "unknown_external_effect",
+            "reason": "unclassified_mutating_operation",
+            "pricingMode": "dynamic",
+            "classifiedBy": "dexter_side_effect_policy_v1",
+            "userExecution": "allowed",
+            "confirmationRequired": true,
+            "requiresExplicitInput": true,
+            "quoteMayCreateProviderReservation": false
+          }
+        },
+        "outputSchema": null,
+        "schemaSource": "bazaar",
+        "latency": {
+          "p50Ms": 120,
+          "p95Ms": 400
+        },
+        "uptime": {
+          "pct": 99.5
+        },
+        "similarity": 0.72,
+        "serviceProfile": null,
+        "band": "exact",
+        "verificationRank": 2,
+        "qualityScore": 80,
+        "recencyDays": 301.2560833449074,
+        "why": "exact match · No current confirmation",
+        "tier": "strong",
+        "editorial": {
+          "providerFeatured": false,
+          "providerOrder": null
+        }
+      },
+      {
+        "kind": "endpoint",
+        "resourceId": "f24a8b71-85a8-432b-ba80-2b6a4071b209",
+        "resourceUrl": "https://pro-api.coinmarketcap.com/x402/v1/dex/search",
+        "access": {
+          "kind": "direct_url",
+          "checkable": true,
+          "requiresFreshCheck": true
+        },
+        "merchant": {
+          "providerKey": "coinmarketcap.com",
+          "providerSlug": "coinmarketcap.com",
+          "displayName": "CoinMarketCap",
+          "logoUrl": "https://www.google.com/s2/favicons?domain=coinmarketcap.com&sz=64",
+          "technicalHost": "pro-api.coinmarketcap.com"
+        },
+        "displayName": "DEX Search",
+        "description": "Search decentralized exchange markets and trading pairs on CoinMarketCap.",
+        "category": "Trading",
+        "host": "pro-api.coinmarketcap.com",
+        "method": "GET",
+        "icon": "https://www.google.com/s2/favicons?domain=coinmarketcap.com&sz=64",
+        "pricing": {
+          "usdc": 0.01,
+          "network": "eip155:8453",
+          "networkLabel": "Base",
+          "asset": "0xUSDC",
+          "mode": "fixed",
+          "quoteRequired": false,
+          "chains": [
+            {
+              "network": "eip155:8453",
+              "networkLabel": "Base",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "scheme": "exact",
+              "priceAtomic": "10000",
+              "priceUsdc": 0.01,
+              "priceLabel": "$0.01"
+            },
+            {
+              "network": "eip155:56",
+              "networkLabel": "eip155:56",
+              "asset": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
+              "scheme": "exact",
+              "priceAtomic": "10000000000000000",
+              "priceUsdc": 0.01,
+              "priceLabel": "$0.01"
+            },
+            {
+              "network": "eip155:56",
+              "networkLabel": "eip155:56",
+              "asset": "0xcE24439F2D9C6a2289F741120FE202248B666666",
+              "scheme": "exact",
+              "priceAtomic": "10000000000000000",
+              "priceUsdc": null,
+              "priceLabel": "10000000000000000 0xcE24439F2D9C6a2289F741120FE202248B666666 atomic units"
+            },
+            {
+              "network": "eip155:56",
+              "networkLabel": "eip155:56",
+              "asset": "0xcE24439F2D9C6a2289F741120FE202248B666666",
+              "scheme": "exact",
+              "priceAtomic": "10000000000000000",
+              "priceUsdc": null,
+              "priceLabel": "10000000000000000 0xcE24439F2D9C6a2289F741120FE202248B666666 atomic units"
+            },
+            {
+              "network": "eip155:56",
+              "networkLabel": "eip155:56",
+              "asset": "0x8d0D000Ee44948FC98c9B98A4FA4921476f08B0d",
+              "scheme": "exact",
+              "priceAtomic": "10000000000000000",
+              "priceUsdc": null,
+              "priceLabel": "10000000000000000 0x8d0D000Ee44948FC98c9B98A4FA4921476f08B0d atomic units"
+            },
+            {
+              "network": "eip155:56",
+              "networkLabel": "eip155:56",
+              "asset": "0x8d0D000Ee44948FC98c9B98A4FA4921476f08B0d",
+              "scheme": "exact",
+              "priceAtomic": "10000000000000000",
+              "priceUsdc": null,
+              "priceLabel": "10000000000000000 0x8d0D000Ee44948FC98c9B98A4FA4921476f08B0d atomic units"
+            },
+            {
+              "network": "eip155:56",
+              "networkLabel": "eip155:56",
+              "asset": "0x55d398326f99059fF775485246999027B3197955",
+              "scheme": "exact",
+              "priceAtomic": "10000000000000000",
+              "priceUsdc": null,
+              "priceLabel": "10000000000000000 0x55d398326f99059fF775485246999027B3197955 atomic units"
+            }
+          ]
+        },
+        "execution": {
+          "sideEffectful": false,
+          "effect": null,
+          "automatedVerification": "enabled",
+          "userExecution": "allowed",
+          "confirmationRequired": false,
+          "availability": "available",
+          "requiresExplicitInput": false,
+          "quoteMayCreateProviderReservation": false
+        },
+        "verification": {
+          "status": "unverified",
+          "paid": false,
+          "paidQualityTestPassed": false,
+          "trustBasis": "none",
+          "trustLabel": "No current confirmation",
+          "evidenceState": "no_current_confirmation",
+          "evidenceLabel": "No current confirmation",
+          "evidenceAt": null,
+          "qualityScore": 80,
+          "lastVerifiedAt": "2026-01-01T00:00:00.000Z",
+          "responseStatus": null
+        },
+        "usage": {
+          "totalSettlements": 100,
+          "totalVolumeUsdc": 5,
+          "lastSettlementAt": "2026-01-10T00:00:00.000Z"
+        },
+        "safetyFlags": [],
+        "ogImage": null,
+        "docsUrl": "https://pro-api.coinmarketcap.com/openapi.json",
+        "openapiSpecUrl": null,
+        "pathParams": null,
+        "inputSchema": {
+          "type": "object",
+          "required": [
+            "q"
+          ],
+          "properties": {
+            "q": {
+              "type": "string",
+              "description": "Search keyword. Matches token name, symbol, or contract address."
+            }
+          }
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "json"
+            },
+            "example": {
+              "type": "object"
+            }
+          }
+        },
+        "schemaSource": "bazaar",
+        "latency": {
+          "p50Ms": 120,
+          "p95Ms": 400
+        },
+        "uptime": {
+          "pct": 99.5
+        },
+        "similarity": 0.72,
+        "serviceProfile": null,
+        "band": "exact",
+        "verificationRank": 2,
+        "qualityScore": 80,
+        "recencyDays": 301.2560833449074,
+        "why": "exact match · No current confirmation",
+        "tier": "strong",
+        "editorial": {
+          "providerFeatured": false,
+          "providerOrder": null
+        }
+      }
+    ],
+    "relatedResults": [],
+    "composedSkills": [
+      {
+        "type": "composed_skill",
+        "qualifiedSlug": "undefined/undefined",
+        "costEstimateUsdc": null,
+        "callCountEstimate": null,
+        "qualityScore": 80,
+        "totalInstalls": null,
+        "totalRuns": null,
+        "previewUrl": "https://x402gle.com/skills/undefined/undefined",
+        "marketplaceJsonUrl": "https://api.dexter.cash/api/public/composed-skills/undefined/undefined/marketplace.json",
+        "installCommand": "/plugin marketplace add https://x402gle.com/marketplace.json"
+      },
+      {
+        "type": "composed_skill",
+        "qualifiedSlug": "undefined/undefined",
+        "costEstimateUsdc": null,
+        "callCountEstimate": null,
+        "qualityScore": 80,
+        "totalInstalls": null,
+        "totalRuns": null,
+        "previewUrl": "https://x402gle.com/skills/undefined/undefined",
+        "marketplaceJsonUrl": "https://api.dexter.cash/api/public/composed-skills/undefined/undefined/marketplace.json",
+        "installCommand": "/plugin marketplace add https://x402gle.com/marketplace.json"
+      },
+      {
+        "type": "composed_skill",
+        "qualifiedSlug": "undefined/undefined",
+        "costEstimateUsdc": null,
+        "callCountEstimate": null,
+        "qualityScore": 80,
+        "totalInstalls": null,
+        "totalRuns": null,
+        "previewUrl": "https://x402gle.com/skills/undefined/undefined",
+        "marketplaceJsonUrl": "https://api.dexter.cash/api/public/composed-skills/undefined/undefined/marketplace.json",
+        "installCommand": "/plugin marketplace add https://x402gle.com/marketplace.json"
+      },
+      {
+        "type": "composed_skill",
+        "qualifiedSlug": "undefined/undefined",
+        "costEstimateUsdc": null,
+        "callCountEstimate": null,
+        "qualityScore": 80,
+        "totalInstalls": null,
+        "totalRuns": null,
+        "previewUrl": "https://x402gle.com/skills/undefined/undefined",
+        "marketplaceJsonUrl": "https://api.dexter.cash/api/public/composed-skills/undefined/undefined/marketplace.json",
+        "installCommand": "/plugin marketplace add https://x402gle.com/marketplace.json"
+      }
+    ],
+    "components": {
+      "composedSkills": {
+        "status": "complete"
+      }
+    },
+    "totalCandidates": 4,
+    "strongCount": 4,
+    "relatedCount": 0,
+    "topSimilarity": 0.72,
+    "noMatchReason": null,
+    "thresholds": {
+      "similarityFloor": 0.2
+    },
+    "rankingMode": "full",
+    "rerank": {
+      "enabled": true,
+      "applied": true
+    },
+    "confidence": {
+      "profileCoverage": 0,
+      "topMatchProfileBacked": false,
+      "triangulatableAlternates": []
+    },
+    "embeddingTokens": 8,
+    "durationMs": 5
+  }
+}

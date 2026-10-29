@@ -301,14 +301,15 @@ test('actual producer inline contracts survive discovery without inventing adapt
   }
 });
 
-test('deferred catalog fields stay unavailable and have an exact read-only continuation', async (t) => {
+test('deferred catalog fields offer an exact read-only input continuation', async (t) => {
   const { client } = await connected(t, () => Response.json(contracts.deferredResponse));
   const result = await client.callTool({ name: 'indexter_search', arguments: { query } });
   assert.equal(result.isError, undefined, JSON.stringify(result.structuredContent));
   const row = result.structuredContent.results.find(row => row.inputContract?.status === 'details_required');
   assert.ok(row);
   assert.equal(row.requestInput, null);
-  assert.equal(row.action.kind, 'endpoint_unavailable');
+  assert.equal(row.action.kind, 'read_input_contract');
+  assert.equal(row.action.label, 'View inputs');
   assert.deepEqual(row.inputContract.detail, { resourceId: row.resourceId, method: row.method });
   assert.match(result.content[0].text, /contractResourceId/);
   assert.match(result.content[0].text, /does not contact the seller/);

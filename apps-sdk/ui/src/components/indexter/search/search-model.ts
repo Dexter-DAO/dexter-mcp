@@ -1,4 +1,5 @@
 import { indexterCurrentFailureReason } from '../../../../../../lib/indexter-endpoint-availability.mjs';
+import { isIndexterPaymentSchemes } from '../../../../../../lib/indexter-payment-schemes.mjs';
 import type {
   SearchIntent,
   SearchMeta,
@@ -580,6 +581,7 @@ function isSafeResource(value: unknown, expectedTier?: 'strong' | 'related'): va
   if (!isNonEmptyText(value.name, 240) || !SUPPORTED_METHODS.has(String(value.method))) return false;
   if (!isNonEmptyText(value.price, 100) || !isSafeText(value.description, 4_000)) return false;
   if (!isNonEmptyText(value.category, 160) || !isSafeMerchant(value.merchant)) return false;
+  if (value.paymentSchemes !== undefined && !isIndexterPaymentSchemes(value.paymentSchemes)) return false;
   if (!isSafeExecution(value.execution)) return false;
   const inputUnavailable = value.requestInput === null && hasUnavailableAction(value, 'input_contract_unavailable');
   const publishedReview = hasPublishedInputReview(value);
