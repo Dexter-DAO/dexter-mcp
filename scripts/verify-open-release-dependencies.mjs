@@ -66,8 +66,7 @@ export function versionAtLeast(actual, minimum) {
 export function isSupportedNodeRuntime(version) {
   const [major] = numericVersion(version);
   return (
-    (major === 20 && versionAtLeast(version, '20.19.0'))
-    || (major >= 22 && versionAtLeast(version, '22.12.0'))
+    major >= 22 && versionAtLeast(version, '22.12.0')
   );
 }
 
