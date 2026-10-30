@@ -1,0 +1,206 @@
+{
+  "provenance": {
+    "source": "Retained public API discovery overview from 2026-10-29; no fresh request.",
+    "sourceSha256": "10a40f105710cc480eb361db819e6651fde7147da78599efdba4ed0caf4a211a",
+    "scope": "Provider object is unchanged. Tests wrap it in a synthetic provider-mode envelope. Saved cursor is not used for a live continuation."
+  },
+  "generatedAt": "2026-10-29T05:49:18.725Z",
+  "provider": {
+    "kind": "provider",
+    "providerKey": "apify",
+    "providerSlug": "apify",
+    "technicalHost": "apify.com",
+    "displayName": "Apify",
+    "logoUrl": "https://apify.com/img/apify-logo/apify-symbol-200x200.svg",
+    "id": "apify",
+    "description": "Cloud tools and a Store of Actors for web data extraction and automation.",
+    "docsUrl": "https://docs.apify.com/",
+    "editorial": {
+      "featured": true,
+      "order": 1,
+      "evidenceResourceId": null
+    },
+    "catalog": {
+      "resourceCount": 0,
+      "actorCounts": {
+        "returned": 2,
+        "indexed": 964,
+        "total": 37677
+      },
+      "offeringCounts": {
+        "returned": 2,
+        "indexed": 964,
+        "total": 37677
+      },
+      "capabilityGroupCount": 0,
+      "countsComplete": false
+    },
+    "evidence": {
+      "totalResourceCount": 0,
+      "evaluatedResourceCount": 0,
+      "deliveredRecentlyCount": 0,
+      "termsCheckedCount": 0,
+      "noCurrentConfirmationCount": 0,
+      "latestObservedAt": null,
+      "coverageComplete": true
+    },
+    "capabilityGroups": [],
+    "actorCatalog": {
+      "status": "ready",
+      "warning": null,
+      "provider": {
+        "kind": "provider",
+        "providerKey": "apify",
+        "providerSlug": "apify",
+        "technicalHost": "apify.com",
+        "displayName": "Apify",
+        "logoUrl": "https://apify.com/img/apify-logo/apify-symbol-200x200.svg"
+      },
+      "counts": {
+        "returned": 2,
+        "indexed": 964,
+        "total": 37677,
+        "complete": false
+      },
+      "items": [
+        {
+          "kind": "actor",
+          "id": "apify:actor:nwua9Gu5YrADL7ZDj",
+          "stableId": "apify:actor:nwua9Gu5YrADL7ZDj",
+          "actorId": "nwua9Gu5YrADL7ZDj",
+          "provider": {
+            "kind": "provider",
+            "providerKey": "apify",
+            "providerSlug": "apify",
+            "technicalHost": "apify.com",
+            "displayName": "Apify",
+            "logoUrl": "https://apify.com/img/apify-logo/apify-symbol-200x200.svg"
+          },
+          "publisher": {
+            "username": "compass",
+            "displayName": "Compass",
+            "url": "https://apify.com/compass",
+            "imageUrl": "https://images.apifyusercontent.com/rmXpukk5Z0R0-B9Cj5ekkd-GP1U_S_0TW1nBwPfeVoA/rs:fill:32:32/cb:1/aHR0cHM6Ly9pbWFnZXMuYXBpZnl1c2VyY29udGVudC5jb20vY2lvc0p0ZzNnRkxfUGJJMUd4MDRGWFpNdWNiV3BTNXRzZmNBUGNrbllLby9yczpmaWxsOjMyOjMyL2NiOjEvYUhSMGNITTZMeTloY0dsbWVTMXBiV0ZuWlMxMWNHeHZZV1J6TFhCeWIyUXVjek11WVcxaGVtOXVZWGR6TG1OdmJTOVNOa2hEUmxsaFdrNXhhbEZCT1ZwWGVDOWxVVk40ZW1wQk5uTmxUbTl5Tm5SNlN5MWpiMjF3WVhOelh5VXlPRFFsTWprdWNHNW4ucG5n.webp"
+          },
+          "name": "crawler-google-places",
+          "title": "Google Maps Scraper",
+          "summary": "Extract data from thousands of Google Maps locations and businesses, including reviews, reviewer details, images, contact info, including full name, email, and job title, opening hours, prices & more.",
+          "imageUrl": "https://images.apifyusercontent.com/PsZ95ouLI8j01obb1T6dds6qvsPx8lI4Qy-ZnCKl-PY/rs:fill:76:76/cb:1/aHR0cHM6Ly9hcGlmeS1pbWFnZS11cGxvYWRzLXByb2QuczMudXMtZWFzdC0xLmFtYXpvbmF3cy5jb20vUjZIQ0ZZYVpOcWpRQTlaV3gtYWN0b3Itbnd1YTlHdTVZckFETDdaRGotUmV6UVBwdUMzQy1Hb29nbGVfTWFwc19TZWFyY2gucG5n.webp",
+          "categories": [
+            "LEAD_GENERATION",
+            "TRAVEL"
+          ],
+          "pricing": {
+            "model": "pay_per_event",
+            "variable": true,
+            "currency": "USD",
+            "minimumMaxTotalChargeUsd": 0.5,
+            "primaryEvent": {
+              "key": "place-scraped",
+              "title": "Scraped place",
+              "priceUsd": null,
+              "isOneTime": false,
+              "tieredPricesUsd": {
+                "BRONZE": 0.003,
+                "DIAMOND": 0.000756,
+                "FREE": 0.004,
+                "GOLD": 0.0015,
+                "PLATINUM": 0.00126,
+                "SILVER": 0.002
+              }
+            }
+          },
+          "availability": {
+            "status": "available",
+            "notice": null
+          },
+          "catalogOnly": true,
+          "execution": {
+            "available": false,
+            "reason": "payment_contract_unavailable",
+            "previewMode": "inspection_only"
+          },
+          "schemaStatus": "hydrated"
+        },
+        {
+          "kind": "actor",
+          "id": "apify:actor:shu8hvrXbJbY3Eb9W",
+          "stableId": "apify:actor:shu8hvrXbJbY3Eb9W",
+          "actorId": "shu8hvrXbJbY3Eb9W",
+          "provider": {
+            "kind": "provider",
+            "providerKey": "apify",
+            "providerSlug": "apify",
+            "technicalHost": "apify.com",
+            "displayName": "Apify",
+            "logoUrl": "https://apify.com/img/apify-logo/apify-symbol-200x200.svg"
+          },
+          "publisher": {
+            "username": "apify",
+            "displayName": "Apify",
+            "url": "https://apify.com/apify",
+            "imageUrl": "https://images.apifyusercontent.com/W831qifiDbg1ltpsHQIGyWH55ztmmv7T4EILHVqoFU4/rs:fill:32:32/cb:1/aHR0cHM6Ly9pbWFnZXMuYXBpZnl1c2VyY29udGVudC5jb20vSTdzZWx3YUVOam9GRG9Td3J3ODFQYXc2SEpXSjJRZk0tNzhMa1ZxcEtEQS9yczpmaWxsOjMyOjMyL2NiOjEvYUhSMGNITTZMeTloY0dsbWVTMXBiV0ZuWlMxMWNHeHZZV1J6TFhCeWIyUXVjek11ZFhNdFpXRnpkQzB4TG1GdFlYcHZibUYzY3k1amIyMHZXbk5qVFhkR1VqVklOMlZEZEZkMGVXZ3RjSEp2Wm1sc1pTMVBiamhzU0U1bGJrSnZMV0Z3YVdaNUxYTjViV0p2YkMxamIyeHZjbk10YldGeVoybHVMbk4yWnk1d2JtYy5wbmc.webp"
+          },
+          "name": "instagram-scraper",
+          "title": "Instagram Scraper",
+          "summary": "Extract Instagram posts, reels, profiles, places, hashtags, carousels, and comments.",
+          "imageUrl": "https://images.apifyusercontent.com/632TuWCku033QESt8HdWIF9rTy0SF_RPrbkQFdBdeQg/rs:fill:76:76/cb:1/aHR0cHM6Ly9hcGlmeS1pbWFnZS11cGxvYWRzLXByb2QuczMuYW1hem9uYXdzLmNvbS9zaHU4aHZyWGJKYlkzRWI5Vy9LQTk4aWd0S3RZaldtRmt1Yy1JbnN0YWdyYW1fU2NyYXBlci5wbmc.webp",
+          "categories": [
+            "SOCIAL_MEDIA"
+          ],
+          "pricing": {
+            "model": "pay_per_event",
+            "variable": true,
+            "currency": "USD",
+            "minimumMaxTotalChargeUsd": 0.0027,
+            "primaryEvent": {
+              "key": "result",
+              "title": "Result",
+              "priceUsd": null,
+              "isOneTime": false,
+              "tieredPricesUsd": {
+                "BRONZE": 0.0023,
+                "DIAMOND": 0.0005,
+                "FREE": 0.0027,
+                "GOLD": 0.0015,
+                "PLATINUM": 0.0009,
+                "SILVER": 0.0019
+              }
+            }
+          },
+          "availability": {
+            "status": "available",
+            "notice": null
+          },
+          "catalogOnly": true,
+          "execution": {
+            "available": false,
+            "reason": "payment_contract_unavailable",
+            "previewMode": "inspection_only"
+          },
+          "schemaStatus": "hydrated"
+        }
+      ],
+      "snapshot": {
+        "catalogRevision": "1",
+        "completedAt": "2026-09-04T16:27:51.285Z",
+        "sourceStatus": "stale",
+        "warning": "catalog_snapshot_stale",
+        "scope": "popular-agentic-window-v1",
+        "scopeLimit": 1000,
+        "sourceReportedCount": 1000,
+        "truncated": true
+      },
+      "page": {
+        "version": 1,
+        "namespace": "indexter.actor.catalog.v1",
+        "scope": "provider_actors",
+        "order": "apify-source-rank-v1",
+        "limit": 2,
+        "returned": 2,
+        "hasMore": true,
+        "nextCursor": "eyJ2ZXJzaW9uIjoxLCJzY29wZUhhc2giOiI1YTBmZDg2MWQyZDBkMWM1N2QxNGFkM2Q0MTYxMzcwNTYwNmFiY2ZjZjQxZTM0ODgxYzVhNjVlMzVkNmE4NzJjIiwiY2F0YWxvZ0lkIjoiZTllNDQzNjItMWVhNS00YTA2LWFmZDItMWQ3ZGRhYzc5OWRlIiwiY2F0YWxvZ1JldmlzaW9uIjoiMSIsImV4cGlyZXNBdCI6MTc5MzI1NDc2MjYxMywic29ydCI6InBvcHVsYXJpdHkiLCJyYW5raW5nSWQiOiJhcGlmeS1zb3VyY2UtcmFuay12MSIsImxhc3QiOnsia2luZCI6ImFjdG9yIiwic3RhYmxlSWQiOiJhcGlmeTphY3RvcjpzaHU4aHZyWGJKYlkzRWI5VyIsInByaW1hcnkiOiIxIiwic2Vjb25kYXJ5IjpudWxsfX0.oHL34Ue7PQYMxKFBvdoLgr8ikhFG6YcdpY80aQ1_5rs"
+      }
+    }
+  }
+}

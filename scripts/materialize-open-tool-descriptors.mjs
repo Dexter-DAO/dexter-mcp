@@ -274,8 +274,8 @@ const EXPECTED_SOURCE_CONTRACTS = Object.freeze({
   // Reviewed discovery preserves canonical provider identity and publishes
   // catalog payment advertisements with complete request-contract references.
   // Later releases must preserve these API_GOVERNED_CONTRACT_PATHS bytes.
-  integratedGovernedCommit: '6fcb2cb97bc5e3ba2dc35c6fa4f8cac1dd024060',
-  integratedGovernedTree: '71cc2355f28a7476bfc0de1deb2934bc861320e8',
+  integratedGovernedCommit: '485b14a3aff01fbdb2c2115ee37aba3cf807fe33',
+  integratedGovernedTree: 'b0b567be41315e5223427cef2d0bb87de8aa9aed',
   apiFixtureSha256:
     'ad06690a3914e0ef0f359c4164eb62f78ca54abe6697a52672d739df63c2c352',
   apiCanonicalBodyDigest:
