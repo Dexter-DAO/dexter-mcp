@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -8,6 +9,9 @@ import { OPEN_TOOL_NAMES } from '../lib/open-tool-contracts.mjs';
 import { createOpenMcpServer } from '../open-mcp-server.mjs';
 
 const OBSERVED_AT = '2026-09-04T12:00:00.000Z';
+const APIFY_ACTOR_PROVIDER = JSON.parse(readFileSync(
+  new URL('./fixtures/indexter-apify-actor-provider.json', import.meta.url), 'utf8',
+));
 
 function emptyDiscovery(mode) {
   const providers = mode === 'provider' ? [{
@@ -405,6 +409,144 @@ test('unified entry dispatches exactly once for overview, provider, task, and sa
   const task = requests[2];
   assert.equal(task.searchParams.get('q'), 'current weather for Lisbon');
   assert.equal(task.searchParams.get('limit'), '12');
+});
+
+test('provider-qualified Actor phrases make one exact catalog lookup and retain catalog-only Actors', async (t) => {
+  const previousFetch = globalThis.fetch;
+  const requests = [];
+  globalThis.fetch = async (input) => {
+    const url = new URL(String(input));
+    requests.push(url);
+    assert.equal(url.pathname, '/api/x402gle/indexter/discovery');
+    assert.equal(url.searchParams.get('mode'), 'provider');
+    assert.match(url.searchParams.get('provider'), /^apify$/i);
+    // The saved public provider and Actors are unchanged; only the envelope is synthetic.
+    const payload = emptyDiscovery('provider');
+    payload.generatedAt = APIFY_ACTOR_PROVIDER.generatedAt;
+    payload.providers = [APIFY_ACTOR_PROVIDER.provider];
+    return Response.json(payload);
+  };
+  t.after(() => { globalThis.fetch = previousFetch; });
+  const client = await connectedOpenClient(t);
+
+  for (const query of ['Show Apify Actors', 'Show me Apify Actors', 'List Apify Actors',
+    'List me Apify Actors', 'Browse Apify Actors', 'Browse me Apify Actors',
+    'show apify actors', 'List Actors from Apify', 'Browse me Actors by Apify']) {
+    const before = requests.length;
+    const result = await client.callTool({ name: 'indexter_search', arguments: { query } });
+    assert.equal(requests.length, before + 1, query);
+    assert.equal(requests.at(-1).searchParams.get('actorPageSize'), '8', query);
+    assert.equal(requests.at(-1).searchParams.get('capabilityPageSize'), '12', query);
+    assert.equal(requests.at(-1).searchParams.get('contractVersion'), '3', query);
+    assert.equal(result.structuredContent.ok, true, query);
+    assert.equal(result.structuredContent.route, 'provider', query);
+    assert.equal(result.structuredContent.routingReason, 'provider_requested', query);
+    assert.equal(result.structuredContent.taskSearchAttempted, false, query);
+    assert.equal(result._meta.indexterPayload.route, 'provider', query);
+    assert.deepEqual(result.structuredContent.results.filter((row) => row.kind === 'provider')
+      .map((row) => row.providerKey), ['apify'], query);
+    const actors = result.structuredContent.results.filter((row) => row.kind === 'actor');
+    assert.equal(actors.length, APIFY_ACTOR_PROVIDER.provider.actorCatalog.items.length, query);
+    for (const actor of actors) {
+      assert.equal(actor.catalogOnly, true, query);
+      assert.equal(actor.executionAvailable, false, query);
+      assert.equal(actor.action.kind, 'inspect_actor', query);
+    }
+    assert.match(result.content[0].text, /Apify/, query);
+  }
+});
+
+test('Actor phrases preserve task filters and exact catalog failures without overview fallback', async (t) => {
+  const previousFetch = globalThis.fetch;
+  const requests = [];
+  let status = 404;
+  globalThis.fetch = async (input) => {
+    const url = new URL(String(input));
+    requests.push(url);
+    if (url.pathname === '/api/x402gle/capability') {
+      const payload = emptyTask();
+      payload.query = url.searchParams.get('q');
+      payload.appliedConstraints.maxPriceUsdc = url.searchParams.has('maxPriceUsdc')
+        ? Number(url.searchParams.get('maxPriceUsdc')) : null;
+      payload.appliedConstraints.paidOnly = url.searchParams.get('paidOnly') === 'true';
+      payload.appliedOrdering.sortBy = url.searchParams.get('sortBy') ?? 'relevance';
+      return Response.json(payload);
+    }
+    assert.equal(url.searchParams.get('mode'), 'provider');
+    assert.equal(url.searchParams.get('provider'), 'Apify');
+    return Response.json({ ok: false, error: status === 404 ? 'provider_not_found'
+      : status === 409 ? 'provider_ambiguous' : 'indexter_discovery_unavailable' }, { status });
+  };
+  t.after(() => { globalThis.fetch = previousFetch; });
+  const client = await connectedOpenClient(t);
+  for (status of [404, 409, 503]) {
+    requests.length = 0;
+    const result = await client.callTool({ name: 'indexter_search', arguments: { query: 'Show Apify Actors' } });
+    assert.equal(requests.length, 1, String(status));
+    assert.equal(result.structuredContent.ok, false, String(status));
+    assert.equal(result.structuredContent.route, 'provider', String(status));
+  }
+  for (const args of [
+    { query: 'Show Apify Actors', network: 'solana', maxPriceUsdc: 0.02, paidOnly: true, sortBy: 'price_asc' },
+    { query: 'Show Apify Actors for scraping Airbnb' },
+    { query: 'Browse Apify Actors for scraping Airbnb' },
+    { query: 'Show Actors for scraping Airbnb' },
+  ]) {
+    requests.length = 0;
+    const result = await client.callTool({ name: 'indexter_search', arguments: args });
+    assert.equal(requests.length, 1, args.query);
+    assert.equal(requests[0].pathname, '/api/x402gle/capability', args.query);
+    assert.equal(requests[0].searchParams.get('q'), args.query);
+    // The MCP applies the seller-network filter after the API ranks its results.
+    for (const key of ['maxPriceUsdc', 'paidOnly', 'sortBy']) {
+      if (key in args) assert.equal(requests[0].searchParams.get(key), String(args[key]), key);
+    }
+    assert.equal(result.structuredContent.route, 'task', args.query);
+    assert.equal(result.structuredContent.ok, true, args.query);
+    assert.equal(result.structuredContent.taskSearchAttempted, true, args.query);
+  }
+});
+
+test('Actor words in brands and trailing task qualifiers retain the exact handler request', async (t) => {
+  const previousFetch = globalThis.fetch;
+  const requests = [];
+  let expectedProvider;
+  globalThis.fetch = async (input) => {
+    const url = new URL(String(input));
+    requests.push(url);
+    if (expectedProvider) {
+      assert.equal(url.pathname, '/api/x402gle/indexter/discovery');
+      assert.equal(url.searchParams.get('mode'), 'provider');
+      assert.equal(url.searchParams.get('provider'), expectedProvider);
+      const payload = emptyDiscovery('provider');
+      payload.providers[0].displayName = expectedProvider;
+      return Response.json(payload);
+    }
+    assert.equal(url.pathname, '/api/x402gle/capability');
+    const payload = emptyTask();
+    payload.query = url.searchParams.get('q');
+    return Response.json(payload);
+  };
+  t.after(() => { globalThis.fetch = previousFetch; });
+  const client = await connectedOpenClient(t);
+  for (const [query, provider] of [
+    ['Browse "The Actors Studio"', 'The Actors Studio'],
+    ['Show me "The Actors Studio" APIs', 'The Actors Studio'],
+    ['Browse Actor Labs', 'Actor Labs'],
+    ['Show Actors from "The Actors Studio"', 'The Actors Studio'],
+    ['Show Actors from Apify on Solana', null],
+    ['Show Actors from "The Actors Studio" on Solana', null],
+    ['Browse me Actors by Apify under $0.01', null],
+  ]) {
+    expectedProvider = provider;
+    requests.length = 0;
+    const result = await client.callTool({ name: 'indexter_search', arguments: { query } });
+    assert.equal(requests.length, 1, query);
+    assert.equal(result.structuredContent.ok, true, query);
+    assert.equal(result.structuredContent.route, provider ? 'provider' : 'task', query);
+    assert.equal(result._meta.indexterPayload.route, provider ? 'provider' : 'task', query);
+    if (!provider) assert.equal(requests[0].searchParams.get('q'), query);
+  }
 });
 
 test('ambiguous provider names resolve against the catalog without repeating discovery', async (t) => {

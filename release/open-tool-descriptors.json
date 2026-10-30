@@ -16,15 +16,15 @@
     },
     "integratedApiRelease": {
       "repository": "https://github.com/Dexter-DAO/dexter-api",
-      "commit": "6fcb2cb97bc5e3ba2dc35c6fa4f8cac1dd024060",
-      "tree": "71cc2355f28a7476bfc0de1deb2934bc861320e8",
-      "governedContractCommit": "6fcb2cb97bc5e3ba2dc35c6fa4f8cac1dd024060",
-      "governedContractTree": "71cc2355f28a7476bfc0de1deb2934bc861320e8"
+      "commit": "4285ff0ca6b986630d6defae45ca84753c3e4574",
+      "tree": "eb9ea07734b8618f3bea34fff82a564428402f1c",
+      "governedContractCommit": "4285ff0ca6b986630d6defae45ca84753c3e4574",
+      "governedContractTree": "eb9ea07734b8618f3bea34fff82a564428402f1c"
     },
     "portfolioProjection": {
       "repository": "https://github.com/Dexter-DAO/dexter-api",
-      "commit": "6fcb2cb97bc5e3ba2dc35c6fa4f8cac1dd024060",
-      "tree": "71cc2355f28a7476bfc0de1deb2934bc861320e8",
+      "commit": "4285ff0ca6b986630d6defae45ca84753c3e4574",
+      "tree": "eb9ea07734b8618f3bea34fff82a564428402f1c",
       "sourcePaths": [
         "src/portfolio/approvedActionTargets.ts",
         "src/routes/passkeyMcpBinding.ts",
@@ -3575,7 +3575,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/indexter-search-a62c5e37",
+          "resourceUri": "ui://dexter/indexter-search-7e9b3eef",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash",
@@ -3594,8 +3594,8 @@
             "app"
           ]
         },
-        "ui/resourceUri": "ui://dexter/indexter-search-a62c5e37",
-        "openai/outputTemplate": "ui://dexter/indexter-search-a62c5e37",
+        "ui/resourceUri": "ui://dexter/indexter-search-7e9b3eef",
+        "openai/outputTemplate": "ui://dexter/indexter-search-7e9b3eef",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -5465,7 +5465,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/indexter-search-a62c5e37",
+          "resourceUri": "ui://dexter/indexter-search-7e9b3eef",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash",
@@ -5483,8 +5483,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/indexter-search-a62c5e37",
-        "openai/outputTemplate": "ui://dexter/indexter-search-a62c5e37",
+        "ui/resourceUri": "ui://dexter/indexter-search-7e9b3eef",
+        "openai/outputTemplate": "ui://dexter/indexter-search-7e9b3eef",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -6412,7 +6412,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-pricing-c8a6b418",
+          "resourceUri": "ui://dexter/x402-pricing-00920e53",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash",
@@ -6429,8 +6429,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/x402-pricing-c8a6b418",
-        "openai/outputTemplate": "ui://dexter/x402-pricing-c8a6b418",
+        "ui/resourceUri": "ui://dexter/x402-pricing-00920e53",
+        "openai/outputTemplate": "ui://dexter/x402-pricing-00920e53",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
@@ -8247,7 +8247,7 @@
       ],
       "_meta": {
         "ui": {
-          "resourceUri": "ui://dexter/x402-pricing-c8a6b418",
+          "resourceUri": "ui://dexter/x402-pricing-00920e53",
           "csp": {
             "resourceDomains": [
               "https://dexter.cash",
@@ -8264,8 +8264,8 @@
             "model"
           ]
         },
-        "ui/resourceUri": "ui://dexter/x402-pricing-c8a6b418",
-        "openai/outputTemplate": "ui://dexter/x402-pricing-c8a6b418",
+        "ui/resourceUri": "ui://dexter/x402-pricing-00920e53",
+        "openai/outputTemplate": "ui://dexter/x402-pricing-00920e53",
         "openai/resultCanProduceWidget": true,
         "openai/widgetDomain": "https://dexter.cash",
         "openai/widgetPrefersBorder": false,
