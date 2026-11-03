@@ -869,6 +869,9 @@ function requestPrefersHtml(req) {
 }
 
 async function forwardAuthorize(req, res) {
+  // A login_url can carry a private capability in its fragment. The proxy
+  // constructs its own response, so it must set the cache policy itself.
+  res.setHeader('Cache-Control', 'no-store');
   const url = new URL(req.url || '', `http://${req.headers.host}`);
   // Force /api/ prefix for connector routes (hosted under /api in dexter-api)
   const targetUrl = buildConnectorApiUrl('api/connector/oauth/authorize', url.search);
