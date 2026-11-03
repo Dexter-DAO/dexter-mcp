@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createServer } from 'node:net';
+import { createServer as createHttpServer } from 'node:http';
+import { randomBytes } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { fileURLToPath } from 'node:url';
@@ -17,7 +19,7 @@ async function unusedPort() {
   return port;
 }
 
-test('private server supports authenticated SDK initialization and session reconnection', { timeout: 25_000 }, async t => {
+async function startProxy(t, env = {}) {
   const port = await unusedPort();
   const base = `http://127.0.0.1:${port}`;
   let output = '';
@@ -36,6 +38,7 @@ test('private server supports authenticated SDK initialization and session recon
       MCP_SESSION_METRICS_INTERVAL_MS: '0',
       MCP_SESSION_REAPER_INTERVAL_MS: '0',
       MCP_CONNECTION_TRACE: '',
+      ...env,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -57,6 +60,11 @@ test('private server supports authenticated SDK initialization and session recon
     await new Promise(resolve => setTimeout(resolve, 30));
   }
   assert.ok(ready, output);
+  return { base, output: () => output };
+}
+
+test('private server supports authenticated SDK initialization and session reconnection', { timeout: 25_000 }, async t => {
+  const { base } = await startProxy(t);
   const headers = { 'content-type': 'application/json', accept: 'application/json, text/event-stream' };
   const init = { jsonrpc: '2.0', id: 1, method: 'initialize', params: {
     protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'private-compat', version: '1' },
@@ -89,4 +97,37 @@ test('private server supports authenticated SDK initialization and session recon
     ...headers, authorization: 'Bearer private-compat-test-only', 'mcp-session-id': 'unknown-compat-session',
   }, body: JSON.stringify({ jsonrpc: '2.0', id: 23, method: 'tools/list', params: {} }) });
   assert.equal(unknown.status, 400);
+});
+
+test('authorization redirects and JSON replies stay uncached and keep the private fragment out of proxy logs', { timeout: 25_000 }, async t => {
+  const ticket = randomBytes(32).toString('hex');
+  const loginUrl = 'https://dexter.cash/tabs/setup?request_id=vpair_example#decline=' + ticket;
+  const api = createHttpServer((req, res) => {
+    assert.equal(req.headers.accept, 'application/json');
+    const url = new URL(req.url, 'http://fixture.test');
+    assert.equal(url.pathname, '/api/connector/oauth/authorize');
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+    res.end(JSON.stringify(url.searchParams.has('fallback') ? { detail: 'fixture' } : { login_url: loginUrl }));
+  });
+  api.listen(0, '127.0.0.1');
+  await once(api, 'listening');
+  t.after(() => new Promise(resolve => api.close(resolve)));
+  const upstream = 'http://127.0.0.1:' + api.address().port;
+  const { base, output } = await startProxy(t, {
+    TOKEN_AI_MCP_OAUTH: 'true',
+    SUPABASE_URL: upstream,
+    SUPABASE_ANON_KEY: 'test-only',
+    DEXTER_API_BASE_URL: upstream,
+    API_BASE_URL: upstream,
+  });
+  const redirect = await fetch(base + '/mcp/authorize', { redirect: 'manual' });
+  assert.equal(redirect.status, 302);
+  assert.equal(redirect.headers.get('cache-control'), 'no-store');
+  assert.equal(redirect.headers.get('location'), loginUrl);
+  assert.equal(await redirect.text(), '');
+  const fallback = await fetch(base + '/authorize?fallback=1');
+  assert.equal(fallback.status, 200);
+  assert.equal(fallback.headers.get('cache-control'), 'no-store');
+  assert.deepEqual(await fallback.json(), { detail: 'fixture' });
+  t.after(() => assert.equal(output().includes(ticket), false));
 });
