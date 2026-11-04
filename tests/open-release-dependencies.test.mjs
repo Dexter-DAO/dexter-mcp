@@ -339,7 +339,7 @@ test('Git tree provenance supports repository-root and nested packages', () => {
 
 test('release runtime enforces the pinned Vite Node floor', async () => {
   assert.equal(isSupportedNodeRuntime('20.18.1'), false);
-  assert.equal(isSupportedNodeRuntime('20.19.0'), true);
+  assert.equal(isSupportedNodeRuntime('20.19.0'), false);
   assert.equal(isSupportedNodeRuntime('21.7.3'), false);
   assert.equal(isSupportedNodeRuntime('22.11.0'), false);
   assert.equal(isSupportedNodeRuntime('22.12.0'), true);
@@ -365,15 +365,15 @@ test('hosted source declares one exact internal dependency train', async () => {
     [
       '@dexterai/x402-core@1.5.2',
       '@dexterai/mcp-instructions@2.4.2-rc.1',
-      '@dexterai/x402-mcp-tools@0.9.2',
-      '@dexterai/vault@0.43.9',
+      '@dexterai/x402-mcp-tools@0.9.3',
+      '@dexterai/vault@0.44.0',
     ],
   );
   assert.deepEqual(
     manifest.runtimePackages.map(({ name, version }) =>
       `${name}@${version}`),
     [
-      '@dexterai/x402@6.0.3',
+      '@dexterai/x402@6.0.6',
       '@modelcontextprotocol/sdk@1.30.0',
       '@modelcontextprotocol/ext-apps@1.6.0',
       'zod@4.6.7',
@@ -381,10 +381,10 @@ test('hosted source declares one exact internal dependency train', async () => {
   );
   assert.equal(manifest.schemaVersion, 2);
   assert.equal(manifest.packageManager, 'npm@10.9.3');
-  assert.equal(manifest.node, '^20.19.0 || >=22.12.0');
+  assert.equal(manifest.node, '>=22.12.0');
   assert.deepEqual(manifest.repositories.hosted, {
     remote: 'https://github.com/Dexter-DAO/dexter-mcp.git',
-    provenanceCommit: 'ac38fa4d7f6ffdc195451083032d6a7342794dda',
+    provenanceCommit: '0437f6901b5f6296775200cdd9b3b194e1a9fce9',
   });
   assert.deepEqual(
     manifest.sourcePackages.map(({ install }) => install),
@@ -397,10 +397,10 @@ test('hosted source declares one exact internal dependency train', async () => {
   );
   assert.deepEqual(manifest.repositories['opendexter-ide'], {
     remote: 'https://github.com/Dexter-DAO/opendexter-ide.git',
-    provenanceCommit: '8b3609de4c9b108b98b5e53206d6f0f62707cf9f',
+    provenanceCommit: '55723165da07d87bfcf15b7eb7af58e697dc93cd',
     rootWorkspaceBuild: {
       packageLockSha256:
-        '19f4db824e55d0d41c460e16645e5a86cb9c9efa55b55e8d42e4299e8fc0e083',
+        '314c3d7987ae76e99473a768db27aa120d47df15446b5abca5c7dbbee4125f14',
       buildOrder: [
         { workspace: '@dexterai/mcp-instructions', script: 'build' },
         { workspace: '@dexterai/dextercard', script: 'build' },
@@ -415,7 +415,7 @@ test('hosted source declares one exact internal dependency train', async () => {
     ],
     [
       '@dexterai/x402-mcp-tools',
-      '94b378e38c7356e59bdcf293f8400e8734b4db88c8dfe2b7b88ff6b24d9b0038',
+      'ea0f90c3e47f078b807681b12b1b35c1f81c291ea990a699b108398687523265',
     ],
   ]) {
     const artifact = manifest.sourcePackages.find(
@@ -427,29 +427,29 @@ test('hosted source declares one exact internal dependency train', async () => {
   }
   assert.deepEqual(manifest.repositories['vault-sdk'], {
     remote: 'https://github.com/Dexter-DAO/dexter-vault-sdk.git',
-    provenanceCommit: '119b349440c605becbaeb3a75ea8769f8213d2ec',
+    provenanceCommit: 'b33363147e65c99bb51dc657cadc70d7898ade48',
   });
   assert.deepEqual(
     manifest.sourcePackages.find(({ name }) => name === '@dexterai/vault'),
     {
       name: '@dexterai/vault',
-      version: '0.43.9',
-      rootSpecifier: '0.43.9',
+      version: '0.44.0',
+      rootSpecifier: '0.44.0',
       source: 'vault-sdk',
       path: '.',
       entrypoint: 'dist/index.js',
-      treeHash: '64fd905eda47d98895a2e9163fcb0c2c91496e93',
+      treeHash: '0f2cead73b88f09a001b72052f9d827fe2d9f02b',
       packedArtifact: {
         buildScript: 'build',
         packLifecycleScripts: {
           prepack: 'npm run build && npm run typecheck',
         },
-        integrity: 'sha512-QDy1OsOYspT8MiBYslyfAJiaa/vBDEQ68BfvvYbwQWh6hUdW1aiKSVuyqFrSGE/B/iBg8dF33Z9Nk+nFvEKpOw==',
-        shasum: 'def712656121bd337dac2d8e87cad1e3b7c93184',
-        size: 831532,
-        unpackedSize: 4135762,
+        integrity: 'sha512-SPTHvAVXjpQRaMsVjTu/azaguQAoi1cOimk1aDvJeWemjXrSypkdW3nRFV/tL+utG27aqSTLEpVv/zMHbjcf8A==',
+        shasum: '4bf875e5047dd543bbc059194d27c35ebda4fa9a',
+        size: 836247,
+        unpackedSize: 4160715,
         entryCount: 104,
-        tgzSha256: 'f03365b5b03131085d87f2a018f81d4e5a2aa9f739544c97f1f83d016273688f',
+        tgzSha256: '4c387f5b7f4f9f9fa1c14e6646d0dba803fddc6114d038bb6c35c2173709b48b',
       },
       install: { source: 'registry', release: 'registry' },
     },
@@ -628,7 +628,7 @@ test('dirty external source fails before rebuild or peer npm inspection', async 
     const manifest = {
       schemaVersion: 2,
       packageManager: 'npm@10.9.3',
-      node: '^20.19.0 || >=22.12.0',
+      node: '>=22.12.0',
       hostedPackage: { name: 'fixture-hosted', version: '1.0.0' },
       repositories: { 'vault-sdk': fixture.repository },
       sourcePackages: [{
@@ -649,7 +649,7 @@ test('dirty external source fails before rebuild or peer npm inspection', async 
         name: 'fixture-hosted',
         version: '1.0.0',
         packageManager: 'npm@10.9.3',
-        engines: { node: '^20.19.0 || >=22.12.0' },
+        engines: { node: '>=22.12.0' },
         dependencies: { '@dexterai/fixture-vault': '1.0.0' },
       }),
     );
