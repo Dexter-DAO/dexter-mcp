@@ -1,12 +1,29 @@
 import type { Express, Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
+import rateLimit from 'express-rate-limit';
 import prisma from '../prisma.js';
 import { logger, style } from '../logger.js';
 import { getSupabaseUserFromAccessToken } from '../utils/supabaseAdmin.js';
 import { getSupabaseUserIdFromRequest } from '../utils/supabase.js';
 
 const log = logger.child('stream.shouts');
+
+const shoutPostLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { ok: false, error: 'rate_limited' },
+});
+
+const shoutFeedLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { ok: false, error: 'rate_limited' },
+});
 
 const SHOUT_LIFESPAN_SECONDS = 5 * 60;
 const MESSAGE_SCHEMA = z
@@ -90,7 +107,7 @@ async function findPrimaryWalletPublicKey(supabaseUserId: string): Promise<strin
 }
 
 export function registerStreamShoutRoutes(app: Express) {
-  app.post('/stream/shout', async (req: Request, res: Response) => {
+  app.post('/stream/shout', shoutPostLimiter, async (req: Request, res: Response) => {
     try {
       const bearerToken = extractBearerToken(req);
       if (!bearerToken) {
@@ -197,7 +214,7 @@ export function registerStreamShoutRoutes(app: Express) {
     }
   });
 
-  app.get('/stream/shout-feed', async (req: Request, res: Response) => {
+  app.get('/stream/shout-feed', shoutFeedLimiter, async (req: Request, res: Response) => {
     try {
       const limitParam = typeof req.query.limit === 'string' ? Number.parseInt(req.query.limit, 10) : undefined;
       const limit = Number.isFinite(limitParam)
