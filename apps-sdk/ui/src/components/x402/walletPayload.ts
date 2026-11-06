@@ -14,11 +14,11 @@ import { normalizeActivityPage, type ActivityPage } from '../wallet/activityMode
 
 export type WalletMoney = {
   /** Cash plus reported open credit. This is capacity, not endpoint eligibility. */
-  accountCapacityUsd: number;
+  accountCapacityUsd: number | null;
   /** @deprecated Compatibility alias for older wallet renderers. */
-  spendableUsd: number;
+  spendableUsd: number | null;
   /** Cash the user actually holds, in USDC. */
-  cashUsd: number;
+  cashUsd: number | null;
   /** Open (undrawn) credit available, in USDC. 0 when no line. */
   creditAvailableUsd: number;
   /** Position currently earning yield, in USDC. 0 when idle. */
@@ -61,10 +61,10 @@ export type CanonicalWalletPayload = {
   networkName?: string;
   chainBalances: Record<string, WalletChainBalance>;
   balances: {
-    usdc: number;
+    usdc: number | null;
     fundedAtomic?: string;
     spentAtomic?: string;
-    availableAtomic?: string;
+    availableAtomic?: string | null;
   };
   /** Non-custodial money composition (server emits spendingPower/credit/earning). */
   money?: WalletMoney;
@@ -119,31 +119,51 @@ const CHAIN_META: Record<string, { name: string; tier: 'first' | 'second' }> = {
   'eip155:4663': { name: 'Robinhood', tier: 'second' },
 };
 
-function toAtomicString(usdc: number): string {
-  return String(Math.max(0, Math.round(usdc * 1e6)));
+function isSafeUsdNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value)
+    && value >= 0 && value <= Number.MAX_SAFE_INTEGER / 100;
+}
+
+function atomicString(value: unknown): string | null {
+  if (typeof value === 'number') return Number.isSafeInteger(value) && value >= 0 ? String(value) : null;
+  return typeof value === 'string' && value.length <= 128 && /^(?:0|[1-9][0-9]*)$/.test(value)
+    ? value : null;
+}
+
+export function walletCashUsdFromAtomic(value: unknown, maxAtomic?: bigint): number | null {
+  const atomic = atomicString(value);
+  if (atomic === null || (maxAtomic !== undefined && BigInt(atomic) > maxAtomic)) return null;
+  const usd = Number(atomic) / 1e6;
+  return isSafeUsdNumber(usd) ? usd : null;
+}
+
+function toAtomicString(usdc: number): string | null {
+  const atomic = Math.round(usdc * 1e6);
+  return isSafeUsdNumber(usdc) && Number.isSafeInteger(atomic) && atomic / 1e6 === usdc
+    ? String(atomic) : null;
 }
 
 function normalizeChainBalances(input: unknown): Record<string, WalletChainBalance> {
-  if (!input || typeof input !== 'object') return {};
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return {};
 
   const obj = input as Record<string, unknown>;
   const normalized: Record<string, WalletChainBalance> = {};
 
   for (const [caip2, raw] of Object.entries(obj)) {
     const meta = CHAIN_META[caip2];
-    if (!raw || typeof raw !== 'object') continue;
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
 
     const record = raw as Record<string, unknown>;
-    const explicitAvailable = record.available;
-    const usdcFloat = typeof record.usdc === 'number' ? record.usdc : Number(record.usdc ?? 0);
+    const usdcFloat = typeof record.usdc === 'string' && /^(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$/.test(record.usdc)
+      ? Number(record.usdc) : record.usdc;
+    const available = Object.hasOwn(record, 'available') ? atomicString(record.available)
+      : isSafeUsdNumber(usdcFloat) ? toAtomicString(usdcFloat) : null;
+    if (available === null || walletCashUsdFromAtomic(available) === null) continue;
 
     normalized[caip2] = {
       // The widget historically consumed `chainBalances[caip2].available` as atomic USDC.
       // Keep that contract stable even while producers migrate from older or ad-hoc shapes.
-      available:
-        explicitAvailable != null
-          ? String(explicitAvailable)
-          : toAtomicString(Number.isFinite(usdcFloat) ? usdcFloat : 0),
+      available,
       name: typeof record.name === 'string' ? record.name : meta?.name ?? caip2,
       tier:
         record.tier === 'first' || record.tier === 'second'
@@ -163,32 +183,33 @@ export function normalizeWalletPayload(
     ? (toolOutput as Record<string, unknown>)
     : {}) as Record<string, unknown>;
 
-  const chainBalances = normalizeChainBalances(raw.chainBalances ?? raw.chains);
-  const totalUsdcFromChains =
-    Object.values(chainBalances).reduce((sum, balance) => sum + Number(balance.available || 0), 0) / 1e6;
-  const explicitUsdc =
-    typeof raw.balances === 'object' && raw.balances && typeof (raw.balances as Record<string, unknown>).usdc === 'number'
-      ? ((raw.balances as Record<string, unknown>).usdc as number)
-      : typeof raw.totalUsdc === 'number'
-        ? raw.totalUsdc
-        : totalUsdcFromChains;
-
+  const chainInput = Object.hasOwn(raw, 'chainBalances') ? raw.chainBalances : raw.chains;
+  const chainBalances = normalizeChainBalances(chainInput);
+  const chainEntries = chainInput && typeof chainInput === 'object' && !Array.isArray(chainInput)
+    ? Object.keys(chainInput) : [];
+  const chainValues = Object.values(chainBalances);
+  const chainTotal = chainEntries.length > 0 && chainEntries.length === chainValues.length
+    ? chainValues.reduce((sum, balance) => sum + Number(balance.available) / 1e6, 0) : null;
+  const totalUsdcFromChains = isSafeUsdNumber(chainTotal) ? chainTotal : null;
   const balancesRecord =
-    typeof raw.balances === 'object' && raw.balances ? (raw.balances as Record<string, unknown>) : {};
+    typeof raw.balances === 'object' && raw.balances && !Array.isArray(raw.balances)
+      ? (raw.balances as Record<string, unknown>) : {};
+  const explicitCashSupplied = Object.hasOwn(raw, 'balances') && (
+    raw.balances === null || typeof raw.balances !== 'object' || Array.isArray(raw.balances)
+    || Object.hasOwn(balancesRecord, 'usdc') || Object.hasOwn(balancesRecord, 'availableAtomic')
+  );
+  const explicitUsdc = explicitCashSupplied
+    ? Object.hasOwn(balancesRecord, 'usdc')
+      ? isSafeUsdNumber(balancesRecord.usdc) ? balancesRecord.usdc : null
+      : walletCashUsdFromAtomic(balancesRecord.availableAtomic)
+    : Object.hasOwn(raw, 'totalUsdc')
+      ? isSafeUsdNumber(raw.totalUsdc) ? raw.totalUsdc : null
+      : totalUsdcFromChains;
 
   // Non-custodial money composition. The server emits account capacity as
   // spendingPower for compatibility, while paymentReadiness keeps that number
   // separate from exact-intent execution eligibility.
-  const isSafeUsdNumber = (value: unknown): value is number => (
-    typeof value === 'number'
-    && Number.isFinite(value)
-    && Math.abs(value) <= Number.MAX_SAFE_INTEGER / 100
-  );
-  const atomicToUsd = (v: unknown): number => {
-    const n = typeof v === 'number' ? v : Number(v ?? 0);
-    const usd = n / 1e6;
-    return isSafeUsdNumber(usd) ? usd : 0;
-  };
+  const atomicToUsd = (value: unknown): number => walletCashUsdFromAtomic(value) ?? 0;
   const sp = raw.spendingPower && typeof raw.spendingPower === 'object'
     ? (raw.spendingPower as Record<string, unknown>) : null;
   const cr = raw.credit && typeof raw.credit === 'object'
@@ -197,7 +218,8 @@ export function normalizeWalletPayload(
     ? (raw.paymentReadiness as Record<string, unknown>) : null;
   const ea = raw.earning && typeof raw.earning === 'object'
     ? (raw.earning as Record<string, unknown>) : null;
-  const cashUsd = sp ? atomicToUsd(sp.cashAtomic) : (isSafeUsdNumber(explicitUsdc) ? explicitUsdc : 0);
+  const cashUsd = explicitCashSupplied || Object.hasOwn(raw, 'totalUsdc') ? explicitUsdc
+    : sp ? walletCashUsdFromAtomic(sp.cashAtomic) : explicitUsdc;
   const reportedCreditReadStatus = cr?.readStatus === 'available'
     || cr?.readStatus === 'not_open'
     || cr?.readStatus === 'unavailable'
@@ -208,12 +230,12 @@ export function normalizeWalletPayload(
   const creditAvailableUsd = creditReadStatus === 'available'
     ? (cr ? atomicToUsd(cr.availableAtomic) : (sp ? atomicToUsd(sp.creditAvailableAtomic) : 0))
     : 0;
-  const accountCapacityUsd = sp && isSafeUsdNumber(sp.totalUsd)
-    ? sp.totalUsd
-    : cashUsd + creditAvailableUsd;
+  const accountCapacityUsd = cashUsd === null ? null
+    : sp && Object.hasOwn(sp, 'totalUsd') ? isSafeUsdNumber(sp.totalUsd) ? sp.totalUsd : null
+      : cashUsd + creditAvailableUsd;
   const readinessValue = readiness?.status;
   const paymentReadinessStatus: WalletMoney['paymentReadinessStatus'] =
-    readinessValue === 'cash_available'
+    cashUsd === null ? 'unknown' : readinessValue === 'cash_available'
     || readinessValue === 'credit_capacity_reported'
     || readinessValue === 'funding_required'
     || readinessValue === 'unknown'
@@ -279,13 +301,12 @@ export function normalizeWalletPayload(
     networkName: typeof raw.networkName === 'string' ? raw.networkName : undefined,
     chainBalances,
     balances: {
-      usdc: isSafeUsdNumber(explicitUsdc) ? explicitUsdc : 0,
-      fundedAtomic: typeof balancesRecord.fundedAtomic === 'string' ? balancesRecord.fundedAtomic : undefined,
-      spentAtomic: typeof balancesRecord.spentAtomic === 'string' ? balancesRecord.spentAtomic : undefined,
+      usdc: cashUsd,
+      fundedAtomic: atomicString(balancesRecord.fundedAtomic) ?? undefined,
+      spentAtomic: atomicString(balancesRecord.spentAtomic) ?? undefined,
       availableAtomic:
-        typeof balancesRecord.availableAtomic === 'string'
-          ? balancesRecord.availableAtomic
-          : toAtomicString(isSafeUsdNumber(explicitUsdc) ? explicitUsdc : 0),
+        cashUsd === null ? null : Object.hasOwn(balancesRecord, 'availableAtomic')
+          ? atomicString(balancesRecord.availableAtomic) : toAtomicString(cashUsd),
     },
     money,
     card,

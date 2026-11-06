@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -22,7 +22,8 @@ import {
 const TEST_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(TEST_DIR, '..');
 const UI_ROOT = path.join(REPO_ROOT, 'apps-sdk', 'ui');
-const SCREENSHOT_DIR = '/tmp/dexter-wallet-host-harness';
+const SCREENSHOT_DIR = process.env.DEXTER_WALLET_SCREENSHOT_DIR || '/tmp/dexter-wallet-host-harness';
+const VITE_CACHE_DIR = process.env.DEXTER_WALLET_VITE_CACHE_DIR;
 const FIXED_NOW = '2026-07-25T12:34:00.000Z';
 const ARTWORK_DIR = path.join(TEST_DIR, 'fixtures', 'wallet-asset-artwork');
 const ARTWORK_FILE_BY_SOURCE = new Map([
@@ -155,6 +156,80 @@ function walletMetadata(portfolio) {
     dexterWalletToken: 'fixture-wallet-token',
     ...(portfolio ? { dexterPortfolio: portfolio } : {}),
   };
+}
+
+// Passive, fixture-only observation. Do not repair or bypass invocation
+// identity here: a failed host handshake must remain a failed assertion.
+function observeWalletHostMessages() {
+  const trace = { events: [], dropped: 0 };
+  window.__walletHostTrace = trace;
+  const identifier = (value) => typeof value === 'number' && Number.isSafeInteger(value)
+    ? value
+    : typeof value === 'string' && /^[A-Za-z0-9_.:/-]{1,128}$/.test(value) ? value : null;
+  window.addEventListener('message', (event) => {
+    const message = event.data;
+    if (!message || message.jsonrpc !== '2.0') return;
+    if (trace.events.length >= 64) { trace.dropped += 1; return; }
+    const hostInfo = message.result?.hostContext?.toolInfo;
+    const invocation = message.params?._meta?.['dexter/toolInvocation'];
+    trace.events.push({
+      sequence: trace.events.length,
+      fromParent: event.source === window.parent && window.parent !== window,
+      id: identifier(message.id),
+      method: identifier(message.method),
+      hasResult: Object.hasOwn(message, 'result'),
+      hasError: Object.hasOwn(message, 'error'),
+      hostToolInfoPresent: hostInfo !== undefined,
+      hostRequestId: identifier(hostInfo?.id),
+      hostToolName: identifier(hostInfo?.tool?.name),
+      invocationPresent: invocation !== undefined,
+      invocationRequestId: identifier(invocation?.requestId),
+      invocationToolName: identifier(invocation?.toolName),
+      structuredContentPresent: Object.hasOwn(message.params ?? {}, 'structuredContent'),
+    });
+  });
+}
+
+function redactWalletFixtureDiagnostic(value, limit = 2_000) {
+  return String(value)
+    .replace(/https?:\/\/[^\s<>"']+/g, '[url]')
+    .replace(/fixture-(?:card|wallet)-token/g, '[fixture credential]')
+    .slice(0, limit);
+}
+
+async function captureWalletHostFailure(page, name, stage, consoleEvidence) {
+  await mkdir(SCREENSHOT_DIR, { recursive: true });
+  const evidence = { scenario: name, stage, fixtureOnly: true, console: consoleEvidence, frames: [], captureErrors: [] };
+  // Inspect the parent and widget independently; capture before context.close.
+  for (const frame of page.frames().slice(0, 2)) {
+    try {
+      const observed = await frame.evaluate(() => ({
+        isTop: window === window.top,
+        readyState: document.readyState,
+        text: (document.body?.innerText ?? '').slice(0, 8_000),
+        dom: (document.body?.outerHTML ?? '').slice(0, 48_000),
+        domTruncated: (document.body?.outerHTML.length ?? 0) > 48_000,
+        textTruncated: (document.body?.innerText.length ?? 0) > 8_000,
+        transport: window.__walletHostTrace ?? null,
+      }));
+      evidence.frames.push({ ...observed,
+        text: redactWalletFixtureDiagnostic(observed.text, 8_000),
+        dom: redactWalletFixtureDiagnostic(observed.dom, 48_000),
+      });
+    } catch (error) {
+      evidence.captureErrors.push(redactWalletFixtureDiagnostic(error.message));
+    }
+  }
+  try {
+    const filename = `cash-${name}-failure.png`;
+    await page.screenshot({ path: path.join(SCREENSHOT_DIR, filename), fullPage: true,
+      animations: 'disabled', timeout: 3_000 });
+    evidence.screenshot = filename;
+  } catch (error) {
+    evidence.captureErrors.push(redactWalletFixtureDiagnostic(error.message));
+  }
+  await writeFile(path.join(SCREENSHOT_DIR, `cash-${name}-failure.json`),
+    `${JSON.stringify(evidence, null, 2)}\n`, { flag: 'wx' });
 }
 
 async function installFixedClock(page) {
@@ -695,6 +770,7 @@ async function maybeScreenshot(surface, name) {
 test('wallet Money overview renders honest states in ChatGPT and MCP Apps desktop/mobile', async (t) => {
   const vite = await createServer({
     root: UI_ROOT,
+    ...(VITE_CACHE_DIR ? { cacheDir: VITE_CACHE_DIR } : {}),
     plugins: [react()],
     server: { host: '127.0.0.1', port: 0 },
     logLevel: 'error',
@@ -1208,4 +1284,236 @@ test('wallet Money overview renders honest states in ChatGPT and MCP Apps deskto
     assert.equal(await page.getByText('$0.00', { exact: true }).count(), 0);
     await context.close();
   });
+});
+
+test('wallet unknown cash refresh preserves measured zero in ChatGPT and MCP Apps desktop/mobile', { timeout: 150_000 }, async (t) => {
+  const hostFilter = process.env.DEXTER_WALLET_CASH_HOST;
+  assert.ok(hostFilter === undefined || ['chatgpt', 'mcp-apps'].includes(hostFilter),
+    'DEXTER_WALLET_CASH_HOST must select chatgpt or mcp-apps');
+  const vite = await createServer({
+    root: UI_ROOT,
+    ...(VITE_CACHE_DIR ? { cacheDir: VITE_CACHE_DIR } : {}),
+    plugins: [react()],
+    server: { host: '127.0.0.1', port: 0 },
+    logLevel: 'error',
+  });
+  t.after(() => vite.close());
+  await vite.listen();
+  const address = vite.httpServer.address();
+  assert.ok(typeof address === 'object' && address?.port);
+  const widgetUrl = `http://127.0.0.1:${address.port}/dexter-wallet.html`;
+  const browser = await chromium.launch({
+    headless: true,
+    ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE
+      ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE }
+      : {}),
+  });
+  t.after(() => browser.close());
+
+  for (const host of hostFilter ? [hostFilter] : ['chatgpt', 'mcp-apps']) {
+    for (const mobile of [false, true]) {
+      for (const withCredit of [false, true]) {
+        const name = `${host}-${mobile ? 'mobile' : 'desktop'}-${withCredit ? 'credit' : 'no-credit'}`;
+        await t.test(name, async (scenario) => {
+          const context = await browser.newContext({
+            viewport: mobile ? { width: 375, height: 780 } : { width: 1100, height: 1000 },
+            reducedMotion: 'reduce',
+            colorScheme: 'light',
+          });
+          let completed = false;
+          let stage = 'host-setup';
+          let page;
+          const consoleEvidence = { events: [], dropped: 0 };
+          scenario.after(async () => {
+            try {
+              if (!completed && page) await captureWalletHostFailure(page, name, stage, consoleEvidence);
+            } finally {
+              await context.close();
+            }
+          });
+          page = await context.newPage();
+          const recordConsole = (kind, message) => {
+            if (consoleEvidence.events.length >= 40) { consoleEvidence.dropped += 1; return; }
+            consoleEvidence.events.push({ kind, text: redactWalletFixtureDiagnostic(message) });
+          };
+          page.on('console', (message) => recordConsole(message.type(), message.text()));
+          page.on('pageerror', (error) => recordConsole('pageerror', error.message));
+          await page.addInitScript(observeWalletHostMessages);
+          page.setDefaultTimeout(5_000);
+          await page.clock.install({ time: new Date(FIXED_NOW) });
+          const refreshRequests = [];
+          const activityRequests = [];
+          const responses = [
+            { status: 503, body: { ok: false, error: 'cash_balance_unavailable' } },
+            { status: 200, body: { ok: true, usdcAtomic: '0' } },
+            { status: 200, body: { ok: true, usdcAtomic: '42250000' } },
+            { status: 200, body: { ok: true, usdcAtomic: null } },
+            { status: 503, body: { ok: false, error: 'cash_balance_unavailable' } },
+            { status: 200, body: { ok: true, usdcAtomic: '0' } },
+          ];
+          // Every external request is fulfilled from fixtures or aborted. Only
+          // the local Vite origin can leave this route handler.
+          await context.route('**/*', async (route) => {
+            const request = route.request();
+            const url = new URL(request.url());
+            if (url.origin === new URL(widgetUrl).origin) return route.continue();
+            if (url.href === 'https://open.dexter.cash/widget/wallet/refresh') {
+              refreshRequests.push({ method: request.method(), body: request.postDataJSON() });
+              const response = responses[refreshRequests.length - 1];
+              assert.ok(response, `${name}: unexpected extra cash refresh`);
+              return route.fulfill({ status: response.status, contentType: 'application/json',
+                body: JSON.stringify(response.body) });
+            }
+            if (url.href === 'https://open.dexter.cash/widget/wallet/activity') {
+              activityRequests.push({ method: request.method(), body: request.postDataJSON() });
+              return route.fulfill({ status: 200, contentType: 'application/json',
+                body: JSON.stringify({ ok: true, activityPage: output.activityPage }) });
+            }
+            if (url.origin === 'https://api.dexter.cash' && url.pathname === '/api/img') {
+              const artwork = ARTWORK_FILE_BY_SOURCE.get(url.searchParams.get('url'));
+              return artwork
+                ? route.fulfill({ status: 200, contentType: 'image/svg+xml', path: artwork })
+                : route.fulfill({ status: 404, body: 'missing fixture art' });
+            }
+            return route.abort();
+          });
+          const output = {
+            ...walletOutput(),
+            balances: { usdc: null, availableAtomic: null },
+            chainBalances: {},
+            spendingPower: null,
+            paymentReadiness: { status: 'unknown', cashAvailable: null },
+            credit: withCredit
+              ? { readStatus: 'available', capAtomic: '50000000', borrowedAtomic: '20000000', availableAtomic: '30000000' }
+              : { readStatus: 'not_open' },
+            earning: null,
+          };
+          const metadata = walletMetadata(completePortfolio());
+          let surface;
+          if (host === 'chatgpt') {
+            await page.addInitScript(installChatGptHost, { output, metadata, mobile });
+            await page.goto(widgetUrl);
+            surface = page;
+          } else {
+            await page.setContent('<!doctype html><html><body style="margin:0">'
+              + '<iframe id="widget" title="Wallet fixture" style="border:0;width:100%;height:980px"></iframe>'
+              + '</body></html>');
+            await page.evaluate(observeWalletHostMessages);
+            const invocation = { requestId: `wallet-cash-${name}`, toolName: 'dexter_wallet' };
+            const initResult = mcpInitResult(mobile);
+            initResult.hostContext.toolInfo = {
+              id: invocation.requestId, tool: { name: invocation.toolName },
+            };
+            await page.evaluate(setupMcpParentHost, {
+              initResult,
+              toolResult: toolResult(output, { ...metadata, 'dexter/toolInvocation': invocation }),
+              widgetUrl,
+            });
+            surface = page.frameLocator('#widget');
+          }
+
+          const assertUnknown = async () => {
+            await surface.getByText('Balance unavailable', { exact: true }).waitFor();
+            assert.equal(await surface.locator('.dxw-spend-amount').count(), 0);
+            assert.equal(await surface.locator('.dxw-comp').count(), 0);
+            assert.equal(await surface.locator('.dxw-hero').getByText('$0.00', { exact: true }).count(), 0);
+            for (const label of ['Receive', 'Assets', 'Activity']) {
+              await surface.getByRole('button', { name: label, exact: true }).waitFor();
+            }
+            assert.equal(await surface.getByRole('button', { name: /^Credit\b/ }).isDisabled(), !withCredit);
+            if (withCredit) await surface.getByText('Reported credit', { exact: false }).waitFor();
+            const width = await surface.locator('.dxw-root').evaluate((element) => ({
+              actual: element.scrollWidth, available: element.clientWidth,
+            }));
+            assert.ok(width.actual <= width.available + 1, `${name}: unavailable home must fit its host`);
+          };
+          const assertHeadline = async (integer) => {
+            const headline = surface.locator('.dxw-spend-amount');
+            await headline.waitFor();
+            await headline.locator('span').nth(1).filter({ hasText: new RegExp(`^${integer}$`) }).waitFor();
+          };
+          const tick = async (expectedCount) => {
+            await page.clock.runFor(10_000);
+            // Wait for the mocked response to reach the actual component, then
+            // assert its display below; the production interval is unchanged.
+            for (let attempt = 0; attempt < 50 && refreshRequests.length < expectedCount; attempt += 1) {
+              await page.waitForTimeout(20);
+            }
+            assert.equal(refreshRequests.length, expectedCount, `${name}: one refresh per interval`);
+          };
+          stage = 'initial-unknown-balance';
+          await assertUnknown();
+          // The immediate mount refresh must finish before exercising the
+          // paused clock; local sheet interactions must not request cash.
+          for (let attempt = 0; attempt < 50 && refreshRequests.length < 1; attempt += 1) {
+            await page.waitForTimeout(20);
+          }
+          assert.equal(refreshRequests.length, 1);
+          await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1));
+          stage = 'local-navigation';
+          await maybeScreenshot(surface, `cash-${name}-unknown.png`);
+          await assertLocalReceiveQr(surface, name);
+          await openAssets(surface);
+          await surface.getByText('Portfolio value', { exact: true }).waitFor();
+          await surface.getByText('$265.33', { exact: true }).waitFor();
+          await surface.getByRole('button', { name: 'Close Assets' }).click();
+          await surface.getByRole('button', { name: 'Activity', exact: true }).click();
+          await surface.getByRole('dialog', { name: 'Activity' }).waitFor();
+          await surface.getByText('SYRAA.fun market analysis', { exact: true }).waitFor();
+          await surface.getByRole('button', { name: 'Close Activity' }).click();
+          if (withCredit) {
+            await surface.getByRole('button', { name: 'Credit', exact: true }).click();
+            const creditSheet = surface.getByRole('dialog', { name: 'Credit' });
+            await creditSheet.waitFor();
+            await creditSheet.locator('.dxw-chit-line [data-exact-value="$50.00"]').waitFor();
+            await creditSheet.locator('.dxw-chit-legend [data-exact-value="$20.00"]').waitFor();
+            await creditSheet.locator('.dxw-chit-legend [data-exact-value="$30.00"]').waitFor();
+            assert.equal((await creditSheet.locator('.dxw-chit-net > span').nth(0).innerText()).trim(), 'balance Unavailable');
+            assert.equal((await creditSheet.locator('.dxw-chit-net > span').nth(2).innerText()).trim(), 'net Unavailable');
+            await maybeScreenshot(surface, `cash-${name}-unknown-credit-sheet.png`);
+            await surface.getByRole('button', { name: 'Close Credit' }).click();
+          }
+          assert.equal(refreshRequests.length, 1, `${name}: local sheets must not refresh cash`);
+
+          stage = 'refresh-measured-zero';
+          await tick(2);
+          await assertHeadline(withCredit ? '30' : '0');
+          assert.equal(await surface.getByText('Balance unavailable', { exact: true }).count(), 0);
+          await surface.locator('.dxw-comp[aria-label*="Yours $0.00"]').waitFor();
+          assert.equal(await surface.locator('.dxw-comp-bar--empty').count(), withCredit ? 0 : 1);
+          await maybeScreenshot(surface, `cash-${name}-measured-zero.png`);
+
+          stage = 'refresh-known-cash';
+          await tick(3);
+          await assertHeadline(withCredit ? '72' : '42');
+          await surface.locator('.dxw-spend-amount .dxw-cents').filter({ hasText: '.25' }).waitFor();
+          stage = 'refresh-malformed-cash';
+          await tick(4);
+          await assertUnknown();
+          await surface.getByText('Last reported cash: $42.25', { exact: true }).waitFor();
+          await maybeScreenshot(surface, `cash-${name}-stale-after-malformed-refresh.png`);
+          stage = 'refresh-unavailable-cash';
+          await tick(5);
+          await assertUnknown();
+          await surface.getByText('Last reported cash: $42.25', { exact: true }).waitFor();
+          stage = 'refresh-recovered-zero';
+          await tick(6);
+          await assertHeadline(withCredit ? '30' : '0');
+          assert.equal(await surface.getByText('Balance unavailable', { exact: true }).count(), 0);
+          assert.equal(await surface.getByText(/^Last reported cash:/).count(), 0);
+          await surface.locator('.dxw-comp[aria-label*="Yours $0.00"]').waitFor();
+          await maybeScreenshot(surface, `cash-${name}-recovered-zero.png`);
+          assert.deepEqual(refreshRequests, responses.map(() => ({
+            method: 'POST', body: { token: 'fixture-wallet-token' },
+          })));
+          assert.deepEqual(activityRequests, [{ method: 'POST', body: { token: 'fixture-wallet-token' } }]);
+          const calls = await page.evaluate(() => window.__hostCalls ?? []);
+          assert.deepEqual(calls.filter((call) => call.kind === 'openExternal'
+            || call.method === 'tools/call' || call.method === 'ui/open-link'), [],
+          `${name}: local wallet interactions must not call a tool or hand off externally`);
+          completed = true;
+        });
+      }
+    }
+  }
 });

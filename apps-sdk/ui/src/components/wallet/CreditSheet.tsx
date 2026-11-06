@@ -30,12 +30,12 @@ function UsdValue({ value, sign = '' }: { value: number; sign?: '' | '+' | '−'
 export function CreditSheet({ lineUsd, drawnUsd, cashUsd, onClose }: {
   lineUsd: number;
   drawnUsd: number;
-  cashUsd: number;
+  cashUsd: number | null;
   onClose: () => void;
 }) {
   const openUsd = Math.max(0, lineUsd - drawnUsd);
   const drawnPct = lineUsd > 0 ? Math.min(100, (drawnUsd / lineUsd) * 100) : 0;
-  const netUsd = cashUsd - drawnUsd;
+  const netUsd = cashUsd === null ? null : cashUsd - drawnUsd;
   return (
     <Sheet title="Credit" onClose={onClose}>
       <div className="dxw-chit-head">
@@ -60,9 +60,9 @@ export function CreditSheet({ lineUsd, drawnUsd, cashUsd, onClose }: {
         </p>
       ) : null}
       <div className="dxw-chit-net">
-        <span>balance <b className="dxw-mono"><UsdValue value={cashUsd} sign={cashUsd < 0 ? '−' : ''} /></b></span>
+        <span>balance <b className="dxw-mono">{cashUsd === null ? 'Unavailable' : <UsdValue value={cashUsd} sign={cashUsd < 0 ? '−' : ''} />}</b></span>
         <span className={drawnUsd > 0 ? 'dxw-chit-neg' : ''}>owed <b className="dxw-mono"><UsdValue value={drawnUsd} /></b></span>
-        <span className={netUsd < 0 ? 'dxw-chit-neg' : ''}>net <b className="dxw-mono"><UsdValue value={netUsd} sign={netUsd < 0 ? '−' : '+'} /></b></span>
+        <span className={netUsd !== null && netUsd < 0 ? 'dxw-chit-neg' : ''}>net <b className="dxw-mono">{netUsd === null ? 'Unavailable' : <UsdValue value={netUsd} sign={netUsd < 0 ? '−' : '+'} />}</b></span>
       </div>
       <div className="dxw-chit-meta">{drawnUsd > 0 ? 'Money arriving repays first' : 'Nothing owed'}</div>
     </Sheet>
