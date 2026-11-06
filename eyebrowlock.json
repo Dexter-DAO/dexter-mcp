@@ -1,0 +1,175 @@
+{
+  "version": 1,
+  "generatedAt": "2026-08-05T21:16:07.067346Z",
+  "generator": "eyebrow/v0.4.2",
+  "artifacts": [
+    {
+      "id": "052a0f0ab6a69960",
+      "tool": "claude-code",
+      "scope": "project:.",
+      "type": "skill",
+      "name": "pay",
+      "source": {
+        "kind": "local",
+        "ref": ".claude/skills/pay"
+      },
+      "capabilities": {},
+      "contentHash": "sha256-e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "discoveredFrom": ".claude/skills/pay/SKILL.md"
+    },
+    {
+      "id": "106dd1d6a5376797",
+      "tool": "skills-lock",
+      "scope": "project:.",
+      "type": "skill",
+      "name": "x402-debugging",
+      "source": {
+        "kind": "local",
+        "ref": "skills/x402-debugging"
+      },
+      "capabilities": {},
+      "files": [
+        {
+          "path": "SKILL.md",
+          "hash": "158bf3fe29c92536dfc9db60131052b58d279b59b36ad171c9bd1fd73351119a"
+        }
+      ],
+      "contentHash": "sha256-1e095d409c05b2ce33478f4bcb97494d4dcbb4c9a148ec3126f7ebaa075ceae4",
+      "discoveredFrom": "skills/x402-debugging/SKILL.md"
+    },
+    {
+      "id": "5f1f22e473c30a33",
+      "tool": "codex",
+      "scope": "project:.",
+      "type": "context",
+      "name": "AGENTS",
+      "source": {
+        "kind": "local",
+        "ref": "AGENTS.md"
+      },
+      "capabilities": {},
+      "files": [
+        {
+          "path": "AGENTS.md",
+          "hash": "4f3c3a97a15c8a100926503cee44faa6a1dbc078085cbbe9f87982619c0368e8"
+        }
+      ],
+      "findings": [
+        {
+          "ruleId": "SENSITIVE-PATH-READ",
+          "severity": "high",
+          "owasp": "ASK-06",
+          "file": "AGENTS.md",
+          "line": 85,
+          "snippet": "HARNESS_COOKIE in repos (.env)",
+          "explanation": "references sensitive credential or secret paths"
+        }
+      ],
+      "contentHash": "sha256-1f59dd9b0daf4f7003a4a2a88a3f54f4c76bddc95d80dfeba514015955e54982",
+      "discoveredFrom": "AGENTS.md"
+    },
+    {
+      "id": "635f885ed26ca50f",
+      "tool": "skills-lock",
+      "scope": "project:.",
+      "type": "skill",
+      "name": "dexter-mcp",
+      "source": {
+        "kind": "local",
+        "ref": "skills/dexter-mcp"
+      },
+      "capabilities": {},
+      "files": [
+        {
+          "path": "SKILL.md",
+          "hash": "2ff39b3dc37385dba813aebacfb671a6a8e107f530d41f9a63f33bf3d505f7c2"
+        }
+      ],
+      "contentHash": "sha256-c842876cefc9d4b520204a14ff620c3a5e802a71174d34fb79d1a6c861865881",
+      "discoveredFrom": "skills/dexter-mcp/SKILL.md"
+    },
+    {
+      "id": "89a1942c63d2d64d",
+      "tool": "skills-lock",
+      "scope": "project:.",
+      "type": "skill",
+      "name": "pay",
+      "source": {
+        "kind": "local",
+        "ref": "skills/pay"
+      },
+      "capabilities": {},
+      "contentHash": "sha256-e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "discoveredFrom": "skills/pay/SKILL.md"
+    },
+    {
+      "id": "d1e038cb1ee9286f",
+      "tool": "skills-lock",
+      "scope": "project:.",
+      "type": "skill",
+      "name": "x402-protocol",
+      "source": {
+        "kind": "local",
+        "ref": "skills/x402-protocol"
+      },
+      "capabilities": {},
+      "files": [
+        {
+          "path": "SKILL.md",
+          "hash": "50226aa9d4f88d92afccde86a61468adfa9e28d58a7d0fdd418a50944d4c65ed"
+        }
+      ],
+      "contentHash": "sha256-67c9966340b5a79a956551a499942d449ba2913056c78437b9eeceee2022c72f",
+      "discoveredFrom": "skills/x402-protocol/SKILL.md"
+    },
+    {
+      "id": "e984ae9ccf160153",
+      "tool": "skills-lock",
+      "scope": "project:.",
+      "type": "skill",
+      "name": "opendexter",
+      "source": {
+        "kind": "local",
+        "ref": "skills/opendexter"
+      },
+      "capabilities": {},
+      "files": [
+        {
+          "path": "SKILL.md",
+          "hash": "0b90a439559eb44ed5a6a58845d0adc5837165b64714bb4ecfe79987ecca7d25"
+        }
+      ],
+      "findings": [
+        {
+          "ruleId": "PROMPT-INJECTION",
+          "severity": "high",
+          "owasp": "ASK-07",
+          "file": "SKILL.md",
+          "line": 74,
+          "snippet": "it already does, do not ask for another approval; otherwise request only the",
+          "explanation": "contains consent-bypass or prompt-injection language"
+        },
+        {
+          "ruleId": "PROMPT-INJECTION",
+          "severity": "high",
+          "owasp": "ASK-07",
+          "file": "SKILL.md",
+          "line": 92,
+          "snippet": "concerns under the same checked request and ceiling. Do not ask the user to",
+          "explanation": "contains consent-bypass or prompt-injection language"
+        },
+        {
+          "ruleId": "WALLET-THEFT",
+          "severity": "high",
+          "owasp": "ASK-06",
+          "file": "SKILL.md",
+          "line": 181,
+          "snippet": "passkey material, private keys, seed phrases, or private upload paths.",
+          "explanation": "references cryptocurrency wallet or seed-phrase material"
+        }
+      ],
+      "contentHash": "sha256-f46f7759c0626dceca5af5f67491893c2fbc0e872faa68b0ecb521733e7fb286",
+      "discoveredFrom": "skills/opendexter/SKILL.md"
+    }
+  ]
+}
