@@ -9,7 +9,6 @@ import { registerOnchainToolset } from './onchain/index.mjs';
 import { registerPokedexterToolset } from './pokedexter/index.mjs';
 import { registerX402Toolset } from './x402/index.mjs';
 import { registerHyperliquidToolset } from './hyperliquid/index.mjs';
-import { registerStudioToolset } from './studio/index.mjs';
 import { registerIdentityToolset } from './identity/index.mjs';
 import { registerBundlesToolset } from './bundles/index.mjs';
 import { registerX402ClientToolset } from './x402-client/index.mjs';
@@ -22,8 +21,25 @@ import { registerX402ClientToolset } from './x402-client/index.mjs';
  */
 export const CODEX_TOOLS_ENABLE_ENV = 'DEXTER_MCP_ENABLE_CODEX_TOOLS';
 
+/**
+ * The studio_* tools start a coding agent in the server's ~/websites folder
+ * with every permission granted, for a caller the server takes for a super
+ * admin. Same rule as the codex tools: registered only when this variable is
+ * exactly "1", skipped for every profile and selection otherwise, and the
+ * module is never imported while the flag is off.
+ */
+export const STUDIO_TOOLS_ENABLE_ENV = 'DEXTER_MCP_ENABLE_STUDIO_TOOLS';
+
+function flagIsOne(env, name) {
+  return String(env?.[name] ?? '').trim() === '1';
+}
+
 export function codexToolsEnabled(env = process.env) {
-  return String(env?.[CODEX_TOOLS_ENABLE_ENV] ?? '').trim() === '1';
+  return flagIsOne(env, CODEX_TOOLS_ENABLE_ENV);
+}
+
+export function studioToolsEnabled(env = process.env) {
+  return flagIsOne(env, STUDIO_TOOLS_ENABLE_ENV);
 }
 
 const passthrough = (value) => String(value);
@@ -131,7 +147,11 @@ const TOOLSET_REGISTRY = {
     description: 'Hyperliquid perps execution (copytrade, stop-loss, take-profit).',
   },
   studio: {
-    register: registerStudioToolset,
+    register: async (server) => {
+      const { registerStudioToolset } = await import('./studio/index.mjs');
+      return registerStudioToolset(server);
+    },
+    enabled: studioToolsEnabled,
     description: 'Dexter Studio - invoke Claude agents programmatically (superadmin only).',
   },
   identity: {

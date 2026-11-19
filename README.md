@@ -494,6 +494,11 @@ Dexter Studio uses Claude Agent SDK and Zod 4 in an isolated, non-workspace
 tooling profile so it cannot change the hosted MCP's Zod 3 runtime. Run
 `npm run studio:setup` once before `npm run studio`.
 
+The hosted server registers the `studio_*` tools only when
+`DEXTER_MCP_ENABLE_STUDIO_TOOLS=1`. `studio_create` starts a coding agent in
+the server's `~/websites` folder with every permission granted, so the tools
+are off by default.
+
 ---
 
 ## Dexter Stack

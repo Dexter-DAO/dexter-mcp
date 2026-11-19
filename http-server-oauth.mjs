@@ -9,6 +9,7 @@ import {
   codexToolsEnabled,
   logToolsetGroups,
   SEALED_PRIVATE_TOOLSET_PROFILE,
+  studioToolsEnabled,
 } from './toolsets/index.mjs';
 import { invalidateX402Cache } from './registry/x402/index.mjs';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -1817,6 +1818,7 @@ export async function startHttpServer() {
 
   console.log(`[outbound] requests to outside URLs refuse non-public addresses and: ${process.env.DEXTER_OUTBOUND_BLOCKED_ADDRESSES || '(none)'}`);
   console.log(`[toolsets] codex tools ${codexToolsEnabled() ? 'registered (DEXTER_MCP_ENABLE_CODEX_TOOLS=1)' : 'off (set DEXTER_MCP_ENABLE_CODEX_TOOLS=1 to register them)'}`);
+  console.log(`[toolsets] studio tools ${studioToolsEnabled() ? 'registered (DEXTER_MCP_ENABLE_STUDIO_TOOLS=1)' : 'off (set DEXTER_MCP_ENABLE_STUDIO_TOOLS=1 to register them)'}`);
   logStartupBanner({
     localUrl,
     apiBaseUrl: CONNECTOR_API_BASE,
