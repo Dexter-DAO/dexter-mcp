@@ -3,7 +3,6 @@ import { registerGeneralToolset } from './general/index.mjs';
 import { registerPumpstreamToolset } from './pumpstream/index.mjs';
 import { registerWalletToolset } from './wallet/index.mjs';
 import { registerSolanaToolset } from './solana/index.mjs';
-import { registerCodexToolset } from './codex/index.mjs';
 import { registerStreamToolset } from './stream/index.mjs';
 import { registerMarketsToolset } from './markets/index.mjs';
 import { registerOnchainToolset } from './onchain/index.mjs';
@@ -14,6 +13,18 @@ import { registerStudioToolset } from './studio/index.mjs';
 import { registerIdentityToolset } from './identity/index.mjs';
 import { registerBundlesToolset } from './bundles/index.mjs';
 import { registerX402ClientToolset } from './x402-client/index.mjs';
+
+/**
+ * The codex_* tools run the Codex CLI on this server on a caller's prompt.
+ * They are registered only when this variable is exactly "1". With it unset
+ * the codex toolset is skipped for every profile and selection, and its module
+ * (which sets up the bridge to the CLI) is never imported.
+ */
+export const CODEX_TOOLS_ENABLE_ENV = 'DEXTER_MCP_ENABLE_CODEX_TOOLS';
+
+export function codexToolsEnabled(env = process.env) {
+  return String(env?.[CODEX_TOOLS_ENABLE_ENV] ?? '').trim() === '1';
+}
 
 const passthrough = (value) => String(value);
 
@@ -88,8 +99,12 @@ const TOOLSET_REGISTRY = {
     description: 'Managed Solana trading tools (buy, sell, resolve tokens).',
   },
   codex: {
-    register: registerCodexToolset,
-    description: 'Codex sessions (read-only, search-enabled) proxied through Dexter.',
+    register: async (server) => {
+      const { registerCodexToolset } = await import('./codex/index.mjs');
+      return registerCodexToolset(server);
+    },
+    description: 'Codex CLI sessions run on this server. Off unless DEXTER_MCP_ENABLE_CODEX_TOOLS=1.',
+    enabled: codexToolsEnabled,
   },
   stream: {
     register: registerStreamToolset,
@@ -258,7 +273,16 @@ export function logToolsetGroups(label, groups, color = getColor()) {
 }
 
 export async function registerSelectedToolsets(server, selection) {
-  const { keys, unknown, profile } = resolveSelectedKeys(selection);
+  const { keys: selectedKeys, unknown, profile } = resolveSelectedKeys(selection);
+  // A toolset with an `enabled` gate is dropped here, after every way of
+  // selecting toolsets (profile, request, environment, defaults) has resolved,
+  // so no selection can bring a gated toolset back.
+  const isEnabled = (key) => {
+    const gate = TOOLSET_REGISTRY[key]?.enabled;
+    return typeof gate !== 'function' || gate() === true;
+  };
+  const keys = selectedKeys.filter(isEnabled);
+  const gatedOff = selectedKeys.filter((key) => !isEnabled(key));
 
   const color = getColor();
   const label = color.cyan('[mcp-toolsets]');
@@ -266,6 +290,9 @@ export async function registerSelectedToolsets(server, selection) {
 
   if (unknown.length) {
     console.warn(`${label} ${color.yellow('ignoring unknown toolsets')}: ${color.yellow(unknown.join(', '))}`);
+  }
+  if (gatedOff.length) {
+    console.warn(`${label} ${color.yellow('off by default, not registered')}: ${color.yellow(gatedOff.join(', '))}`);
   }
 
   for (const key of keys) {

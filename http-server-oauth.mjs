@@ -6,6 +6,7 @@ import https from 'node:https';
 import { randomUUID, createPrivateKey, createPublicKey, createHmac } from 'node:crypto';
 import { buildMcpServer } from './common.mjs';
 import {
+  codexToolsEnabled,
   logToolsetGroups,
   SEALED_PRIVATE_TOOLSET_PROFILE,
 } from './toolsets/index.mjs';
@@ -1814,6 +1815,8 @@ export async function startHttpServer() {
   const clientId = prov?.client_id || (OAUTH_ENABLED ? OIDC_CLIENT_ID || '' : null);
   const metadataUrl = `${effectivePublic}/.well-known/oauth-authorization-server`;
 
+  console.log(`[outbound] requests to outside URLs refuse non-public addresses and: ${process.env.DEXTER_OUTBOUND_BLOCKED_ADDRESSES || '(none)'}`);
+  console.log(`[toolsets] codex tools ${codexToolsEnabled() ? 'registered (DEXTER_MCP_ENABLE_CODEX_TOOLS=1)' : 'off (set DEXTER_MCP_ENABLE_CODEX_TOOLS=1 to register them)'}`);
   logStartupBanner({
     localUrl,
     apiBaseUrl: CONNECTOR_API_BASE,

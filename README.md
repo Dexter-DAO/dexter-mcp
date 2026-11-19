@@ -365,7 +365,7 @@ Source: `http-server-oauth.mjs`.
 | `guest` | Shared demo bearer, no login required | `general/search`, `wallet/resolve_wallet` |
 | `member` | Authenticated Supabase session / `dexter_mcp_jwt` | `wallet/list_my_wallets`, `wallet/set_session_wallet_override` |
 | `pro` | Role-gated (Pro or Super Admin) | `hyperliquid_markets`, `hyperliquid_perp_trade` |
-| `dev` | Super Admins only | `codex_start`, `codex_exec` |
+| `dev` | Super Admins only | `codex_start`, `codex_exec` (registered only when `DEXTER_MCP_ENABLE_CODEX_TOOLS=1`) |
 | `internal` | Diagnostic tooling, not exposed to end users | `wallet/auth_info` |
 
 Every new Dexter account ships with a managed wallet, so resolver-backed tools immediately report `source:"resolver"`.
@@ -438,7 +438,7 @@ Tool bundles live under `toolsets/<name>/index.mjs` and register themselves thro
 | `onchain` | `onchain_activity_overview` and `onchain_entity_insight` for wallet/token analytics. |
 | `general` | Tavily-backed web `search` with depth + answer summaries plus a `fetch` helper for realtime research. |
 | `hyperliquid` | `hyperliquid_markets`, `hyperliquid_opt_in`, `hyperliquid_perp_trade` for Hyperliquid copy-trading. |
-| `codex` | Bridges MCP clients to the Codex CLI via `codex_start`, `codex_reply`, `codex_exec`. |
+| `codex` | Bridges MCP clients to the Codex CLI via `codex_start`, `codex_reply`, `codex_exec`. Off by default: the Codex CLI runs on the server, so these tools are registered only when `DEXTER_MCP_ENABLE_CODEX_TOOLS=1`. |
 | `pumpstream` | `pumpstream_live_summary` view of `https://pump.dexter.cash/api/live` with filters, sort, viewer/USD floors. |
 | `stream` | DexterVision shout utilities (`stream_public_shout`, `stream_shout_feed`). |
 
