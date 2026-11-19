@@ -48,7 +48,7 @@ null; callers select them by `resourceId` and let OpenDexter resolve the route.
 - **Capability search:** `capabilitySearch`.
 - **Search response builders:** `buildSearchResponse` and `buildSearchErrorResponse`.
 - **Endpoint pricing and challenge inspection:** `checkEndpointPricing`, `exactAtomicString`, `parsePaymentRequiredHeader`, `sellerAcceptSha256`, `CheckResult`, and `PaymentOption`.
-- **Public URL guard:** `assertPublicExternalUrl`, `createPinnedLookup`, `fetchPublicExternalUrl`, `isPublicIpAddress`, `parseExternalHttpUrl`, and `UnsafeExternalUrlError`.
+- **Public URL guard:** `assertPublicExternalUrl`, `createPinnedLookup`, `fetchPublicExternalUrl`, `isPublicIpAddress`, `parseExternalHttpUrl`, and `UnsafeExternalUrlError`. The guard accepts https only unless `allowHttp` is passed, refuses URLs with credentials, refuses every non-public address, pins the connection to the address it checked, and checks every redirect hop again. Addresses or CIDR ranges listed in the `DEXTER_OUTBOUND_BLOCKED_ADDRESSES` environment variable (or passed as `blockedAddresses`) are refused as well; use it for a server's own public address.
 - **Bazaar schema extraction:** `extractBazaarSchema` and `BazaarSchema`.
 - **Schema resolution:** `resolveInputSchema`, `resolveOutputSchema`, and their input, output, and source types.
 

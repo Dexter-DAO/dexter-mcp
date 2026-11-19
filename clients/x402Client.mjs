@@ -1,4 +1,12 @@
+import { fetchPublicExternalUrl } from '@dexterai/x402-core';
+
 import { selectPaymentRequirement } from './selectPaymentRequirement.mjs';
+
+// Limits for a resource whose URL came from outside this server (a caller, a
+// catalog entry, a seller's response). Paid calls can be slow and return more
+// than a pricing probe does, so both limits sit above the guard's defaults.
+const PUBLIC_RESOURCE_TIMEOUT_MS = 120_000;
+const PUBLIC_RESOURCE_MAX_RESPONSE_BYTES = 10 * 1024 * 1024;
 
 const DEFAULT_MAX_ATTEMPTS = Number.isFinite(Number(process.env.MCP_X402_MAX_ATTEMPTS))
   ? Math.max(1, Number.parseInt(process.env.MCP_X402_MAX_ATTEMPTS, 10))
@@ -33,6 +41,33 @@ function resolveApiBase() {
     }
   }
   return DEFAULT_API_BASE;
+}
+
+/**
+ * True when the URL is on the Dexter API origin this server is configured to
+ * call. Only use this for URLs the server builds or reads from its own API;
+ * a URL typed by a caller is public no matter what origin it names.
+ */
+export function isConfiguredApiUrl(url) {
+  try {
+    return new URL(url).origin === new URL(resolveApiBase()).origin;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Request a resource whose URL this server did not choose. Every hop is
+ * resolved, checked and pinned by the shared outbound guard in
+ * @dexterai/x402-core; http and https are the only schemes it accepts here.
+ */
+export function fetchPublicResource(url, init = {}, overrides = {}) {
+  return fetchPublicExternalUrl(url, init, {
+    allowHttp: true,
+    timeoutMs: PUBLIC_RESOURCE_TIMEOUT_MS,
+    maxResponseBytes: PUBLIC_RESOURCE_MAX_RESPONSE_BYTES,
+    ...overrides,
+  });
 }
 
 function joinBasePath(base, path) {
@@ -274,7 +309,14 @@ async function handlePaymentRequired(url, response, init, options) {
   const selectedSettlePath = useV2SettlePath
     ? options?.settlementPathV2 || DEFAULT_SETTLEMENT_PATH_V2
     : options?.settlementPath || DEFAULT_SETTLEMENT_PATH_V1;
-  const facilitatorBase = options?.facilitatorUrl || process.env.MCP_X402_FACILITATOR_URL || null;
+  // Settlement carries the user's sign-in token. For a public resource it must
+  // go to an origin this server is configured with, never to an origin derived
+  // from the resource URL. Only resources on the server's own API keep the
+  // old same-origin fallback.
+  const facilitatorBase =
+    options?.facilitatorUrl
+    || process.env.MCP_X402_FACILITATOR_URL
+    || (options?.publicResource ? resolveApiBase() : null);
   const settleUrl = facilitatorBase
     ? deriveSettlementUrl(facilitatorBase, selectedSettlePath)
     : deriveSettlementUrl(url, selectedSettlePath);
@@ -340,7 +382,20 @@ async function handlePaymentRequired(url, response, init, options) {
   return settlement;
 }
 
+/**
+ * Fetch a resource and settle a 402 through Dexter.
+ *
+ * `options.publicResource` must be true whenever the URL was not built by this
+ * server from its own configured API base: a URL typed by a caller, taken from
+ * a catalog, or handed back by a seller. Those requests go through the shared
+ * outbound guard (public addresses only, pinned connection, checked
+ * redirects). Without the flag the URL is treated as the server's own API and
+ * fetched directly.
+ */
 export async function fetchWithX402(url, init = {}, options = {}) {
+  const requestResource = options.publicResource
+    ? (target, attemptInit) => fetchPublicResource(target, attemptInit, options.publicFetchOptions)
+    : (target, attemptInit) => fetch(target, attemptInit);
   const maxAttempts = Math.max(1, options.maxAttempts || DEFAULT_MAX_ATTEMPTS);
   const settlementPath = options.settlementPath || DEFAULT_SETTLEMENT_PATH_V1;
   const settlementPathV2 = options.settlementPathV2 || DEFAULT_SETTLEMENT_PATH_V2;
@@ -369,7 +424,7 @@ export async function fetchWithX402(url, init = {}, options = {}) {
       body: originalBody,
     };
 
-    const response = await fetch(url, attemptInit);
+    const response = await requestResource(url, attemptInit);
     if (response.status !== 402 || !enabled) {
       return { response, paymentReceipt: lastSettlement };
     }

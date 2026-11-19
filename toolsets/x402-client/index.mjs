@@ -21,7 +21,7 @@ import { callOpenX402IntentApi, OPEN_X402_INTENT_ID_RE, sanitizeOpenX402IntentRe
   isOpenX402AuthorityRequired, projectOpenX402AuthorizationRequired } from '../../lib/open-x402-intent-api.mjs';
 import { buildHostedCheckModelResult } from '../../lib/open-check-result.mjs';
 import { applyOpenToolResultPolicy } from '../../lib/open-tool-contracts.mjs';
-import { fetchWithX402Json } from '../../clients/x402Client.mjs';
+import { fetchPublicResource, fetchWithX402Json } from '../../clients/x402Client.mjs';
 import { createWidgetMeta } from '../widgetMeta.mjs';
 import { resolveWalletForRequest } from '../wallet/index.mjs';
 import {
@@ -222,7 +222,28 @@ async function searchCapability({
 
 // checkEndpointPricing now comes from @dexterai/x402-core — see import above.
 
-async function fetchWithSettlement({ url, method = 'GET', params, headers: customHeaders }, extra, normalizeForWidget = false) {
+function fireSponsoredImpressionBeacon(beaconUrl, publicFetchOptions) {
+  if (typeof beaconUrl !== 'string' || !beaconUrl) return;
+  fetchPublicResource(beaconUrl, { method: 'GET' }, {
+    ...publicFetchOptions,
+    timeoutMs: 5_000,
+    maxResponseBytes: 64 * 1024,
+  }).catch(() => {});
+}
+
+// A refusal from the outbound guard is the caller's input being turned down,
+// not a server fault. Report it as such.
+function outboundRefusal(err) {
+  if (err?.code !== 'unsafe_external_url') return null;
+  return { status: 400, error: err.message, code: 'unsafe_external_url' };
+}
+
+async function fetchWithSettlement(
+  { url, method = 'GET', params, headers: customHeaders },
+  extra,
+  normalizeForWidget = false,
+  publicFetchOptions = undefined,
+) {
   const startTime = Date.now();
   const authToken = resolveAuthToken(extra);
 
@@ -252,10 +273,17 @@ async function fetchWithSettlement({ url, method = 'GET', params, headers: custo
     if (!settlementHeaders['Content-Type']) settlementHeaders['Content-Type'] = 'application/json';
   }
 
+  // The URL comes from the caller, so the request goes through the shared
+  // outbound guard: public addresses only, pinned connection, checked redirects.
   const { response, json, text, paymentReceipt } = await fetchWithX402Json(
     targetUrl,
     { method, headers: resourceHeaders, body },
-    { authHeaders: settlementHeaders, metadata: { tool: normalizeForWidget ? 'x402_fetch' : 'x402_pay', resourceUrl: url } },
+    {
+      publicResource: true,
+      publicFetchOptions,
+      authHeaders: settlementHeaders,
+      metadata: { tool: normalizeForWidget ? 'x402_fetch' : 'x402_pay', resourceUrl: url },
+    },
   );
 
   const contentType = (response.headers.get('content-type') || '').toLowerCase();
@@ -275,13 +303,18 @@ async function fetchWithSettlement({ url, method = 'GET', params, headers: custo
       ...(response.ok ? {} : { error: typeof data === 'string' ? data : `Request failed with ${response.status}` }),
     };
     try {
-      const { getSponsoredRecommendations, fireImpressionBeacon } = await import('@dexterai/x402/client');
+      const { getSponsoredRecommendations, getSponsoredAccessInfo } = await import('@dexterai/x402/client');
       let sponsoredRecs = getSponsoredRecommendations(response);
       if (!sponsoredRecs && data && typeof data === 'object' && Array.isArray(data._x402_sponsored)) {
         sponsoredRecs = data._x402_sponsored;
       }
       if (sponsoredRecs?.length) {
-        fireImpressionBeacon(response).catch(() => {});
+        // The beacon address arrives inside the seller's response, so it gets
+        // the same checks as any other outside URL before it is requested.
+        fireSponsoredImpressionBeacon(
+          getSponsoredAccessInfo(response)?.tracking?.impressionBeacon,
+          publicFetchOptions,
+        );
         widgetResult.recommendations = sponsoredRecs;
         widgetResult._recommendations_hint = `Sponsored: ${sponsoredRecs.map(r => `${r.sponsor} — ${r.description} (${r.resourceUrl})`).join('; ')}. Call with x402_fetch if relevant.`;
       }
@@ -397,7 +430,12 @@ function buildWalletReadError(address) {
 
 // ─── Registration ────────────────────────────────────────────────────────────
 
-export function registerX402ClientToolset(server, { callIntentApi = callOpenX402IntentApi } = {}) {
+// `publicFetchOptions` lets tests replace the resolver and the socket layer of
+// the outbound guard. Production passes nothing.
+export function registerX402ClientToolset(
+  server,
+  { callIntentApi = callOpenX402IntentApi, publicFetchOptions = undefined } = {},
+) {
   const governedResult = (name, data, meta = {}) => applyOpenToolResultPolicy(name, {
     structuredContent: data, content: [{ type: 'text', text: JSON.stringify(data) }],
     isError: data.ok === false || Number(data.httpStatus) >= 400, _meta: meta,
@@ -520,7 +558,7 @@ export function registerX402ClientToolset(server, { callIntentApi = callOpenX402
     },
   }, async (args, extra) => {
     try {
-      const result = await fetchWithSettlement(args, extra, true);
+      const result = await fetchWithSettlement(args, extra, true, publicFetchOptions);
       return {
         structuredContent: result,
         content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
@@ -528,7 +566,7 @@ export function registerX402ClientToolset(server, { callIntentApi = callOpenX402
       };
     } catch (err) {
       const errorMsg = err.message || String(err);
-      const data = {
+      const data = outboundRefusal(err) ?? {
         status: 500,
         error: errorMsg,
         ...(errorMsg.includes('settlement') ? { help: 'Check wallet balance or facilitator status.' } : {}),
@@ -585,14 +623,14 @@ export function registerX402ClientToolset(server, { callIntentApi = callOpenX402
     }
     if (!args.url) return governedResult('x402_fetch', { ok: false, error: 'purchase_target_required' }, FETCH_META);
     try {
-      const result = await fetchWithSettlement(args, extra, true);
+      const result = await fetchWithSettlement(args, extra, true, publicFetchOptions);
       return {
         structuredContent: result,
         content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
         _meta: FETCH_META,
       };
     } catch (err) {
-      const data = { status: 500, error: err.message || String(err) };
+      const data = outboundRefusal(err) ?? { status: 500, error: err.message || String(err) };
       return {
         structuredContent: data,
         content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
