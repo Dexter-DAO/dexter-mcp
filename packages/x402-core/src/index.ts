@@ -67,7 +67,8 @@ export {
 } from './check.js';
 export type { CheckResult, PaymentOption } from './check.js';
 
-// Public-URL guard used by probes that accept caller-supplied endpoints.
+// Public-URL guard: the one outbound path for any URL a caller, a seller's
+// response, or a redirect can influence.
 export {
   assertPublicExternalUrl,
   createPinnedLookup,
@@ -76,6 +77,7 @@ export {
   parseExternalHttpUrl,
   UnsafeExternalUrlError,
 } from './public-url.js';
+export type { ExternalUrlPolicy } from './public-url.js';
 
 // Bazaar-extension schema extractor
 export { extractBazaarSchema } from './bazaar.js';

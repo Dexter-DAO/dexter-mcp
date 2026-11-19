@@ -3,6 +3,10 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { registerSelectedToolsets } from './toolsets/index.mjs';
 import { registerAppsSdkResources } from './apps-sdk/register.mjs';
+import { applyOutboundDefaults } from './lib/outbound-defaults.mjs';
+
+// Every tool that requests an outside URL reads this list at call time.
+applyOutboundDefaults();
 
 const passthrough = (value) => String(value);
 

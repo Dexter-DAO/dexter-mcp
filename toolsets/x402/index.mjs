@@ -1,7 +1,7 @@
 import { listX402Resources } from '../../registry/x402/index.mjs';
 import { buildInputSchemaShape } from '../../lib/x402/zod.mjs';
 import { normalizeX402Fields, trimUrl } from '../../lib/x402/utils.mjs';
-import { fetchWithX402Json } from '../../clients/x402Client.mjs';
+import { fetchWithX402Json, isConfiguredApiUrl } from '../../clients/x402Client.mjs';
 import { createWidgetMeta } from '../widgetMeta.mjs';
 
 const ALLOWED_HOSTS = new Set(['api.dexter.cash', 'x402.dexter.cash']);
@@ -480,6 +480,10 @@ export async function registerX402Toolset(server) {
               acceptDescription: accept?.description || null,
             },
             authHeaders: authHeaders,
+            // Catalog entries can be registered by third parties. Anything
+            // that is not on this server's own API goes through the shared
+            // outbound guard.
+            publicResource: !isConfiguredApiUrl(finalUrl),
           },
         );
 

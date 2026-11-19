@@ -217,6 +217,7 @@ import {
   fetchPublicExternalUrl,
 } from '@dexterai/x402-core';
 import { assertInstructionRosterParity } from '@dexterai/mcp-instructions';
+import { applyOutboundDefaults } from './lib/outbound-defaults.mjs';
 
 const PORT = parseInt(process.env.OPEN_MCP_PORT || '3931', 10);
 // Agent-facing server name. Single source of truth — referenced by the MCP
@@ -383,6 +384,9 @@ const GOVERNED_ASSET_META = Object.freeze({
 // visibility metadata keeps indexter_discover app-only, leaving 12 tools for
 // the model.
 const ALL_TOOLS = OPEN_TOOL_NAMES;
+
+// Every tool that requests an outside URL reads this list at call time.
+const OUTBOUND_BLOCKED_ADDRESSES = applyOutboundDefaults();
 
 // Set env vars required by registerAppsSdkResources before importing it
 if (!process.env.TOKEN_AI_MCP_PUBLIC_URL) process.env.TOKEN_AI_MCP_PUBLIC_URL = 'https://open.dexter.cash/mcp';
@@ -4242,6 +4246,7 @@ export function startOpenMcpServer() {
     console.log(`[open-mcp] Tools: ${ALL_TOOLS.join(', ')}`);
     console.log('[open-mcp] Auth: vault OAuth required on the canonical MCP resource');
     console.log(`[open-mcp] Capability search origin: ${safeUrlOrigin(DEXTER_API)}`);
+    console.log(`[open-mcp] Outbound requests refuse non-public addresses and: ${OUTBOUND_BLOCKED_ADDRESSES}`);
     process.send?.('ready');
   });
 }
